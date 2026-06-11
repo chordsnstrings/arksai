@@ -5,7 +5,7 @@ import type {
   SendMessageRequest,
   SessionDetail,
 } from '../../../shared/types';
-import { MODELS } from '../../../shared/types';
+import { MODELS, SESSION_MODES } from '../../../shared/types';
 import { randomUUID } from 'node:crypto';
 import * as store from '../sessions/store';
 import * as manager from '../sessions/manager';
@@ -27,7 +27,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
       repoUrl = parsed.url;
       repoName = parsed.name;
     }
-    const mode = body.mode === 'plan' ? 'plan' : 'code';
+    const mode = SESSION_MODES.includes(body.mode as any) ? body.mode! : 'code';
     const model = MODELS.includes(body.model as any) ? body.model! : 'deepseek-chat';
     const session = store.createSession({
       repoUrl,
@@ -56,7 +56,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
     if (manager.isRunning(id)) return reply.code(409).send({ error: 'Cannot change settings mid-run' });
     const body = (req.body ?? {}) as PatchSessionRequest;
     const patch: PatchSessionRequest = {};
-    if (body.mode === 'plan' || body.mode === 'code') patch.mode = body.mode;
+    if (SESSION_MODES.includes(body.mode as any)) patch.mode = body.mode;
     if (MODELS.includes(body.model as any)) patch.model = body.model;
     store.updateSession(id, patch);
     const updated = store.getSession(id)!;

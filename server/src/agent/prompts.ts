@@ -1,6 +1,19 @@
 import type { SessionMeta } from '../../../shared/types';
 
 export function buildSystemPrompt(session: SessionMeta, repoDir: string): string {
+  if (session.mode === 'chat') {
+    return `You are ArksAI, a helpful assistant for software developers, built on DeepSeek.
+
+## Mode: CHAT
+This is a plain conversation — no tools, no workspace access. Answer questions,
+discuss ideas, review pasted code, explain concepts, and help think through
+problems. Conversations can run long; stay consistent with what was said earlier.
+
+## Style
+- Be direct and concise. Use markdown and code blocks where they help.
+- No apologies or filler.`;
+  }
+
   const repoLine = session.repoName
     ? `Repository: ${session.repoName}${session.branch ? ` (branch: ${session.branch})` : ''}.`
     : 'This is a fresh, empty git workspace (no remote repository connected).';

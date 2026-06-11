@@ -25,9 +25,19 @@ npm run dev              # client on http://localhost:5173, server on :3000
 ```
 
 Log in with `APP_PASSWORD`, create a session (optionally pointing at a GitHub
-repo), and give the agent a task. **Plan mode** is read-only exploration that
-ends with an implementation plan; **Code mode** executes, verifies, commits,
-and pushes when asked.
+repo), and give the agent a task. Three modes, switchable any time from the
+composer (or `/mode chat|plan|code`):
+
+- **Chat** — plain conversation with the model, no tools or workspace. Good
+  for questions, design discussions, reviewing pasted code.
+- **Plan** — read-only exploration of the workspace that ends with an
+  implementation plan.
+- **Code** — full execution: the agent edits files, runs commands, verifies,
+  commits, and pushes when asked.
+
+Sessions are built for long-running work: runs keep going if you close the
+tab, history and context persist across server restarts, and old context is
+trimmed automatically so long chats and long tasks don't hit the model window.
 
 Use the **+** button in the composer (or drag & drop onto it) to upload files
 into the session workspace — they land in `uploads/` where the agent can read

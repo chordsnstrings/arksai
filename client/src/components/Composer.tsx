@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { ModelId, SessionMeta } from '@shared/types';
+import type { ModelId, SessionMeta, SessionMode } from '@shared/types';
 import { MODELS } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
@@ -14,7 +14,7 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
   const addUserMessage = useStore((s) => s.addUserMessage);
   const loadDetail = useStore((s) => s.loadDetail);
 
-  const setMode = async (mode: 'plan' | 'code') => {
+  const setMode = async (mode: SessionMode) => {
     if (running || mode === meta.mode) return;
     const updated = await api.patchSession(meta.id, { mode });
     upsertSession(updated);
@@ -40,9 +40,9 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
       setText('');
       return;
     }
-    const modeMatch = value.match(/^\/mode\s+(plan|code)$/);
+    const modeMatch = value.match(/^\/mode\s+(chat|plan|code)$/);
     if (modeMatch) {
-      await setMode(modeMatch[1] as 'plan' | 'code');
+      await setMode(modeMatch[1] as SessionMode);
       setText('');
       return;
     }
@@ -115,7 +115,7 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
         <textarea
           ref={taRef}
           rows={1}
-          placeholder="Type / for commands"
+          placeholder={meta.mode === 'chat' ? 'Chat with the model…' : 'Type / for commands'}
           value={text}
           onChange={(e) => {
             setText(e.target.value);
@@ -140,6 +140,9 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
             {uploading ? '…' : '+'}
           </button>
           <div className="mode-toggle">
+            <button className={meta.mode === 'chat' ? 'on' : ''} onClick={() => setMode('chat')}>
+              Chat
+            </button>
             <button className={meta.mode === 'plan' ? 'on' : ''} onClick={() => setMode('plan')}>
               Plan
             </button>

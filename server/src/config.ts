@@ -61,6 +61,7 @@ export const config = {
   appPassword: process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
+  maxIterations: intEnv('MAX_ITERATIONS', 40),
   workspaceTtlDays: intEnv('WORKSPACE_TTL_DAYS', 14),
 };
 

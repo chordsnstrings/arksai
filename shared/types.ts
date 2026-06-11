@@ -4,11 +4,12 @@
  * client timeline reducer — change it here and both sides follow.
  */
 
-export type SessionMode = 'plan' | 'code';
+export type SessionMode = 'chat' | 'plan' | 'code';
 export type SessionStatus = 'idle' | 'running' | 'done' | 'error';
 export type ModelId = 'deepseek-chat' | 'deepseek-reasoner';
 
 export const MODELS: ModelId[] = ['deepseek-chat', 'deepseek-reasoner'];
+export const SESSION_MODES: SessionMode[] = ['chat', 'plan', 'code'];
 
 export interface SessionMeta {
   id: string;

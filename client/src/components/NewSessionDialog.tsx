@@ -56,6 +56,7 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }) {
             <select value={mode} onChange={(e) => setMode(e.target.value as SessionMode)}>
               <option value="code">Code</option>
               <option value="plan">Plan</option>
+              <option value="chat">Chat</option>
             </select>
           </div>
         </div>

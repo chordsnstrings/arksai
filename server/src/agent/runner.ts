@@ -12,7 +12,6 @@ import { ToolError, type ToolCtx } from './tools/common';
 import { generateTitle } from './titleGen';
 import { Usage } from './usage';
 
-const MAX_ITERATIONS = 40;
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
 const PREVIEW_CHARS = 700;
 
@@ -26,7 +25,11 @@ function estimateTokens(messages: unknown): number {
   return Math.ceil(JSON.stringify(messages).length / 4);
 }
 
-/** Shrink oldest tool outputs when the context approaches the model window. */
+/**
+ * Keep the context under the model window for long-running sessions:
+ * first shrink old tool outputs, then drop the oldest messages entirely
+ * (long chats have no tool output to shrink).
+ */
 function truncateContext(context: any[]) {
   if (estimateTokens(context) < CONTEXT_TOKEN_BUDGET) return;
   for (const msg of context) {
@@ -34,6 +37,11 @@ function truncateContext(context: any[]) {
       msg.content = `[tool output elided to save context, was ${msg.content.length} chars]`;
       if (estimateTokens(context) < CONTEXT_TOKEN_BUDGET) return;
     }
+  }
+  while (estimateTokens(context) >= CONTEXT_TOKEN_BUDGET && context.length > 8) {
+    context.shift();
+    // never leave an orphaned tool reply at the front (breaks the API format)
+    while (context.length > 0 && context[0].role === 'tool') context.shift();
   }
 }
 
@@ -89,7 +97,8 @@ export class AgentRun {
     }, 1000);
 
     try {
-      for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+      const maxIterations = config.maxIterations;
+      for (let iteration = 1; iteration <= maxIterations; iteration++) {
         if (this.abort.signal.aborted) break;
         truncateContext(context);
 
@@ -163,17 +172,17 @@ export class AgentRun {
         }
         liveItems.push({ kind: 'tools', id: randomUUID(), calls: groupRecords, ts: Date.now() });
 
-        if (iteration === MAX_ITERATIONS) {
+        if (iteration === maxIterations) {
           this.emit({
             type: 'run_error',
             runId: this.runId,
-            message: `Iteration limit (${MAX_ITERATIONS}) reached — stopping.`,
+            message: `Iteration limit (${maxIterations}) reached — stopping.`,
           });
           liveItems.push({
             kind: 'system',
             id: randomUUID(),
             level: 'error',
-            text: `Iteration limit (${MAX_ITERATIONS}) reached.`,
+            text: `Iteration limit (${maxIterations}) reached.`,
             ts: Date.now(),
           });
           finalStatus = 'error';
