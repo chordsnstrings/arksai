@@ -6,7 +6,10 @@ import { useStore } from '../state/sessionStore';
 
 export function Composer({ meta, running }: { meta: SessionMeta; running: boolean }) {
   const [text, setText] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const upsertSession = useStore((s) => s.upsertSession);
   const addUserMessage = useStore((s) => s.addUserMessage);
   const loadDetail = useStore((s) => s.loadDetail);
@@ -53,6 +56,33 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
     }
   };
 
+  const uploadFiles = async (files: FileList | File[]) => {
+    const list = [...files];
+    if (list.length === 0 || uploading) return;
+    const form = new FormData();
+    for (const file of list) form.append('files', file, file.name);
+    setUploading(true);
+    try {
+      const res = await fetch(`/api/sessions/${meta.id}/upload`, {
+        method: 'POST',
+        body: form,
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        let message = res.statusText;
+        try {
+          message = (await res.json()).error ?? message;
+        } catch {}
+        throw new Error(message);
+      }
+    } catch (err: any) {
+      alert(err?.message ?? 'Upload failed');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -69,7 +99,19 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
 
   return (
     <div className="composer-wrap">
-      <div className="composer">
+      <div
+        className={`composer ${dragOver ? 'drag-over' : ''}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          void uploadFiles(e.dataTransfer.files);
+        }}
+      >
         <textarea
           ref={taRef}
           rows={1}
@@ -82,6 +124,21 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
           onKeyDown={onKeyDown}
         />
         <div className="composer-bar">
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => e.target.files && uploadFiles(e.target.files)}
+          />
+          <button
+            className="attach-btn"
+            title="Upload files to the workspace (or drag & drop)"
+            disabled={uploading}
+            onClick={() => fileRef.current?.click()}
+          >
+            {uploading ? '…' : '+'}
+          </button>
           <div className="mode-toggle">
             <button className={meta.mode === 'plan' ? 'on' : ''} onClick={() => setMode('plan')}>
               Plan

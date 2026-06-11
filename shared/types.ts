@@ -76,6 +76,7 @@ export type AgentEvent =
     }
   | { type: 'run_error'; runId: string; message: string }
   | { type: 'session_meta_updated'; meta: Partial<SessionMeta> & { id: string } }
+  | { type: 'timeline_item'; item: TimelineItem }
   | { type: 'clone_progress'; phase: 'cloning' | 'done' | 'error'; detail: string };
 
 /** Lightweight event broadcast on the global channel for the sidebar. */

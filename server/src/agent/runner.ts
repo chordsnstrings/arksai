@@ -66,6 +66,9 @@ export class AgentRun {
     const liveItems: TimelineItem[] = [];
     let finalStatus: SessionMeta['status'] = 'done';
 
+    // Anything emitted before this run (e.g. uploads) is already persisted to
+    // the timeline — drop it from the replay buffer so reconnects don't dupe.
+    bus.clear(sessionId);
     store.updateSession(sessionId, { status: 'running' });
     bus.sessionChanged(store.getSession(sessionId)!);
     this.emit({ type: 'run_started', runId: this.runId, mode: this.session.mode });

@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import fastifyCookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,16 +8,21 @@ import { config } from './config';
 import { cookieSecret, registerAuth } from './auth';
 import { registerSessionRoutes } from './routes/sessions';
 import { registerEventRoutes } from './routes/events';
+import { registerUploadRoutes } from './routes/upload';
 
 export async function buildApp() {
   const app = Fastify({ logger: { level: config.isProd ? 'warn' : 'info' } });
 
   await app.register(fastifyCookie, { secret: cookieSecret() });
+  await app.register(fastifyMultipart, {
+    limits: { fileSize: 25 * 1024 * 1024, files: 10 },
+  });
   registerAuth(app);
 
   app.get('/healthz', async () => ({ ok: true }));
   registerSessionRoutes(app);
   registerEventRoutes(app);
+  registerUploadRoutes(app);
 
   // Serve the built SPA with an index.html fallback for client-side routes.
   if (fs.existsSync(path.join(config.clientDist, 'index.html'))) {

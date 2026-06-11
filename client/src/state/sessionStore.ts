@@ -219,6 +219,12 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
       };
     }
 
+    case 'timeline_item': {
+      // Replayed events can overlap the persisted timeline — dedupe by id.
+      if (live.items.some((i) => i.id === ev.item.id)) return live;
+      return { ...live, items: [...live.items, ev.item] };
+    }
+
     case 'session_meta_updated':
       return live;
 

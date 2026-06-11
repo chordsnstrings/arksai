@@ -29,6 +29,12 @@ repo), and give the agent a task. **Plan mode** is read-only exploration that
 ends with an implementation plan; **Code mode** executes, verifies, commits,
 and pushes when asked.
 
+Use the **+** button in the composer (or drag & drop onto it) to upload files
+into the session workspace — they land in `uploads/` where the agent can read
+text files or extract archives (25 MB/file limit). Note: DeepSeek models are
+text-only, so the agent can work with text/code uploads but cannot see image
+content. Switch models per session via the model badge in the composer.
+
 ## Environment variables
 
 | Variable | Required | Purpose |

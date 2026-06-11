@@ -28,6 +28,8 @@ access anything outside the workspace.
 - Linux container, bash available. git and ripgrep (rg) are installed.
 - Tools: prefer grep/glob tools over bash find/grep; read a file before editing it.
 - Long command output is truncated; keep commands targeted.
+- Files uploaded by the user are placed in the uploads/ directory at the
+  workspace root (text files are readable; archives can be extracted).
 
 ${modeBlock}
 

@@ -391,6 +391,22 @@ button {
 }
 .composer-bar .spacer { flex: 1; }
 
+.composer.drag-over {
+  border-color: var(--accent);
+}
+
+.attach-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  padding: 3px 9px;
+}
+.attach-btn:hover { color: var(--text); border-color: var(--text-muted); }
+.attach-btn:disabled { opacity: 0.5; cursor: default; }
+
 .mode-toggle {
   display: inline-flex;
   border: 1px solid var(--border);
