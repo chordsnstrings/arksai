@@ -48,7 +48,13 @@ numbered implementation plan in markdown. Do not attempt to make changes.`
 Implement the user's request fully. Make minimal, focused changes. Verify your work
 by running the project's tests or build when feasible. When the task is complete,
 use git_commit with a clear message. Only use git_push if the user asked you to push.
-Finish with a short summary of what you changed and how you verified it.`;
+Finish with a short summary of what you changed and how you verified it.
+
+Work autonomously: keep going through every step of the task on your own — do NOT
+stop to ask "should I continue?" or for permission to proceed. Only end your turn
+when the task is genuinely complete, or when you truly need information that only
+the user can provide (a real decision or missing credential). If you hit an error,
+diagnose and fix it yourself rather than handing it back.`;
 
   const workspaceLine = config.agentUnrestricted
     ? `Workspace root: ${repoDir}. Relative paths resolve here, but you have full host access (see Open-ended mode below).`

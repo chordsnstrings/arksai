@@ -63,7 +63,7 @@ export const config = {
   appPassword: process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
-  maxIterations: intEnv('MAX_ITERATIONS', 40),
+  maxIterations: intEnv('MAX_ITERATIONS', 200),
   // When true the agent's shell inherits the FULL process environment (so it
   // can use tokens like DIGITALOCEAN_TOKEN), the workspace path jail is lifted,
   // and file tools may touch paths outside the workspace. Open-ended / unsafe;

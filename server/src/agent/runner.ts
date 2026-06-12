@@ -143,8 +143,17 @@ export class AgentRun {
 
     try {
       const maxIterations = config.maxIterations;
-      for (let iteration = 1; iteration <= maxIterations; iteration++) {
-        if (this.abort.signal.aborted) break;
+      const STALL_LIMIT = 6;
+      let stallSig = '';
+      let stallCount = 0;
+      let iteration = 0;
+      let stopReason: 'natural' | 'ceiling' | 'stall' | null = null;
+      while (!this.abort.signal.aborted) {
+        iteration++;
+        if (iteration > maxIterations) {
+          stopReason = 'ceiling';
+          break;
+        }
         truncateContext(context);
 
         const stream = await this.createCompletionWithRetry({
@@ -206,7 +215,10 @@ export class AgentRun {
             : {}),
         });
 
-        if (calls.length === 0) break; // natural end of turn
+        if (calls.length === 0) {
+          stopReason = 'natural'; // task done, or the model is awaiting the user
+          break;
+        }
 
         const groupRecords: ToolCallRecord[] = [];
         for (const call of calls) {
@@ -216,23 +228,37 @@ export class AgentRun {
         }
         liveItems.push({ kind: 'tools', id: randomUUID(), calls: groupRecords, ts: Date.now() });
 
-        if (iteration === maxIterations) {
-          this.emit({
-            type: 'run_error',
-            runId: this.runId,
-            message: `Iteration limit (${maxIterations}) reached — stopping.`,
-          });
-          liveItems.push({
-            kind: 'system',
-            id: randomUUID(),
-            level: 'error',
-            text: `Iteration limit (${maxIterations}) reached.`,
-            ts: Date.now(),
-          });
-          finalStatus = 'error';
+        // Stall guard: the model silently repeating the exact same tool batch
+        // (e.g. re-running a failing command) is the real runaway signal.
+        const sig = text.trim() ? '' : calls.map((c) => `${c.name}:${c.args}`).join('|');
+        if (sig && sig === stallSig) stallCount++;
+        else {
+          stallSig = sig;
+          stallCount = 0;
+        }
+        if (stallCount >= STALL_LIMIT) {
+          stopReason = 'stall';
+          break;
         }
       }
-      if (this.abort.signal.aborted) finalStatus = 'idle';
+
+      if (this.abort.signal.aborted) {
+        finalStatus = 'idle';
+      } else if (stopReason === 'ceiling') {
+        finalStatus = 'done';
+        liveItems.push({
+          kind: 'system',
+          id: randomUUID(),
+          level: 'info',
+          text: `Paused after ${maxIterations} steps (safety limit). Send "continue" to keep going.`,
+          ts: Date.now(),
+        });
+      } else if (stopReason === 'stall') {
+        finalStatus = 'error';
+        const msg = `Stopped: repeated the same action ${STALL_LIMIT}× with no progress — it likely needs your input.`;
+        this.emit({ type: 'run_error', runId: this.runId, message: msg });
+        liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
+      }
     } catch (err: any) {
       if (this.abort.signal.aborted) {
         finalStatus = 'idle';
