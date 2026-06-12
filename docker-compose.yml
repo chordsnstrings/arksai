@@ -5,5 +5,11 @@ services:
       - "3000:3000"
     env_file: .env
     volumes:
-      - ./data:/data
+      # Named volume (not a host bind mount): Docker initializes it with the
+      # image's /data ownership (the non-root `node` user), so SQLite can write.
+      # A host bind mount would be created as root and break the non-root user.
+      - arksai-data:/data
     restart: unless-stopped
+
+volumes:
+  arksai-data:

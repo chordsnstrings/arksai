@@ -88,7 +88,9 @@ docker compose up -d --build
 ```
 
 The app is now on port 3000. Put TLS in front (Caddy or nginx + certbot),
-then set `COOKIE_SECURE=true` and restart. Data persists in `./data`.
+then set `COOKIE_SECURE=true` and restart. Data persists in the `arksai-data`
+named Docker volume (survives `docker compose down && up`; inspect with
+`docker volume inspect arksai_arksai-data`).
 
 ## Deploy — DigitalOcean App Platform
 
