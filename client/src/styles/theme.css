@@ -92,7 +92,48 @@ button { font-family: inherit; cursor: pointer; }
 /* ---------- layout ---------- */
 
 .app { display: flex; height: 100%; }
-.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
+
+/* ---------- collapsible nav ---------- */
+
+.sidebar { transition: transform 0.2s ease, margin-left 0.2s ease; }
+/* Desktop/tablet: collapsing slides the sidebar out and reclaims the space. */
+.app.nav-closed .sidebar { margin-left: -290px; }
+
+.nav-backdrop { display: none; }
+
+/* Hamburger to reopen — shown only when the nav is collapsed. */
+.nav-open-btn {
+  display: none;
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 15;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  font-size: 16px;
+}
+.nav-open-btn:hover { border-color: var(--text-muted); }
+.app.nav-closed .nav-open-btn { display: inline-flex; }
+.app.nav-closed .topbar { padding-left: 58px; }
+.app.nav-closed .nav-open-btn ~ .empty-state { padding-top: 0; }
+
+.nav-collapse {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 17px;
+  line-height: 1;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+.nav-collapse:hover { color: var(--text); }
 
 /* ---------- sidebar ---------- */
 
@@ -782,3 +823,75 @@ button { font-family: inherit; cursor: pointer; }
   padding: 6px 15px;
 }
 .dialog .cancel:hover { color: var(--text); border-color: var(--text-muted); }
+
+/* ---------- responsive: phones & small tablets ---------- */
+@media (max-width: 860px) {
+  /* Sidebar becomes an off-canvas drawer. */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 86vw;
+    max-width: 320px;
+    z-index: 40;
+    margin-left: 0 !important;
+    transform: translateX(-100%);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+  }
+  .app.nav-open .sidebar { transform: translateX(0); }
+  .app.nav-closed .sidebar { transform: translateX(-100%); }
+
+  /* Backdrop behind the open drawer. */
+  .app.nav-open .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 5, 7, 0.55);
+    z-index: 30;
+  }
+
+  /* Hamburger is always available on mobile; never reserve desktop space. */
+  .nav-open-btn { display: inline-flex !important; }
+  .topbar { padding-left: 56px !important; padding-right: 14px; min-height: 50px; }
+  .app.nav-closed .topbar { padding-left: 56px; }
+
+  /* Tighter padding everywhere. */
+  .chat { padding: 16px 0; }
+  .chat-inner { padding: 0 14px; gap: 16px; }
+  .composer-wrap { padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .cost-bar { padding: 6px 12px 10px; gap: 11px; font-size: 11px; }
+  .user-bubble { max-width: 92%; font-size: 14.5px; }
+  .assistant-prose { font-size: 14.5px; }
+
+  /* Composer controls wrap instead of overflowing. */
+  .composer-bar { flex-wrap: wrap; row-gap: 8px; }
+  .composer-bar .spacer { flex-basis: 100%; height: 0; order: 5; }
+  .model-badge, .send-btn { order: 6; }
+
+  /* Canvas takes the full screen on top, not a side split. */
+  .canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    max-width: none;
+    min-width: 0;
+    z-index: 45;
+    border-left: none;
+  }
+  .canvas-tree { width: 44%; max-width: 220px; }
+
+  /* Dialogs fit small screens. */
+  .dialog, .dialog.wide { width: calc(100vw - 28px); max-width: 460px; }
+  .login-card { width: calc(100vw - 36px); max-width: 348px; }
+}
+
+/* Avoid iOS zoom-on-focus (inputs must be >= 16px). */
+@media (max-width: 860px) {
+  .composer textarea, .dialog input, .dialog select, .dialog .tmpl,
+  .login-card input, .search-box, .canvas-port, .title-edit { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar { transition: none; }
+}

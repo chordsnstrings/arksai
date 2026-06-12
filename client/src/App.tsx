@@ -24,6 +24,8 @@ export default function App() {
   const activeId = useStore((s) => s.activeId);
   const live = useStore((s) => (activeId ? s.live[activeId] : undefined));
   const canvasOpen = useStore((s) => s.canvasOpen);
+  const navOpen = useStore((s) => s.navOpen);
+  const toggleNav = useStore((s) => s.toggleNav);
   const [showNew, setShowNew] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
   const [showMemory, setShowMemory] = useState(false);
@@ -59,9 +61,13 @@ export default function App() {
   const activeMeta = sessions.find((s) => s.id === activeId) ?? null;
 
   return (
-    <div className="app">
+    <div className={`app ${navOpen ? 'nav-open' : 'nav-closed'}`}>
       <Sidebar onNewSession={() => setShowNew(true)} />
+      <div className="nav-backdrop" onClick={() => toggleNav(false)} />
       <div className="main">
+        <button className="nav-open-btn" title="Menu" onClick={() => toggleNav(true)}>
+          ☰
+        </button>
         {activeMeta && live ? (
           <>
             <TopBar meta={activeMeta} />

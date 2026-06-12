@@ -58,9 +58,11 @@ interface StoreState {
   models: ModelInfo[];
   commands: CustomCommand[];
   canvasOpen: boolean;
+  navOpen: boolean;
   automation: Record<string, Automation>;
 
   setAuthed(v: boolean): void;
+  toggleNav(open?: boolean): void;
   setModels(models: ModelInfo[]): void;
   setCommands(commands: CustomCommand[]): void;
   toggleCanvas(open?: boolean): void;
@@ -85,9 +87,12 @@ export const useStore = create<StoreState>((set, get) => ({
   models: [],
   commands: [],
   canvasOpen: false,
+  // Open by default on wide screens, collapsed on phones.
+  navOpen: typeof window === 'undefined' ? true : window.innerWidth > 860,
   automation: {},
 
   setAuthed: (v) => set({ authed: v }),
+  toggleNav: (open) => set((s) => ({ navOpen: open ?? !s.navOpen })),
   setModels: (models) => set({ models }),
   setCommands: (commands) => set({ commands }),
   toggleCanvas: (open) => set((s) => ({ canvasOpen: open ?? !s.canvasOpen })),

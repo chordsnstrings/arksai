@@ -14,6 +14,13 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
   const removeSession = useStore((s) => s.removeSession);
   const upsertSession = useStore((s) => s.upsertSession);
   const setAuthed = useStore((s) => s.setAuthed);
+  const toggleNav = useStore((s) => s.toggleNav);
+
+  // On phones the sidebar is a drawer — close it after picking a session.
+  const pickSession = (id: string) => {
+    setActive(id);
+    if (window.innerWidth <= 860) toggleNav(false);
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [query, setQuery] = useState('');
@@ -56,8 +63,12 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
         <span className="logo-mark sm" />
         <span className="name">ArksAI</span>
         <span className="badge">studio</span>
+        <span className="spacer" style={{ flex: 1 }} />
+        <button className="nav-collapse" title="Collapse sidebar" onClick={() => toggleNav(false)}>
+          «
+        </button>
       </div>
-      <button className="nav-btn" onClick={onNewSession}>
+      <button className="nav-btn" onClick={() => { onNewSession(); if (window.innerWidth <= 860) toggleNav(false); }}>
         <span className="plus">+</span> New session
       </button>
       <div className="recents-header">
@@ -74,7 +85,7 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
           <div
             key={s.id}
             className={`session-item ${s.id === activeId ? 'active' : ''}`}
-            onClick={() => setActive(s.id)}
+            onClick={() => pickSession(s.id)}
             title={s.title}
           >
             <StatusDot status={s.status} />
