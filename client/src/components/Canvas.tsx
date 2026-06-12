@@ -13,10 +13,31 @@ export function Canvas({ sessionId }: { sessionId: string }) {
   const [tab, setTab] = useState<Tab>('preview');
 
   // preview
-  const [port, setPort] = useState('3000');
+  const [port, setPort] = useState('');
+  const [detectedPorts, setDetectedPorts] = useState<number[]>([]);
   const [previewSrc, setPreviewSrc] = useState('');
   const [nonce, setNonce] = useState(0);
-  const loadPreview = () => setPreviewSrc(`/api/sessions/${sessionId}/preview/${port}/?_=${Date.now()}`);
+  const loadPreview = (p?: string) => {
+    const usePort = p ?? port;
+    if (!usePort) return;
+    setPort(usePort);
+    setPreviewSrc(`/api/sessions/${sessionId}/preview/${usePort}/?_=${Date.now()}`);
+  };
+
+  // Auto-detect dev-server ports so the user doesn't have to guess.
+  const detectPorts = async () => {
+    try {
+      const ports = await api.ports(sessionId);
+      setDetectedPorts(ports);
+      if (ports.length && !previewSrc) loadPreview(String(ports[0]));
+    } catch {
+      setDetectedPorts([]);
+    }
+  };
+  useEffect(() => {
+    if (tab === 'preview') detectPorts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, sessionId]);
 
   // files
   const [files, setFiles] = useState<string[]>([]);
@@ -60,17 +81,26 @@ export function Canvas({ sessionId }: { sessionId: string }) {
         <span className="spacer" />
         {tab === 'preview' && (
           <>
-            <span className="canvas-portlbl">localhost:</span>
+            {detectedPorts.map((p) => (
+              <button
+                key={p}
+                className={`canvas-btn port ${String(p) === port ? 'on' : ''}`}
+                onClick={() => loadPreview(String(p))}
+              >
+                :{p}
+              </button>
+            ))}
             <input
               className="canvas-port"
+              placeholder="port"
               value={port}
               onChange={(e) => setPort(e.target.value.replace(/\D/g, ''))}
               onKeyDown={(e) => e.key === 'Enter' && loadPreview()}
             />
-            <button className="canvas-btn" onClick={loadPreview}>
+            <button className="canvas-btn" onClick={() => loadPreview()}>
               Load
             </button>
-            <button className="canvas-btn" onClick={() => setNonce((n) => n + 1)} title="Refresh">
+            <button className="canvas-btn" onClick={() => { detectPorts(); setNonce((n) => n + 1); }} title="Refresh">
               ↻
             </button>
           </>
@@ -90,9 +120,15 @@ export function Canvas({ sessionId }: { sessionId: string }) {
           <iframe key={nonce} className="canvas-frame" src={previewSrc} title="preview" />
         ) : (
           <div className="canvas-empty">
-            Enter the port your dev server runs on and press <b>Load</b>.
-            <br />
-            Ask the agent to start it first (e.g. "run the dev server in the background").
+            {detectedPorts.length === 0 ? (
+              <>
+                No running dev server detected.
+                <br />
+                Ask the agent to start one in the background (e.g. "run the dev server"), then press ↻.
+              </>
+            ) : (
+              <>Pick a detected port above, or type one and press <b>Load</b>.</>
+            )}
           </div>
         )
       ) : (

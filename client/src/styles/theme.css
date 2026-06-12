@@ -168,6 +168,7 @@ button { font-family: inherit; cursor: pointer; }
   width: 100%;
   white-space: nowrap;
   overflow: hidden;
+  cursor: pointer;
   transition: background 0.1s, color 0.1s;
 }
 .session-item:hover { background: var(--bg-hover); color: var(--text); }
@@ -462,6 +463,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 .canvas-btn { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); font-size: 12px; padding: 4px 9px; }
 .canvas-btn:hover { color: var(--text); }
+.canvas-btn.port { font-family: var(--mono); }
+.canvas-btn.port.on { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
 .canvas-frame { flex: 1; border: none; width: 100%; background: #fff; }
 .canvas-empty, .canvas-view .muted, .canvas-tree .muted { color: var(--text-faint); font-size: 13px; padding: 24px; line-height: 1.7; }
 

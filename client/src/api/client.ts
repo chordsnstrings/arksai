@@ -55,6 +55,7 @@ export const api = {
   diff: (id: string) => request<{ diff: string }>(`/api/sessions/${id}/diff`),
   tree: (id: string) => request<{ files: string[] }>(`/api/sessions/${id}/tree`),
   processes: (id: string) => request<{ processes: ProcessInfo[] }>(`/api/sessions/${id}/processes`),
+  ports: (id: string) => request<{ ports: number[] }>(`/api/sessions/${id}/ports`).then((r) => r.ports),
   killProcess: (id: string, pid: string) =>
     request<{ ok: true; killed: boolean }>(`/api/sessions/${id}/processes/${pid}/kill`, { method: 'POST' }),
   listCommands: () => request<{ commands: CustomCommand[] }>('/api/commands').then((r) => r.commands),

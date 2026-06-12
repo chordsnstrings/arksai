@@ -16,7 +16,11 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
   const handleDelete = async (e: React.MouseEvent, session: SessionMeta) => {
     e.stopPropagation();
     if (!confirm(`Delete session "${session.title}" and its workspace?`)) return;
-    await api.deleteSession(session.id);
+    try {
+      await api.deleteSession(session.id);
+    } catch {
+      /* already gone */
+    }
     removeSession(session.id);
   };
 
@@ -25,7 +29,7 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
       <div className="wordmark">
         <span className="logo-mark sm" />
         <span className="name">ArksAI</span>
-        <span className="badge">deepseek</span>
+        <span className="badge">studio</span>
       </div>
       <button className="nav-btn" onClick={onNewSession}>
         <span className="plus">+</span> New session
@@ -35,7 +39,7 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
       </div>
       <div className="session-list">
         {sessions.map((s) => (
-          <button
+          <div
             key={s.id}
             className={`session-item ${s.id === activeId ? 'active' : ''}`}
             onClick={() => setActive(s.id)}
@@ -43,10 +47,10 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
           >
             <StatusDot status={s.status} />
             <span className="title">{s.title}</span>
-            <span className="delete" role="button" onClick={(e) => handleDelete(e, s)}>
+            <button className="delete" title="Delete session" onClick={(e) => handleDelete(e, s)}>
               ✕
-            </span>
-          </button>
+            </button>
+          </div>
         ))}
         {sessions.length === 0 && (
           <div style={{ color: 'var(--text-faint)', fontSize: 13, padding: '6px 10px' }}>

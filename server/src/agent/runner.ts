@@ -28,7 +28,8 @@ function estimateTokens(messages: unknown): number {
   return Math.ceil(JSON.stringify(messages).length / 4);
 }
 
-const DELIVERABLE_GLOB = '**/*.{xlsx,xls,csv,pdf,docx,doc,pptx,png,jpg,jpeg,svg,zip}';
+const DELIVERABLE_GLOB =
+  '**/*.{xlsx,xls,csv,pdf,docx,doc,pptx,png,jpg,jpeg,svg,zip,tar,gz,tgz,tar.gz,mp3,wav,mp4,json}';
 
 /** Document/binary files created or modified during a run → download chips in the chat. */
 async function findDeliverables(repoDirPath: string, sinceTs: number): Promise<TimelineItem[]> {

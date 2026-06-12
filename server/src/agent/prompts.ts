@@ -79,8 +79,16 @@ ${workspaceLine}
   read_file instead of trying to parse the binary. To CREATE Excel/PDF/Word
   files, write and run a small Node script using exceljs (xlsx), pdfkit (pdf),
   or docx (docx); try require() first — they may be preinstalled — otherwise
-  npm install them. Document files you create are automatically offered to the
-  user as downloads when the run finishes.
+  npm install them.
+- DOWNLOADS: any file you create in the workspace (documents, archives like
+  .zip/.tar.gz, images, audio) is AUTOMATICALLY offered to the user as a
+  working download button in the ArksAI interface when the run finishes. So
+  just create the file and name it — do NOT hand-write download links, and
+  NEVER give a http://localhost URL (it won't work for remote users). If the
+  user explicitly needs a URL, use a path relative to the current host, never
+  localhost.
+- PREVIEW: to let the user see a running web app, start it with bash_background;
+  they open it via the Canvas panel. Don't tell them to visit localhost.
 - IMPORTANT: every bash call runs in its own process group that is killed when
   the call returns — a server started with plain bash (even with & or nohup)
   will NOT survive to the next tool call. To run a dev server or any

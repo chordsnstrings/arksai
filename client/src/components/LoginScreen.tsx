@@ -28,7 +28,7 @@ export function LoginScreen() {
         <h1>
           <span className="logo-mark" />
           <span className="name">ArksAI</span>
-          <span className="badge">deepseek</span>
+          <span className="badge">studio</span>
         </h1>
         <input
           type="password"

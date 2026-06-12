@@ -68,7 +68,7 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }) {
           <select value={model} onChange={(e) => setModel(e.target.value as ModelId)}>
             {modelIds.map((id) => (
               <option key={id} value={id}>
-                {modelLabel(id)} ({id})
+                {modelLabel(id)}
               </option>
             ))}
           </select>

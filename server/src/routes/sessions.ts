@@ -154,20 +154,29 @@ export function registerSessionRoutes(app: FastifyInstance) {
   });
 }
 
-import { execBash } from '../lib/exec';
+import fs from 'node:fs';
 import { config } from '../config';
 
-/** Best-effort list of locally-listening TCP ports, excluding the app's own. */
+/**
+ * Listening TCP ports from /proc/net/tcp{,6} (no ss/netstat dependency).
+ * State 0A = LISTEN; local address is hex IP:PORT. Excludes the app's own port.
+ */
 async function listListeningPorts(): Promise<number[]> {
-  const res = await execBash(
-    `ss -tlnH 2>/dev/null | grep -oE ':[0-9]+ ' || netstat -tlnH 2>/dev/null | grep -oE ':[0-9]+ '`,
-    { cwd: '/tmp', timeoutMs: 8000 },
-  );
   const own = new Set([config.port, 5432, 25060]);
   const ports = new Set<number>();
-  for (const m of res.output.matchAll(/:(\d+)/g)) {
-    const p = Number(m[1]);
-    if (p > 0 && p < 65536 && !own.has(p)) ports.add(p);
+  for (const file of ['/proc/net/tcp', '/proc/net/tcp6']) {
+    let text = '';
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch {
+      continue;
+    }
+    for (const line of text.split('\n').slice(1)) {
+      const cols = line.trim().split(/\s+/);
+      if (cols.length < 4 || cols[3] !== '0A') continue; // 0A = LISTEN
+      const port = parseInt(cols[1].split(':')[1], 16);
+      if (port > 0 && port < 65536 && !own.has(port)) ports.add(port);
+    }
   }
   return [...ports].sort((a, b) => a - b);
 }

@@ -41,12 +41,14 @@ const DEFAULT_PRICING: ModelPricing = {
   inputCacheMissPerM: 0.14,
   outputPerM: 0.28,
 };
+// UI labels are ArksAI-branded (the underlying provider/model id is internal).
+// As we add other engines (e.g. music via Suno), they get ArksAI labels here too.
 export const KNOWN_MODELS: Record<string, ModelPricing> = {
-  'deepseek-v4-flash': { label: 'V4 Flash', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
-  'deepseek-v4-pro': { label: 'V4 Pro', inputCacheHitPerM: 0.003625, inputCacheMissPerM: 0.435, outputPerM: 0.87 },
-  // legacy aliases — DeepSeek routes these to v4-flash
-  'deepseek-chat': { label: 'V4 Flash (chat)', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
-  'deepseek-reasoner': { label: 'V4 Flash (reasoner)', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
+  'deepseek-v4-flash': { label: 'ArksAI Flash', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
+  'deepseek-v4-pro': { label: 'ArksAI Pro', inputCacheHitPerM: 0.003625, inputCacheMissPerM: 0.435, outputPerM: 0.87 },
+  // legacy aliases
+  'deepseek-chat': { label: 'ArksAI Flash', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
+  'deepseek-reasoner': { label: 'ArksAI Flash (reasoning)', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
 };
 
 export function pricingFor(model: string): ModelPricing {
