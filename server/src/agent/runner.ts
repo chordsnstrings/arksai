@@ -313,9 +313,15 @@ export class AgentRun {
         liveItems.push(fileItem);
         this.emit({ type: 'timeline_item', item: fileItem });
       }
+      const prev = await store.getSession(sessionId);
+      // The session may have been deleted mid-run — if so, don't resurrect it
+      // by writing rows or emitting status events for it.
+      if (!prev) {
+        bus.clear(sessionId);
+        return;
+      }
       for (const item of liveItems) await store.appendTimeline(sessionId, item);
       await store.setContext(sessionId, context);
-      const prev = await store.getSession(sessionId);
       const runCost = computeCost(this.session.model, {
         cacheHit: this.usage.cacheHitTokens,
         cacheMiss: this.usage.cacheMissTokens,
@@ -324,10 +330,10 @@ export class AgentRun {
       await store.updateSession(sessionId, {
         status: finalStatus,
         diffStat: stat,
-        totalTokens: (prev?.totalTokens ?? 0) + this.usage.totalTokens,
-        promptTokens: (prev?.promptTokens ?? 0) + this.usage.promptTokens,
-        completionTokens: (prev?.completionTokens ?? 0) + this.usage.completionTokens,
-        costUsd: (prev?.costUsd ?? 0) + runCost,
+        totalTokens: (prev.totalTokens ?? 0) + this.usage.totalTokens,
+        promptTokens: (prev.promptTokens ?? 0) + this.usage.promptTokens,
+        completionTokens: (prev.completionTokens ?? 0) + this.usage.completionTokens,
+        costUsd: (prev.costUsd ?? 0) + runCost,
       });
 
       this.emit({
@@ -337,7 +343,8 @@ export class AgentRun {
         totalTokens: this.usage.totalTokens,
         diffStat: stat,
       });
-      bus.sessionChanged((await store.getSession(sessionId))!);
+      const finalMeta = await store.getSession(sessionId);
+      if (finalMeta) bus.sessionChanged(finalMeta);
       bus.clear(sessionId);
     }
   }

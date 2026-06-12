@@ -31,6 +31,9 @@ export interface LiveState {
   runningTasks: number;
 }
 
+/** Sessions deleted this client session — never re-add them from late events. */
+const deletedIds = new Set<string>();
+
 const emptyLive = (): LiveState => ({
   items: [],
   pendingAssistant: null,
@@ -97,17 +100,22 @@ export const useStore = create<StoreState>((set, get) => ({
 
   upsertSession: (meta) =>
     set((s) => {
+      // Never resurrect a session the user just deleted (guards against a late
+      // status event arriving after the delete).
+      if (deletedIds.has(meta.id)) return {};
       const idx = s.sessions.findIndex((x) => x.id === meta.id);
       const sessions = idx >= 0 ? s.sessions.map((x) => (x.id === meta.id ? meta : x)) : [meta, ...s.sessions];
       sessions.sort((a, b) => b.updatedAt - a.updatedAt);
       return { sessions };
     }),
 
-  removeSession: (id) =>
+  removeSession: (id) => {
+    deletedIds.add(id);
     set((s) => ({
       sessions: s.sessions.filter((x) => x.id !== id),
       activeId: s.activeId === id ? null : s.activeId,
-    })),
+    }));
+  },
 
   setActive: (id) => set({ activeId: id }),
 
