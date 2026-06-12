@@ -43,6 +43,13 @@ access anything outside the workspace.
 - Long command output is truncated; keep commands targeted.
 - Files uploaded by the user are placed in the uploads/ directory at the
   workspace root (text files are readable; archives can be extracted).
+- Document files: uploaded .xlsx/.xls/.csv/.pdf/.docx are auto-extracted to a
+  sidecar "<file>.extracted.txt" next to the original — read that with
+  read_file instead of trying to parse the binary. To CREATE Excel/PDF/Word
+  files, write and run a small Node script using exceljs (xlsx), pdfkit (pdf),
+  or docx (docx); try require() first — they may be preinstalled — otherwise
+  npm install them. Document files you create are automatically offered to the
+  user as downloads when the run finishes.
 - IMPORTANT: every bash call runs in its own process group that is killed when
   the call returns — a server started with plain bash (even with & or nohup)
   will NOT survive to the next tool call. To run a dev server or any

@@ -7,6 +7,7 @@ import type { TimelineItem } from '../../../shared/types';
 import * as store from '../sessions/store';
 import { repoDir } from '../sessions/workspace';
 import { bus } from '../events/bus';
+import { extractText } from '../lib/extract';
 
 function sanitizeFilename(name: string): string {
   const base = path.basename(name || 'file').replace(/[^\w.\- ()]/g, '_');
@@ -41,16 +42,33 @@ export function registerUploadRoutes(app: FastifyInstance) {
     }
     if (saved.length === 0) return reply.code(400).send({ error: 'No files received' });
 
-    for (const file of saved) {
-      const item: TimelineItem = {
-        kind: 'system',
-        id: randomUUID(),
-        level: 'info',
-        text: `📎 Uploaded ${file.name} (${fmtBytes(file.size)})`,
-        ts: Date.now(),
-      };
+    const emit = (item: TimelineItem) => {
       store.appendTimeline(id, item);
       bus.emit(id, { type: 'timeline_item', item });
+    };
+    for (const file of saved) {
+      emit({
+        kind: 'file',
+        id: randomUUID(),
+        path: file.name,
+        name: path.basename(file.name),
+        size: file.size,
+        ts: Date.now(),
+      });
+      // Office/PDF files get a text sidecar so the (text-only) model can read them.
+      const abs = path.join(repoDir(id), file.name);
+      const extracted = await extractText(abs);
+      if (extracted !== null) {
+        const sidecar = `${file.name}.extracted.txt`;
+        fs.writeFileSync(path.join(repoDir(id), sidecar), extracted);
+        emit({
+          kind: 'system',
+          id: randomUUID(),
+          level: 'info',
+          text: `Extracted text → ${sidecar} (readable by the agent)`,
+          ts: Date.now(),
+        });
+      }
     }
     store.updateSession(id, {});
     return { ok: true, files: saved };

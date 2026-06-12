@@ -18,7 +18,7 @@ export const MAX_TIMEOUT_MS = 120_000;
  * aren't there.
  */
 export function childEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
-  const allow = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'USER', 'NODE_ENV', 'TMPDIR'];
+  const allow = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'USER', 'NODE_ENV', 'TMPDIR', 'NODE_PATH'];
   const env: NodeJS.ProcessEnv = { TERM: 'dumb', GIT_TERMINAL_PROMPT: '0', CI: 'true' };
   for (const key of allow) {
     if (process.env[key]) env[key] = process.env[key];

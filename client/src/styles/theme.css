@@ -327,6 +327,26 @@ button {
   color: var(--text-muted);
 }
 
+/* file download chip */
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  align-self: flex-start;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 14px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+}
+.file-chip:hover { border-color: var(--accent); }
+.file-chip .name { font-family: var(--mono); }
+.file-chip .size { color: var(--text-faint); font-size: 12px; }
+.file-chip .dl { color: var(--accent); }
+
 /* status footer */
 
 .status-footer {

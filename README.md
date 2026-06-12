@@ -50,6 +50,12 @@ text files or extract archives (25 MB/file limit). Note: DeepSeek models are
 text-only, so the agent can work with text/code uploads but cannot see image
 content. Switch models per session via the model badge in the composer.
 
+**Documents:** uploaded Excel/CSV/PDF/Word files are auto-extracted to a text
+sidecar the agent can read directly. The agent can also *create* xlsx/pdf/docx
+files (exceljs, pdfkit, docx are preinstalled in the Docker image); any
+document it produces appears in the chat as a download chip, served by an
+authenticated, workspace-jailed download endpoint.
+
 ## Environment variables
 
 | Variable | Required | Purpose |

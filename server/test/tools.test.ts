@@ -54,6 +54,29 @@ test('truncateMiddle caps long output', () => {
   assert.match(out, /characters truncated/);
 });
 
+test('extractText reads xlsx sheets and ignores unknown formats', async () => {
+  const XLSX = await import('xlsx');
+  const { extractText } = await import('../src/lib/extract');
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([
+      ['Task', 'Owner'],
+      ['Build API', 'Sam'],
+    ]),
+    'Plan',
+  );
+  const file = path.join(ws, 'plan.xlsx');
+  XLSX.writeFile(wb, file);
+
+  const text = await extractText(file);
+  assert.ok(text);
+  assert.match(text!, /Sheet: Plan/);
+  assert.match(text!, /Build API,Sam/);
+
+  assert.equal(await extractText(path.join(ws, 'src', 'a.ts')), null);
+});
+
 test('process registry: start, tail, survive, kill', async () => {
   process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-data-'));
   const { processRegistry } = await import('../src/agent/processes');

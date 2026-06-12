@@ -9,6 +9,7 @@ import { cookieSecret, registerAuth } from './auth';
 import { registerSessionRoutes } from './routes/sessions';
 import { registerEventRoutes } from './routes/events';
 import { registerUploadRoutes } from './routes/upload';
+import { registerFileRoutes } from './routes/files';
 
 export async function buildApp() {
   const app = Fastify({ logger: { level: config.isProd ? 'warn' : 'info' } });
@@ -23,6 +24,7 @@ export async function buildApp() {
   registerSessionRoutes(app);
   registerEventRoutes(app);
   registerUploadRoutes(app);
+  registerFileRoutes(app);
 
   // Serve the built SPA with an index.html fallback for client-side routes.
   if (fs.existsSync(path.join(config.clientDist, 'index.html'))) {

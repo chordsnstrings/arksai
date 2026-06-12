@@ -68,7 +68,13 @@ function ToolActivity({ calls, running }: { calls: ToolCallRecord[]; running: bo
   );
 }
 
-function TimelineRow({ item }: { item: TimelineItem }) {
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function TimelineRow({ item, sessionId }: { item: TimelineItem; sessionId: string }) {
   switch (item.kind) {
     case 'user':
       return <div className="user-bubble">{item.text}</div>;
@@ -82,6 +88,20 @@ function TimelineRow({ item }: { item: TimelineItem }) {
       return <ToolActivity calls={item.calls} running={false} />;
     case 'system':
       return <div className={`system-line ${item.level}`}>{item.text}</div>;
+    case 'file': {
+      const href = `/api/sessions/${sessionId}/files/${item.path
+        .split('/')
+        .map(encodeURIComponent)
+        .join('/')}`;
+      return (
+        <a className="file-chip" href={href} download={item.name} title={item.path}>
+          <span className="icon">📄</span>
+          <span className="name">{item.name}</span>
+          <span className="size">{fmtBytes(item.size)}</span>
+          <span className="dl">⬇</span>
+        </a>
+      );
+    }
   }
 }
 
@@ -117,7 +137,7 @@ export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }
     <div className="chat">
       <div className="chat-inner">
         {live.items.map((item) => (
-          <TimelineRow key={item.id} item={item} />
+          <TimelineRow key={item.id} item={item} sessionId={sessionId} />
         ))}
         {live.pendingTools && <ToolActivity calls={live.pendingTools.calls} running />}
         {live.pendingAssistant && (

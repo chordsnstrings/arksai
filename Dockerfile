@@ -16,6 +16,9 @@ FROM node:22-bookworm-slim
 # git + ripgrep are functional requirements (clone/push, grep tool)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git ripgrep ca-certificates bash procps unzip && rm -rf /var/lib/apt/lists/*
+# Document-generation libraries available to agent workspaces via NODE_PATH
+RUN npm install -g exceljs pdfkit docx xlsx && npm cache clean --force
+ENV NODE_PATH=/usr/local/lib/node_modules
 WORKDIR /app
 COPY --from=build /app /app
 ENV NODE_ENV=production \

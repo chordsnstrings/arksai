@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import fg from 'fast-glob';
 import type { SessionMeta, TimelineItem, ToolCallRecord } from '../../../shared/types';
 import { config } from '../config';
 import { bus } from '../events/bus';
@@ -23,6 +26,37 @@ interface AccToolCall {
 
 function estimateTokens(messages: unknown): number {
   return Math.ceil(JSON.stringify(messages).length / 4);
+}
+
+const DELIVERABLE_GLOB = '**/*.{xlsx,xls,csv,pdf,docx,doc,pptx,png,jpg,jpeg,svg,zip}';
+
+/** Document/binary files created or modified during a run → download chips in the chat. */
+async function findDeliverables(repoDirPath: string, sinceTs: number): Promise<TimelineItem[]> {
+  try {
+    const matches = await fg(DELIVERABLE_GLOB, {
+      cwd: repoDirPath,
+      ignore: ['**/node_modules/**', '**/.git/**', 'uploads/**'],
+      onlyFiles: true,
+      suppressErrors: true,
+    });
+    const items: TimelineItem[] = [];
+    for (const rel of matches.slice(0, 100)) {
+      const stat = fs.statSync(path.join(repoDirPath, rel));
+      if (stat.mtimeMs >= sinceTs) {
+        items.push({
+          kind: 'file',
+          id: randomUUID(),
+          path: rel,
+          name: path.basename(rel),
+          size: stat.size,
+          ts: Date.now(),
+        });
+      }
+    }
+    return items;
+  } catch {
+    return [];
+  }
 }
 
 /** Transient network/provider failures worth retrying; never auth errors. */
@@ -225,6 +259,10 @@ export class AgentRun {
       }
 
       const stat = await diffStat(sessionId).catch(() => null);
+      for (const fileItem of await findDeliverables(dir, this.usage.startedAt)) {
+        liveItems.push(fileItem);
+        this.emit({ type: 'timeline_item', item: fileItem });
+      }
       for (const item of liveItems) store.appendTimeline(sessionId, item);
       store.setContext(sessionId, context);
       store.updateSession(sessionId, {

@@ -40,7 +40,8 @@ export type TimelineItem =
   | { kind: 'user'; id: string; text: string; ts: number }
   | { kind: 'assistant'; id: string; text: string; ts: number }
   | { kind: 'tools'; id: string; calls: ToolCallRecord[]; ts: number }
-  | { kind: 'system'; id: string; level: 'info' | 'error'; text: string; ts: number };
+  | { kind: 'system'; id: string; level: 'info' | 'error'; text: string; ts: number }
+  | { kind: 'file'; id: string; path: string; name: string; size: number; ts: number };
 
 export type AgentEvent =
   | { type: 'run_started'; runId: string; mode: SessionMode }
