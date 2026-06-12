@@ -25,10 +25,10 @@ export async function extractText(absPath: string): Promise<string | null> {
       return parts.join('\n').slice(0, EXTRACT_CAP);
     }
     if (ext === '.pdf') {
-      // import the inner module to dodge pdf-parse's debug-mode file read
-      const pdfParse = require('pdf-parse/lib/pdf-parse.js');
-      const data = await pdfParse(fs.readFileSync(absPath));
-      return String(data.text ?? '').slice(0, EXTRACT_CAP);
+      const { PDFParse } = await import('pdf-parse');
+      const parser = new PDFParse({ data: fs.readFileSync(absPath) });
+      const result = await parser.getText();
+      return String(result.text ?? '').slice(0, EXTRACT_CAP);
     }
     if (ext === '.docx') {
       const mammoth = await import('mammoth');
