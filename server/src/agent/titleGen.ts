@@ -14,7 +14,7 @@ export async function generateTitle(client: OpenAI, model: string, userText: str
             userText.slice(0, 1000),
         },
       ],
-      max_tokens: 24,
+      max_tokens: 32,
       temperature: 0.3,
     });
     const title = res.choices[0]?.message?.content?.trim().replace(/^["']|["']$/g, '');

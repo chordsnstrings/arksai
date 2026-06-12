@@ -534,7 +534,9 @@ export class AgentRun {
   }
 
   private async generateTitleAsync(userText: string) {
-    const title = await generateTitle(this.client, this.session.model, userText);
+    // Always use the non-thinking alias: v4 models default to thinking mode and
+    // would spend the small token budget on reasoning, returning an empty title.
+    const title = await generateTitle(this.client, 'deepseek-chat', userText);
     if (!title) return;
     await store.updateSession(this.session.id, { title });
     bus.sessionChanged((await store.getSession(this.session.id))!);

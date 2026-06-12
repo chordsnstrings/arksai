@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { SessionMeta, SessionStatus } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
@@ -11,7 +12,28 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
   const activeId = useStore((s) => s.activeId);
   const setActive = useStore((s) => s.setActive);
   const removeSession = useStore((s) => s.removeSession);
+  const upsertSession = useStore((s) => s.upsertSession);
   const setAuthed = useStore((s) => s.setAuthed);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+
+  const startRename = (e: React.MouseEvent, session: SessionMeta) => {
+    e.stopPropagation();
+    setEditingId(session.id);
+    setDraft(session.title);
+  };
+
+  const commitRename = async (session: SessionMeta) => {
+    const title = draft.trim();
+    setEditingId(null);
+    if (!title || title === session.title) return;
+    upsertSession({ ...session, title });
+    try {
+      await api.patchSession(session.id, { title });
+    } catch {
+      /* ignore */
+    }
+  };
 
   const handleDelete = async (e: React.MouseEvent, session: SessionMeta) => {
     e.stopPropagation();
@@ -46,7 +68,27 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
             title={s.title}
           >
             <StatusDot status={s.status} />
-            <span className="title">{s.title}</span>
+            {editingId === s.id ? (
+              <input
+                className="title-edit"
+                value={draft}
+                autoFocus
+                onChange={(e) => setDraft(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={() => commitRename(s)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRename(s);
+                  if (e.key === 'Escape') setEditingId(null);
+                }}
+              />
+            ) : (
+              <span className="title" onDoubleClick={(e) => startRename(e, s)}>
+                {s.title}
+              </span>
+            )}
+            <button className="rename" title="Rename" onClick={(e) => startRename(e, s)}>
+              ✎
+            </button>
             <button className="delete" title="Delete session" onClick={(e) => handleDelete(e, s)}>
               ✕
             </button>

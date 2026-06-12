@@ -56,12 +56,15 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const meta = await store.getSession(id);
     if (!meta) return reply.code(404).send({ error: 'Not found' });
-    if (manager.isRunning(id)) return reply.code(409).send({ error: 'Cannot change settings mid-run' });
     const body = (req.body ?? {}) as PatchSessionRequest;
     const patch: PatchSessionRequest = {};
-    if (SESSION_MODES.includes(body.mode as any)) patch.mode = body.mode;
-    if (body.model && (await isValidModel(body.model))) patch.model = body.model;
+    // Renaming is always allowed; mode/model can't change mid-run.
     if (typeof body.title === 'string' && body.title.trim()) patch.title = body.title.trim().slice(0, 80);
+    if (body.mode !== undefined || body.model !== undefined) {
+      if (manager.isRunning(id)) return reply.code(409).send({ error: 'Cannot change mode/model mid-run' });
+      if (SESSION_MODES.includes(body.mode as any)) patch.mode = body.mode;
+      if (body.model && (await isValidModel(body.model))) patch.model = body.model;
+    }
     await store.updateSession(id, patch);
     const updated = (await store.getSession(id))!;
     bus.sessionChanged(updated);
