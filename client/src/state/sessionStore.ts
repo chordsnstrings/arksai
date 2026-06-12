@@ -52,6 +52,7 @@ interface StoreState {
   setActive(id: string | null): void;
   loadDetail(detail: SessionDetail): void;
   addUserMessage(sessionId: string, text: string): void;
+  addLocalSystem(sessionId: string, text: string, level?: 'info' | 'error'): void;
   applyEvent(sessionId: string, ev: AgentEvent): void;
   applyGlobalEvent(ev: GlobalEvent): void;
 }
@@ -99,6 +100,12 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateLive(set, sessionId, (live) => ({
       ...live,
       items: [...live.items, { kind: 'user', id: `local-${Date.now()}`, text, ts: Date.now() }],
+    })),
+
+  addLocalSystem: (sessionId, text, level = 'info') =>
+    mutateLive(set, sessionId, (live) => ({
+      ...live,
+      items: [...live.items, { kind: 'system', id: `cmd-${Date.now()}-${Math.random()}`, level, text, ts: Date.now() }],
     })),
 
   applyEvent: (sessionId, ev) => {

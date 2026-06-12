@@ -1,62 +1,171 @@
 import { useRef, useState } from 'react';
 import type { SessionMeta, SessionMode } from '@shared/types';
-import { FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
+import { computeCost, FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
+import { COMMANDS, matchCommands, type CommandMeta } from '../commands';
 
 export function Composer({ meta, running }: { meta: SessionMeta; running: boolean }) {
   const [text, setText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [menuIdx, setMenuIdx] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(true);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
   const upsertSession = useStore((s) => s.upsertSession);
   const addUserMessage = useStore((s) => s.addUserMessage);
+  const addLocalSystem = useStore((s) => s.addLocalSystem);
   const loadDetail = useStore((s) => s.loadDetail);
+  const setActive = useStore((s) => s.setActive);
+  const models = useStore((s) => s.models);
+  const live = useStore((s) => s.live[meta.id]);
+
+  const modelIds = models.map((m) => m.id);
+  const menuItems = menuOpen ? matchCommands(text) : [];
 
   const setMode = async (mode: SessionMode) => {
-    if (running || mode === meta.mode) return;
-    const updated = await api.patchSession(meta.id, { mode });
-    upsertSession(updated);
+    if (mode === meta.mode) return;
+    upsertSession(await api.patchSession(meta.id, { mode }));
   };
 
-  const modelIds = useStore((s) => s.models).map((m) => m.id);
   const cycleModel = async () => {
     if (running) return;
     const ids = modelIds.length ? modelIds : FALLBACK_MODEL_IDS;
-    const idx = ids.indexOf(meta.model);
-    const next = ids[(idx + 1) % ids.length];
-    const updated = await api.patchSession(meta.id, { model: next });
-    upsertSession(updated);
+    const next = ids[(ids.indexOf(meta.model) + 1) % ids.length];
+    upsertSession(await api.patchSession(meta.id, { model: next }));
   };
 
-  const send = async () => {
-    const value = text.trim();
-    if (!value || running) return;
+  const sys = (t: string, level: 'info' | 'error' = 'info') => addLocalSystem(meta.id, t, level);
 
-    // slash commands
-    if (value === '/clear') {
-      await api.clear(meta.id);
-      const detail = await api.getSession(meta.id);
-      loadDetail(detail);
-      upsertSession(detail.meta);
-      setText('');
-      return;
-    }
-    const modeMatch = value.match(/^\/mode\s+(chat|plan|code)$/);
-    if (modeMatch) {
-      await setMode(modeMatch[1] as SessionMode);
-      setText('');
-      return;
-    }
-
-    setText('');
+  const sendToAgent = async (value: string) => {
     addUserMessage(meta.id, value);
     try {
       await api.sendMessage(meta.id, value);
     } catch (err: any) {
-      alert(err?.message ?? 'Failed to send');
+      sys(err?.message ?? 'Failed to send', 'error');
     }
+  };
+
+  async function runCommand(name: string, args: string) {
+    switch (name) {
+      case 'help':
+        sys('Commands:\n' + COMMANDS.map((c) => `/${c.name}${c.arg ? ' ' + c.arg : ''} — ${c.desc}`).join('\n'));
+        break;
+      case 'mode':
+        if (['chat', 'plan', 'code'].includes(args)) await setMode(args as SessionMode);
+        else sys('Usage: /mode chat|plan|code', 'error');
+        break;
+      case 'model':
+        if (!args) sys('Available models:\n' + (modelIds.length ? modelIds : FALLBACK_MODEL_IDS).map((id) => `${id}${id === meta.model ? '  (current)' : ''}`).join('\n'));
+        else {
+          try {
+            upsertSession(await api.patchSession(meta.id, { model: args }));
+            sys(`Model set to ${args}`);
+          } catch (e: any) {
+            sys(e?.message ?? 'Invalid model', 'error');
+          }
+        }
+        break;
+      case 'clear': {
+        await api.clear(meta.id);
+        const detail = await api.getSession(meta.id);
+        loadDetail(detail);
+        upsertSession(detail.meta);
+        break;
+      }
+      case 'stop':
+        await api.interrupt(meta.id);
+        sys('Interrupted.');
+        break;
+      case 'retry': {
+        const lastUser = [...(live?.items ?? [])].reverse().find((i) => i.kind === 'user') as
+          | { text: string }
+          | undefined;
+        if (lastUser) await sendToAgent(lastUser.text);
+        else sys('Nothing to retry.', 'error');
+        break;
+      }
+      case 'push':
+        await sendToAgent(`Commit all current changes with a clear message and push${args ? ` to branch ${args}` : ''}.`);
+        break;
+      case 'diff': {
+        const { diff } = await api.diff(meta.id);
+        sys(diff);
+        break;
+      }
+      case 'files': {
+        const { files } = await api.tree(meta.id);
+        sys(files.length ? files.join('\n') : 'No files in the workspace.');
+        break;
+      }
+      case 'ps': {
+        const { processes } = await api.processes(meta.id);
+        sys(
+          processes.length
+            ? processes
+                .map((p) => `[${p.id}] ${p.name} — ${p.running ? 'running' : `exited (${p.exitCode ?? '?'})`}`)
+                .join('\n')
+            : 'No background processes.',
+        );
+        break;
+      }
+      case 'kill': {
+        if (!args) return sys('Usage: /kill <process-id>', 'error');
+        const r = await api.killProcess(meta.id, args);
+        sys(r.killed ? `Killed ${args}.` : `${args} was not running.`);
+        break;
+      }
+      case 'rename':
+        if (!args) sys('Usage: /rename <title>', 'error');
+        else upsertSession(await api.patchSession(meta.id, { title: args }));
+        break;
+      case 'cost': {
+        const p = meta.promptTokens + (live?.running ? live.promptTokens : 0);
+        const o = meta.completionTokens + (live?.running ? live.completionTokens : 0);
+        const c =
+          meta.costUsd +
+          (live?.running
+            ? computeCost(meta.model, { cacheHit: live.cacheHitTokens, cacheMiss: live.cacheMissTokens, completion: live.completionTokens })
+            : 0);
+        sys(`Session cost (${meta.model})\ninput:  ${p} tokens\noutput: ${o} tokens\ntotal:  ${p + o} tokens\ncost:   $${c < 0.01 ? c.toFixed(5) : c.toFixed(2)}`);
+        break;
+      }
+      case 'new': {
+        const session = await api.createSession(args ? { repoUrl: args } : {});
+        upsertSession(session);
+        setActive(session.id);
+        break;
+      }
+      default:
+        sys(`Unknown command: /${name}. Type /help for the list.`, 'error');
+    }
+  }
+
+  const selectCommand = (cmd: CommandMeta) => {
+    setMenuOpen(false);
+    if (cmd.arg) {
+      setText(`/${cmd.name} `);
+      taRef.current?.focus();
+    } else {
+      setText('');
+      void runCommand(cmd.name, '');
+    }
+  };
+
+  const send = async () => {
+    const value = text.trim();
+    if (!value) return;
+    if (value.startsWith('/')) {
+      const m = value.match(/^\/(\w+)\s*([\s\S]*)$/);
+      setText('');
+      if (m) await runCommand(m[1], m[2].trim());
+      return;
+    }
+    if (running) return;
+    setText('');
+    await sendToAgent(value);
   };
 
   const uploadFiles = async (files: FileList | File[]) => {
@@ -66,11 +175,7 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
     for (const file of list) form.append('files', file, file.name);
     setUploading(true);
     try {
-      const res = await fetch(`/api/sessions/${meta.id}/upload`, {
-        method: 'POST',
-        body: form,
-        credentials: 'same-origin',
-      });
+      const res = await fetch(`/api/sessions/${meta.id}/upload`, { method: 'POST', body: form, credentials: 'same-origin' });
       if (!res.ok) {
         let message = res.statusText;
         try {
@@ -79,7 +184,7 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
         throw new Error(message);
       }
     } catch (err: any) {
-      alert(err?.message ?? 'Upload failed');
+      sys(err?.message ?? 'Upload failed', 'error');
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -87,6 +192,27 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (menuItems.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMenuIdx((i) => (i + 1) % menuItems.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMenuIdx((i) => (i - 1 + menuItems.length) % menuItems.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        selectCommand(menuItems[Math.min(menuIdx, menuItems.length - 1)]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setMenuOpen(false);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void send();
@@ -100,8 +226,28 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
     ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
   };
 
+  const isCommand = text.trim().startsWith('/');
+
   return (
     <div className="composer-wrap">
+      {menuItems.length > 0 && (
+        <div className="cmd-menu">
+          {menuItems.map((c, i) => (
+            <button
+              key={c.name}
+              className={`cmd-item ${i === Math.min(menuIdx, menuItems.length - 1) ? 'active' : ''}`}
+              onMouseEnter={() => setMenuIdx(i)}
+              onClick={() => selectCommand(c)}
+            >
+              <span className="cmd-name">
+                /{c.name}
+                {c.arg && <span className="cmd-arg"> {c.arg}</span>}
+              </span>
+              <span className="cmd-desc">{c.desc}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div
         className={`composer ${dragOver ? 'drag-over' : ''}`}
         onDragOver={(e) => {
@@ -122,18 +268,14 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
           value={text}
           onChange={(e) => {
             setText(e.target.value);
+            setMenuOpen(true);
+            setMenuIdx(0);
             autoGrow();
           }}
           onKeyDown={onKeyDown}
         />
         <div className="composer-bar">
-          <input
-            ref={fileRef}
-            type="file"
-            multiple
-            hidden
-            onChange={(e) => e.target.files && uploadFiles(e.target.files)}
-          />
+          <input ref={fileRef} type="file" multiple hidden onChange={(e) => e.target.files && uploadFiles(e.target.files)} />
           <button
             className="attach-btn"
             title="Upload files to the workspace (or drag & drop)"
@@ -157,8 +299,8 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
           <button className="model-badge" onClick={cycleModel} title={`${meta.model} — click to switch model`}>
             {modelLabel(meta.model)}
           </button>
-          <button className="send-btn" disabled={!text.trim() || running} onClick={send}>
-            {running ? '…' : 'Send'}
+          <button className="send-btn" disabled={!text.trim() || (running && !isCommand)} onClick={send}>
+            {running && !isCommand ? '…' : 'Send'}
           </button>
         </div>
       </div>

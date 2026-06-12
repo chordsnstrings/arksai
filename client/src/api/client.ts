@@ -2,6 +2,7 @@ import type {
   CreateSessionRequest,
   ModelInfo,
   PatchSessionRequest,
+  ProcessInfo,
   SessionDetail,
   SessionMeta,
 } from '@shared/types';
@@ -50,6 +51,11 @@ export const api = {
     }),
   interrupt: (id: string) => request<{ ok: true }>(`/api/sessions/${id}/interrupt`, { method: 'POST' }),
   clear: (id: string) => request<{ ok: true }>(`/api/sessions/${id}/clear`, { method: 'POST' }),
+  diff: (id: string) => request<{ diff: string }>(`/api/sessions/${id}/diff`),
+  tree: (id: string) => request<{ files: string[] }>(`/api/sessions/${id}/tree`),
+  processes: (id: string) => request<{ processes: ProcessInfo[] }>(`/api/sessions/${id}/processes`),
+  killProcess: (id: string, pid: string) =>
+    request<{ ok: true; killed: boolean }>(`/api/sessions/${id}/processes/${pid}/kill`, { method: 'POST' }),
 };
 
 export { ApiError };

@@ -178,6 +178,15 @@ export interface SendMessageRequest {
 export interface PatchSessionRequest {
   mode?: SessionMode;
   model?: ModelId;
+  title?: string;
+}
+
+export interface ProcessInfo {
+  id: string;
+  name: string;
+  running: boolean;
+  exitCode: number | null;
+  startedAt: number;
 }
 
 export interface SessionDetail {

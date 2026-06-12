@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import * as store from '../sessions/store';
 import * as manager from '../sessions/manager';
 import { isValidModel } from '../agent/models';
-import { deleteWorkspace, parseRepoUrl, setupWorkspace } from '../sessions/workspace';
+import { deleteWorkspace, fullDiff, listFiles, parseRepoUrl, setupWorkspace } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import { processRegistry } from '../agent/processes';
 
@@ -60,6 +60,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const patch: PatchSessionRequest = {};
     if (SESSION_MODES.includes(body.mode as any)) patch.mode = body.mode;
     if (body.model && (await isValidModel(body.model))) patch.model = body.model;
+    if (typeof body.title === 'string' && body.title.trim()) patch.title = body.title.trim().slice(0, 80);
     store.updateSession(id, patch);
     const updated = store.getSession(id)!;
     bus.sessionChanged(updated);
@@ -107,5 +108,41 @@ export function registerSessionRoutes(app: FastifyInstance) {
     store.updateSession(id, { status: 'idle', diffStat: null });
     bus.sessionChanged(store.getSession(id)!);
     return { ok: true };
+  });
+
+  // --- read-only command helpers (no agent run, no token cost) ---
+
+  app.get('/api/sessions/:id/diff', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    return { diff: await fullDiff(id) };
+  });
+
+  app.get('/api/sessions/:id/tree', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    return { files: await listFiles(id) };
+  });
+
+  app.get('/api/sessions/:id/processes', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    const processes = processRegistry.listForSession(id).map((p) => ({
+      id: p.id,
+      name: p.name,
+      running: !p.exited,
+      exitCode: p.exitCode,
+      startedAt: p.startedAt,
+    }));
+    return { processes };
+  });
+
+  app.post('/api/sessions/:id/processes/:pid/kill', async (req, reply) => {
+    const { id, pid } = req.params as { id: string; pid: string };
+    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    const proc = processRegistry.get(pid);
+    if (!proc || proc.sessionId !== id) return reply.code(404).send({ error: 'Process not found' });
+    const killed = processRegistry.kill(pid);
+    return { ok: true, killed };
   });
 }

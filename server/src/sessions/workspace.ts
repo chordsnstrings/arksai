@@ -91,6 +91,32 @@ export async function diffStat(sessionId: string): Promise<string | null> {
   return `+${ins ? ins[1] : 0} −${del ? del[1] : 0}`;
 }
 
+/** Full uncommitted diff (status + git diff), capped. */
+export async function fullDiff(sessionId: string): Promise<string> {
+  const dir = repoDir(sessionId);
+  if (!fs.existsSync(dir)) return 'No workspace.';
+  const status = await execBash('git status --short --branch', { cwd: dir, timeoutMs: 15_000 });
+  const diff = await execBash('git diff HEAD 2>/dev/null', { cwd: dir, timeoutMs: 20_000 });
+  const out = `${status.output}\n\n${diff.output}`.trim();
+  return out || 'Clean working tree — no changes.';
+}
+
+/** Workspace file list (excluding node_modules/.git), capped. */
+export async function listFiles(sessionId: string): Promise<string[]> {
+  const dir = repoDir(sessionId);
+  if (!fs.existsSync(dir)) return [];
+  const fg = (await import('fast-glob')).default;
+  const files = await fg('**/*', {
+    cwd: dir,
+    ignore: ['**/node_modules/**', '**/.git/**'],
+    dot: true,
+    onlyFiles: true,
+    followSymbolicLinks: false,
+    suppressErrors: true,
+  });
+  return files.sort().slice(0, 400);
+}
+
 export function pushUrl(session: SessionMeta): string | null {
   if (!session.repoUrl) return null;
   return authedUrl(session.repoUrl);
