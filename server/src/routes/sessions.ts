@@ -13,7 +13,8 @@ import { isValidModel } from '../agent/models';
 import { deleteWorkspace, fullDiff, listFiles, parseRepoUrl, repoDir, setupWorkspace } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import { processRegistry } from '../agent/processes';
-import { verifyProject } from '../agent/verify';
+import { detectStartCommand, verifyProject } from '../agent/verify';
+import { probeApp } from '../agent/runtimeCheck';
 
 export function registerSessionRoutes(app: FastifyInstance) {
   app.get('/api/sessions', async () => store.listSessions());
@@ -150,7 +151,15 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const ctrl = new AbortController();
     const report = await verifyProject(repoDir(id), ctrl.signal);
     const detail = report.checks.map((c) => `${c.ok ? '✓' : '✗'} ${c.name}\n${c.output}`).join('\n\n');
-    return { report: `${report.summary}${detail ? '\n\n' + detail : ''}` };
+    let out = `${report.summary}${detail ? '\n\n' + detail : ''}`;
+    // For apps, also boot + seed + exercise the endpoints.
+    const startCmd = detectStartCommand(repoDir(id));
+    if (startCmd && (!report.ran || report.ok)) {
+      processRegistry.killAllForSession(id);
+      const probe = await probeApp(id, repoDir(id), startCmd, ctrl.signal);
+      out += `\n\n--- Runtime ---\n${probe.detail}`;
+    }
+    return { report: out };
   });
 
   app.get('/api/sessions/:id/tree', async (req, reply) => {

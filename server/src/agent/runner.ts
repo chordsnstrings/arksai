@@ -15,7 +15,8 @@ import { ToolError, type ToolCtx } from './tools/common';
 import { generateTitle } from './titleGen';
 import { Usage } from './usage';
 import { detectStartCommand, verifyProject } from './verify';
-import { bootAndCheck } from './runtimeCheck';
+import { probeApp } from './runtimeCheck';
+import { processRegistry } from './processes';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
 const PREVIEW_CHARS = 700;
@@ -514,38 +515,21 @@ export class AgentRun {
       return failFix(failing.name, failing.output);
     }
 
-    // 2) Runtime + flow — only for apps (something to boot).
+    // 2) Runtime + flow — for apps, ArksAI boots it and exercises the endpoints.
     const startCmd = detectStartCommand(dir);
     if (!startCmd) {
       sys('info', report.ran ? `✓ Verified — ${report.summary}` : report.summary);
       return 'ok';
     }
 
-    if (this.didRuntimeTest) {
-      sys('info', `✓ Verified — checks passed and the running app was exercised end-to-end.`);
-      return 'ok';
+    // Clean any dev server the agent left running so the probe gets the port.
+    processRegistry.killAllForSession(this.session.id);
+    sys('info', '⟳ Booting the app and exercising its endpoints (seeding real data)…');
+    const probe = await probeApp(this.session.id, dir, startCmd, this.abort.signal);
+    if (!probe.booted || probe.serverErrors > 0) {
+      return failFix(probe.serverErrors > 0 ? 'the app errors at runtime' : 'the app does not run', probe.detail);
     }
-
-    // The agent hasn't exercised the live app. Ask it to once.
-    if (!this.flowRequired) {
-      this.flowRequired = true;
-      sys('info', '⟳ App not yet exercised — requesting an end-to-end flow check…');
-      context.push({
-        role: 'user',
-        content:
-          `Static checks pass, but you have NOT demonstrated the app actually runs. Before completing you MUST: ` +
-          `start the app with bash_background, then use bash + curl to exercise the main flow with real data ` +
-          `(e.g. POST a record then GET it back, or hit the key pages) and show the request and response. ` +
-          `Start command looks like: ${startCmd}. Then finish.`,
-      });
-      return 'retry';
-    }
-
-    // Backstop: it still didn't test, so boot it ourselves and check it serves.
-    sys('info', '⟳ Booting the app to confirm it runs…');
-    const rt = await bootAndCheck(this.session.id, dir, startCmd, this.abort.signal);
-    if (!rt.booted) return failFix('the app does not run', rt.detail);
-    sys('info', `✓ Verified — ${rt.detail} (boot confirmed by ArksAI).`);
+    sys('info', `✓ Verified — ${probe.detail}`);
     return 'ok';
   }
 
