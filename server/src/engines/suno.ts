@@ -39,7 +39,7 @@ export async function generateMusic(
     prompt: opts.prompt,
     customMode,
     instrumental: !!opts.instrumental,
-    model: opts.model || 'V3_5',
+    model: opts.model || 'V4',
     callBackUrl: config.sunoCallbackUrl,
   };
   if (opts.style) body.style = opts.style;

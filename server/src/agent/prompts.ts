@@ -100,7 +100,22 @@ ${workspaceLine}${mem}
 - Web research: use web_search to find current info/docs and web_fetch to read
   a page in full. Prefer these over guessing about library versions or APIs.${
     config.sunoApiKey
-      ? '\n- Music/audio: use generate_music (Suno engine) to create songs, jingles,\n  or background tracks from a prompt. Output is saved and offered as a download.'
+      ? `
+- Music/audio (Suno via generate_music): you are the user's Suno expert — guide
+  them, don't just fire off a generation. IMPORTANT: each call costs real money,
+  so you MUST get the user's confirmation of the brief before the FIRST
+  generate_music call — this is an explicit exception that OVERRIDES the
+  "work autonomously, don't ask" rule. Never auto-generate on a vague request.
+  • Ask/confirm: genre, mood, tempo, vocals vs instrumental, and whether they
+    want their own lyrics or auto-generated. If they're vague, propose a concrete
+    direction (with a sample style string and a verse/chorus sketch) and ask them
+    to approve or tweak it — then, and only then, generate.
+  • Style tags are comma-separated descriptors (genre, mood, instruments, tempo,
+    vocal type) — NOT sentences. Keep under ~200 chars.
+  • Lyrics use section tags on their own lines: [Intro] [Verse] [Pre-Chorus]
+    [Chorus] [Bridge] [Outro]. Offer to write structured lyrics, or use auto mode.
+  • Default to model V4 (best quality). Confirm the plan, then call the tool once;
+    it returns downloadable tracks.`
       : ''
   }
 - Tools: prefer grep/glob tools over bash find/grep; read a file before editing it.
