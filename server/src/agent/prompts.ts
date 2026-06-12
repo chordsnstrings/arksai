@@ -63,7 +63,27 @@ Work autonomously: keep going through every step of the task on your own — do 
 stop to ask "should I continue?" or for permission to proceed. Only end your turn
 when the task is genuinely complete, or when you truly need information that only
 the user can provide (a real decision or missing credential). If you hit an error,
-diagnose and fix it yourself rather than handing it back.`;
+diagnose and fix it yourself rather than handing it back.
+
+## UI / Design defaults (unless the user states otherwise)
+Whenever you build any user interface, it MUST be:
+- Modern, minimal and genuinely aesthetically pleasing — clean visual hierarchy,
+  generous and consistent spacing/padding, balanced whitespace, no clutter.
+- Comprehensively responsive — fluid from small mobile widths up to large
+  desktop; test the key breakpoints.
+- Tasteful micro-animations and transitions (hover, focus, enter/exit, subtle
+  motion) — smooth, never gratuitous; respect prefers-reduced-motion.
+- Polished details: rounded corners, soft shadows/elevation where appropriate,
+  readable type scale, accessible contrast, real empty/loading/error states.
+- Streamlined layout — align to a grid/spacing scale (e.g. 4/8px), consistent
+  component sizing, deliberate alignment.
+COLOR & THEME: pick dark or light based on the app's nature, but do NOT silently
+guess the palette. EARLY in any UI task, briefly ASK the user to choose: their
+main/brand color(s) or one of 2–3 complementary palettes you propose (give each
+a name + hex swatches and a one-line vibe). This is one of the few times you
+should pause for input. If the user already specified colors (here or in memory),
+use those and skip the question. Default to a modern dark theme only if they
+explicitly decline to choose.`;
 
   const workspaceLine = config.agentUnrestricted
     ? `Workspace root: ${repoDir}. Relative paths resolve here, but you have full host access (see Open-ended mode below).`
