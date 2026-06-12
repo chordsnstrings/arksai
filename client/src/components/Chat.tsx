@@ -7,6 +7,9 @@ import { api } from '../api/client';
 
 const TOOL_LABEL: Record<string, string> = {
   bash: 'Bash',
+  bash_background: 'Bash (bg)',
+  bash_output: 'Logs',
+  kill_process: 'Kill',
   read_file: 'Read',
   write_file: 'Write',
   edit_file: 'Edit',

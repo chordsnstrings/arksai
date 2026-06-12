@@ -25,6 +25,17 @@ function estimateTokens(messages: unknown): number {
   return Math.ceil(JSON.stringify(messages).length / 4);
 }
 
+/** Transient network/provider failures worth retrying; never auth errors. */
+function isTransientApiError(err: any): boolean {
+  const status = err?.status ?? err?.response?.status;
+  if (status === 401 || status === 400) return false;
+  if (status === 429 || (status >= 500 && status < 600)) return true;
+  const msg = String(err?.message ?? err);
+  return /resolve|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|fetch failed|socket hang up|network|private\/reserved IP/i.test(
+    msg,
+  );
+}
+
 /**
  * Keep the context under the model window for long-running sessions:
  * first shrink old tool outputs, then drop the oldest messages entirely
@@ -102,19 +113,16 @@ export class AgentRun {
         if (this.abort.signal.aborted) break;
         truncateContext(context);
 
-        const stream = await this.client.chat.completions.create(
-          {
-            model: this.session.model,
-            messages: [
-              { role: 'system', content: buildSystemPrompt(this.session, dir) },
-              ...context,
-            ],
-            tools: schemas.length ? (schemas as any) : undefined,
-            stream: true,
-            stream_options: { include_usage: true },
-          },
-          { signal: this.abort.signal },
-        );
+        const stream = await this.createCompletionWithRetry({
+          model: this.session.model,
+          messages: [
+            { role: 'system', content: buildSystemPrompt(this.session, dir) },
+            ...context,
+          ],
+          tools: schemas.length ? (schemas as any) : undefined,
+          stream: true,
+          stream_options: { include_usage: true },
+        });
 
         let text = '';
         const toolCalls: AccToolCall[] = [];
@@ -234,6 +242,28 @@ export class AgentRun {
       });
       bus.sessionChanged(store.getSession(sessionId)!);
       bus.clear(sessionId);
+    }
+  }
+
+  /** Retry transient API failures (network blips, 429/5xx) with backoff. */
+  private async createCompletionWithRetry(params: any): Promise<AsyncIterable<any>> {
+    const delays = [2000, 4000, 8000];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return (await this.client.chat.completions.create(params, {
+          signal: this.abort.signal,
+        })) as unknown as AsyncIterable<any>;
+      } catch (err) {
+        if (this.abort.signal.aborted || attempt >= delays.length || !isTransientApiError(err)) {
+          throw err;
+        }
+        this.emit({
+          type: 'tick',
+          elapsedSeconds: this.usage.elapsedSeconds,
+          runningTasks: 1,
+        });
+        await new Promise((r) => setTimeout(r, delays[attempt]));
+      }
     }
   }
 

@@ -39,6 +39,11 @@ Sessions are built for long-running work: runs keep going if you close the
 tab, history and context persist across server restarts, and old context is
 trimmed automatically so long chats and long tasks don't hit the model window.
 
+The agent can run **background processes**: it starts dev servers/watchers with
+`bash_background` (they survive across tool calls and messages), checks their
+logs with `bash_output`, and stops them with `kill_process`. Background
+processes are killed when the session is deleted or cleared (max 5 per session).
+
 Use the **+** button in the composer (or drag & drop onto it) to upload files
 into the session workspace — they land in `uploads/` where the agent can read
 text files or extract archives (25 MB/file limit). Note: DeepSeek models are

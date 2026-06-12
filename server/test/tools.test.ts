@@ -53,3 +53,29 @@ test('truncateMiddle caps long output', () => {
   assert.ok(out.length < 31_000);
   assert.match(out, /characters truncated/);
 });
+
+test('process registry: start, tail, survive, kill', async () => {
+  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-data-'));
+  const { processRegistry } = await import('../src/agent/processes');
+
+  const proc = processRegistry.start('sess1', 'echo hello-from-bg; sleep 30', ws, 'test proc');
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal(proc.exited, false, 'process should still be running');
+  assert.match(processRegistry.tail(proc.id), /hello-from-bg/);
+
+  assert.equal(processRegistry.kill(proc.id), true);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(processRegistry.get(proc.id)?.exited, true);
+});
+
+test('process registry: session isolation and killAllForSession', async () => {
+  const { processRegistry } = await import('../src/agent/processes');
+  const a = processRegistry.start('sessA', 'sleep 30', ws);
+  const b = processRegistry.start('sessB', 'sleep 30', ws);
+  assert.equal(processRegistry.listForSession('sessA').some((p) => p.id === b.id), false);
+  processRegistry.killAllForSession('sessA');
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(processRegistry.get(a.id)?.exited, true);
+  assert.equal(processRegistry.get(b.id)?.exited, false, 'other session untouched');
+  processRegistry.killAllForSession('sessB');
+});

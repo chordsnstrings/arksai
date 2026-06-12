@@ -28,7 +28,9 @@ export const bashTool: ToolDef = {
   name: 'bash',
   description:
     'Run a bash command inside the workspace repository. Working directory is the repo root. ' +
-    'Output is truncated to ~30KB. In Plan mode only read-only commands are allowed.',
+    'Output is truncated to ~30KB. In Plan mode only read-only commands are allowed. ' +
+    'The process group is killed when the call returns — use bash_background for servers ' +
+    'or anything that must keep running.',
   parameters: {
     type: 'object',
     properties: {

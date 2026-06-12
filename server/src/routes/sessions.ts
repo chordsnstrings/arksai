@@ -11,6 +11,7 @@ import * as store from '../sessions/store';
 import * as manager from '../sessions/manager';
 import { deleteWorkspace, parseRepoUrl, setupWorkspace } from '../sessions/workspace';
 import { bus } from '../events/bus';
+import { processRegistry } from '../agent/processes';
 
 export function registerSessionRoutes(app: FastifyInstance) {
   app.get('/api/sessions', async () => store.listSessions());
@@ -68,6 +69,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
     manager.interrupt(id);
+    processRegistry.killAllForSession(id);
     deleteWorkspace(id);
     store.deleteSession(id);
     bus.emitGlobal({ type: 'session_deleted', sessionId: id });
@@ -99,6 +101,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
     if (manager.isRunning(id)) return reply.code(409).send({ error: 'Cannot clear mid-run' });
+    processRegistry.killAllForSession(id);
     store.clearConversation(id);
     store.updateSession(id, { status: 'idle', diffStat: null });
     bus.sessionChanged(store.getSession(id)!);

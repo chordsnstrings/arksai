@@ -1,11 +1,15 @@
 import type { SessionMode } from '../../../../shared/types';
 import type { ToolDef } from './common';
 import { bashTool } from './bash';
+import { bashBackgroundTool, bashOutputTool, killProcessTool } from './background';
 import { editFileTool, globTool, grepTool, readFileTool, writeFileTool } from './files';
 import { gitCommitTool, gitDiffStatTool, gitPushTool } from './git';
 
 export const ALL_TOOLS: ToolDef[] = [
   bashTool,
+  bashBackgroundTool,
+  bashOutputTool,
+  killProcessTool,
   readFileTool,
   writeFileTool,
   editFileTool,

@@ -43,6 +43,12 @@ access anything outside the workspace.
 - Long command output is truncated; keep commands targeted.
 - Files uploaded by the user are placed in the uploads/ directory at the
   workspace root (text files are readable; archives can be extracted).
+- IMPORTANT: every bash call runs in its own process group that is killed when
+  the call returns — a server started with plain bash (even with & or nohup)
+  will NOT survive to the next tool call. To run a dev server or any
+  long-running process, use bash_background; it persists across tool calls and
+  messages. Then verify with bash (curl), inspect logs with bash_output, and
+  stop it with kill_process when you are done.
 
 ${modeBlock}
 
