@@ -1,10 +1,15 @@
-# SITE_ADDRESS comes from .env (see docker-compose.tls.yml).
-#  - A real domain (e.g. arksai.example.com) with an A record pointing at this
-#    server  -> automatic Let's Encrypt HTTPS, no extra steps.
-#  - Default ":443"  -> Caddy serves HTTPS with a self-signed cert (works for an
-#    IP-only box; browsers show a one-time warning).
-{$SITE_ADDRESS} {
+# SITE_ADDRESS + CADDY_TLS come from .env (see docker-compose.tls.yml).
+#
+#  IP / no domain (default):
+#    SITE_ADDRESS=:443   CADDY_TLS=internal
+#    -> Caddy serves HTTPS with its own self-signed cert (browser warns once).
+#
+#  Real domain (A record -> this server):
+#    SITE_ADDRESS=arksai.example.com   CADDY_TLS=you@example.com
+#    -> automatic Let's Encrypt cert, no warning. (CADDY_TLS = your email.)
+{$SITE_ADDRESS::443} {
 	encode zstd gzip
+	tls {$CADDY_TLS:internal}
 	# SSE streams pass through fine; Caddy flushes the proxy.
 	reverse_proxy arksai:3000
 }

@@ -25,6 +25,7 @@ services:
       - "443:443"
     environment:
       - SITE_ADDRESS=${SITE_ADDRESS:-:443}
+      - CADDY_TLS=${CADDY_TLS:-internal}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
