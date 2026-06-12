@@ -8,6 +8,8 @@ export interface ToolCtx {
   repoDir: string;
   mode: SessionMode;
   signal: AbortSignal;
+  /** Report external-engine spend (e.g. Suno) so it's added to the session cost. */
+  addCost: (usd: number) => void;
 }
 
 export interface ToolDef {
@@ -15,6 +17,8 @@ export interface ToolDef {
   description: string;
   parameters: Record<string, unknown>; // JSON schema
   modes: SessionMode[];
+  /** Optional gate — e.g. an engine tool only available when its key is set. */
+  available?: () => boolean;
   summarize(args: any): string;
   run(args: any, ctx: ToolCtx): Promise<string>;
 }

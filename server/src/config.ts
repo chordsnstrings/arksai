@@ -61,6 +61,12 @@ export const config = {
   githubToken: process.env.GITHUB_TOKEN || '',
   serperApiKey: process.env.SERPER_API_KEY || '',
   braveApiKey: process.env.BRAVE_API_KEY || '',
+  // Engines (orchestration spine)
+  sunoApiKey: process.env.SUNO_API_KEY || '',
+  sunoBaseUrl: process.env.SUNO_BASE_URL || 'https://api.sunoapi.org',
+  sunoCallbackUrl: process.env.SUNO_CALLBACK_URL || 'https://arksai.example.com/suno/callback',
+  // Estimated USD cost per generated track, added to the session cost.
+  sunoCostPerTrack: Number(process.env.SUNO_COST_PER_TRACK || '0.08') || 0.08,
   appPassword: process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
@@ -102,5 +108,6 @@ export function secretValues(): string[] {
     config.appPassword,
     config.serperApiKey,
     config.braveApiKey,
+    config.sunoApiKey,
   ].filter((s) => s && s.length >= 6);
 }

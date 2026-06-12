@@ -6,10 +6,12 @@ import { editFileTool, globTool, grepTool, readFileTool, writeFileTool } from '.
 import { gitCommitTool, gitDiffStatTool, gitPushTool } from './git';
 import { webFetchTool, webSearchTool } from './web';
 import { verifyTool } from './verify';
+import { generateMusicTool } from './music';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
   webFetchTool,
+  generateMusicTool,
   bashTool,
   bashBackgroundTool,
   bashOutputTool,
@@ -38,7 +40,7 @@ export interface ToolSet {
  * schema list entirely, so the model can't even attempt them.
  */
 export function getToolsForMode(mode: SessionMode): ToolSet {
-  const tools = ALL_TOOLS.filter((t) => t.modes.includes(mode));
+  const tools = ALL_TOOLS.filter((t) => t.modes.includes(mode) && (!t.available || t.available()));
   return {
     schemas: tools.map((t) => ({
       type: 'function' as const,

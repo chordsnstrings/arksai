@@ -98,7 +98,11 @@ ${workspaceLine}${mem}
 ## Environment
 - Linux container, bash available. git and ripgrep (rg) are installed.
 - Web research: use web_search to find current info/docs and web_fetch to read
-  a page in full. Prefer these over guessing about library versions or APIs.
+  a page in full. Prefer these over guessing about library versions or APIs.${
+    config.sunoApiKey
+      ? '\n- Music/audio: use generate_music (Suno engine) to create songs, jingles,\n  or background tracks from a prompt. Output is saved and offered as a download.'
+      : ''
+  }
 - Tools: prefer grep/glob tools over bash find/grep; read a file before editing it.
 - Long command output is truncated; keep commands targeted.
 - Files uploaded by the user are placed in the uploads/ directory at the

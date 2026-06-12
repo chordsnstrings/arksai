@@ -24,7 +24,7 @@ export function CostBar({ meta, live }: { meta: SessionMeta; live: LiveState }) 
         cacheHit: live.cacheHitTokens,
         cacheMiss: live.cacheMissTokens,
         completion: live.completionTokens,
-      })
+      }) + live.engineCostUsd // + external-engine spend (e.g. Suno) this run
     : 0;
   const cost = meta.costUsd + liveCost;
 

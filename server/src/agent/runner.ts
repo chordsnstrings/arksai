@@ -102,6 +102,7 @@ export class AgentRun {
   private verifyRounds = 0;
   private didRuntimeTest = false; // did the agent curl a running server this run?
   private flowRequired = false; // have we already asked it to demo the flow?
+  private engineCostUsd = 0; // external-engine spend this run (e.g. Suno)
   private client: OpenAI;
 
   constructor(private session: SessionMeta) {
@@ -333,7 +334,7 @@ export class AgentRun {
         totalTokens: (prev.totalTokens ?? 0) + this.usage.totalTokens,
         promptTokens: (prev.promptTokens ?? 0) + this.usage.promptTokens,
         completionTokens: (prev.completionTokens ?? 0) + this.usage.completionTokens,
-        costUsd: (prev.costUsd ?? 0) + runCost,
+        costUsd: (prev.costUsd ?? 0) + runCost + this.engineCostUsd,
       });
 
       this.emit({
@@ -419,6 +420,20 @@ export class AgentRun {
           repoDir: dir,
           mode: this.session.mode,
           signal: this.abort.signal,
+          addCost: (usd: number) => {
+            if (usd > 0) {
+              this.engineCostUsd += usd;
+              this.emit({
+                type: 'usage_update',
+                totalTokens: this.usage.totalTokens,
+                promptTokens: this.usage.promptTokens,
+                completionTokens: this.usage.completionTokens,
+                cacheHitTokens: this.usage.cacheHitTokens,
+                cacheMissTokens: this.usage.cacheMissTokens,
+                engineCostUsd: this.engineCostUsd,
+              });
+            }
+          },
         };
         result = await tool.run(args, ctx);
         if (result.startsWith('Error:') || result.startsWith('Blocked')) ok = false;

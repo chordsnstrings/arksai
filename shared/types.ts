@@ -140,6 +140,8 @@ export type AgentEvent =
       completionTokens: number;
       cacheHitTokens: number;
       cacheMissTokens: number;
+      /** cumulative external-engine spend this run (e.g. Suno), USD */
+      engineCostUsd?: number;
     }
   | { type: 'tick'; elapsedSeconds: number; runningTasks: number }
   | {
