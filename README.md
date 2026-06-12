@@ -87,10 +87,27 @@ cp .env.example .env && nano .env        # set the three secrets
 docker compose up -d --build
 ```
 
-The app is now on port 3000. Put TLS in front (Caddy or nginx + certbot),
-then set `COOKIE_SECURE=true` and restart. Data persists in the `arksai-data`
-named Docker volume (survives `docker compose down && up`; inspect with
-`docker volume inspect arksai_arksai-data`).
+The app is now on port 3000. Data persists in the `arksai-data` named Docker
+volume (survives `docker compose down && up`), or in PostgreSQL if `DATABASE_URL`
+is set.
+
+### TLS / HTTPS (recommended before real use)
+
+A Caddy reverse proxy with **automatic HTTPS** is included. Switch to the TLS
+compose file — the app becomes internal-only and Caddy terminates TLS:
+
+```bash
+# in .env:
+#   SITE_ADDRESS=your.domain.com   (A record pointing at this server) — or omit
+#   COOKIE_SECURE=true
+docker compose down                       # stop the plain-HTTP stack first
+docker compose -f docker-compose.tls.yml up -d --build
+```
+
+With a real domain you get a Let's Encrypt cert automatically. Without one
+(`SITE_ADDRESS` unset) Caddy serves a self-signed cert on the IP — encrypted,
+but the browser warns once. Either way, set `COOKIE_SECURE=true` so the login
+cookie is only sent over HTTPS.
 
 ## Deploy — DigitalOcean App Platform
 

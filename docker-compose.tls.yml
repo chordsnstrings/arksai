@@ -1,0 +1,39 @@
+# TLS deployment: Caddy (automatic HTTPS) in front of ArksAI.
+#
+#   docker compose -f docker-compose.tls.yml up -d --build
+#
+# In .env set:
+#   SITE_ADDRESS=your.domain.com   # or leave unset for self-signed on the IP
+#   COOKIE_SECURE=true             # required once you're on HTTPS
+#
+# The app is internal-only here (no public port) — all traffic goes through
+# Caddy on 80/443. Uses the same arksai-data volume as docker-compose.yml.
+services:
+  arksai:
+    build: .
+    env_file: .env
+    expose:
+      - "3000"
+    volumes:
+      - arksai-data:/data
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - SITE_ADDRESS=${SITE_ADDRESS:-:443}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - arksai
+    restart: unless-stopped
+
+volumes:
+  arksai-data:
+  caddy-data:
+  caddy-config:
