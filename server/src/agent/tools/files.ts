@@ -18,7 +18,7 @@ export const readFileTool: ToolDef = {
     },
     required: ['path'],
   },
-  modes: ['plan', 'code'],
+  modes: ['chat', 'plan', 'code'],
   summarize: (args) => String(args.path ?? ''),
   async run(args, ctx) {
     const abs = resolveInWorkspace(ctx.repoDir, String(args.path));
@@ -97,7 +97,7 @@ export const globTool: ToolDef = {
     properties: { pattern: { type: 'string' } },
     required: ['pattern'],
   },
-  modes: ['plan', 'code'],
+  modes: ['chat', 'plan', 'code'],
   summarize: (args) => String(args.pattern ?? ''),
   async run(args, ctx) {
     const matches = await fg(String(args.pattern), {
@@ -126,7 +126,7 @@ export const grepTool: ToolDef = {
     },
     required: ['pattern'],
   },
-  modes: ['plan', 'code'],
+  modes: ['chat', 'plan', 'code'],
   summarize: (args) => String(args.pattern ?? '').slice(0, 80),
   async run(args, ctx) {
     const max = Math.min(Number(args.max_results) || 100, 500);

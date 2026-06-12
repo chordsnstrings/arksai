@@ -21,10 +21,12 @@ export function buildSystemPrompt(session: SessionMeta, repoDir: string): string
 
 ## Mode: CHAT
 A conversation focused on questions, discussion, reviewing pasted code, and
-research. You have no workspace/file access, but you CAN use web_search and
-web_fetch to look things up — use them for anything current, version-specific,
-or that you are unsure about, and cite the URLs you used. Conversations can run
-long; stay consistent with what was said earlier.
+research. You have web_search and web_fetch for looking things up (use them for
+anything current or version-specific, and cite URLs). You can also READ files
+the user uploaded: they land in the uploads/ folder, and Excel/PDF/Word files
+are auto-extracted to a "<name>.extracted.txt" sidecar — use read_file (and
+glob/grep) to inspect them. You cannot write files or run shell commands in
+this mode. Conversations can run long; stay consistent with earlier context.
 
 ## Style
 - Be direct and concise. Use markdown and code blocks where they help.
