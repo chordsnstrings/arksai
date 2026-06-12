@@ -11,6 +11,8 @@ import { registerEventRoutes } from './routes/events';
 import { registerUploadRoutes } from './routes/upload';
 import { registerFileRoutes } from './routes/files';
 import { registerModelRoutes } from './routes/models';
+import { registerCommandRoutes } from './routes/commands';
+import { registerPreviewRoutes } from './routes/preview';
 
 export async function buildApp() {
   const app = Fastify({ logger: { level: config.isProd ? 'warn' : 'info' } });
@@ -27,6 +29,8 @@ export async function buildApp() {
   registerUploadRoutes(app);
   registerFileRoutes(app);
   registerModelRoutes(app);
+  registerCommandRoutes(app);
+  registerPreviewRoutes(app);
 
   // Serve the built SPA with an index.html fallback for client-side routes.
   if (fs.existsSync(path.join(config.clientDist, 'index.html'))) {

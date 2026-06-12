@@ -2,13 +2,16 @@ export interface CommandMeta {
   name: string;
   desc: string;
   arg?: string;
+  custom?: boolean;
 }
 
-/** Slash commands surfaced in the composer's "/" menu. */
+/** Built-in slash commands surfaced in the composer's "/" menu. */
 export const COMMANDS: CommandMeta[] = [
   { name: 'help', desc: 'List available commands' },
   { name: 'mode', desc: 'Switch mode', arg: 'chat|plan|code' },
   { name: 'model', desc: 'Switch model (no arg lists options)', arg: '[name]' },
+  { name: 'goal', desc: 'Keep working until a condition is met', arg: '<condition | stop>' },
+  { name: 'loop', desc: 'Re-run a prompt on a timer', arg: '[interval] <prompt | stop>' },
   { name: 'clear', desc: 'Clear this conversation' },
   { name: 'stop', desc: 'Interrupt the running agent' },
   { name: 'retry', desc: 'Re-run your last message' },
@@ -19,12 +22,14 @@ export const COMMANDS: CommandMeta[] = [
   { name: 'kill', desc: 'Stop a background process', arg: '<id>' },
   { name: 'rename', desc: 'Rename this session', arg: '<title>' },
   { name: 'cost', desc: 'Show token + cost breakdown' },
+  { name: 'canvas', desc: 'Toggle the canvas (preview + files)' },
+  { name: 'commands', desc: 'Create / edit custom commands' },
   { name: 'new', desc: 'Start a new session', arg: '[owner/repo]' },
 ];
 
-export function matchCommands(input: string): CommandMeta[] {
+export function matchCommands(input: string, extra: CommandMeta[] = []): CommandMeta[] {
   const m = input.match(/^\/(\w*)$/);
   if (!m) return [];
   const q = m[1].toLowerCase();
-  return COMMANDS.filter((c) => c.name.startsWith(q));
+  return [...COMMANDS, ...extra].filter((c) => c.name.startsWith(q));
 }

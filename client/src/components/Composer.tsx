@@ -1,11 +1,19 @@
 import { useRef, useState } from 'react';
 import type { SessionMeta, SessionMode } from '@shared/types';
-import { computeCost, FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
+import { computeCost, expandTemplate, FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
+import { clearLoopTimer, startLoopTimer } from '../api/useAutomation';
 import { COMMANDS, matchCommands, type CommandMeta } from '../commands';
 
-export function Composer({ meta, running }: { meta: SessionMeta; running: boolean }) {
+function parseInterval(s: string): number | null {
+  const m = s.match(/^(\d+)(s|m|h)?$/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n * (m[2] === 'h' ? 3600000 : m[2] === 's' ? 1000 : 60000);
+}
+
+export function Composer({ meta, running, onOpenCommands }: { meta: SessionMeta; running: boolean; onOpenCommands: () => void }) {
   const [text, setText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -21,9 +29,18 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
   const setActive = useStore((s) => s.setActive);
   const models = useStore((s) => s.models);
   const live = useStore((s) => s.live[meta.id]);
+  const customCommands = useStore((s) => s.commands);
+  const toggleCanvas = useStore((s) => s.toggleCanvas);
+  const setAutomation = useStore((s) => s.setAutomation);
 
   const modelIds = models.map((m) => m.id);
-  const menuItems = menuOpen ? matchCommands(text) : [];
+  const customMetas: CommandMeta[] = customCommands.map((c) => ({
+    name: c.name,
+    desc: c.description || 'custom command',
+    arg: '[args]',
+    custom: true,
+  }));
+  const menuItems = menuOpen ? matchCommands(text, customMetas) : [];
 
   const setMode = async (mode: SessionMode) => {
     if (mode === meta.mode) return;
@@ -49,6 +66,12 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
   };
 
   async function runCommand(name: string, args: string) {
+    // custom command? expand its template and send to the agent.
+    const custom = customCommands.find((c) => c.name === name);
+    if (custom) {
+      await sendToAgent(expandTemplate(custom.template, args));
+      return;
+    }
     switch (name) {
       case 'help':
         sys('Commands:\n' + COMMANDS.map((c) => `/${c.name}${c.arg ? ' ' + c.arg : ''} — ${c.desc}`).join('\n'));
@@ -136,6 +159,42 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
         const session = await api.createSession(args ? { repoUrl: args } : {});
         upsertSession(session);
         setActive(session.id);
+        break;
+      }
+      case 'canvas':
+        toggleCanvas();
+        break;
+      case 'commands':
+        onOpenCommands();
+        break;
+      case 'goal':
+        if (!args || args === 'stop' || args === 'clear') {
+          setAutomation(meta.id, null);
+          sys('Goal cleared.');
+        } else {
+          setAutomation(meta.id, { goalCondition: args, goalRounds: 0 });
+          sys(`🎯 Goal set: "${args}". The agent will keep working until it's met (or it needs you). /goal stop to cancel.`);
+          await sendToAgent(
+            `Work toward this goal until it is fully achieved: ${args}\n\nWhen it is complete, reply with GOAL_ACHIEVED on its own line. If you get blocked and need my input, say so.`,
+          );
+        }
+        break;
+      case 'loop': {
+        const rest = args.trim();
+        if (!rest || rest === 'stop') {
+          clearLoopTimer(meta.id);
+          sys('Loop stopped.');
+          break;
+        }
+        const firstSpace = rest.indexOf(' ');
+        const maybeInterval = firstSpace > 0 ? rest.slice(0, firstSpace) : rest;
+        const ms = parseInterval(maybeInterval);
+        const prompt = ms ? rest.slice(firstSpace + 1).trim() : rest;
+        const intervalMs = ms ?? 600000;
+        if (!prompt) return sys('Usage: /loop [interval e.g. 5m] <prompt>', 'error');
+        startLoopTimer(meta.id, prompt, intervalMs);
+        sys(`🔁 Looping every ${Math.round(intervalMs / 1000)}s: "${prompt}". /loop stop to cancel.`);
+        await sendToAgent(prompt);
         break;
       }
       default:

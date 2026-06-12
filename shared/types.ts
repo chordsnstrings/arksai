@@ -189,6 +189,22 @@ export interface ProcessInfo {
   startedAt: number;
 }
 
+export interface CustomCommand {
+  name: string;
+  description: string;
+  template: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Expand a custom command template with positional + $ARGUMENTS substitution. */
+export function expandTemplate(template: string, argString: string): string {
+  const args = argString.trim().length ? argString.trim().split(/\s+/) : [];
+  let out = template.replace(/\$ARGUMENTS\b/g, argString.trim());
+  out = out.replace(/\$(\d+)/g, (_, n) => args[Number(n) - 1] ?? '');
+  return out;
+}
+
 export interface SessionDetail {
   meta: SessionMeta;
   timeline: TimelineItem[];

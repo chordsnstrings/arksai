@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   AgentEvent,
+  CustomCommand,
   GlobalEvent,
   ModelInfo,
   SessionDetail,
@@ -8,6 +9,13 @@ import type {
   TimelineItem,
   ToolCallRecord,
 } from '@shared/types';
+
+export interface Automation {
+  goalCondition?: string;
+  goalRounds: number;
+  loopPrompt?: string;
+  loopIntervalMs?: number;
+}
 
 export interface LiveState {
   items: TimelineItem[];
@@ -43,9 +51,15 @@ interface StoreState {
   activeId: string | null;
   live: Record<string, LiveState>;
   models: ModelInfo[];
+  commands: CustomCommand[];
+  canvasOpen: boolean;
+  automation: Record<string, Automation>;
 
   setAuthed(v: boolean): void;
   setModels(models: ModelInfo[]): void;
+  setCommands(commands: CustomCommand[]): void;
+  toggleCanvas(open?: boolean): void;
+  setAutomation(sessionId: string, a: Automation | null): void;
   setSessions(list: SessionMeta[]): void;
   upsertSession(meta: SessionMeta): void;
   removeSession(id: string): void;
@@ -63,9 +77,21 @@ export const useStore = create<StoreState>((set, get) => ({
   activeId: null,
   live: {},
   models: [],
+  commands: [],
+  canvasOpen: false,
+  automation: {},
 
   setAuthed: (v) => set({ authed: v }),
   setModels: (models) => set({ models }),
+  setCommands: (commands) => set({ commands }),
+  toggleCanvas: (open) => set((s) => ({ canvasOpen: open ?? !s.canvasOpen })),
+  setAutomation: (sessionId, a) =>
+    set((s) => {
+      const next = { ...s.automation };
+      if (a) next[sessionId] = a;
+      else delete next[sessionId];
+      return { automation: next };
+    }),
   setSessions: (list) => set({ sessions: list }),
 
   upsertSession: (meta) =>

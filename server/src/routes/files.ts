@@ -40,9 +40,11 @@ export function registerFileRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'File not found' });
     }
     const name = path.basename(abs);
+    // ?inline=1 renders in the browser (canvas viewer); default forces download.
+    const inline = (req.query as any)?.inline === '1';
     reply
       .header('Content-Type', MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream')
-      .header('Content-Disposition', `attachment; filename="${name.replace(/"/g, '')}"`)
+      .header('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${name.replace(/"/g, '')}"`)
       .header('Content-Length', fs.statSync(abs).size);
     return reply.send(fs.createReadStream(abs));
   });

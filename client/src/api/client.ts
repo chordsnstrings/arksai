@@ -1,5 +1,6 @@
 import type {
   CreateSessionRequest,
+  CustomCommand,
   ModelInfo,
   PatchSessionRequest,
   ProcessInfo,
@@ -56,6 +57,13 @@ export const api = {
   processes: (id: string) => request<{ processes: ProcessInfo[] }>(`/api/sessions/${id}/processes`),
   killProcess: (id: string, pid: string) =>
     request<{ ok: true; killed: boolean }>(`/api/sessions/${id}/processes/${pid}/kill`, { method: 'POST' }),
+  listCommands: () => request<{ commands: CustomCommand[] }>('/api/commands').then((r) => r.commands),
+  putCommand: (name: string, description: string, template: string) =>
+    request<CustomCommand>(`/api/commands/${name}`, {
+      method: 'PUT',
+      body: JSON.stringify({ description, template }),
+    }),
+  deleteCommand: (name: string) => request<{ ok: true }>(`/api/commands/${name}`, { method: 'DELETE' }),
 };
 
 export { ApiError };

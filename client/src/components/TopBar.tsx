@@ -1,6 +1,9 @@
 import type { SessionMeta } from '@shared/types';
+import { useStore } from '../state/sessionStore';
 
 export function TopBar({ meta }: { meta: SessionMeta }) {
+  const toggleCanvas = useStore((s) => s.toggleCanvas);
+  const canvasOpen = useStore((s) => s.canvasOpen);
   return (
     <header className="topbar">
       {meta.repoName ? (
@@ -19,6 +22,9 @@ export function TopBar({ meta }: { meta: SessionMeta }) {
           <span className="del">{meta.diffStat.split(' ')[1]}</span>
         </span>
       )}
+      <button className={`canvas-toggle ${canvasOpen ? 'on' : ''}`} onClick={() => toggleCanvas()}>
+        ▦ Canvas
+      </button>
     </header>
   );
 }

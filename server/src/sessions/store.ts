@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type {
+  CustomCommand,
   ModelId,
   SessionMeta,
   SessionMode,
@@ -44,6 +45,13 @@ export function initStore() {
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_timeline_session ON timeline(session_id, seq);
+    CREATE TABLE IF NOT EXISTS custom_commands(
+      name TEXT PRIMARY KEY,
+      description TEXT NOT NULL DEFAULT '',
+      template TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
 
   // Migrate older DBs that predate the cost columns.
@@ -182,6 +190,36 @@ export function getTimeline(sessionId: string): TimelineItem[] {
     .prepare('SELECT payload FROM timeline WHERE session_id = ? ORDER BY seq ASC')
     .all(sessionId)
     .map((r: any) => JSON.parse(r.payload));
+}
+
+// ---- custom commands (deployment-wide prompt templates) ----
+
+export function listCommands(): CustomCommand[] {
+  return db
+    .prepare('SELECT * FROM custom_commands ORDER BY name ASC')
+    .all()
+    .map((r: any) => ({
+      name: r.name,
+      description: r.description,
+      template: r.template,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+}
+
+export function upsertCommand(name: string, description: string, template: string): CustomCommand {
+  const now = Date.now();
+  db.prepare(
+    `INSERT INTO custom_commands(name, description, template, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(name) DO UPDATE SET description = excluded.description,
+       template = excluded.template, updated_at = excluded.updated_at`,
+  ).run(name, description, template, now, now);
+  return listCommands().find((c) => c.name === name)!;
+}
+
+export function deleteCommand(name: string) {
+  db.prepare('DELETE FROM custom_commands WHERE name = ?').run(name);
 }
 
 /** On boot: any session left "running" by a crash/restart becomes an error. */
