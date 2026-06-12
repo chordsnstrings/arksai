@@ -5,6 +5,7 @@ import { bashBackgroundTool, bashOutputTool, killProcessTool } from './backgroun
 import { editFileTool, globTool, grepTool, readFileTool, writeFileTool } from './files';
 import { gitCommitTool, gitDiffStatTool, gitPushTool } from './git';
 import { webFetchTool, webSearchTool } from './web';
+import { verifyTool } from './verify';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -18,6 +19,7 @@ export const ALL_TOOLS: ToolDef[] = [
   editFileTool,
   globTool,
   grepTool,
+  verifyTool,
   gitDiffStatTool,
   gitCommitTool,
   gitPushTool,

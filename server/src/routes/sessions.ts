@@ -10,9 +10,10 @@ import { randomUUID } from 'node:crypto';
 import * as store from '../sessions/store';
 import * as manager from '../sessions/manager';
 import { isValidModel } from '../agent/models';
-import { deleteWorkspace, fullDiff, listFiles, parseRepoUrl, setupWorkspace } from '../sessions/workspace';
+import { deleteWorkspace, fullDiff, listFiles, parseRepoUrl, repoDir, setupWorkspace } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import { processRegistry } from '../agent/processes';
+import { verifyProject } from '../agent/verify';
 
 export function registerSessionRoutes(app: FastifyInstance) {
   app.get('/api/sessions', async () => store.listSessions());
@@ -116,6 +117,15 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     return { diff: await fullDiff(id) };
+  });
+
+  app.get('/api/sessions/:id/verify', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
+    const ctrl = new AbortController();
+    const report = await verifyProject(repoDir(id), ctrl.signal);
+    const detail = report.checks.map((c) => `${c.ok ? '✓' : '✗'} ${c.name}\n${c.output}`).join('\n\n');
+    return { report: `${report.summary}${detail ? '\n\n' + detail : ''}` };
   });
 
   app.get('/api/sessions/:id/tree', async (req, reply) => {

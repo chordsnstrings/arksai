@@ -128,6 +128,12 @@ export function Composer({
         sys(diff);
         break;
       }
+      case 'verify': {
+        sys('Running project checks…');
+        const { report } = await api.verify(meta.id);
+        sys(report);
+        break;
+      }
       case 'files': {
         const { files } = await api.tree(meta.id);
         sys(files.length ? files.join('\n') : 'No files in the workspace.');

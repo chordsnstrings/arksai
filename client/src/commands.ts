@@ -17,6 +17,7 @@ export const COMMANDS: CommandMeta[] = [
   { name: 'retry', desc: 'Re-run your last message' },
   { name: 'push', desc: 'Ask the agent to commit & push', arg: '[branch]' },
   { name: 'diff', desc: 'Show uncommitted git diff' },
+  { name: 'verify', desc: 'Run the project checks (typecheck/test/build)' },
   { name: 'files', desc: 'List workspace files' },
   { name: 'ps', desc: 'List background processes' },
   { name: 'kill', desc: 'Stop a background process', arg: '<id>' },

@@ -54,6 +54,7 @@ export const api = {
   interrupt: (id: string) => request<{ ok: true }>(`/api/sessions/${id}/interrupt`, { method: 'POST' }),
   clear: (id: string) => request<{ ok: true }>(`/api/sessions/${id}/clear`, { method: 'POST' }),
   diff: (id: string) => request<{ diff: string }>(`/api/sessions/${id}/diff`),
+  verify: (id: string) => request<{ report: string }>(`/api/sessions/${id}/verify`),
   tree: (id: string) => request<{ files: string[] }>(`/api/sessions/${id}/tree`),
   processes: (id: string) => request<{ processes: ProcessInfo[] }>(`/api/sessions/${id}/processes`),
   ports: (id: string) => request<{ ports: number[] }>(`/api/sessions/${id}/ports`).then((r) => r.ports),

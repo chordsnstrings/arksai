@@ -14,6 +14,7 @@ import { getToolsForMode } from './tools';
 import { ToolError, type ToolCtx } from './tools/common';
 import { generateTitle } from './titleGen';
 import { Usage } from './usage';
+import { verifyProject } from './verify';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
 const PREVIEW_CHARS = 700;
@@ -96,6 +97,8 @@ export class AgentRun {
   private abort = new AbortController();
   private usage = new Usage();
   private runningTasks = 0;
+  private mutated = false; // did this run change files? (triggers the verify gate)
+  private verifyRounds = 0;
   private client: OpenAI;
 
   constructor(private session: SessionMeta) {
@@ -221,6 +224,17 @@ export class AgentRun {
         });
 
         if (calls.length === 0) {
+          // Completion gate: in Code mode, don't finish on unverified changes —
+          // run the project's checks and, if they fail, keep fixing.
+          if (this.session.mode === 'code' && this.mutated && !this.abort.signal.aborted) {
+            const gate = await this.runVerifyGate(dir, liveItems, context);
+            if (gate === 'retry') continue;
+            if (gate === 'failed') {
+              finalStatus = 'error';
+              stopReason = 'natural';
+              break;
+            }
+          }
           stopReason = 'natural'; // task done, or the model is awaiting the user
           break;
         }
@@ -363,6 +377,7 @@ export class AgentRun {
       args = null;
     }
     argsSummary = tool && args ? tool.summarize(args) : call.args.slice(0, 120);
+    if (['write_file', 'edit_file', 'git_commit'].includes(call.name)) this.mutated = true;
 
     this.emit({
       type: 'tool_call_started',
@@ -421,6 +436,77 @@ export class AgentRun {
       outputPreview,
     });
     return result;
+  }
+
+  /**
+   * Verification gate. Runs the project's checks before completion. Returns:
+   *  'retry'  — checks failed, a fix request was injected; keep working
+   *  'failed' — failed and out of retries; finish as error
+   *  'ok'     — passed or nothing to verify; finish normally
+   */
+  private async runVerifyGate(
+    dir: string,
+    liveItems: TimelineItem[],
+    context: any[],
+  ): Promise<'retry' | 'failed' | 'ok'> {
+    const MAX_VERIFY = 3;
+    this.verifyRounds++;
+    const verifying: TimelineItem = {
+      kind: 'system',
+      id: randomUUID(),
+      level: 'info',
+      text: '⟳ Verifying changes (running the project\'s checks)…',
+      ts: Date.now(),
+    };
+    liveItems.push(verifying);
+    this.emit({ type: 'timeline_item', item: verifying });
+
+    const report = await verifyProject(dir, this.abort.signal).catch((e) => ({
+      ran: false,
+      ok: true,
+      checks: [],
+      summary: `Verification skipped (${String(e?.message ?? e)}).`,
+    }));
+
+    if (!report.ran || report.ok) {
+      const item: TimelineItem = {
+        kind: 'system',
+        id: randomUUID(),
+        level: 'info',
+        text: report.ran ? `✓ Verified — ${report.summary}` : report.summary,
+        ts: Date.now(),
+      };
+      liveItems.push(item);
+      this.emit({ type: 'timeline_item', item });
+      return 'ok';
+    }
+
+    const failing = report.checks.find((c) => !c.ok)!;
+    const item: TimelineItem = {
+      kind: 'system',
+      id: randomUUID(),
+      level: 'error',
+      text: `✗ Verification failed: ${failing.name}`,
+      ts: Date.now(),
+    };
+    liveItems.push(item);
+    this.emit({ type: 'timeline_item', item });
+
+    if (this.verifyRounds >= MAX_VERIFY) {
+      this.emit({
+        type: 'run_error',
+        runId: this.runId,
+        message: `Verification still failing (${failing.name}) after ${MAX_VERIFY} attempts.`,
+      });
+      return 'failed';
+    }
+    context.push({
+      role: 'user',
+      content:
+        `Automated verification FAILED at "${failing.name}". The task is NOT complete until this passes. ` +
+        `Diagnose and fix it, then it will be re-checked.\n\n${failing.output}`,
+    });
+    return 'retry';
   }
 
   /** Build the "## Memory" block: global + this repo's project memory + ARKS.md. */
