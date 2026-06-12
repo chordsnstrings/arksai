@@ -16,6 +16,30 @@ export interface VerifyReport {
 
 const NO_TEST = /no test specified/i;
 
+/**
+ * Detect how to boot this project as a running app, or null if it's a
+ * library/script with nothing to serve. Used by the runtime verification phase.
+ */
+export function detectStartCommand(dir: string): string | null {
+  if (exists(dir, 'package.json')) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+      const s: Record<string, string> = pkg.scripts ?? {};
+      if (s.start) return 'npm start';
+      if (s.serve) return 'npm run serve';
+      if (s.dev) return 'npm run dev';
+    } catch {}
+    for (const f of ['server.js', 'app.js', 'index.js', 'main.js', 'src/server.js', 'src/index.js']) {
+      if (exists(dir, f)) return `node ${f}`;
+    }
+  }
+  for (const f of ['main.py', 'app.py', 'server.py', 'wsgi.py']) {
+    if (exists(dir, f)) return `python3 ${f}`;
+  }
+  if (exists(dir, 'go.mod')) return 'go run .';
+  return null;
+}
+
 async function run(name: string, command: string, dir: string, signal: AbortSignal, timeoutMs = 180_000): Promise<CheckResult> {
   const res = await execBash(command, { cwd: dir, timeoutMs, signal });
   return { name, ok: res.ok, output: truncateMiddle(res.output, 4000) };

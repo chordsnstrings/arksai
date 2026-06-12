@@ -20,7 +20,9 @@ export const MAX_TIMEOUT_MS = 120_000;
  *   the agent can use credentials you provide (e.g. DIGITALOCEAN_TOKEN).
  */
 export function childEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
-  const base: NodeJS.ProcessEnv = { TERM: 'dumb', GIT_TERMINAL_PROMPT: '0', CI: 'true' };
+  // PORT defaults to 4000 so the agent's apps never inherit ArksAI's own port
+  // (3000) and kill the server. The agent can still override it explicitly.
+  const base: NodeJS.ProcessEnv = { TERM: 'dumb', GIT_TERMINAL_PROMPT: '0', CI: 'true', PORT: '4000' };
   if (config.agentUnrestricted) {
     return { ...process.env, ...base, ...extra };
   }

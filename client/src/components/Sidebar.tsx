@@ -16,6 +16,10 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
   const setAuthed = useStore((s) => s.setAuthed);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [query, setQuery] = useState('');
+  const filtered = query.trim()
+    ? sessions.filter((s) => s.title.toLowerCase().includes(query.trim().toLowerCase()))
+    : sessions;
 
   const startRename = (e: React.MouseEvent, session: SessionMeta) => {
     e.stopPropagation();
@@ -59,8 +63,14 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
       <div className="recents-header">
         <span>Recents</span>
       </div>
+      <input
+        className="search-box"
+        placeholder="Search chats…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
       <div className="session-list">
-        {sessions.map((s) => (
+        {filtered.map((s) => (
           <div
             key={s.id}
             className={`session-item ${s.id === activeId ? 'active' : ''}`}
@@ -94,9 +104,9 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
             </button>
           </div>
         ))}
-        {sessions.length === 0 && (
+        {filtered.length === 0 && (
           <div style={{ color: 'var(--text-faint)', fontSize: 13, padding: '6px 10px' }}>
-            No sessions yet
+            {sessions.length === 0 ? 'No sessions yet' : 'No matches'}
           </div>
         )}
       </div>

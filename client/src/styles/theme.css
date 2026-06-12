@@ -158,6 +158,20 @@ button { font-family: inherit; cursor: pointer; }
   padding: 20px 10px 8px;
 }
 
+.search-box {
+  margin: 0 6px 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 6px 10px;
+  outline: none;
+}
+.search-box::placeholder { color: var(--text-faint); }
+.search-box:focus { border-color: var(--accent); }
+
 .session-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 
 .session-item {

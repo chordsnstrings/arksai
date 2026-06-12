@@ -1,5 +1,6 @@
 import { AgentRun } from '../agent/runner';
 import { config } from '../config';
+import { processRegistry } from '../agent/processes';
 import * as store from './store';
 
 /** Live AgentRun registry: one run per session, global concurrency cap. */
@@ -36,6 +37,8 @@ export async function startRun(
 }
 
 export function interrupt(sessionId: string): boolean {
+  // Stop runaway background servers too, not just the agent loop.
+  processRegistry.killAllForSession(sessionId);
   const run = liveRuns.get(sessionId);
   if (!run) return false;
   run.interrupt();

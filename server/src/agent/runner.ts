@@ -14,7 +14,8 @@ import { getToolsForMode } from './tools';
 import { ToolError, type ToolCtx } from './tools/common';
 import { generateTitle } from './titleGen';
 import { Usage } from './usage';
-import { verifyProject } from './verify';
+import { detectStartCommand, verifyProject } from './verify';
+import { bootAndCheck } from './runtimeCheck';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
 const PREVIEW_CHARS = 700;
@@ -99,6 +100,8 @@ export class AgentRun {
   private runningTasks = 0;
   private mutated = false; // did this run change files? (triggers the verify gate)
   private verifyRounds = 0;
+  private didRuntimeTest = false; // did the agent curl a running server this run?
+  private flowRequired = false; // have we already asked it to demo the flow?
   private client: OpenAI;
 
   constructor(private session: SessionMeta) {
@@ -378,6 +381,12 @@ export class AgentRun {
     }
     argsSummary = tool && args ? tool.summarize(args) : call.args.slice(0, 120);
     if (['write_file', 'edit_file', 'git_commit'].includes(call.name)) this.mutated = true;
+    if (call.name === 'bash' && typeof args?.command === 'string') {
+      const cmd = args.command as string;
+      if (/(curl|wget|http)\b/i.test(cmd) && /(localhost|127\.0\.0\.1|0\.0\.0\.0|:\d{4})/.test(cmd)) {
+        this.didRuntimeTest = true;
+      }
+    }
 
     this.emit({
       type: 'tool_call_started',
@@ -449,64 +458,73 @@ export class AgentRun {
     liveItems: TimelineItem[],
     context: any[],
   ): Promise<'retry' | 'failed' | 'ok'> {
-    const MAX_VERIFY = 3;
+    const MAX_VERIFY = 4;
     this.verifyRounds++;
-    const verifying: TimelineItem = {
-      kind: 'system',
-      id: randomUUID(),
-      level: 'info',
-      text: '⟳ Verifying changes (running the project\'s checks)…',
-      ts: Date.now(),
+    const sys = (level: 'info' | 'error', text: string) => {
+      const item: TimelineItem = { kind: 'system', id: randomUUID(), level, text, ts: Date.now() };
+      liveItems.push(item);
+      this.emit({ type: 'timeline_item', item });
     };
-    liveItems.push(verifying);
-    this.emit({ type: 'timeline_item', item: verifying });
+    const failFix = (label: string, detail: string): 'retry' | 'failed' => {
+      sys('error', `✗ Verification failed: ${label}`);
+      if (this.verifyRounds >= MAX_VERIFY) {
+        this.emit({ type: 'run_error', runId: this.runId, message: `Verification still failing (${label}).` });
+        return 'failed';
+      }
+      context.push({
+        role: 'user',
+        content: `Automated verification FAILED — ${label}. The task is NOT complete until this passes. Diagnose and fix it, then it will be re-checked.\n\n${detail}`,
+      });
+      return 'retry';
+    };
 
+    sys('info', '⟳ Verifying — running the project checks…');
+
+    // 1) Static checks (typecheck / lint / test / build).
     const report = await verifyProject(dir, this.abort.signal).catch((e) => ({
       ran: false,
       ok: true,
       checks: [],
-      summary: `Verification skipped (${String(e?.message ?? e)}).`,
+      summary: `Static verification skipped (${String(e?.message ?? e)}).`,
     }));
+    if (report.ran && !report.ok) {
+      const failing = report.checks.find((c) => !c.ok)!;
+      return failFix(failing.name, failing.output);
+    }
 
-    if (!report.ran || report.ok) {
-      const item: TimelineItem = {
-        kind: 'system',
-        id: randomUUID(),
-        level: 'info',
-        text: report.ran ? `✓ Verified — ${report.summary}` : report.summary,
-        ts: Date.now(),
-      };
-      liveItems.push(item);
-      this.emit({ type: 'timeline_item', item });
+    // 2) Runtime + flow — only for apps (something to boot).
+    const startCmd = detectStartCommand(dir);
+    if (!startCmd) {
+      sys('info', report.ran ? `✓ Verified — ${report.summary}` : report.summary);
       return 'ok';
     }
 
-    const failing = report.checks.find((c) => !c.ok)!;
-    const item: TimelineItem = {
-      kind: 'system',
-      id: randomUUID(),
-      level: 'error',
-      text: `✗ Verification failed: ${failing.name}`,
-      ts: Date.now(),
-    };
-    liveItems.push(item);
-    this.emit({ type: 'timeline_item', item });
-
-    if (this.verifyRounds >= MAX_VERIFY) {
-      this.emit({
-        type: 'run_error',
-        runId: this.runId,
-        message: `Verification still failing (${failing.name}) after ${MAX_VERIFY} attempts.`,
-      });
-      return 'failed';
+    if (this.didRuntimeTest) {
+      sys('info', `✓ Verified — checks passed and the running app was exercised end-to-end.`);
+      return 'ok';
     }
-    context.push({
-      role: 'user',
-      content:
-        `Automated verification FAILED at "${failing.name}". The task is NOT complete until this passes. ` +
-        `Diagnose and fix it, then it will be re-checked.\n\n${failing.output}`,
-    });
-    return 'retry';
+
+    // The agent hasn't exercised the live app. Ask it to once.
+    if (!this.flowRequired) {
+      this.flowRequired = true;
+      sys('info', '⟳ App not yet exercised — requesting an end-to-end flow check…');
+      context.push({
+        role: 'user',
+        content:
+          `Static checks pass, but you have NOT demonstrated the app actually runs. Before completing you MUST: ` +
+          `start the app with bash_background, then use bash + curl to exercise the main flow with real data ` +
+          `(e.g. POST a record then GET it back, or hit the key pages) and show the request and response. ` +
+          `Start command looks like: ${startCmd}. Then finish.`,
+      });
+      return 'retry';
+    }
+
+    // Backstop: it still didn't test, so boot it ourselves and check it serves.
+    sys('info', '⟳ Booting the app to confirm it runs…');
+    const rt = await bootAndCheck(this.session.id, dir, startCmd, this.abort.signal);
+    if (!rt.booted) return failFix('the app does not run', rt.detail);
+    sys('info', `✓ Verified — ${rt.detail} (boot confirmed by ArksAI).`);
+    return 'ok';
   }
 
   /** Build the "## Memory" block: global + this repo's project memory + ARKS.md. */

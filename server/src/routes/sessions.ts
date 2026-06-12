@@ -74,10 +74,16 @@ export function registerSessionRoutes(app: FastifyInstance) {
   app.delete('/api/sessions/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
-    manager.interrupt(id);
-    processRegistry.killAllForSession(id);
-    deleteWorkspace(id);
+    try {
+      manager.interrupt(id);
+    } catch {}
+    // Delete from the DB FIRST — that's the source of truth. Workspace cleanup
+    // is best-effort so a failed rm can't leave the row behind (it reappeared
+    // on refresh before because cleanup threw before the DB delete).
     await store.deleteSession(id);
+    try {
+      deleteWorkspace(id);
+    } catch {}
     bus.emitGlobal({ type: 'session_deleted', sessionId: id });
     return { ok: true };
   });
@@ -98,8 +104,24 @@ export function registerSessionRoutes(app: FastifyInstance) {
 
   app.post('/api/sessions/:id/interrupt', async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
+    const meta = await store.getSession(id);
+    if (!meta) return reply.code(404).send({ error: 'Not found' });
     const interrupted = manager.interrupt(id);
+    // Always unstick the UI: if there's no live run (e.g. the server restarted
+    // and orphaned it) but the session still shows "running", force it idle and
+    // tell the client the run is over.
+    if (!interrupted && meta.status === 'running') {
+      await store.updateSession(id, { status: 'idle' });
+      const updated = (await store.getSession(id))!;
+      bus.emit(id, {
+        type: 'run_finished',
+        runId: 'interrupted',
+        status: 'idle',
+        totalTokens: 0,
+        diffStat: updated.diffStat,
+      });
+      bus.sessionChanged(updated);
+    }
     return { ok: true, interrupted };
   });
 
@@ -169,27 +191,9 @@ export function registerSessionRoutes(app: FastifyInstance) {
 
 import fs from 'node:fs';
 import { config } from '../config';
+import { listeningPorts } from '../lib/ports';
 
-/**
- * Listening TCP ports from /proc/net/tcp{,6} (no ss/netstat dependency).
- * State 0A = LISTEN; local address is hex IP:PORT. Excludes the app's own port.
- */
+/** Listening ports inside the container, excluding the app's own. */
 async function listListeningPorts(): Promise<number[]> {
-  const own = new Set([config.port, 5432, 25060]);
-  const ports = new Set<number>();
-  for (const file of ['/proc/net/tcp', '/proc/net/tcp6']) {
-    let text = '';
-    try {
-      text = fs.readFileSync(file, 'utf8');
-    } catch {
-      continue;
-    }
-    for (const line of text.split('\n').slice(1)) {
-      const cols = line.trim().split(/\s+/);
-      if (cols.length < 4 || cols[3] !== '0A') continue; // 0A = LISTEN
-      const port = parseInt(cols[1].split(':')[1], 16);
-      if (port > 0 && port < 65536 && !own.has(port)) ports.add(port);
-    }
-  }
-  return [...ports].sort((a, b) => a - b);
+  return listeningPorts([config.port, 5432, 25060]);
 }

@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { TimelineItem, ToolCallRecord } from '@shared/types';
 import type { LiveState } from '../state/sessionStore';
+import { useStore } from '../state/sessionStore';
 import { api } from '../api/client';
 
 const TOOL_LABEL: Record<string, string> = {
@@ -116,7 +117,13 @@ function StatusFooter({ live, sessionId }: { live: LiveState; sessionId: string 
         {live.elapsed}s · {tokens} tokens · {live.runningTasks} running task
         {live.runningTasks === 1 ? '' : 's'}
       </span>
-      <button className="stop" onClick={() => api.interrupt(sessionId).catch(() => {})}>
+      <button
+        className="stop"
+        onClick={() => {
+          useStore.getState().forceStop(sessionId); // clear UI immediately
+          api.interrupt(sessionId).catch(() => {});
+        }}
+      >
         Stop
       </button>
     </div>
