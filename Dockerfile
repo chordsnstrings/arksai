@@ -15,7 +15,12 @@ RUN npm run build && npm prune --omit=dev
 FROM node:22-bookworm-slim
 # git + ripgrep are functional requirements (clone/push, grep tool)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git ripgrep ca-certificates bash procps unzip && rm -rf /var/lib/apt/lists/*
+      git ripgrep ca-certificates bash procps unzip curl jq openssh-client \
+      && rm -rf /var/lib/apt/lists/*
+# doctl (DigitalOcean CLI) so the agent can manage infrastructure
+ARG DOCTL_VERSION=1.120.0
+RUN curl -sL "https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-amd64.tar.gz" \
+      | tar -xz -C /usr/local/bin doctl && chmod +x /usr/local/bin/doctl
 # Document-generation libraries available to agent workspaces via NODE_PATH
 RUN npm install -g exceljs pdfkit docx xlsx && npm cache clean --force
 ENV NODE_PATH=/usr/local/lib/node_modules

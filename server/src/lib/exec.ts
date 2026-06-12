@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { secretValues } from '../config';
+import { config, secretValues } from '../config';
 
 export interface ExecResult {
   ok: boolean;
@@ -13,17 +13,22 @@ const OUTPUT_CAP = 30_000; // chars
 export const MAX_TIMEOUT_MS = 120_000;
 
 /**
- * Child processes get an allowlisted environment: the agent's bash can never
- * read DEEPSEEK_API_KEY / GITHUB_TOKEN / APP_PASSWORD because they simply
- * aren't there.
+ * Child process environment.
+ * - Hardened (default): an allowlist — the agent's bash cannot read
+ *   DEEPSEEK_API_KEY / GITHUB_TOKEN / APP_PASSWORD because they aren't present.
+ * - Unrestricted (AGENT_UNRESTRICTED=true): inherits the full process env so
+ *   the agent can use credentials you provide (e.g. DIGITALOCEAN_TOKEN).
  */
 export function childEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
-  const allow = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'USER', 'NODE_ENV', 'TMPDIR', 'NODE_PATH'];
-  const env: NodeJS.ProcessEnv = { TERM: 'dumb', GIT_TERMINAL_PROMPT: '0', CI: 'true' };
-  for (const key of allow) {
-    if (process.env[key]) env[key] = process.env[key];
+  const base: NodeJS.ProcessEnv = { TERM: 'dumb', GIT_TERMINAL_PROMPT: '0', CI: 'true' };
+  if (config.agentUnrestricted) {
+    return { ...process.env, ...base, ...extra };
   }
-  return { ...env, ...extra };
+  const allow = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'USER', 'NODE_ENV', 'TMPDIR', 'NODE_PATH'];
+  for (const key of allow) {
+    if (process.env[key]) base[key] = process.env[key];
+  }
+  return { ...base, ...extra };
 }
 
 /** Replace any known secret value in output with a placeholder. */

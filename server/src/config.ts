@@ -64,6 +64,11 @@ export const config = {
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
   maxIterations: intEnv('MAX_ITERATIONS', 40),
+  // When true the agent's shell inherits the FULL process environment (so it
+  // can use tokens like DIGITALOCEAN_TOKEN), the workspace path jail is lifted,
+  // and file tools may touch paths outside the workspace. Open-ended / unsafe;
+  // intended for trusted single-operator testing. Flip off to re-harden.
+  agentUnrestricted: process.env.AGENT_UNRESTRICTED === 'true',
   workspaceTtlDays: intEnv('WORKSPACE_TTL_DAYS', 14),
 };
 

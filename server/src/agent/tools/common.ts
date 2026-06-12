@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { SessionMeta, SessionMode } from '../../../../shared/types';
+import { config } from '../../config';
 
 export interface ToolCtx {
   session: SessionMeta;
@@ -25,6 +26,11 @@ export class ToolError extends Error {}
  * Blocks `..` traversal and symlink escapes.
  */
 export function resolveInWorkspace(repoDir: string, p: string): string {
+  // Unrestricted mode: resolve relative paths against the repo but allow
+  // anywhere (absolute paths, .. escapes) for open-ended operation.
+  if (config.agentUnrestricted) {
+    return path.resolve(repoDir, p);
+  }
   const realRoot = fs.existsSync(repoDir) ? fs.realpathSync(repoDir) : path.resolve(repoDir);
   const abs = path.resolve(realRoot, p);
 

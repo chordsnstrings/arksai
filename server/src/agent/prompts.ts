@@ -1,4 +1,19 @@
 import type { SessionMeta } from '../../../shared/types';
+import { config } from '../config';
+
+function unrestrictedNote(): string {
+  if (!config.agentUnrestricted) return '';
+  return `
+
+## Open-ended mode
+You are running with full host access. Your shell inherits the complete
+environment, so credentials provided to the server are available to you as
+environment variables (e.g. echo "$DIGITALOCEAN_TOKEN"). doctl, curl, git and
+the package managers are available. You may use these to manage real
+infrastructure (DigitalOcean droplets, App Platform, DNS, etc.) and to read or
+write files anywhere on the host. These are real, destructive-capable actions —
+confirm intent for irreversible operations and report exactly what you did.`;
+}
 
 export function buildSystemPrompt(session: SessionMeta, repoDir: string): string {
   if (session.mode === 'chat') {
@@ -13,7 +28,7 @@ long; stay consistent with what was said earlier.
 
 ## Style
 - Be direct and concise. Use markdown and code blocks where they help.
-- No apologies or filler.`;
+- No apologies or filler.${unrestrictedNote()}`;
   }
 
   const repoLine = session.repoName
@@ -33,11 +48,15 @@ by running the project's tests or build when feasible. When the task is complete
 use git_commit with a clear message. Only use git_push if the user asked you to push.
 Finish with a short summary of what you changed and how you verified it.`;
 
+  const workspaceLine = config.agentUnrestricted
+    ? `Workspace root: ${repoDir}. Relative paths resolve here, but you have full host access (see Open-ended mode below).`
+    : `Workspace root: ${repoDir}. All file paths are relative to this root. You cannot
+access anything outside the workspace.`;
+
   return `You are ArksAI, an autonomous coding agent operating inside a git workspace.
 
 ${repoLine}
-Workspace root: ${repoDir}. All file paths are relative to this root. You cannot
-access anything outside the workspace.
+${workspaceLine}
 
 ## Environment
 - Linux container, bash available. git and ripgrep (rg) are installed.
@@ -66,8 +85,12 @@ ${modeBlock}
 ## Style
 - Be concise. Write short prose between tool calls explaining what you're doing.
 - No apologies or filler. Report concrete results at the end.
-
+${
+  config.agentUnrestricted
+    ? unrestrictedNote()
+    : `
 ## Safety
 - Never print, write, or commit secrets or credentials.
-- Never run destructive commands. Stay inside the workspace.`;
+- Never run destructive commands. Stay inside the workspace.`
+}`;
 }

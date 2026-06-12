@@ -16,6 +16,12 @@ async function main() {
   const app = await buildApp();
   await app.listen({ port: config.port, host: '0.0.0.0' });
   console.log(`ArksAI server listening on :${config.port} (data: ${config.dataDir})`);
+  if (config.agentUnrestricted) {
+    console.warn(
+      '[security] AGENT_UNRESTRICTED=true — the agent has FULL host + env access. ' +
+        'For trusted testing only.',
+    );
+  }
 }
 
 main().catch((err) => {

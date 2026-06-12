@@ -101,6 +101,22 @@ then set `COOKIE_SECURE=true` and restart. Data persists in `./data`.
 > workspaces are lost on every redeploy. Fine for demos; use the Droplet path
 > for durable use.
 
+## Open-ended ("unrestricted") mode
+
+Set `AGENT_UNRESTRICTED=true` to take the gloves off for trusted, single-operator
+testing. In this mode the agent's shell **inherits the full environment**, so any
+credentials you put in `.env` (e.g. `DIGITALOCEAN_TOKEN`) are usable by the
+agent; the workspace path jail is lifted; and file tools can touch anything on
+the host. `doctl` is preinstalled, so the agent can manage real DigitalOcean
+infrastructure (`doctl auth init -t $DIGITALOCEAN_TOKEN`, then create/destroy
+droplets, deploy App Platform apps, edit DNS, etc.) — the same category of work
+the assistant does, subject to model quality and the no-vision limit.
+
+This is intentionally dangerous: an autonomous agent with a real cloud token can
+delete real infrastructure. Use a scoped token and a throwaway project while
+testing, and set `AGENT_UNRESTRICTED=false` (the default) to restore all the
+hardening below.
+
 ## Security model
 
 Single-tenant, trusted-operator software — it executes shell commands by design.
