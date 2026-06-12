@@ -58,6 +58,8 @@ export const config = {
   deepseekApiKey: process.env.DEEPSEEK_API_KEY || '',
   deepseekBaseUrl: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
   githubToken: process.env.GITHUB_TOKEN || '',
+  serperApiKey: process.env.SERPER_API_KEY || '',
+  braveApiKey: process.env.BRAVE_API_KEY || '',
   appPassword: process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
@@ -88,7 +90,11 @@ export function validateConfig() {
 
 /** Secret values that must never appear in tool output sent to the model/UI. */
 export function secretValues(): string[] {
-  return [config.deepseekApiKey, config.githubToken, config.appPassword].filter(
-    (s) => s && s.length >= 6,
-  );
+  return [
+    config.deepseekApiKey,
+    config.githubToken,
+    config.appPassword,
+    config.serperApiKey,
+    config.braveApiKey,
+  ].filter((s) => s && s.length >= 6);
 }

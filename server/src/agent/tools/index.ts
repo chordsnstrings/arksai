@@ -4,8 +4,11 @@ import { bashTool } from './bash';
 import { bashBackgroundTool, bashOutputTool, killProcessTool } from './background';
 import { editFileTool, globTool, grepTool, readFileTool, writeFileTool } from './files';
 import { gitCommitTool, gitDiffStatTool, gitPushTool } from './git';
+import { webFetchTool, webSearchTool } from './web';
 
 export const ALL_TOOLS: ToolDef[] = [
+  webSearchTool,
+  webFetchTool,
   bashTool,
   bashBackgroundTool,
   bashOutputTool,

@@ -6,6 +6,8 @@ import type { LiveState } from '../state/sessionStore';
 import { api } from '../api/client';
 
 const TOOL_LABEL: Record<string, string> = {
+  web_search: 'Search',
+  web_fetch: 'Fetch',
   bash: 'Bash',
   bash_background: 'Bash (bg)',
   bash_output: 'Logs',

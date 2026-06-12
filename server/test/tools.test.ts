@@ -54,6 +54,33 @@ test('truncateMiddle caps long output', () => {
   assert.match(out, /characters truncated/);
 });
 
+test('assertPublicUrl blocks SSRF targets and bad protocols', async () => {
+  const { assertPublicUrl } = await import('../src/lib/web');
+  for (const bad of [
+    'http://localhost/admin',
+    'http://127.0.0.1:3000',
+    'http://169.254.169.254/latest/meta-data/',
+    'http://10.0.0.5',
+    'http://192.168.1.1',
+    'https://[::1]/',
+    'file:///etc/passwd',
+    'ftp://example.com',
+  ]) {
+    await assert.rejects(() => assertPublicUrl(bad), new RegExp('.'), `should block ${bad}`);
+  }
+});
+
+test('htmlToText strips scripts/styles and tags', async () => {
+  const { htmlToText } = await import('../src/lib/web');
+  const out = htmlToText(
+    '<html><head><style>.x{color:red}</style></head><body><h1>Hi</h1><script>alert(1)</script><p>World &amp; more</p></body></html>',
+  );
+  assert.match(out, /Hi/);
+  assert.match(out, /World & more/);
+  assert.doesNotMatch(out, /alert/);
+  assert.doesNotMatch(out, /color:red/);
+});
+
 test('extractText reads xlsx sheets and ignores unknown formats', async () => {
   const XLSX = await import('xlsx');
   const { extractText } = await import('../src/lib/extract');

@@ -35,6 +35,12 @@ composer (or `/mode chat|plan|code`):
 - **Code** — full execution: the agent edits files, runs commands, verifies,
   commits, and pushes when asked.
 
+**Web research:** in every mode the agent can `web_search` (Serper or Brave if
+you set an API key, otherwise a keyless DuckDuckGo fallback) and `web_fetch` a
+URL, returning readable text. Outbound fetches are SSRF-guarded — private,
+loopback, and link-local addresses are refused. This makes **Chat** mode a
+capable research assistant, not just offline Q&A.
+
 Sessions are built for long-running work: runs keep going if you close the
 tab, history and context persist across server restarts, and old context is
 trimmed automatically so long chats and long tasks don't hit the model window.
