@@ -31,7 +31,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
     }
     const mode = SESSION_MODES.includes(body.mode as any) ? body.mode! : 'code';
     const model = body.model && (await isValidModel(body.model)) ? body.model : DEFAULT_MODEL;
-    const session = store.createSession({
+    const session = await store.createSession({
       repoUrl,
       repoName,
       branch: body.branch?.trim() || null,
@@ -45,15 +45,15 @@ export function registerSessionRoutes(app: FastifyInstance) {
 
   app.get('/api/sessions/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const meta = store.getSession(id);
+    const meta = await store.getSession(id);
     if (!meta) return reply.code(404).send({ error: 'Not found' });
-    const detail: SessionDetail = { meta, timeline: store.getTimeline(id) };
+    const detail: SessionDetail = { meta, timeline: await store.getTimeline(id) };
     return detail;
   });
 
   app.patch('/api/sessions/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const meta = store.getSession(id);
+    const meta = await store.getSession(id);
     if (!meta) return reply.code(404).send({ error: 'Not found' });
     if (manager.isRunning(id)) return reply.code(409).send({ error: 'Cannot change settings mid-run' });
     const body = (req.body ?? {}) as PatchSessionRequest;
@@ -61,52 +61,52 @@ export function registerSessionRoutes(app: FastifyInstance) {
     if (SESSION_MODES.includes(body.mode as any)) patch.mode = body.mode;
     if (body.model && (await isValidModel(body.model))) patch.model = body.model;
     if (typeof body.title === 'string' && body.title.trim()) patch.title = body.title.trim().slice(0, 80);
-    store.updateSession(id, patch);
-    const updated = store.getSession(id)!;
+    await store.updateSession(id, patch);
+    const updated = (await store.getSession(id))!;
     bus.sessionChanged(updated);
     return updated;
   });
 
   app.delete('/api/sessions/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     manager.interrupt(id);
     processRegistry.killAllForSession(id);
     deleteWorkspace(id);
-    store.deleteSession(id);
+    await store.deleteSession(id);
     bus.emitGlobal({ type: 'session_deleted', sessionId: id });
     return { ok: true };
   });
 
   app.post('/api/sessions/:id/messages', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const meta = store.getSession(id);
+    const meta = await store.getSession(id);
     if (!meta) return reply.code(404).send({ error: 'Not found' });
     const body = (req.body ?? {}) as SendMessageRequest;
     const text = String(body.text ?? '').trim();
     if (!text) return reply.code(400).send({ error: 'Empty message' });
 
-    store.appendTimeline(id, { kind: 'user', id: randomUUID(), text, ts: Date.now() });
-    const result = manager.startRun(id, text);
+    await store.appendTimeline(id, { kind: 'user', id: randomUUID(), text, ts: Date.now() });
+    const result = await manager.startRun(id, text);
     if (!result.ok) return reply.code(result.code).send({ error: result.error });
     return reply.code(202).send({ ok: true });
   });
 
   app.post('/api/sessions/:id/interrupt', async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     const interrupted = manager.interrupt(id);
     return { ok: true, interrupted };
   });
 
   app.post('/api/sessions/:id/clear', async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     if (manager.isRunning(id)) return reply.code(409).send({ error: 'Cannot clear mid-run' });
     processRegistry.killAllForSession(id);
-    store.clearConversation(id);
-    store.updateSession(id, { status: 'idle', diffStat: null });
-    bus.sessionChanged(store.getSession(id)!);
+    await store.clearConversation(id);
+    await store.updateSession(id, { status: 'idle', diffStat: null });
+    bus.sessionChanged((await store.getSession(id))!);
     return { ok: true };
   });
 
@@ -114,19 +114,19 @@ export function registerSessionRoutes(app: FastifyInstance) {
 
   app.get('/api/sessions/:id/diff', async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     return { diff: await fullDiff(id) };
   });
 
   app.get('/api/sessions/:id/tree', async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     return { files: await listFiles(id) };
   });
 
   app.get('/api/sessions/:id/processes', async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     const processes = processRegistry.listForSession(id).map((p) => ({
       id: p.id,
       name: p.name,
@@ -139,10 +139,35 @@ export function registerSessionRoutes(app: FastifyInstance) {
 
   app.post('/api/sessions/:id/processes/:pid/kill', async (req, reply) => {
     const { id, pid } = req.params as { id: string; pid: string };
-    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     const proc = processRegistry.get(pid);
     if (!proc || proc.sessionId !== id) return reply.code(404).send({ error: 'Process not found' });
     const killed = processRegistry.kill(pid);
     return { ok: true, killed };
   });
+
+  // listening TCP ports inside the container (for the canvas preview picker)
+  app.get('/api/sessions/:id/ports', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
+    return { ports: await listListeningPorts() };
+  });
+}
+
+import { execBash } from '../lib/exec';
+import { config } from '../config';
+
+/** Best-effort list of locally-listening TCP ports, excluding the app's own. */
+async function listListeningPorts(): Promise<number[]> {
+  const res = await execBash(
+    `ss -tlnH 2>/dev/null | grep -oE ':[0-9]+ ' || netstat -tlnH 2>/dev/null | grep -oE ':[0-9]+ '`,
+    { cwd: '/tmp', timeoutMs: 8000 },
+  );
+  const own = new Set([config.port, 5432, 25060]);
+  const ports = new Set<number>();
+  for (const m of res.output.matchAll(/:(\d+)/g)) {
+    const p = Number(m[1]);
+    if (p > 0 && p < 65536 && !own.has(p)) ports.add(p);
+  }
+  return [...ports].sort((a, b) => a - b);
 }

@@ -1,6 +1,3 @@
-import Database from 'better-sqlite3';
-import fs from 'node:fs';
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type {
   CustomCommand,
@@ -10,62 +7,10 @@ import type {
   SessionStatus,
   TimelineItem,
 } from '../../../shared/types';
-import { config } from '../config';
+import { initDb, q, qOne } from '../db';
 
-let db: Database.Database;
-
-export function initStore() {
-  fs.mkdirSync(config.dataDir, { recursive: true });
-  db = new Database(path.join(config.dataDir, 'arksai.db'));
-  db.pragma('journal_mode = WAL');
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS sessions(
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      repo_url TEXT,
-      repo_name TEXT,
-      branch TEXT,
-      mode TEXT NOT NULL,
-      model TEXT NOT NULL,
-      status TEXT NOT NULL,
-      diff_stat TEXT,
-      total_tokens INTEGER NOT NULL DEFAULT 0,
-      prompt_tokens INTEGER NOT NULL DEFAULT 0,
-      completion_tokens INTEGER NOT NULL DEFAULT 0,
-      cost_usd REAL NOT NULL DEFAULT 0,
-      context TEXT NOT NULL DEFAULT '[]',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS timeline(
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      seq INTEGER NOT NULL,
-      payload TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_timeline_session ON timeline(session_id, seq);
-    CREATE TABLE IF NOT EXISTS custom_commands(
-      name TEXT PRIMARY KEY,
-      description TEXT NOT NULL DEFAULT '',
-      template TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-  `);
-
-  // Migrate older DBs that predate the cost columns.
-  for (const col of [
-    'prompt_tokens INTEGER NOT NULL DEFAULT 0',
-    'completion_tokens INTEGER NOT NULL DEFAULT 0',
-    'cost_usd REAL NOT NULL DEFAULT 0',
-  ]) {
-    try {
-      db.exec(`ALTER TABLE sessions ADD COLUMN ${col}`);
-    } catch {
-      /* column already exists */
-    }
-  }
+export async function initStore() {
+  await initDb();
 }
 
 function rowToMeta(row: any): SessionMeta {
@@ -79,41 +24,39 @@ function rowToMeta(row: any): SessionMeta {
     model: row.model as ModelId,
     status: row.status as SessionStatus,
     diffStat: row.diff_stat,
-    totalTokens: row.total_tokens,
-    promptTokens: row.prompt_tokens ?? 0,
-    completionTokens: row.completion_tokens ?? 0,
-    costUsd: row.cost_usd ?? 0,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    totalTokens: Number(row.total_tokens),
+    promptTokens: Number(row.prompt_tokens ?? 0),
+    completionTokens: Number(row.completion_tokens ?? 0),
+    costUsd: Number(row.cost_usd ?? 0),
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
   };
 }
 
-export function createSession(opts: {
+export async function createSession(opts: {
   repoUrl: string | null;
   repoName: string | null;
   branch: string | null;
   mode: SessionMode;
   model: ModelId;
-}): SessionMeta {
+}): Promise<SessionMeta> {
   const now = Date.now();
   const id = randomUUID();
-  db.prepare(
+  await q(
     `INSERT INTO sessions(id, title, repo_url, repo_name, branch, mode, model, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'idle', ?, ?)`,
-  ).run(id, 'New session', opts.repoUrl, opts.repoName, opts.branch, opts.mode, opts.model, now, now);
-  return getSession(id)!;
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'idle', $8, $9)`,
+    [id, 'New session', opts.repoUrl, opts.repoName, opts.branch, opts.mode, opts.model, now, now],
+  );
+  return (await getSession(id))!;
 }
 
-export function getSession(id: string): SessionMeta | null {
-  const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id);
+export async function getSession(id: string): Promise<SessionMeta | null> {
+  const row = await qOne('SELECT * FROM sessions WHERE id = $1', [id]);
   return row ? rowToMeta(row) : null;
 }
 
-export function listSessions(): SessionMeta[] {
-  return db
-    .prepare('SELECT * FROM sessions ORDER BY updated_at DESC')
-    .all()
-    .map(rowToMeta);
+export async function listSessions(): Promise<SessionMeta[]> {
+  return (await q('SELECT * FROM sessions ORDER BY updated_at DESC')).map(rowToMeta);
 }
 
 const COLUMN: Record<string, string> = {
@@ -131,28 +74,31 @@ const COLUMN: Record<string, string> = {
   repoName: 'repo_name',
 };
 
-export function updateSession(id: string, patch: Partial<SessionMeta>) {
-  const sets: string[] = ['updated_at = ?'];
-  const vals: unknown[] = [Date.now()];
+export async function updateSession(id: string, patch: Partial<SessionMeta>) {
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  let i = 1;
+  sets.push(`updated_at = $${i++}`);
+  vals.push(Date.now());
   for (const [key, col] of Object.entries(COLUMN)) {
     if (key in patch) {
-      sets.push(`${col} = ?`);
+      sets.push(`${col} = $${i++}`);
       vals.push((patch as any)[key]);
     }
   }
   vals.push(id);
-  db.prepare(`UPDATE sessions SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+  await q(`UPDATE sessions SET ${sets.join(', ')} WHERE id = $${i}`, vals);
 }
 
-export function deleteSession(id: string) {
-  db.prepare('DELETE FROM timeline WHERE session_id = ?').run(id);
-  db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+export async function deleteSession(id: string) {
+  await q('DELETE FROM timeline WHERE session_id = $1', [id]);
+  await q('DELETE FROM sessions WHERE id = $1', [id]);
 }
 
 // ---- model context (OpenAI-format transcript, system prompt excluded) ----
 
-export function getContext(id: string): any[] {
-  const row = db.prepare('SELECT context FROM sessions WHERE id = ?').get(id) as any;
+export async function getContext(id: string): Promise<any[]> {
+  const row = await qOne<{ context: string }>('SELECT context FROM sessions WHERE id = $1', [id]);
   if (!row) return [];
   try {
     return JSON.parse(row.context);
@@ -161,73 +107,83 @@ export function getContext(id: string): any[] {
   }
 }
 
-export function setContext(id: string, context: any[]) {
-  db.prepare('UPDATE sessions SET context = ?, updated_at = ? WHERE id = ?').run(
+export async function setContext(id: string, context: any[]) {
+  await q('UPDATE sessions SET context = $1, updated_at = $2 WHERE id = $3', [
     JSON.stringify(context),
     Date.now(),
     id,
-  );
+  ]);
 }
 
-export function clearConversation(id: string) {
-  db.prepare('DELETE FROM timeline WHERE session_id = ?').run(id);
-  db.prepare("UPDATE sessions SET context = '[]', updated_at = ? WHERE id = ?").run(Date.now(), id);
+export async function clearConversation(id: string) {
+  await q('DELETE FROM timeline WHERE session_id = $1', [id]);
+  await q("UPDATE sessions SET context = '[]', updated_at = $1 WHERE id = $2", [Date.now(), id]);
 }
 
 // ---- timeline (what the chat UI renders) ----
 
-export function appendTimeline(sessionId: string, item: TimelineItem) {
-  const seqRow = db
-    .prepare('SELECT COALESCE(MAX(seq), 0) + 1 AS next FROM timeline WHERE session_id = ?')
-    .get(sessionId) as any;
-  db.prepare(
-    'INSERT INTO timeline(id, session_id, seq, payload, created_at) VALUES (?, ?, ?, ?, ?)',
-  ).run(item.id, sessionId, seqRow.next, JSON.stringify(item), Date.now());
+export async function appendTimeline(sessionId: string, item: TimelineItem) {
+  const row = await qOne<{ next: number }>(
+    'SELECT COALESCE(MAX(seq), 0) + 1 AS next FROM timeline WHERE session_id = $1',
+    [sessionId],
+  );
+  const seq = Number(row?.next ?? 1);
+  await q('INSERT INTO timeline(id, session_id, seq, payload, created_at) VALUES ($1, $2, $3, $4, $5)', [
+    item.id,
+    sessionId,
+    seq,
+    JSON.stringify(item),
+    Date.now(),
+  ]);
 }
 
-export function getTimeline(sessionId: string): TimelineItem[] {
-  return db
-    .prepare('SELECT payload FROM timeline WHERE session_id = ? ORDER BY seq ASC')
-    .all(sessionId)
-    .map((r: any) => JSON.parse(r.payload));
+export async function getTimeline(sessionId: string): Promise<TimelineItem[]> {
+  const rows = await q<{ payload: string }>(
+    'SELECT payload FROM timeline WHERE session_id = $1 ORDER BY seq ASC',
+    [sessionId],
+  );
+  return rows.map((r) => JSON.parse(r.payload));
 }
 
 // ---- custom commands (deployment-wide prompt templates) ----
 
-export function listCommands(): CustomCommand[] {
-  return db
-    .prepare('SELECT * FROM custom_commands ORDER BY name ASC')
-    .all()
-    .map((r: any) => ({
-      name: r.name,
-      description: r.description,
-      template: r.template,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    }));
+export async function listCommands(): Promise<CustomCommand[]> {
+  const rows = await q('SELECT * FROM custom_commands ORDER BY name ASC');
+  return rows.map((r: any) => ({
+    name: r.name,
+    description: r.description,
+    template: r.template,
+    createdAt: Number(r.created_at),
+    updatedAt: Number(r.updated_at),
+  }));
 }
 
-export function upsertCommand(name: string, description: string, template: string): CustomCommand {
+export async function upsertCommand(
+  name: string,
+  description: string,
+  template: string,
+): Promise<CustomCommand> {
   const now = Date.now();
-  db.prepare(
+  await q(
     `INSERT INTO custom_commands(name, description, template, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT(name) DO UPDATE SET description = excluded.description,
        template = excluded.template, updated_at = excluded.updated_at`,
-  ).run(name, description, template, now, now);
-  return listCommands().find((c) => c.name === name)!;
+    [name, description, template, now, now],
+  );
+  return (await listCommands()).find((c) => c.name === name)!;
 }
 
-export function deleteCommand(name: string) {
-  db.prepare('DELETE FROM custom_commands WHERE name = ?').run(name);
+export async function deleteCommand(name: string) {
+  await q('DELETE FROM custom_commands WHERE name = $1', [name]);
 }
 
 /** On boot: any session left "running" by a crash/restart becomes an error. */
-export function recoverInterruptedSessions(): string[] {
-  const rows = db.prepare("SELECT id FROM sessions WHERE status = 'running'").all() as any[];
+export async function recoverInterruptedSessions(): Promise<string[]> {
+  const rows = await q<{ id: string }>("SELECT id FROM sessions WHERE status = 'running'");
   for (const row of rows) {
-    updateSession(row.id, { status: 'error' });
-    appendTimeline(row.id, {
+    await updateSession(row.id, { status: 'error' });
+    await appendTimeline(row.id, {
       kind: 'system',
       id: randomUUID(),
       level: 'error',

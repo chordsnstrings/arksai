@@ -5,13 +5,13 @@ import { sweepWorkspaces } from './sessions/workspace';
 
 async function main() {
   validateConfig();
-  store.initStore();
+  await store.initStore();
 
-  const recovered = store.recoverInterruptedSessions();
+  const recovered = await store.recoverInterruptedSessions();
   if (recovered.length) {
     console.log(`[boot] marked ${recovered.length} interrupted session(s) as errored`);
   }
-  sweepWorkspaces();
+  await sweepWorkspaces();
 
   const app = await buildApp();
   await app.listen({ port: config.port, host: '0.0.0.0' });

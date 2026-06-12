@@ -9,7 +9,7 @@ import * as store from '../sessions/store';
 export function registerPreviewRoutes(app: FastifyInstance) {
   const handler = async (req: FastifyRequest, reply: FastifyReply) => {
     const { id, port } = req.params as { id: string; port: string; '*'?: string };
-    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     const p = Number(port);
     if (!Number.isInteger(p) || p < 1 || p > 65535) return reply.code(400).send({ error: 'Bad port' });
 

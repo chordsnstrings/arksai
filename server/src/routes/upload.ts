@@ -23,7 +23,7 @@ function fmtBytes(n: number): string {
 export function registerUploadRoutes(app: FastifyInstance) {
   app.post('/api/sessions/:id/upload', async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
 
     const uploadsDir = path.join(repoDir(id), 'uploads');
     fs.mkdirSync(uploadsDir, { recursive: true });
@@ -42,12 +42,12 @@ export function registerUploadRoutes(app: FastifyInstance) {
     }
     if (saved.length === 0) return reply.code(400).send({ error: 'No files received' });
 
-    const emit = (item: TimelineItem) => {
-      store.appendTimeline(id, item);
+    const emit = async (item: TimelineItem) => {
+      await store.appendTimeline(id, item);
       bus.emit(id, { type: 'timeline_item', item });
     };
     for (const file of saved) {
-      emit({
+      await emit({
         kind: 'file',
         id: randomUUID(),
         path: file.name,
@@ -61,7 +61,7 @@ export function registerUploadRoutes(app: FastifyInstance) {
       if (extracted !== null) {
         const sidecar = `${file.name}.extracted.txt`;
         fs.writeFileSync(path.join(repoDir(id), sidecar), extracted);
-        emit({
+        await emit({
           kind: 'system',
           id: randomUUID(),
           level: 'info',
@@ -70,7 +70,7 @@ export function registerUploadRoutes(app: FastifyInstance) {
         });
       }
     }
-    store.updateSession(id, {});
+    await store.updateSession(id, {});
     return { ok: true, files: saved };
   });
 }

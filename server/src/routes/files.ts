@@ -24,10 +24,10 @@ const MIME: Record<string, string> = {
 
 /** Authenticated download of any file inside a session's workspace. */
 export function registerFileRoutes(app: FastifyInstance) {
-  app.get('/api/sessions/:id/files/*', (req, reply) => {
+  app.get('/api/sessions/:id/files/*', async (req, reply) => {
     const { id } = req.params as { id: string };
     const rel = (req.params as Record<string, string>)['*'] ?? '';
-    if (!store.getSession(id)) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
 
     let abs: string;
     try {

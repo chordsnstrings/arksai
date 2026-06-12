@@ -51,15 +51,15 @@ export async function setupWorkspace(session: SessionMeta): Promise<void> {
     );
     if (!res.ok) {
       bus.emit(session.id, { type: 'clone_progress', phase: 'error', detail: res.output.slice(-1000) });
-      store.updateSession(session.id, { status: 'error' });
-      store.appendTimeline(session.id, {
+      await store.updateSession(session.id, { status: 'error' });
+      await store.appendTimeline(session.id, {
         kind: 'system',
         id: crypto.randomUUID(),
         level: 'error',
         text: `Clone failed:\n${res.output.slice(-1000)}`,
         ts: Date.now(),
       });
-      bus.sessionChanged(store.getSession(session.id)!);
+      bus.sessionChanged((await store.getSession(session.id))!);
       return;
     }
     // Scrub the token from the persisted remote; pushes re-inject it per call.
@@ -74,9 +74,9 @@ export async function setupWorkspace(session: SessionMeta): Promise<void> {
 
   const branchRes = await git(dir, 'rev-parse --abbrev-ref HEAD');
   const branch = branchRes.ok ? branchRes.output.trim() : session.branch;
-  store.updateSession(session.id, { branch: branch || null });
+  await store.updateSession(session.id, { branch: branch || null });
   bus.emit(session.id, { type: 'clone_progress', phase: 'done', detail: 'Workspace ready' });
-  bus.sessionChanged(store.getSession(session.id)!);
+  bus.sessionChanged((await store.getSession(session.id))!);
 }
 
 /** "+12 −3" style summary of uncommitted changes, or null if clean/unavailable. */
@@ -128,12 +128,12 @@ export function deleteWorkspace(sessionId: string) {
 }
 
 /** Boot sweep: remove workspace dirs with no session or older than the TTL. */
-export function sweepWorkspaces() {
+export async function sweepWorkspaces() {
   const root = workspaceRoot();
   if (!fs.existsSync(root)) return;
   const ttlMs = config.workspaceTtlDays * 24 * 3600 * 1000;
   for (const entry of fs.readdirSync(root)) {
-    const session = store.getSession(entry);
+    const session = await store.getSession(entry);
     const full = path.join(root, entry);
     let stale = false;
     if (!session) stale = true;

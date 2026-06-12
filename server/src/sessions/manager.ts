@@ -9,7 +9,10 @@ export function isRunning(sessionId: string): boolean {
   return liveRuns.has(sessionId);
 }
 
-export function startRun(sessionId: string, userText: string): { ok: true } | { ok: false; error: string; code: number } {
+export async function startRun(
+  sessionId: string,
+  userText: string,
+): Promise<{ ok: true } | { ok: false; error: string; code: number }> {
   if (liveRuns.has(sessionId)) {
     return { ok: false, error: 'A run is already active for this session.', code: 409 };
   }
@@ -20,7 +23,7 @@ export function startRun(sessionId: string, userText: string): { ok: true } | { 
       code: 429,
     };
   }
-  const session = store.getSession(sessionId);
+  const session = await store.getSession(sessionId);
   if (!session) return { ok: false, error: 'Session not found.', code: 404 };
 
   const run = new AgentRun(session);

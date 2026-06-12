@@ -5,9 +5,9 @@ import * as store from '../sessions/store';
 
 export function registerEventRoutes(app: FastifyInstance) {
   // Per-session event stream with Last-Event-ID replay (mid-run reconnects).
-  app.get('/api/sessions/:id/events', (req, reply) => {
+  app.get('/api/sessions/:id/events', async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!store.getSession(id)) {
+    if (!(await store.getSession(id))) {
       reply.code(404).send({ error: 'Not found' });
       return;
     }

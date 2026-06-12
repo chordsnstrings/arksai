@@ -4,7 +4,7 @@ import * as store from '../sessions/store';
 const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 export function registerCommandRoutes(app: FastifyInstance) {
-  app.get('/api/commands', async () => ({ commands: store.listCommands() }));
+  app.get('/api/commands', async () => ({ commands: await store.listCommands() }));
 
   app.put('/api/commands/:name', async (req, reply) => {
     const { name } = req.params as { name: string };
@@ -19,7 +19,7 @@ export function registerCommandRoutes(app: FastifyInstance) {
 
   app.delete('/api/commands/:name', async (req) => {
     const { name } = req.params as { name: string };
-    store.deleteCommand(name.toLowerCase());
+    await store.deleteCommand(name.toLowerCase());
     return { ok: true };
   });
 }

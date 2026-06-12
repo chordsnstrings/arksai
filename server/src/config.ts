@@ -51,6 +51,7 @@ export const config = {
   isProd,
   port: intEnv('PORT', 3000),
   dataDir: process.env.DATA_DIR || path.join(repoRoot, 'data'),
+  databaseUrl: process.env.DATABASE_URL || '',
   clientDist:
     process.env.CLIENT_DIST ||
     [path.join(repoRoot, 'client', 'dist')].find((p) => fs.existsSync(p)) ||

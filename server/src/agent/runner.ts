@@ -122,11 +122,11 @@ export class AgentRun {
     // Anything emitted before this run (e.g. uploads) is already persisted to
     // the timeline — drop it from the replay buffer so reconnects don't dupe.
     bus.clear(sessionId);
-    store.updateSession(sessionId, { status: 'running' });
-    bus.sessionChanged(store.getSession(sessionId)!);
+    await store.updateSession(sessionId, { status: 'running' });
+    bus.sessionChanged((await store.getSession(sessionId))!);
     this.emit({ type: 'run_started', runId: this.runId, mode: this.session.mode });
 
-    const context = store.getContext(sessionId);
+    const context = await store.getContext(sessionId);
     context.push({ role: 'user', content: userText });
 
     if (this.session.title === 'New session') {
@@ -291,15 +291,15 @@ export class AgentRun {
         liveItems.push(fileItem);
         this.emit({ type: 'timeline_item', item: fileItem });
       }
-      for (const item of liveItems) store.appendTimeline(sessionId, item);
-      store.setContext(sessionId, context);
-      const prev = store.getSession(sessionId);
+      for (const item of liveItems) await store.appendTimeline(sessionId, item);
+      await store.setContext(sessionId, context);
+      const prev = await store.getSession(sessionId);
       const runCost = computeCost(this.session.model, {
         cacheHit: this.usage.cacheHitTokens,
         cacheMiss: this.usage.cacheMissTokens,
         completion: this.usage.completionTokens,
       });
-      store.updateSession(sessionId, {
+      await store.updateSession(sessionId, {
         status: finalStatus,
         diffStat: stat,
         totalTokens: (prev?.totalTokens ?? 0) + this.usage.totalTokens,
@@ -315,7 +315,7 @@ export class AgentRun {
         totalTokens: this.usage.totalTokens,
         diffStat: stat,
       });
-      bus.sessionChanged(store.getSession(sessionId)!);
+      bus.sessionChanged((await store.getSession(sessionId))!);
       bus.clear(sessionId);
     }
   }
@@ -421,7 +421,7 @@ export class AgentRun {
   private async generateTitleAsync(userText: string) {
     const title = await generateTitle(this.client, this.session.model, userText);
     if (!title) return;
-    store.updateSession(this.session.id, { title });
-    bus.sessionChanged(store.getSession(this.session.id)!);
+    await store.updateSession(this.session.id, { title });
+    bus.sessionChanged((await store.getSession(this.session.id))!);
   }
 }
