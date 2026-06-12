@@ -4,6 +4,33 @@ import { useStore } from '../state/sessionStore';
 
 type Tab = 'preview' | 'files';
 
+// Ports we recognise as dev servers, in priority order. The agent defaults its
+// own apps to PORT=4000 (see server childEnv), so that wins; then the common
+// Vite/Next/Flask/etc. defaults. This keeps the canvas from auto-loading
+// sandbox-noise ports (e.g. 2024) that just happen to be the lowest number.
+const DEV_PORTS = [4000, 5173, 5174, 3000, 3001, 8080, 8000, 5000, 4173, 8888, 9000];
+
+function pickPreviewPort(ports: number[]): number | undefined {
+  for (const p of DEV_PORTS) if (ports.includes(p)) return p;
+  // No well-known dev port: only auto-pick if there's a single plausible
+  // app-range port. Otherwise let the user choose to avoid loading noise.
+  const candidates = ports.filter((p) => p >= 3000 && p <= 9999);
+  if (candidates.length === 1) return candidates[0];
+  return undefined;
+}
+
+// Show recognised dev ports first, then the rest ascending.
+function orderPorts(ports: number[]): number[] {
+  return [...ports].sort((a, b) => {
+    const ai = DEV_PORTS.indexOf(a);
+    const bi = DEV_PORTS.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a - b;
+  });
+}
+
 const TEXT_EXT = /\.(txt|md|json|js|jsx|ts|tsx|css|html|py|go|rs|java|rb|sh|yml|yaml|toml|sql|env|csv|xml|c|cpp|h)$/i;
 const IMG_EXT = /\.(png|jpe?g|gif|svg|webp|avif)$/i;
 const PDF_EXT = /\.pdf$/i;
@@ -28,8 +55,9 @@ export function Canvas({ sessionId }: { sessionId: string }) {
   const detectPorts = async () => {
     try {
       const ports = await api.ports(sessionId);
-      setDetectedPorts(ports);
-      if (ports.length && !previewSrc) loadPreview(String(ports[0]));
+      setDetectedPorts(orderPorts(ports));
+      const pick = pickPreviewPort(ports);
+      if (pick && !previewSrc) loadPreview(String(pick));
     } catch {
       setDetectedPorts([]);
     }
