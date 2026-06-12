@@ -3,6 +3,7 @@ import { api } from './api/client';
 import { useGlobalEvents, useSessionEvents } from './api/useEventStream';
 import { Chat } from './components/Chat';
 import { Composer } from './components/Composer';
+import { CostBar } from './components/CostBar';
 import { LoginScreen } from './components/LoginScreen';
 import { NewSessionDialog } from './components/NewSessionDialog';
 import { Sidebar } from './components/Sidebar';
@@ -50,10 +51,11 @@ export default function App() {
             <TopBar meta={activeMeta} />
             <Chat live={live} sessionId={activeMeta.id} />
             <Composer meta={activeMeta} running={live.running} />
+            <CostBar meta={activeMeta} live={live} />
           </>
         ) : (
           <div className="empty-state">
-            <div className="star">✳</div>
+            <div className="logo-mark" />
             <div>Start a new session to put the agent to work.</div>
             <button className="send-btn" onClick={() => setShowNew(true)}>
               New session

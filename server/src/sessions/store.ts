@@ -29,6 +29,9 @@ export function initStore() {
       status TEXT NOT NULL,
       diff_stat TEXT,
       total_tokens INTEGER NOT NULL DEFAULT 0,
+      prompt_tokens INTEGER NOT NULL DEFAULT 0,
+      completion_tokens INTEGER NOT NULL DEFAULT 0,
+      cost_usd REAL NOT NULL DEFAULT 0,
       context TEXT NOT NULL DEFAULT '[]',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
@@ -42,6 +45,19 @@ export function initStore() {
     );
     CREATE INDEX IF NOT EXISTS idx_timeline_session ON timeline(session_id, seq);
   `);
+
+  // Migrate older DBs that predate the cost columns.
+  for (const col of [
+    'prompt_tokens INTEGER NOT NULL DEFAULT 0',
+    'completion_tokens INTEGER NOT NULL DEFAULT 0',
+    'cost_usd REAL NOT NULL DEFAULT 0',
+  ]) {
+    try {
+      db.exec(`ALTER TABLE sessions ADD COLUMN ${col}`);
+    } catch {
+      /* column already exists */
+    }
+  }
 }
 
 function rowToMeta(row: any): SessionMeta {
@@ -56,6 +72,9 @@ function rowToMeta(row: any): SessionMeta {
     status: row.status as SessionStatus,
     diffStat: row.diff_stat,
     totalTokens: row.total_tokens,
+    promptTokens: row.prompt_tokens ?? 0,
+    completionTokens: row.completion_tokens ?? 0,
+    costUsd: row.cost_usd ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -97,6 +116,9 @@ const COLUMN: Record<string, string> = {
   status: 'status',
   diffStat: 'diff_stat',
   totalTokens: 'total_tokens',
+  promptTokens: 'prompt_tokens',
+  completionTokens: 'completion_tokens',
+  costUsd: 'cost_usd',
   repoUrl: 'repo_url',
   repoName: 'repo_name',
 };

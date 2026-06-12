@@ -11,6 +11,20 @@ export type ModelId = 'deepseek-chat' | 'deepseek-reasoner';
 export const MODELS: ModelId[] = ['deepseek-chat', 'deepseek-reasoner'];
 export const SESSION_MODES: SessionMode[] = ['chat', 'plan', 'code'];
 
+/**
+ * DeepSeek pricing in USD per 1M tokens (cache-miss input rate, the upper
+ * bound). Update here if DeepSeek changes prices.
+ */
+export const PRICING: Record<ModelId, { inputPerM: number; outputPerM: number }> = {
+  'deepseek-chat': { inputPerM: 0.27, outputPerM: 1.1 },
+  'deepseek-reasoner': { inputPerM: 0.55, outputPerM: 2.19 },
+};
+
+export function computeCost(model: ModelId, promptTokens: number, completionTokens: number): number {
+  const p = PRICING[model] ?? PRICING['deepseek-chat'];
+  return (promptTokens / 1e6) * p.inputPerM + (completionTokens / 1e6) * p.outputPerM;
+}
+
 export interface SessionMeta {
   id: string;
   title: string;
@@ -22,6 +36,9 @@ export interface SessionMeta {
   status: SessionStatus;
   diffStat: string | null;
   totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  costUsd: number;
   createdAt: number;
   updatedAt: number;
 }

@@ -15,6 +15,8 @@ export interface LiveState {
   running: boolean;
   elapsed: number;
   tokens: number;
+  promptTokens: number;
+  completionTokens: number;
   runningTasks: number;
 }
 
@@ -25,6 +27,8 @@ const emptyLive = (): LiveState => ({
   running: false,
   elapsed: 0,
   tokens: 0,
+  promptTokens: 0,
+  completionTokens: 0,
   runningTasks: 1,
 });
 
@@ -78,7 +82,6 @@ export const useStore = create<StoreState>((set, get) => ({
           ...emptyLive(),
           items: detail.timeline,
           running: detail.meta.status === 'running',
-          tokens: detail.meta.totalTokens,
         },
       },
     })),
@@ -115,7 +118,15 @@ function mutateLive(
 function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
   switch (ev.type) {
     case 'run_started':
-      return { ...live, running: true, elapsed: 0, runningTasks: 1 };
+      return {
+        ...live,
+        running: true,
+        elapsed: 0,
+        runningTasks: 1,
+        tokens: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+      };
 
     case 'assistant_delta': {
       // Prose after tool calls closes the current tool group.
@@ -173,7 +184,12 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
     }
 
     case 'usage_update':
-      return { ...live, tokens: ev.totalTokens };
+      return {
+        ...live,
+        tokens: ev.totalTokens,
+        promptTokens: ev.promptTokens,
+        completionTokens: ev.completionTokens,
+      };
 
     case 'tick':
       return { ...live, elapsed: ev.elapsedSeconds, runningTasks: ev.runningTasks };
@@ -189,7 +205,16 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
           { kind: 'assistant', id: live.pendingAssistant.id, text: live.pendingAssistant.text, ts: Date.now() },
         ];
       }
-      return { ...live, items, pendingAssistant: null, pendingTools: null, running: false };
+      return {
+        ...live,
+        items,
+        pendingAssistant: null,
+        pendingTools: null,
+        running: false,
+        tokens: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+      };
     }
 
     case 'run_error':

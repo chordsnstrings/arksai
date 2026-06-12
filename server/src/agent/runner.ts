@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import fg from 'fast-glob';
-import type { SessionMeta, TimelineItem, ToolCallRecord } from '../../../shared/types';
+import { computeCost, type SessionMeta, type TimelineItem, type ToolCallRecord } from '../../../shared/types';
 import { config } from '../config';
 import { bus } from '../events/bus';
 import * as store from '../sessions/store';
@@ -265,10 +265,15 @@ export class AgentRun {
       }
       for (const item of liveItems) store.appendTimeline(sessionId, item);
       store.setContext(sessionId, context);
+      const prev = store.getSession(sessionId);
+      const runCost = computeCost(this.session.model, this.usage.promptTokens, this.usage.completionTokens);
       store.updateSession(sessionId, {
         status: finalStatus,
         diffStat: stat,
-        totalTokens: (store.getSession(sessionId)?.totalTokens ?? 0) + this.usage.totalTokens,
+        totalTokens: (prev?.totalTokens ?? 0) + this.usage.totalTokens,
+        promptTokens: (prev?.promptTokens ?? 0) + this.usage.promptTokens,
+        completionTokens: (prev?.completionTokens ?? 0) + this.usage.completionTokens,
+        costUsd: (prev?.costUsd ?? 0) + runCost,
       });
 
       this.emit({

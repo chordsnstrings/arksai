@@ -26,7 +26,9 @@ export function LoginScreen() {
     <div className="login-screen">
       <form className="login-card" onSubmit={submit}>
         <h1>
-          ArksAI <span className="badge" style={{ fontSize: 11, color: 'var(--text-muted)' }}>deepseek</span>
+          <span className="logo-mark" />
+          <span className="name">ArksAI</span>
+          <span className="badge">deepseek</span>
         </h1>
         <input
           type="password"

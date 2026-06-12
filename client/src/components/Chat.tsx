@@ -29,7 +29,7 @@ function ToolRow({ call }: { call: ToolCallRecord }) {
     <div className="tool-row">
       <div className="head" onClick={() => setOpen((v) => !v)}>
         {call.running ? (
-          <span className="spin">✳</span>
+          <span className="spinner sm" />
         ) : call.ok ? (
           <span className="ok">✓</span>
         ) : (
@@ -111,7 +111,7 @@ function StatusFooter({ live, sessionId }: { live: LiveState; sessionId: string 
   const tokens = live.tokens >= 1000 ? `${(live.tokens / 1000).toFixed(1)}k` : String(live.tokens);
   return (
     <div className="status-footer">
-      <span className="glyph">✳</span>
+      <span className="spinner" />
       <span>
         {live.elapsed}s · {tokens} tokens · {live.runningTasks} running task
         {live.runningTasks === 1 ? '' : 's'}

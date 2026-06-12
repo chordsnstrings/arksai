@@ -23,7 +23,9 @@ export function Sidebar({ onNewSession }: { onNewSession: () => void }) {
   return (
     <aside className="sidebar">
       <div className="wordmark">
-        ArksAI <span className="badge">deepseek</span>
+        <span className="logo-mark sm" />
+        <span className="name">ArksAI</span>
+        <span className="badge">deepseek</span>
       </div>
       <button className="nav-btn" onClick={onNewSession}>
         <span className="plus">+</span> New session
