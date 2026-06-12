@@ -19,6 +19,18 @@ import { registerEngineRoutes } from './routes/engines';
 export async function buildApp() {
   const app = Fastify({ logger: { level: config.isProd ? 'warn' : 'info' } });
 
+  // Tolerate empty JSON bodies (e.g. DELETE/POST with no payload) instead of
+  // returning 400 — the default parser errors on an empty body.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    const s = (body as string).trim();
+    if (!s) return done(null, undefined);
+    try {
+      done(null, JSON.parse(s));
+    } catch (err) {
+      done(err as Error);
+    }
+  });
+
   await app.register(fastifyCookie, { secret: cookieSecret() });
   await app.register(fastifyMultipart, {
     limits: { fileSize: 25 * 1024 * 1024, files: 10 },

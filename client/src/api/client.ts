@@ -19,10 +19,14 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Only send a JSON content-type when there's actually a body — otherwise
+  // Fastify rejects an empty JSON body with 400 (this broke DELETE).
+  const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
+  if (init?.body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
     ...init,
+    headers,
   });
   if (!res.ok) {
     let message = res.statusText;
