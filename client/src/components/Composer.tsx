@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import type { ModelId, SessionMeta, SessionMode } from '@shared/types';
-import { MODELS } from '@shared/types';
+import type { SessionMeta, SessionMode } from '@shared/types';
+import { FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 
@@ -20,9 +20,12 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
     upsertSession(updated);
   };
 
+  const modelIds = useStore((s) => s.models).map((m) => m.id);
   const cycleModel = async () => {
     if (running) return;
-    const next = MODELS[(MODELS.indexOf(meta.model) + 1) % MODELS.length] as ModelId;
+    const ids = modelIds.length ? modelIds : FALLBACK_MODEL_IDS;
+    const idx = ids.indexOf(meta.model);
+    const next = ids[(idx + 1) % ids.length];
     const updated = await api.patchSession(meta.id, { model: next });
     upsertSession(updated);
   };
@@ -151,8 +154,8 @@ export function Composer({ meta, running }: { meta: SessionMeta; running: boolea
             </button>
           </div>
           <span className="spacer" />
-          <button className="model-badge" onClick={cycleModel} title="Switch model">
-            {meta.model}
+          <button className="model-badge" onClick={cycleModel} title={`${meta.model} — click to switch model`}>
+            {modelLabel(meta.model)}
           </button>
           <button className="send-btn" disabled={!text.trim() || running} onClick={send}>
             {running ? '…' : 'Send'}

@@ -174,12 +174,14 @@ export class AgentRun {
             if (tc.function?.arguments) slot.args += tc.function.arguments;
           }
           if (chunk.usage) {
-            this.usage.add(chunk.usage);
+            this.usage.add(chunk.usage as any);
             this.emit({
               type: 'usage_update',
               totalTokens: this.usage.totalTokens,
               promptTokens: this.usage.promptTokens,
               completionTokens: this.usage.completionTokens,
+              cacheHitTokens: this.usage.cacheHitTokens,
+              cacheMissTokens: this.usage.cacheMissTokens,
             });
           }
         }
@@ -266,7 +268,11 @@ export class AgentRun {
       for (const item of liveItems) store.appendTimeline(sessionId, item);
       store.setContext(sessionId, context);
       const prev = store.getSession(sessionId);
-      const runCost = computeCost(this.session.model, this.usage.promptTokens, this.usage.completionTokens);
+      const runCost = computeCost(this.session.model, {
+        cacheHit: this.usage.cacheHitTokens,
+        cacheMiss: this.usage.cacheMissTokens,
+        completion: this.usage.completionTokens,
+      });
       store.updateSession(sessionId, {
         status: finalStatus,
         diffStat: stat,
@@ -387,7 +393,7 @@ export class AgentRun {
   }
 
   private async generateTitleAsync(userText: string) {
-    const title = await generateTitle(this.client, 'deepseek-chat', userText);
+    const title = await generateTitle(this.client, this.session.model, userText);
     if (!title) return;
     store.updateSession(this.session.id, { title });
     bus.sessionChanged(store.getSession(this.session.id)!);

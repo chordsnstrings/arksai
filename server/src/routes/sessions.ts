@@ -5,10 +5,11 @@ import type {
   SendMessageRequest,
   SessionDetail,
 } from '../../../shared/types';
-import { MODELS, SESSION_MODES } from '../../../shared/types';
+import { DEFAULT_MODEL, SESSION_MODES } from '../../../shared/types';
 import { randomUUID } from 'node:crypto';
 import * as store from '../sessions/store';
 import * as manager from '../sessions/manager';
+import { isValidModel } from '../agent/models';
 import { deleteWorkspace, parseRepoUrl, setupWorkspace } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import { processRegistry } from '../agent/processes';
@@ -29,7 +30,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
       repoName = parsed.name;
     }
     const mode = SESSION_MODES.includes(body.mode as any) ? body.mode! : 'code';
-    const model = MODELS.includes(body.model as any) ? body.model! : 'deepseek-chat';
+    const model = body.model && (await isValidModel(body.model)) ? body.model : DEFAULT_MODEL;
     const session = store.createSession({
       repoUrl,
       repoName,
@@ -58,7 +59,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const body = (req.body ?? {}) as PatchSessionRequest;
     const patch: PatchSessionRequest = {};
     if (SESSION_MODES.includes(body.mode as any)) patch.mode = body.mode;
-    if (MODELS.includes(body.model as any)) patch.model = body.model;
+    if (body.model && (await isValidModel(body.model))) patch.model = body.model;
     store.updateSession(id, patch);
     const updated = store.getSession(id)!;
     bus.sessionChanged(updated);

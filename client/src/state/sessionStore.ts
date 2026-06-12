@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   AgentEvent,
   GlobalEvent,
+  ModelInfo,
   SessionDetail,
   SessionMeta,
   TimelineItem,
@@ -17,6 +18,8 @@ export interface LiveState {
   tokens: number;
   promptTokens: number;
   completionTokens: number;
+  cacheHitTokens: number;
+  cacheMissTokens: number;
   runningTasks: number;
 }
 
@@ -29,6 +32,8 @@ const emptyLive = (): LiveState => ({
   tokens: 0,
   promptTokens: 0,
   completionTokens: 0,
+  cacheHitTokens: 0,
+  cacheMissTokens: 0,
   runningTasks: 1,
 });
 
@@ -37,8 +42,10 @@ interface StoreState {
   sessions: SessionMeta[];
   activeId: string | null;
   live: Record<string, LiveState>;
+  models: ModelInfo[];
 
   setAuthed(v: boolean): void;
+  setModels(models: ModelInfo[]): void;
   setSessions(list: SessionMeta[]): void;
   upsertSession(meta: SessionMeta): void;
   removeSession(id: string): void;
@@ -54,8 +61,10 @@ export const useStore = create<StoreState>((set, get) => ({
   sessions: [],
   activeId: null,
   live: {},
+  models: [],
 
   setAuthed: (v) => set({ authed: v }),
+  setModels: (models) => set({ models }),
   setSessions: (list) => set({ sessions: list }),
 
   upsertSession: (meta) =>
@@ -126,6 +135,8 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
         tokens: 0,
         promptTokens: 0,
         completionTokens: 0,
+        cacheHitTokens: 0,
+        cacheMissTokens: 0,
       };
 
     case 'assistant_delta': {
@@ -189,6 +200,8 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
         tokens: ev.totalTokens,
         promptTokens: ev.promptTokens,
         completionTokens: ev.completionTokens,
+        cacheHitTokens: ev.cacheHitTokens,
+        cacheMissTokens: ev.cacheMissTokens,
       };
 
     case 'tick':
@@ -214,6 +227,8 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
         tokens: 0,
         promptTokens: 0,
         completionTokens: 0,
+        cacheHitTokens: 0,
+        cacheMissTokens: 0,
       };
     }
 

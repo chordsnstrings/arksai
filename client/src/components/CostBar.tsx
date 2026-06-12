@@ -19,7 +19,14 @@ export function CostBar({ meta, live }: { meta: SessionMeta; live: LiveState }) 
   const prompt = meta.promptTokens + (running ? live.promptTokens : 0);
   const completion = meta.completionTokens + (running ? live.completionTokens : 0);
   const total = meta.totalTokens + (running ? live.tokens : 0);
-  const cost = meta.costUsd + (running ? computeCost(meta.model, live.promptTokens, live.completionTokens) : 0);
+  const liveCost = running
+    ? computeCost(meta.model, {
+        cacheHit: live.cacheHitTokens,
+        cacheMiss: live.cacheMissTokens,
+        completion: live.completionTokens,
+      })
+    : 0;
+  const cost = meta.costUsd + liveCost;
 
   return (
     <div className="cost-bar">

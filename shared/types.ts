@@ -6,23 +6,75 @@
 
 export type SessionMode = 'chat' | 'plan' | 'code';
 export type SessionStatus = 'idle' | 'running' | 'done' | 'error';
-export type ModelId = 'deepseek-chat' | 'deepseek-reasoner';
+/** Any DeepSeek model id. The selectable list is fetched live from /api/models. */
+export type ModelId = string;
 
-export const MODELS: ModelId[] = ['deepseek-chat', 'deepseek-reasoner'];
 export const SESSION_MODES: SessionMode[] = ['chat', 'plan', 'code'];
 
+export const DEFAULT_MODEL = 'deepseek-v4-flash';
+/** Used when the live model list can't be fetched. */
+export const FALLBACK_MODEL_IDS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+/** Kept for older imports; the live list supersedes it. */
+export const MODELS: ModelId[] = FALLBACK_MODEL_IDS;
+
+export interface ModelPricing {
+  label: string;
+  /** USD per 1M cached input tokens (much cheaper) */
+  inputCacheHitPerM: number;
+  /** USD per 1M uncached input tokens */
+  inputCacheMissPerM: number;
+  outputPerM: number;
+}
+
+export interface ModelInfo extends ModelPricing {
+  id: string;
+}
+
 /**
- * DeepSeek pricing in USD per 1M tokens (cache-miss input rate, the upper
- * bound). Update here if DeepSeek changes prices.
+ * DeepSeek pricing in USD per 1M tokens, matching the live platform exactly,
+ * including the cache-hit input tier. Source:
+ * https://api-docs.deepseek.com/quick_start/pricing. Update if it changes.
  */
-export const PRICING: Record<ModelId, { inputPerM: number; outputPerM: number }> = {
-  'deepseek-chat': { inputPerM: 0.27, outputPerM: 1.1 },
-  'deepseek-reasoner': { inputPerM: 0.55, outputPerM: 2.19 },
+const DEFAULT_PRICING: ModelPricing = {
+  label: 'unknown',
+  inputCacheHitPerM: 0.0028,
+  inputCacheMissPerM: 0.14,
+  outputPerM: 0.28,
+};
+export const KNOWN_MODELS: Record<string, ModelPricing> = {
+  'deepseek-v4-flash': { label: 'V4 Flash', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
+  'deepseek-v4-pro': { label: 'V4 Pro', inputCacheHitPerM: 0.003625, inputCacheMissPerM: 0.435, outputPerM: 0.87 },
+  // legacy aliases — DeepSeek routes these to v4-flash
+  'deepseek-chat': { label: 'V4 Flash (chat)', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
+  'deepseek-reasoner': { label: 'V4 Flash (reasoner)', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
 };
 
-export function computeCost(model: ModelId, promptTokens: number, completionTokens: number): number {
-  const p = PRICING[model] ?? PRICING['deepseek-chat'];
-  return (promptTokens / 1e6) * p.inputPerM + (completionTokens / 1e6) * p.outputPerM;
+export function pricingFor(model: string): ModelPricing {
+  return KNOWN_MODELS[model] ?? DEFAULT_PRICING;
+}
+
+export function modelLabel(id: string): string {
+  return KNOWN_MODELS[id]?.label ?? id;
+}
+
+export interface CostTokens {
+  cacheHit?: number;
+  cacheMiss?: number;
+  /** total prompt tokens; if cacheHit/cacheMiss are absent, all of this is billed as cache-miss */
+  prompt?: number;
+  completion: number;
+}
+
+/** Cost in USD mirroring DeepSeek billing, accounting for cached input tokens. */
+export function computeCost(model: string, t: CostTokens): number {
+  const p = pricingFor(model);
+  const hit = t.cacheHit ?? 0;
+  const miss = t.cacheMiss ?? Math.max(0, (t.prompt ?? 0) - hit);
+  return (
+    (hit / 1e6) * p.inputCacheHitPerM +
+    (miss / 1e6) * p.inputCacheMissPerM +
+    (t.completion / 1e6) * p.outputPerM
+  );
 }
 
 export interface SessionMeta {
@@ -84,6 +136,8 @@ export type AgentEvent =
       totalTokens: number;
       promptTokens: number;
       completionTokens: number;
+      cacheHitTokens: number;
+      cacheMissTokens: number;
     }
   | { type: 'tick'; elapsedSeconds: number; runningTasks: number }
   | {

@@ -1,5 +1,6 @@
 import type {
   CreateSessionRequest,
+  ModelInfo,
   PatchSessionRequest,
   SessionDetail,
   SessionMeta,
@@ -34,6 +35,7 @@ export const api = {
   login: (password: string) =>
     request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  listModels: () => request<{ models: ModelInfo[] }>('/api/models').then((r) => r.models),
   listSessions: () => request<SessionMeta[]>('/api/sessions'),
   createSession: (body: CreateSessionRequest) =>
     request<SessionMeta>('/api/sessions', { method: 'POST', body: JSON.stringify(body) }),

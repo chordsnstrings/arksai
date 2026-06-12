@@ -14,6 +14,7 @@ export default function App() {
   const authed = useStore((s) => s.authed);
   const setAuthed = useStore((s) => s.setAuthed);
   const setSessions = useStore((s) => s.setSessions);
+  const setModels = useStore((s) => s.setModels);
   const sessions = useStore((s) => s.sessions);
   const activeId = useStore((s) => s.activeId);
   const live = useStore((s) => (activeId ? s.live[activeId] : undefined));
@@ -33,6 +34,10 @@ export default function App() {
       api.listSessions().then(setSessions).catch(() => {});
     }
   }, [authed, setAuthed, setSessions]);
+
+  useEffect(() => {
+    if (authed === true) api.listModels().then(setModels).catch(() => {});
+  }, [authed, setModels]);
 
   useGlobalEvents(authed === true);
   useSessionEvents(authed === true ? activeId : null);
