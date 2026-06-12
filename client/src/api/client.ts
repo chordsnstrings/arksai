@@ -1,6 +1,7 @@
 import type {
   CreateSessionRequest,
   CustomCommand,
+  MemoryEntry,
   ModelInfo,
   PatchSessionRequest,
   ProcessInfo,
@@ -65,6 +66,13 @@ export const api = {
       body: JSON.stringify({ description, template }),
     }),
   deleteCommand: (name: string) => request<{ ok: true }>(`/api/commands/${name}`, { method: 'DELETE' }),
+  listMemory: (scope?: string) =>
+    request<{ memory: MemoryEntry[] }>(`/api/memory${scope ? `?scope=${encodeURIComponent(scope)}` : ''}`).then(
+      (r) => r.memory,
+    ),
+  addMemory: (scope: string, text: string) =>
+    request<MemoryEntry>('/api/memory', { method: 'POST', body: JSON.stringify({ scope, text }) }),
+  deleteMemory: (id: string) => request<{ ok: true }>(`/api/memory/${id}`, { method: 'DELETE' }),
 };
 
 export { ApiError };

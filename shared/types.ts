@@ -199,6 +199,14 @@ export interface CustomCommand {
   updatedAt: number;
 }
 
+export interface MemoryEntry {
+  id: string;
+  /** 'global' (every session) or a repo name like 'owner/repo' (that repo only) */
+  scope: string;
+  text: string;
+  createdAt: number;
+}
+
 /** Expand a custom command template with positional + $ARGUMENTS substitution. */
 export function expandTemplate(template: string, argString: string): string {
   const args = argString.trim().length ? argString.trim().split(/\s+/) : [];

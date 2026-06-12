@@ -15,9 +15,10 @@ write files anywhere on the host. These are real, destructive-capable actions â€
 confirm intent for irreversible operations and report exactly what you did.`;
 }
 
-export function buildSystemPrompt(session: SessionMeta, repoDir: string): string {
+export function buildSystemPrompt(session: SessionMeta, repoDir: string, memoryBlock = ''): string {
+  const mem = memoryBlock ? `\n\n${memoryBlock}` : '';
   if (session.mode === 'chat') {
-    return `You are ArksAI, a helpful assistant for software developers, built on DeepSeek.
+    return `You are ArksAI, a helpful assistant for software developers, built on DeepSeek.${mem}
 
 ## Mode: CHAT
 A conversation focused on questions, discussion, reviewing pasted code, and
@@ -64,7 +65,7 @@ access anything outside the workspace.`;
   return `You are ArksAI, an autonomous coding agent operating inside a git workspace.
 
 ${repoLine}
-${workspaceLine}
+${workspaceLine}${mem}
 
 ## Environment
 - Linux container, bash available. git and ripgrep (rg) are installed.

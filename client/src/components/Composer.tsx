@@ -13,7 +13,17 @@ function parseInterval(s: string): number | null {
   return n * (m[2] === 'h' ? 3600000 : m[2] === 's' ? 1000 : 60000);
 }
 
-export function Composer({ meta, running, onOpenCommands }: { meta: SessionMeta; running: boolean; onOpenCommands: () => void }) {
+export function Composer({
+  meta,
+  running,
+  onOpenCommands,
+  onOpenMemory,
+}: {
+  meta: SessionMeta;
+  running: boolean;
+  onOpenCommands: () => void;
+  onOpenMemory: () => void;
+}) {
   const [text, setText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -166,6 +176,20 @@ export function Composer({ meta, running, onOpenCommands }: { meta: SessionMeta;
         break;
       case 'commands':
         onOpenCommands();
+        break;
+      case 'memory':
+        onOpenMemory();
+        break;
+      case 'remember':
+        if (!args) sys('Usage: /remember <fact>', 'error');
+        else {
+          try {
+            await api.addMemory('global', args);
+            sys(`🧠 Remembered (global): ${args}`);
+          } catch (e: any) {
+            sys(e?.message ?? 'Failed to save memory', 'error');
+          }
+        }
         break;
       case 'goal':
         if (!args || args === 'stop' || args === 'clear') {

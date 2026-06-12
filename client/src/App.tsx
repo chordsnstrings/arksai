@@ -5,6 +5,7 @@ import { useAutomation } from './api/useAutomation';
 import { Canvas } from './components/Canvas';
 import { Chat } from './components/Chat';
 import { CommandsDialog } from './components/CommandsDialog';
+import { MemoryDialog } from './components/MemoryDialog';
 import { Composer } from './components/Composer';
 import { CostBar } from './components/CostBar';
 import { LoginScreen } from './components/LoginScreen';
@@ -25,6 +26,7 @@ export default function App() {
   const canvasOpen = useStore((s) => s.canvasOpen);
   const [showNew, setShowNew] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
+  const [showMemory, setShowMemory] = useState(false);
 
   useEffect(() => {
     if (authed !== true) {
@@ -64,7 +66,12 @@ export default function App() {
           <>
             <TopBar meta={activeMeta} />
             <Chat live={live} sessionId={activeMeta.id} />
-            <Composer meta={activeMeta} running={live.running} onOpenCommands={() => setShowCommands(true)} />
+            <Composer
+              meta={activeMeta}
+              running={live.running}
+              onOpenCommands={() => setShowCommands(true)}
+              onOpenMemory={() => setShowMemory(true)}
+            />
             <CostBar meta={activeMeta} live={live} />
           </>
         ) : (
@@ -80,6 +87,7 @@ export default function App() {
       {canvasOpen && activeMeta && <Canvas sessionId={activeMeta.id} />}
       {showNew && <NewSessionDialog onClose={() => setShowNew(false)} />}
       {showCommands && <CommandsDialog onClose={() => setShowCommands(false)} />}
+      {showMemory && <MemoryDialog meta={activeMeta} onClose={() => setShowMemory(false)} />}
     </div>
   );
 }

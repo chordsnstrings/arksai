@@ -130,6 +130,10 @@ export class AgentRun {
     const context = await store.getContext(sessionId);
     context.push({ role: 'user', content: userText });
 
+    // Memory: global (every session) + this repo's project memory + an optional
+    // ARKS.md in the workspace. Loaded once and injected into the system prompt.
+    const systemContent = buildSystemPrompt(this.session, dir, await this.loadMemoryBlock(dir));
+
     if (this.session.title === 'New session') {
       void this.generateTitleAsync(userText);
     }
@@ -160,7 +164,7 @@ export class AgentRun {
         const stream = await this.createCompletionWithRetry({
           model: this.session.model,
           messages: [
-            { role: 'system', content: buildSystemPrompt(this.session, dir) },
+            { role: 'system', content: systemContent },
             ...context,
           ],
           tools: schemas.length ? (schemas as any) : undefined,
@@ -417,6 +421,30 @@ export class AgentRun {
       outputPreview,
     });
     return result;
+  }
+
+  /** Build the "## Memory" block: global + this repo's project memory + ARKS.md. */
+  private async loadMemoryBlock(dir: string): Promise<string> {
+    const scopes = ['global'];
+    if (this.session.repoName) scopes.push(this.session.repoName);
+    const entries = await store.listMemory(scopes).catch(() => []);
+    const global = entries.filter((e) => e.scope === 'global').map((e) => `- ${e.text}`);
+    const project = entries.filter((e) => e.scope !== 'global').map((e) => `- ${e.text}`);
+
+    // Optional ARKS.md committed in the repo (Claude-Code-style project memory).
+    try {
+      const md = fs.readFileSync(path.join(dir, 'ARKS.md'), 'utf8').trim();
+      if (md) project.push(md.slice(0, 4000));
+    } catch {
+      /* no ARKS.md */
+    }
+
+    if (global.length === 0 && project.length === 0) return '';
+    let block = '## Memory — persistent context you must respect';
+    if (global.length) block += `\n\nAbout the user (applies to every session):\n${global.join('\n')}`;
+    if (project.length)
+      block += `\n\nAbout this project${this.session.repoName ? ` (${this.session.repoName})` : ''}:\n${project.join('\n')}`;
+    return block;
   }
 
   private async generateTitleAsync(userText: string) {

@@ -22,6 +22,8 @@ export const COMMANDS: CommandMeta[] = [
   { name: 'kill', desc: 'Stop a background process', arg: '<id>' },
   { name: 'rename', desc: 'Rename this session', arg: '<title>' },
   { name: 'cost', desc: 'Show token + cost breakdown' },
+  { name: 'remember', desc: 'Save a fact to memory (every session)', arg: '<fact>' },
+  { name: 'memory', desc: 'View / edit what ArksAI remembers' },
   { name: 'canvas', desc: 'Toggle the canvas (preview + files)' },
   { name: 'commands', desc: 'Create / edit custom commands' },
   { name: 'new', desc: 'Start a new session', arg: '[owner/repo]' },

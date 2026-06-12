@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   CustomCommand,
+  MemoryEntry,
   ModelId,
   SessionMeta,
   SessionMode,
@@ -176,6 +177,30 @@ export async function upsertCommand(
 
 export async function deleteCommand(name: string) {
   await q('DELETE FROM custom_commands WHERE name = $1', [name]);
+}
+
+// ---- memory (global + per-repo, injected into every session's prompt) ----
+
+function rowToMemory(r: any): MemoryEntry {
+  return { id: r.id, scope: r.scope, text: r.text, createdAt: Number(r.created_at) };
+}
+
+export async function listMemory(scopes: string[]): Promise<MemoryEntry[]> {
+  if (scopes.length === 0) return [];
+  const ph = scopes.map((_, i) => `$${i + 1}`).join(',');
+  const rows = await q(`SELECT * FROM memory WHERE scope IN (${ph}) ORDER BY created_at ASC`, scopes);
+  return rows.map(rowToMemory);
+}
+
+export async function addMemory(scope: string, text: string): Promise<MemoryEntry> {
+  const id = randomUUID();
+  const now = Date.now();
+  await q('INSERT INTO memory(id, scope, text, created_at) VALUES ($1, $2, $3, $4)', [id, scope, text, now]);
+  return { id, scope, text, createdAt: now };
+}
+
+export async function deleteMemory(id: string) {
+  await q('DELETE FROM memory WHERE id = $1', [id]);
 }
 
 /** On boot: any session left "running" by a crash/restart becomes an error. */

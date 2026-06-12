@@ -543,6 +543,15 @@ button { font-family: inherit; cursor: pointer; }
 .cmd-saved-row .del { background: none; border: none; color: var(--text-faint); }
 .cmd-saved-row .del:hover { color: var(--red); }
 .dialog code { font-family: var(--mono); background: var(--bg-input); border-radius: 4px; padding: 1px 4px; font-size: 12px; }
+
+/* memory editor */
+.mem-list { display: flex; flex-direction: column; gap: 3px; max-height: 150px; overflow-y: auto; border: 1px solid var(--border-soft); border-radius: 9px; padding: 6px; }
+.mem-row { display: flex; align-items: flex-start; gap: 10px; padding: 5px 7px; border-radius: 6px; }
+.mem-row:hover { background: var(--bg-hover); }
+.mem-text { flex: 1; font-size: 13px; color: var(--text); line-height: 1.45; }
+.mem-row .del { background: none; border: none; color: var(--text-faint); flex-shrink: 0; }
+.mem-row .del:hover { color: var(--red); }
+.mem-add { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .composer {
   max-width: 840px;
   margin: 0 auto;

@@ -89,6 +89,13 @@ async function migrate() {
     created_at ${INT} NOT NULL,
     updated_at ${INT} NOT NULL
   )`);
+  await q(`CREATE TABLE IF NOT EXISTS memory(
+    id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_memory_scope ON memory(scope, created_at)`);
 
   // Best-effort migrations for older SQLite DBs that predate the cost columns.
   for (const col of [
