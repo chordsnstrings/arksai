@@ -8,7 +8,7 @@ type Tab = 'preview' | 'files';
 // own apps to PORT=4000 (see server childEnv), so that wins; then the common
 // Vite/Next/Flask/etc. defaults. This keeps the canvas from auto-loading
 // sandbox-noise ports (e.g. 2024) that just happen to be the lowest number.
-const DEV_PORTS = [4000, 5173, 5174, 3000, 3001, 8080, 8000, 5000, 4173, 8888, 9000];
+const DEV_PORTS = [4000, 5173, 5174, 3000, 3001, 4200, 8080, 8000, 5000, 4173, 8888, 9000];
 
 function pickPreviewPort(ports: number[]): number | undefined {
   for (const p of DEV_PORTS) if (ports.includes(p)) return p;
@@ -62,13 +62,25 @@ export function Canvas({ sessionId }: { sessionId: string }) {
   // Auto-detect dev-server ports so the user doesn't have to guess. A preview
   // server started on run-completion may still be binding when the canvas
   // opens, so poll a few times until a recognised port shows up.
+  const currentPort = (): number | null => {
+    const m = previewSrcRef.current.match(/\/preview\/(\d+)\//);
+    return m ? Number(m[1]) : null;
+  };
   const detectPorts = async () => {
     try {
       const ports = await api.ports(sessionId);
       setDetectedPorts(orderPorts(ports));
+      // If what we're previewing is no longer listening (the app moved ports,
+      // e.g. 4200 → 4000, or was restarted), drop the dead iframe and re-pick
+      // instead of leaving the user staring at a broken page.
+      const cur = currentPort();
+      if (cur && !ports.includes(cur)) {
+        previewSrcRef.current = '';
+        setPreviewSrc('');
+      }
       const pick = pickPreviewPort(ports);
       if (pick && !previewSrcRef.current) loadPreview(String(pick));
-      return !!pick;
+      return !!previewSrcRef.current;
     } catch {
       setDetectedPorts([]);
       return false;

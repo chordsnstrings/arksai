@@ -25,12 +25,16 @@ RUN curl -sL "https://github.com/digitalocean/doctl/releases/download/v${DOCTL_V
 RUN npm install -g exceljs pdfkit docx xlsx && npm cache clean --force
 ENV NODE_PATH=/usr/local/lib/node_modules
 WORKDIR /app
-COPY --from=build /app /app
-# Headless Chromium for the UI render verification (Playwright). Installed to a
-# shared path so the non-root `node` runtime user can read it.
+# Headless Chromium for the UI render verification (Playwright), installed to a
+# shared path the non-root `node` user can read. Done BEFORE copying app code so
+# this heavy layer stays cached across code-only redeploys (the 2-min
+# auto-deploy must not re-download Chromium each time). Non-fatal: the UI check
+# degrades gracefully when the browser is unavailable, so a failed/slow browser
+# install can never strand a deploy.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN npx playwright install --with-deps chromium && \
-    chmod -R a+rx /ms-playwright
+RUN ( npx --yes playwright@1.60.0 install --with-deps chromium && chmod -R a+rx /ms-playwright ) \
+      || echo "WARN: Chromium install failed — UI render verification will be skipped at runtime."
+COPY --from=build /app /app
 ENV NODE_ENV=production \
     PORT=3000 \
     DATA_DIR=/data \

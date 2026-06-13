@@ -318,11 +318,16 @@ export class AgentRun {
       // preview server up and tell the client to open the canvas to check it.
       let shouldOpenCanvas = false;
       let canvasPort: number | undefined;
-      if (finalStatus === 'done' && this.session.mode === 'code' && this.mutated && looksLikeProject(dir)) {
+      const renderable = detectRenderable(dir);
+      if (
+        finalStatus === 'done' &&
+        this.session.mode === 'code' &&
+        this.mutated &&
+        (looksLikeProject(dir) || renderable.renderable)
+      ) {
         try {
           await buildExportArchive(dir, this.session.repoName ?? 'arksai', this.abort.signal);
         } catch {}
-        const renderable = detectRenderable(dir);
         if (renderable.renderable) {
           canvasPort = startPreviewServer(sessionId, dir, renderable) ?? undefined;
           shouldOpenCanvas = true;

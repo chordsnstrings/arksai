@@ -36,6 +36,16 @@ export function detectRenderable(dir: string): Renderable {
       return { renderable: true, startCmd: null, staticDir: c };
     }
   }
+  // A static report/site often lands in a named subdir (e.g. ielts-report/).
+  // Scan one level deep so the canvas still finds it.
+  try {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!ent.isDirectory() || ent.name.startsWith('.') || ent.name === 'node_modules') continue;
+      if (fs.existsSync(path.join(dir, ent.name, 'index.html'))) {
+        return { renderable: true, startCmd: null, staticDir: ent.name };
+      }
+    }
+  } catch {}
   return { renderable: false, startCmd: null, staticDir: null };
 }
 
