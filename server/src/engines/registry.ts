@@ -32,7 +32,7 @@ export function listEngines(): EngineInfo[] {
     },
     {
       id: 'minimax',
-      capability: 'LLM, voice/audio, music & video generation',
+      capability: 'vision, image, speech & video generation, long-context LLM',
       label: 'MiniMax',
       provider: 'minimax',
       available: !!config.minimaxApiKey,

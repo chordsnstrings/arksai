@@ -7,11 +7,16 @@ import { gitCommitTool, gitDiffStatTool, gitPushTool } from './git';
 import { webFetchTool, webSearchTool } from './web';
 import { verifyTool } from './verify';
 import { generateMusicTool } from './music';
+import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
   webFetchTool,
   generateMusicTool,
+  seeImageTool,
+  generateImageTool,
+  textToSpeechTool,
+  generateVideoTool,
   bashTool,
   bashBackgroundTool,
   bashOutputTool,

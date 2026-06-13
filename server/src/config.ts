@@ -75,6 +75,16 @@ export const config = {
   // OpenAI-compatible chat model sent to MiniMax (override once validated on the
   // Droplet, e.g. MiniMax-M2). The branded id surfaced in ArksAI is 'arksai-max'.
   minimaxModel: process.env.MINIMAX_MODEL || 'MiniMax-Text-01',
+  // MiniMax capability models (override per the MiniMax console once validated).
+  minimaxVlModel: process.env.MINIMAX_VL_MODEL || 'MiniMax-VL-01', // vision
+  minimaxImageModel: process.env.MINIMAX_IMAGE_MODEL || 'image-01',
+  minimaxTtsModel: process.env.MINIMAX_TTS_MODEL || 'speech-02-hd',
+  minimaxVideoModel: process.env.MINIMAX_VIDEO_MODEL || 'MiniMax-Hailuo-02',
+  // Estimated USD cost per call, added to the session cost bar (tune to billing).
+  minimaxVisionCost: Number(process.env.MINIMAX_VISION_COST || '0.003') || 0.003,
+  minimaxImageCost: Number(process.env.MINIMAX_IMAGE_COST || '0.02') || 0.02,
+  minimaxTtsCost: Number(process.env.MINIMAX_TTS_COST || '0.03') || 0.03,
+  minimaxVideoCost: Number(process.env.MINIMAX_VIDEO_COST || '0.43') || 0.43,
   appPassword: process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),

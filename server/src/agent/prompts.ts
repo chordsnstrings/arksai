@@ -117,6 +117,19 @@ ${workspaceLine}${mem}
   • Default to model V4 (best quality). Confirm the plan, then call the tool once;
     it returns downloadable tracks.`
       : ''
+  }${
+    config.minimaxApiKey
+      ? `
+- Multimodal (MiniMax) — you are text-only, so reach for these the moment a task
+  needs a capability you lack. They cost money, so confirm the brief before the
+  first paid generation (image/speech/video); vision is cheap, use it freely.
+  • see_image — your EYES: inspect a screenshot, judge a UI mockup/rendered page,
+    read a chart/diagram, or check a generated image. Use it to verify visual work
+    instead of guessing.
+  • generate_image — logos, icons, illustrations, hero images; saved to images/.
+  • text_to_speech — narration/voiceover (needs MINIMAX_GROUP_ID); saved to audio/.
+  • generate_video — short clips via Hailuo (slow, the most expensive); confirm first.`
+      : ''
   }
 - Tools: prefer grep/glob tools over bash find/grep; read a file before editing it.
 - Long command output is truncated; keep commands targeted.
