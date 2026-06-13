@@ -665,10 +665,12 @@ export class AgentRun {
     return 'ok';
   }
 
-  /** Build the "## Memory" block: global + this repo's project memory + ARKS.md. */
+  /** Build the persistent-context block: the Project (instructions + knowledge +
+   *  branding), then Memory (global + repo + project scope) + ARKS.md. */
   private async loadMemoryBlock(dir: string): Promise<string> {
     const scopes = ['global'];
     if (this.session.repoName) scopes.push(this.session.repoName);
+    if (this.session.projectId) scopes.push(`project:${this.session.projectId}`);
     const entries = await store.listMemory(scopes).catch(() => []);
     const global = entries.filter((e) => e.scope === 'global').map((e) => `- ${e.text}`);
     const project = entries.filter((e) => e.scope !== 'global').map((e) => `- ${e.text}`);
@@ -681,12 +683,47 @@ export class AgentRun {
       /* no ARKS.md */
     }
 
-    if (global.length === 0 && project.length === 0) return '';
-    let block = '## Memory — persistent context you must respect';
-    if (global.length) block += `\n\nAbout the user (applies to every session):\n${global.join('\n')}`;
-    if (project.length)
-      block += `\n\nAbout this project${this.session.repoName ? ` (${this.session.repoName})` : ''}:\n${project.join('\n')}`;
-    return block;
+    const blocks: string[] = [];
+
+    // Project block: custom instructions + knowledge index + branding.
+    if (this.session.projectId) {
+      const proj = await store.getProject(this.session.projectId).catch(() => null);
+      if (proj) {
+        const lines = [`## Project: ${proj.name} — persistent context for every session in this project`];
+        if (proj.instructions.trim()) lines.push(`\nInstructions:\n${proj.instructions.trim()}`);
+        try {
+          const files = fs
+            .readdirSync(path.join(dir, 'knowledge'))
+            .filter((f) => !f.endsWith('.extracted.txt'));
+          if (files.length)
+            lines.push(
+              `\nKnowledge files are in knowledge/ — read them with read_file/glob/grep before answering: ${files.join(', ')}.`,
+            );
+        } catch {
+          /* no knowledge dir */
+        }
+        if (proj.branding) {
+          const b = proj.branding;
+          const parts: string[] = [];
+          if (b.accent) parts.push(`accent ${b.accent}`);
+          if (b.palette?.length) parts.push(`palette ${b.palette.join(', ')}`);
+          if (b.logoName) parts.push(`logo at knowledge/${b.logoName}`);
+          if (parts.length) lines.push(`\nBranding — use for reports and any UI: ${parts.join('; ')}.`);
+        }
+        blocks.push(lines.join('\n'));
+      }
+    }
+
+    // Memory block.
+    if (global.length || project.length) {
+      let mem = '## Memory — persistent context you must respect';
+      if (global.length) mem += `\n\nAbout the user (applies to every session):\n${global.join('\n')}`;
+      if (project.length)
+        mem += `\n\nAbout this project${this.session.repoName ? ` (${this.session.repoName})` : ''}:\n${project.join('\n')}`;
+      blocks.push(mem);
+    }
+
+    return blocks.join('\n\n');
   }
 
   private async generateTitleAsync(userText: string) {

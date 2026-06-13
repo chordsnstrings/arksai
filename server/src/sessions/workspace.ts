@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config';
 import { execBash } from '../lib/exec';
+import { extractText } from '../lib/extract';
 import { bus } from '../events/bus';
 import * as store from './store';
 import type { SessionMeta } from '../../../shared/types';
@@ -12,6 +13,34 @@ export function workspaceRoot(): string {
 
 export function repoDir(sessionId: string): string {
   return path.join(workspaceRoot(), sessionId, 'repo');
+}
+
+/** Where a project's persistent knowledge files live on the volume. */
+export function projectKnowledgeDir(projectId: string): string {
+  return path.join(config.dataDir, 'projects', projectId, 'knowledge');
+}
+
+/**
+ * Copy a project's knowledge files into the session workspace under knowledge/
+ * and extract documents to readable sidecars, so the agent picks them up with
+ * the normal read_file/glob/grep tools.
+ */
+async function copyProjectKnowledge(session: SessionMeta): Promise<void> {
+  if (!session.projectId) return;
+  const src = projectKnowledgeDir(session.projectId);
+  if (!fs.existsSync(src)) return;
+  const dest = path.join(repoDir(session.id), 'knowledge');
+  fs.mkdirSync(dest, { recursive: true });
+  for (const name of fs.readdirSync(src)) {
+    try {
+      const d = path.join(dest, name);
+      fs.copyFileSync(path.join(src, name), d);
+      const extracted = await extractText(d);
+      if (extracted !== null) fs.writeFileSync(path.join(dest, `${name}.extracted.txt`), extracted);
+    } catch {
+      /* skip a bad file */
+    }
+  }
 }
 
 /** Parse "https://github.com/owner/repo(.git)" or "owner/repo" → canonical https URL + name. */
@@ -75,6 +104,11 @@ export async function setupWorkspace(session: SessionMeta): Promise<void> {
   const branchRes = await git(dir, 'rev-parse --abbrev-ref HEAD');
   const branch = branchRes.ok ? branchRes.output.trim() : session.branch;
   await store.updateSession(session.id, { branch: branch || null });
+
+  // Project knowledge: drop the project's files into the workspace so the agent
+  // has them available in every session of the project.
+  await copyProjectKnowledge(session).catch((err) => console.error('[project-knowledge]', err));
+
   bus.emit(session.id, { type: 'clone_progress', phase: 'done', detail: 'Workspace ready' });
   bus.sessionChanged((await store.getSession(session.id))!);
 }

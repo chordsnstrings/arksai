@@ -3,6 +3,9 @@ import type {
   CustomCommand,
   MemoryEntry,
   ModelId,
+  Project,
+  ProjectBranding,
+  ProjectFile,
   SessionMeta,
   SessionMode,
   SessionStatus,
@@ -18,6 +21,7 @@ function rowToMeta(row: any): SessionMeta {
   return {
     id: row.id,
     title: row.title,
+    projectId: row.project_id ?? null,
     repoUrl: row.repo_url,
     repoName: row.repo_name,
     branch: row.branch,
@@ -40,13 +44,14 @@ export async function createSession(opts: {
   branch: string | null;
   mode: SessionMode;
   model: ModelId;
+  projectId?: string | null;
 }): Promise<SessionMeta> {
   const now = Date.now();
   const id = randomUUID();
   await q(
-    `INSERT INTO sessions(id, title, repo_url, repo_name, branch, mode, model, status, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'idle', $8, $9)`,
-    [id, 'New session', opts.repoUrl, opts.repoName, opts.branch, opts.mode, opts.model, now, now],
+    `INSERT INTO sessions(id, title, project_id, repo_url, repo_name, branch, mode, model, status, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'idle', $9, $10)`,
+    [id, 'New session', opts.projectId ?? null, opts.repoUrl, opts.repoName, opts.branch, opts.mode, opts.model, now, now],
   );
   return (await getSession(id))!;
 }
@@ -73,6 +78,7 @@ const COLUMN: Record<string, string> = {
   costUsd: 'cost_usd',
   repoUrl: 'repo_url',
   repoName: 'repo_name',
+  projectId: 'project_id',
 };
 
 export async function updateSession(id: string, patch: Partial<SessionMeta>) {
@@ -201,6 +207,160 @@ export async function addMemory(scope: string, text: string): Promise<MemoryEntr
 
 export async function deleteMemory(id: string) {
   await q('DELETE FROM memory WHERE id = $1', [id]);
+}
+
+// ---- projects (persistent workspaces grouping sessions) ----
+
+function parseBranding(s: any): ProjectBranding | null {
+  if (!s) return null;
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
+function rowToProject(r: any, sessionCount = 0, fileCount = 0): Project {
+  return {
+    id: r.id,
+    name: r.name,
+    instructions: r.instructions ?? '',
+    defaultRepoUrl: r.default_repo_url ?? null,
+    defaultBranch: r.default_branch ?? null,
+    defaultMode: (r.default_mode as SessionMode) ?? null,
+    defaultModel: (r.default_model as ModelId) ?? null,
+    branding: parseBranding(r.branding),
+    sessionCount,
+    fileCount,
+    createdAt: Number(r.created_at),
+    updatedAt: Number(r.updated_at),
+  };
+}
+
+export async function createProject(opts: {
+  name: string;
+  instructions?: string;
+  defaultRepoUrl?: string | null;
+  defaultBranch?: string | null;
+  defaultMode?: SessionMode | null;
+  defaultModel?: ModelId | null;
+  branding?: ProjectBranding | null;
+}): Promise<Project> {
+  const id = randomUUID();
+  const now = Date.now();
+  await q(
+    `INSERT INTO projects(id, name, instructions, default_repo_url, default_branch, default_mode, default_model, branding, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [
+      id,
+      opts.name,
+      opts.instructions ?? '',
+      opts.defaultRepoUrl ?? null,
+      opts.defaultBranch ?? null,
+      opts.defaultMode ?? null,
+      opts.defaultModel ?? null,
+      opts.branding ? JSON.stringify(opts.branding) : null,
+      now,
+      now,
+    ],
+  );
+  return (await getProject(id))!;
+}
+
+export async function getProject(id: string): Promise<Project | null> {
+  const row = await qOne('SELECT * FROM projects WHERE id = $1', [id]);
+  if (!row) return null;
+  const sc = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM sessions WHERE project_id = $1', [id]);
+  const fc = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM project_files WHERE project_id = $1', [id]);
+  return rowToProject(row, Number(sc?.n ?? 0), Number(fc?.n ?? 0));
+}
+
+export async function listProjects(): Promise<Project[]> {
+  const rows = await q('SELECT * FROM projects ORDER BY updated_at DESC');
+  const out: Project[] = [];
+  for (const r of rows) {
+    const sc = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM sessions WHERE project_id = $1', [r.id]);
+    const fc = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM project_files WHERE project_id = $1', [r.id]);
+    out.push(rowToProject(r, Number(sc?.n ?? 0), Number(fc?.n ?? 0)));
+  }
+  return out;
+}
+
+const PROJECT_COLUMN: Record<string, string> = {
+  name: 'name',
+  instructions: 'instructions',
+  defaultRepoUrl: 'default_repo_url',
+  defaultBranch: 'default_branch',
+  defaultMode: 'default_mode',
+  defaultModel: 'default_model',
+};
+
+export async function updateProject(
+  id: string,
+  patch: Partial<{
+    name: string;
+    instructions: string;
+    defaultRepoUrl: string | null;
+    defaultBranch: string | null;
+    defaultMode: SessionMode;
+    defaultModel: ModelId;
+    branding: ProjectBranding | null;
+  }>,
+) {
+  const sets: string[] = ['updated_at = $1'];
+  const vals: unknown[] = [Date.now()];
+  let i = 2;
+  for (const [key, col] of Object.entries(PROJECT_COLUMN)) {
+    if (key in patch) {
+      sets.push(`${col} = $${i++}`);
+      vals.push((patch as any)[key]);
+    }
+  }
+  if ('branding' in patch) {
+    sets.push(`branding = $${i++}`);
+    vals.push(patch.branding ? JSON.stringify(patch.branding) : null);
+  }
+  vals.push(id);
+  await q(`UPDATE projects SET ${sets.join(', ')} WHERE id = $${i}`, vals);
+}
+
+export async function deleteProject(id: string) {
+  // Detach sessions (keep them) and drop file rows; disk cleanup is the route's job.
+  await q('UPDATE sessions SET project_id = NULL WHERE project_id = $1', [id]);
+  await q('DELETE FROM project_files WHERE project_id = $1', [id]);
+  await q('DELETE FROM projects WHERE id = $1', [id]);
+}
+
+function rowToProjectFile(r: any): ProjectFile {
+  return { id: r.id, projectId: r.project_id, name: r.name, size: Number(r.size), createdAt: Number(r.created_at) };
+}
+
+export async function addProjectFile(projectId: string, name: string, size: number): Promise<ProjectFile> {
+  const id = randomUUID();
+  const now = Date.now();
+  await q('INSERT INTO project_files(id, project_id, name, size, created_at) VALUES ($1,$2,$3,$4,$5)', [
+    id,
+    projectId,
+    name,
+    size,
+    now,
+  ]);
+  await q('UPDATE projects SET updated_at = $1 WHERE id = $2', [now, projectId]);
+  return { id, projectId, name, size, createdAt: now };
+}
+
+export async function listProjectFiles(projectId: string): Promise<ProjectFile[]> {
+  const rows = await q('SELECT * FROM project_files WHERE project_id = $1 ORDER BY created_at ASC', [projectId]);
+  return rows.map(rowToProjectFile);
+}
+
+export async function getProjectFile(id: string): Promise<ProjectFile | null> {
+  const row = await qOne('SELECT * FROM project_files WHERE id = $1', [id]);
+  return row ? rowToProjectFile(row) : null;
+}
+
+export async function deleteProjectFile(id: string) {
+  await q('DELETE FROM project_files WHERE id = $1', [id]);
 }
 
 /** On boot: any session left "running" by a crash/restart becomes an error. */

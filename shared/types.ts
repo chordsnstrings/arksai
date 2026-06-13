@@ -93,6 +93,7 @@ export function computeCost(model: string, t: CostTokens): number {
 export interface SessionMeta {
   id: string;
   title: string;
+  projectId: string | null;
   repoUrl: string | null;
   repoName: string | null;
   branch: string | null;
@@ -188,6 +189,64 @@ export interface CreateSessionRequest {
   branch?: string;
   mode?: SessionMode;
   model?: ModelId;
+  /** create this session inside a project — it inherits the project's defaults */
+  projectId?: string;
+}
+
+// ---- Projects (persistent workspaces: instructions + knowledge + defaults) ----
+
+export interface ProjectBranding {
+  /** primary accent colour, hex */
+  accent?: string;
+  /** a few complementary swatches, hex */
+  palette?: string[];
+  /** logo file name stored in the project's knowledge dir, if uploaded */
+  logoName?: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  /** persistent custom-instructions layer applied to every session in the project */
+  instructions: string;
+  defaultRepoUrl: string | null;
+  defaultBranch: string | null;
+  defaultMode: SessionMode | null;
+  defaultModel: ModelId | null;
+  branding: ProjectBranding | null;
+  /** computed */
+  sessionCount: number;
+  fileCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProjectFile {
+  id: string;
+  projectId: string;
+  name: string;
+  size: number;
+  createdAt: number;
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  instructions?: string;
+  defaultRepoUrl?: string;
+  defaultBranch?: string;
+  defaultMode?: SessionMode;
+  defaultModel?: ModelId;
+  branding?: ProjectBranding;
+}
+
+export interface PatchProjectRequest {
+  name?: string;
+  instructions?: string;
+  defaultRepoUrl?: string | null;
+  defaultBranch?: string | null;
+  defaultMode?: SessionMode;
+  defaultModel?: ModelId;
+  branding?: ProjectBranding | null;
 }
 
 export interface SendMessageRequest {

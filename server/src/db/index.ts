@@ -97,11 +97,35 @@ async function migrate() {
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_memory_scope ON memory(scope, created_at)`);
 
-  // Best-effort migrations for older SQLite DBs that predate the cost columns.
+  // Projects: persistent workspaces (instructions + knowledge + defaults) that
+  // group sessions. branding is JSON.
+  await q(`CREATE TABLE IF NOT EXISTS projects(
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    instructions TEXT NOT NULL DEFAULT '',
+    default_repo_url TEXT,
+    default_branch TEXT,
+    default_mode TEXT,
+    default_model TEXT,
+    branding TEXT,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE TABLE IF NOT EXISTS project_files(
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    size ${INT} NOT NULL DEFAULT 0,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_project_files ON project_files(project_id, created_at)`);
+
+  // Best-effort migrations for older DBs.
   for (const col of [
     `prompt_tokens ${INT} NOT NULL DEFAULT 0`,
     `completion_tokens ${INT} NOT NULL DEFAULT 0`,
     `cost_usd ${REAL} NOT NULL DEFAULT 0`,
+    `project_id TEXT`,
   ]) {
     try {
       await q(`ALTER TABLE sessions ADD COLUMN ${col}`);
@@ -109,4 +133,5 @@ async function migrate() {
       /* already exists */
     }
   }
+  await q(`CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id)`).catch(() => {});
 }

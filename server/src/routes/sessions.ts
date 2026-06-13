@@ -21,24 +21,31 @@ export function registerSessionRoutes(app: FastifyInstance) {
 
   app.post('/api/sessions', async (req, reply) => {
     const body = (req.body ?? {}) as CreateSessionRequest;
+    // A session created inside a project inherits the project's defaults
+    // (repo/branch/mode/model) unless the request overrides them.
+    const project = body.projectId ? await store.getProject(body.projectId) : null;
     let repoUrl: string | null = null;
     let repoName: string | null = null;
-    if (body.repoUrl?.trim()) {
-      const parsed = parseRepoUrl(body.repoUrl);
+    const repoInput = body.repoUrl?.trim() || project?.defaultRepoUrl || '';
+    if (repoInput) {
+      const parsed = parseRepoUrl(repoInput);
       if (!parsed) {
         return reply.code(400).send({ error: 'Invalid repo. Use https://github.com/owner/repo or owner/repo.' });
       }
       repoUrl = parsed.url;
       repoName = parsed.name;
     }
-    const mode = SESSION_MODES.includes(body.mode as any) ? body.mode! : 'code';
-    const model = body.model && (await isValidModel(body.model)) ? body.model : DEFAULT_MODEL;
+    const modeIn = body.mode ?? project?.defaultMode ?? undefined;
+    const mode = SESSION_MODES.includes(modeIn as any) ? (modeIn as any) : 'code';
+    const modelIn = body.model ?? project?.defaultModel ?? undefined;
+    const model = modelIn && (await isValidModel(modelIn)) ? modelIn : DEFAULT_MODEL;
     const session = await store.createSession({
       repoUrl,
       repoName,
-      branch: body.branch?.trim() || null,
+      branch: body.branch?.trim() || project?.defaultBranch || null,
       mode,
       model,
+      projectId: project?.id ?? null,
     });
     bus.emitGlobal({ type: 'session_status', session });
     void setupWorkspace(session).catch((err) => console.error('[workspace]', err));
