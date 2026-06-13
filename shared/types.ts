@@ -17,6 +17,12 @@ export const FALLBACK_MODEL_IDS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
 /** Kept for older imports; the live list supersedes it. */
 export const MODELS: ModelId[] = FALLBACK_MODEL_IDS;
 
+/** Virtual model: the orchestrator picks the concrete model per task. */
+export const AUTO_MODEL = 'arksai-auto';
+/** Branded id for the MiniMax LLM engine (routable + directly selectable). */
+export const MAX_MODEL = 'arksai-max';
+export const isAutoModel = (id: string): boolean => id === AUTO_MODEL;
+
 export interface ModelPricing {
   label: string;
   /** USD per 1M cached input tokens (much cheaper) */
@@ -46,6 +52,11 @@ const DEFAULT_PRICING: ModelPricing = {
 export const KNOWN_MODELS: Record<string, ModelPricing> = {
   'deepseek-v4-flash': { label: 'ArksAI Flash', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
   'deepseek-v4-pro': { label: 'ArksAI Pro', inputCacheHitPerM: 0.003625, inputCacheMissPerM: 0.435, outputPerM: 0.87 },
+  // Orchestrated options. 'arksai-auto' is virtual (cost is computed against the
+  // concrete model the router actually used). 'arksai-max' = MiniMax LLM;
+  // pricing is an estimate until validated against MiniMax billing.
+  'arksai-auto': { label: 'ArksAI Auto', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
+  'arksai-max': { label: 'ArksAI Max', inputCacheHitPerM: 0.2, inputCacheMissPerM: 0.2, outputPerM: 1.1 },
   // legacy aliases
   'deepseek-chat': { label: 'ArksAI Flash', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
   'deepseek-reasoner': { label: 'ArksAI Flash (reasoning)', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
@@ -142,6 +153,9 @@ export type AgentEvent =
       cacheMissTokens: number;
       /** cumulative external-engine spend this run (e.g. Suno), USD */
       engineCostUsd?: number;
+      /** server-authoritative model spend this run, USD — blends whatever model
+       *  the orchestrator actually used (so the footer is correct in Auto mode) */
+      costUsd?: number;
     }
   | { type: 'tick'; elapsedSeconds: number; runningTasks: number }
   | {

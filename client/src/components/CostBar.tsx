@@ -19,13 +19,17 @@ export function CostBar({ meta, live }: { meta: SessionMeta; live: LiveState }) 
   const prompt = meta.promptTokens + (running ? live.promptTokens : 0);
   const completion = meta.completionTokens + (running ? live.completionTokens : 0);
   const total = meta.totalTokens + (running ? live.tokens : 0);
-  const liveCost = running
-    ? computeCost(meta.model, {
-        cacheHit: live.cacheHitTokens,
-        cacheMiss: live.cacheMissTokens,
-        completion: live.completionTokens,
-      }) + live.engineCostUsd // + external-engine spend (e.g. Suno) this run
-    : 0;
+  // Prefer the server-authoritative model cost (blends whatever model the
+  // orchestrator used in Auto mode); fall back to a client estimate for older
+  // events / single-model sessions.
+  const liveModelCost =
+    live.modelCostUsd ??
+    computeCost(meta.model, {
+      cacheHit: live.cacheHitTokens,
+      cacheMiss: live.cacheMissTokens,
+      completion: live.completionTokens,
+    });
+  const liveCost = running ? liveModelCost + live.engineCostUsd : 0;
   const cost = meta.costUsd + liveCost;
 
   return (

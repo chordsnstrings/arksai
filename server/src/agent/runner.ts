@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import fg from 'fast-glob';
-import { computeCost, type SessionMeta, type TimelineItem, type ToolCallRecord } from '../../../shared/types';
+import { computeCost, KNOWN_MODELS, type SessionMeta, type TimelineItem, type ToolCallRecord } from '../../../shared/types';
 import { config } from '../config';
 import { bus } from '../events/bus';
 import * as store from '../sessions/store';
@@ -18,6 +18,8 @@ import { detectStartCommand, verifyProject } from './verify';
 import { probeApp } from './runtimeCheck';
 import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
+import { escalateModel, resolveProvider, selectModel } from './router';
+import { isAutoModel, MAX_MODEL } from '../../../shared/types';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
 const PREVIEW_CHARS = 700;
@@ -105,13 +107,44 @@ export class AgentRun {
   private didRuntimeTest = false; // did the agent curl a running server this run?
   private flowRequired = false; // have we already asked it to demo the flow?
   private engineCostUsd = 0; // external-engine spend this run (e.g. Suno)
-  private client: OpenAI;
+  private accruedCostUsd = 0; // model spend this run, summed per concrete model
+  private client: OpenAI; // DeepSeek (also used for title gen)
+  private minimaxClient: OpenAI | null = null;
+  private minimaxAvailable = !!config.minimaxApiKey;
+  // The concrete model the orchestrator is using right now (resolved from the
+  // session model, which may be the virtual 'arksai-auto').
+  private activeModel = '';
+  private activeApiModel = '';
+  private activePricingId = '';
+  private activeClient!: OpenAI;
 
   constructor(private session: SessionMeta) {
     this.client = new OpenAI({
       apiKey: config.deepseekApiKey || 'missing-key',
       baseURL: config.deepseekBaseUrl,
     });
+  }
+
+  private clientFor(provider: 'deepseek' | 'minimax'): OpenAI {
+    if (provider === 'minimax') {
+      if (!this.minimaxClient) {
+        this.minimaxClient = new OpenAI({
+          apiKey: config.minimaxApiKey || 'missing-key',
+          baseURL: config.minimaxBaseUrl,
+        });
+      }
+      return this.minimaxClient;
+    }
+    return this.client;
+  }
+
+  /** Point the run at a concrete model (resolving provider + real API id). */
+  private setActiveModel(modelId: string) {
+    const r = resolveProvider(modelId);
+    this.activeModel = modelId;
+    this.activeApiModel = r.apiModel;
+    this.activePricingId = r.pricingId;
+    this.activeClient = this.clientFor(r.provider);
   }
 
   interrupt() {
@@ -147,6 +180,25 @@ export class AgentRun {
       void this.generateTitleAsync(userText);
     }
 
+    // Resolve the model for this run. In Auto mode the orchestrator picks one by
+    // task complexity (and can escalate mid-run); otherwise use the session's
+    // model directly (which may be a MiniMax model the user chose).
+    if (isAutoModel(this.session.model)) {
+      const pick = selectModel(userText, this.session.mode, { minimaxAvailable: this.minimaxAvailable });
+      this.setActiveModel(pick.model);
+      const item: TimelineItem = {
+        kind: 'system',
+        id: randomUUID(),
+        level: 'info',
+        text: `↳ Auto-routed to ${pick.reason}`,
+        ts: Date.now(),
+      };
+      liveItems.push(item);
+      this.emit({ type: 'timeline_item', item });
+    } else {
+      this.setActiveModel(this.session.model);
+    }
+
     const ticker = setInterval(() => {
       this.emit({
         type: 'tick',
@@ -171,7 +223,7 @@ export class AgentRun {
         truncateContext(context);
 
         const stream = await this.createCompletionWithRetry({
-          model: this.session.model,
+          model: this.activeApiModel,
           messages: [
             { role: 'system', content: systemContent },
             ...context,
@@ -197,7 +249,16 @@ export class AgentRun {
             if (tc.function?.arguments) slot.args += tc.function.arguments;
           }
           if (chunk.usage) {
-            this.usage.add(chunk.usage as any);
+            const u: any = chunk.usage;
+            this.usage.add(u);
+            // Cost is computed per concrete model so Auto mode blends correctly.
+            const hit = u.prompt_cache_hit_tokens ?? 0;
+            const miss = u.prompt_cache_miss_tokens ?? Math.max(0, (u.prompt_tokens ?? 0) - hit);
+            this.accruedCostUsd += computeCost(this.activePricingId, {
+              cacheHit: hit,
+              cacheMiss: miss,
+              completion: u.completion_tokens ?? 0,
+            });
             this.emit({
               type: 'usage_update',
               totalTokens: this.usage.totalTokens,
@@ -205,6 +266,7 @@ export class AgentRun {
               completionTokens: this.usage.completionTokens,
               cacheHitTokens: this.usage.cacheHitTokens,
               cacheMissTokens: this.usage.cacheMissTokens,
+              costUsd: this.accruedCostUsd,
             });
           }
         }
@@ -347,18 +409,15 @@ export class AgentRun {
       }
       for (const item of liveItems) await store.appendTimeline(sessionId, item);
       await store.setContext(sessionId, context);
-      const runCost = computeCost(this.session.model, {
-        cacheHit: this.usage.cacheHitTokens,
-        cacheMiss: this.usage.cacheMissTokens,
-        completion: this.usage.completionTokens,
-      });
+      // Authoritative cost: the per-turn sum already accounts for whichever
+      // model(s) the orchestrator used this run.
       await store.updateSession(sessionId, {
         status: finalStatus,
         diffStat: stat,
         totalTokens: (prev.totalTokens ?? 0) + this.usage.totalTokens,
         promptTokens: (prev.promptTokens ?? 0) + this.usage.promptTokens,
         completionTokens: (prev.completionTokens ?? 0) + this.usage.completionTokens,
-        costUsd: (prev.costUsd ?? 0) + runCost + this.engineCostUsd,
+        costUsd: (prev.costUsd ?? 0) + this.accruedCostUsd + this.engineCostUsd,
       });
 
       this.emit({
@@ -377,18 +436,36 @@ export class AgentRun {
     }
   }
 
-  /** Retry transient API failures (network blips, 429/5xx) with backoff. */
+  /** Retry transient API failures (network blips, 429/5xx) with backoff. Uses
+   *  whatever model the orchestrator is currently on; if a MiniMax call fails
+   *  with a hard error (its endpoint/tool-calling is unvalidated), fall back to
+   *  DeepSeek Pro once so the run keeps going. */
   private async createCompletionWithRetry(params: any): Promise<AsyncIterable<any>> {
     const delays = [2000, 4000, 8000];
+    let triedFallback = false;
     for (let attempt = 0; ; attempt++) {
       try {
-        return (await this.client.chat.completions.create(params, {
-          signal: this.abort.signal,
-        })) as unknown as AsyncIterable<any>;
+        return (await this.activeClient.chat.completions.create(
+          { ...params, model: this.activeApiModel },
+          { signal: this.abort.signal },
+        )) as unknown as AsyncIterable<any>;
       } catch (err) {
-        if (this.abort.signal.aborted || attempt >= delays.length || !isTransientApiError(err)) {
-          throw err;
+        if (this.abort.signal.aborted) throw err;
+        // Hard failure on MiniMax → fall back to DeepSeek Pro and retry once.
+        if (!isTransientApiError(err) && this.activeModel === MAX_MODEL && !triedFallback) {
+          triedFallback = true;
+          this.setActiveModel('deepseek-v4-pro');
+          const note: TimelineItem = {
+            kind: 'system',
+            id: randomUUID(),
+            level: 'info',
+            text: '↳ MiniMax was unavailable — falling back to ArksAI Pro.',
+            ts: Date.now(),
+          };
+          this.emit({ type: 'timeline_item', item: note });
+          continue;
         }
+        if (attempt >= delays.length || !isTransientApiError(err)) throw err;
         this.emit({
           type: 'tick',
           elapsedSeconds: this.usage.elapsedSeconds,
@@ -457,6 +534,7 @@ export class AgentRun {
                 completionTokens: this.usage.completionTokens,
                 cacheHitTokens: this.usage.cacheHitTokens,
                 cacheMissTokens: this.usage.cacheMissTokens,
+                costUsd: this.accruedCostUsd,
                 engineCostUsd: this.engineCostUsd,
               });
             }
@@ -519,6 +597,15 @@ export class AgentRun {
       if (this.verifyRounds >= MAX_VERIFY) {
         this.emit({ type: 'run_error', runId: this.runId, message: `Verification still failing (${label}).` });
         return 'failed';
+      }
+      // Auto mode: a failing check is the signal to bring a stronger model in
+      // for the fix attempt.
+      if (isAutoModel(this.session.model)) {
+        const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
+        if (next !== this.activeModel) {
+          this.setActiveModel(next);
+          sys('info', `↳ Escalating to ${KNOWN_MODELS[next]?.label ?? next} to fix it.`);
+        }
       }
       context.push({
         role: 'user',

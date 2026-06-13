@@ -29,6 +29,8 @@ export interface LiveState {
   cacheHitTokens: number;
   cacheMissTokens: number;
   engineCostUsd: number;
+  /** server-authoritative model spend this run (blends models in Auto mode) */
+  modelCostUsd: number | null;
   runningTasks: number;
 }
 
@@ -47,6 +49,7 @@ const emptyLive = (): LiveState => ({
   cacheHitTokens: 0,
   cacheMissTokens: 0,
   engineCostUsd: 0,
+  modelCostUsd: null,
   runningTasks: 1,
 });
 
@@ -196,6 +199,7 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
         cacheHitTokens: 0,
         cacheMissTokens: 0,
         engineCostUsd: 0,
+        modelCostUsd: null,
       };
 
     case 'assistant_delta': {
@@ -262,6 +266,7 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
         cacheHitTokens: ev.cacheHitTokens,
         cacheMissTokens: ev.cacheMissTokens,
         engineCostUsd: ev.engineCostUsd ?? live.engineCostUsd,
+        modelCostUsd: ev.costUsd ?? live.modelCostUsd,
       };
 
     case 'tick':
@@ -290,6 +295,7 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
         cacheHitTokens: 0,
         cacheMissTokens: 0,
         engineCostUsd: 0,
+        modelCostUsd: null,
       };
     }
 

@@ -72,6 +72,9 @@ export const config = {
   minimaxApiKey: process.env.MINIMAX_API_KEY || '',
   minimaxBaseUrl: process.env.MINIMAX_BASE_URL || 'https://api.minimax.io/v1',
   minimaxGroupId: process.env.MINIMAX_GROUP_ID || '',
+  // OpenAI-compatible chat model sent to MiniMax (override once validated on the
+  // Droplet, e.g. MiniMax-M2). The branded id surfaced in ArksAI is 'arksai-max'.
+  minimaxModel: process.env.MINIMAX_MODEL || 'MiniMax-Text-01',
   appPassword: process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),

@@ -1,5 +1,5 @@
 import { config } from '../config';
-import { FALLBACK_MODEL_IDS, KNOWN_MODELS, pricingFor, type ModelInfo } from '../../../shared/types';
+import { AUTO_MODEL, FALLBACK_MODEL_IDS, KNOWN_MODELS, MAX_MODEL, pricingFor, type ModelInfo } from '../../../shared/types';
 
 const TTL_MS = 60 * 60 * 1000; // 1h
 let cache: { ids: string[]; at: number } | null = null;
@@ -27,7 +27,11 @@ export async function liveModelIds(): Promise<string[]> {
 
 export async function listModels(): Promise<ModelInfo[]> {
   const ids = await liveModelIds();
-  return ids.map((id) => {
+  // Orchestrated options first: Auto (always) leads; MiniMax (Max) appears when
+  // its key is configured. Then the live DeepSeek models.
+  const orchestrated = [AUTO_MODEL, ...(config.minimaxApiKey ? [MAX_MODEL] : [])];
+  const all = [...orchestrated, ...ids.filter((id) => !orchestrated.includes(id))];
+  return all.map((id) => {
     const p = pricingFor(id);
     return { id, ...p, label: p.label === 'unknown' ? id : p.label };
   });
@@ -36,6 +40,8 @@ export async function listModels(): Promise<ModelInfo[]> {
 /** Validate a requested model id against the live list (falls back permissively). */
 export async function isValidModel(id: string): Promise<boolean> {
   if (!id) return false;
+  if (id === AUTO_MODEL) return true;
+  if (id === MAX_MODEL) return !!config.minimaxApiKey;
   const ids = await liveModelIds();
   return ids.includes(id) || id in KNOWN_MODELS;
 }
