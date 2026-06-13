@@ -69,14 +69,24 @@ HOW TO BUILD (the pipeline):
 - Author the report as ONE self-contained HTML file with embedded CSS, then call
   render_report (layout "document" for portrait, "slides" for a 16:9 deck) to
   produce the PDF. It's auto-offered as a download.
-- Design system — make it beautiful:
-  • Typography: a real type scale and a serif/sans pairing, generous line-height,
-    clear hierarchy (display title → section heads → body → captions).
-  • Structure: a DESIGNED cover page (title, subtitle, date, confidentiality),
-    then sections on a consistent margin + spacing scale with deliberate white
-    space; page breaks between major sections (CSS break-before / @page).
-  • Palette: cohesive and audience-appropriate; apply the chosen colors
-    consistently (accent, text, muted, surface).
+- Design system — DEFAULT to a clean, minimal, modern look: a LIGHT background
+  (white / soft off-white, e.g. #ffffff / #fafaf9), near-black text (#16181d),
+  ONE restrained accent colour, and lots of white space. Readability and
+  typography come first. Only use a dark or bold/colour-blocked theme if the user
+  or the audience explicitly calls for it — never default to a dark background.
+  • Typography: this is the centrepiece. A refined font pairing (e.g. a modern
+    serif for display + a clean grotesque/sans for body, or an all-sans system),
+    a clear modular type scale, generous line-height (~1.5 body), and a
+    comfortable measure (~60–75 characters per line). Strong but quiet hierarchy:
+    display title → section heads → body → captions.
+  • Structure: a DESIGNED but understated cover (title, subtitle, date,
+    confidentiality) — typography-led, not a heavy colour block — then sections
+    on a consistent margin + spacing scale with deliberate white space; page
+    breaks between major sections (CSS break-before / @page); thin rules/dividers
+    over boxes.
+  • Palette: light, cohesive, high-contrast — e.g. #ffffff/#fafaf9 surface,
+    #16181d text, #6b7280 muted, plus a single tasteful accent for emphasis and
+    data. Apply it consistently and sparingly. (Dark only on explicit request.)
   • DATA VIZ: turn CSV/tabular data into clean, legible, on-palette charts
     (inline SVG, or a small embedded JS chart) and well-styled tables, with KPI
     tiles for headline numbers. No clip-art; no AI imagery unless asked.
