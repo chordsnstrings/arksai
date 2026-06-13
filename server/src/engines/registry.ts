@@ -30,5 +30,12 @@ export function listEngines(): EngineInfo[] {
       provider: 'sunoapi.org',
       available: !!config.sunoApiKey,
     },
+    {
+      id: 'minimax',
+      capability: 'LLM, voice/audio, music & video generation',
+      label: 'MiniMax',
+      provider: 'minimax',
+      available: !!config.minimaxApiKey,
+    },
   ];
 }

@@ -27,12 +27,15 @@ durable context to reuse every session.
 - I (the assistant) CANNOT reach the Droplet directly — sandbox egress blocks its IP and SSH; the DO API token only manages infrastructure, not shell. Deploy happens via push→auto-deploy.
 
 ## Secrets (NEVER commit real values here)
-- All live secrets are in `/opt/arksai/.env` on the Droplet: `APP_PASSWORD`, `DEEPSEEK_API_KEY`, `GITHUB_TOKEN`, `SERPER_API_KEY`, `SUNO_API_KEY`. Read the login password with `grep APP_PASSWORD /opt/arksai/.env`.
+- All live secrets are in `/opt/arksai/.env` on the Droplet: `APP_PASSWORD`, `DEEPSEEK_API_KEY`, `GITHUB_TOKEN`, `SERPER_API_KEY`, `SUNO_API_KEY`, `MINIMAX_API_KEY`. Read the login password with `grep APP_PASSWORD /opt/arksai/.env`.
+- MiniMax key was added to the roster (config + `listEngines()` + `secretValues()` + `.env.example`); usage TBD. Its value is NOT in the repo — paste it into `/opt/arksai/.env` as `MINIMAX_API_KEY=` (optionally `MINIMAX_GROUP_ID=` for T2A/voice). Base URL default `https://api.minimax.io/v1`.
 - `AGENT_UNRESTRICTED=true` is set (full host access for the agent) — single-operator trusted mode.
 - Keys pasted in chat are considered exposed and should be rotated.
 
 ## Engine notes
+- Engine roster lives in `server/src/engines/registry.ts` (`listEngines()`), surfaced at `GET /api/engines`. Each engine = registry entry (gated on its key) + a tool. Keys are read in `server/src/config.ts`.
 - Suno (sunoapi.org/apibox): `generate_music` tool, gated on `SUNO_API_KEY`. Cost per track added to the session cost bar (`SUNO_COST_PER_TRACK`, default $0.08). The real API call was never validated from the sandbox (egress) — validate on the Droplet; adjust request shape in `server/src/engines/suno.ts` if it errors.
+- MiniMax: key registered (`MINIMAX_API_KEY`, `minimaxBaseUrl`, `minimaxGroupId`), shows in the roster when set. No tool wired yet — decide capability(ies) to use (LLM via OpenAI-compatible `/v1/chat/completions`; music; T2A voice; Hailuo video) then add an engine tool like Suno's. Endpoint unvalidated from the sandbox.
 
 ## Gotchas learned the hard way
 - Empty JSON body → Fastify 400. The client must not send `Content-Type: application/json` without a body; server has a tolerant JSON parser. (Caused the DELETE-not-working bug.)

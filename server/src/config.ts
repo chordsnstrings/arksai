@@ -67,6 +67,11 @@ export const config = {
   sunoCallbackUrl: process.env.SUNO_CALLBACK_URL || 'https://arksai.example.com/suno/callback',
   // Estimated USD cost per generated track, added to the session cost.
   sunoCostPerTrack: Number(process.env.SUNO_COST_PER_TRACK || '0.08') || 0.08,
+  // MiniMax (LLM, voice/audio, music, video/Hailuo). Registered in the engine
+  // roster when the key is set; specific tools wired per capability later.
+  minimaxApiKey: process.env.MINIMAX_API_KEY || '',
+  minimaxBaseUrl: process.env.MINIMAX_BASE_URL || 'https://api.minimax.io/v1',
+  minimaxGroupId: process.env.MINIMAX_GROUP_ID || '',
   appPassword: process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
@@ -109,5 +114,6 @@ export function secretValues(): string[] {
     config.serperApiKey,
     config.braveApiKey,
     config.sunoApiKey,
+    config.minimaxApiKey,
   ].filter((s) => s && s.length >= 6);
 }
