@@ -28,7 +28,8 @@ durable context to reuse every session.
 
 ## Secrets (NEVER commit real values here)
 - All live secrets are in `/opt/arksai/.env` on the Droplet: `APP_PASSWORD`, `DEEPSEEK_API_KEY`, `GITHUB_TOKEN`, `SERPER_API_KEY`, `SUNO_API_KEY`, `MINIMAX_API_KEY`. Read the login password with `grep APP_PASSWORD /opt/arksai/.env`.
-- MiniMax key was added to the roster (config + `listEngines()` + `secretValues()` + `.env.example`); usage TBD. Its value is NOT in the repo — paste it into `/opt/arksai/.env` as `MINIMAX_API_KEY=` (optionally `MINIMAX_GROUP_ID=` for T2A/voice). Base URL default `https://api.minimax.io/v1`.
+- MiniMax key was added to the roster (config + `listEngines()` + `secretValues()` + `.env.example`); usage TBD. Its value is NOT in any tracked file — for dev it's in the **gitignored** repo-root `.env` (`MINIMAX_API_KEY=`, `MINIMAX_BASE_URL=https://api.minimax.io/v1`); durable home is `/opt/arksai/.env` on the Droplet. Optionally `MINIMAX_GROUP_ID=` for T2A/voice.
+- **The GitHub repo `chordsnstrings/arksai` is PUBLIC.** Never commit any real secret (CLAUDE.md included) — it would be scraped/auto-revoked in minutes. Secrets live only in gitignored `.env` (local) and `/opt/arksai/.env` (Droplet).
 - `AGENT_UNRESTRICTED=true` is set (full host access for the agent) — single-operator trusted mode.
 - Keys pasted in chat are considered exposed and should be rotated.
 
