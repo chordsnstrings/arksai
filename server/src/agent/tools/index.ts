@@ -10,6 +10,7 @@ import { generateMusicTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
 import { renderReportTool } from './report';
 import { addFontsTool } from './fonts';
+import { addUiKitTool } from './ui-kit';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -34,6 +35,7 @@ export const ALL_TOOLS: ToolDef[] = [
   gitPushTool,
   renderReportTool,
   addFontsTool,
+  addUiKitTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,

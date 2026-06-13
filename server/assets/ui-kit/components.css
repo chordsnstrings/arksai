@@ -1,0 +1,87 @@
+/*
+ * ArksAI UI kit — component patterns. Built only on the tokens. Every
+ * interactive element ships hover/focus-visible/active/disabled; data views ship
+ * empty/loading/error. Copy/adapt these so output is polished, not a prototype.
+ */
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  font: 600 var(--t-sm) / 1 var(--font-sans); padding: 10px 16px;
+  border-radius: var(--r-md); border: 1px solid transparent; cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  text-decoration: none;
+}
+.btn:active { transform: translateY(1px); }
+.btn[disabled], .btn.is-disabled { opacity: 0.5; pointer-events: none; }
+.btn-primary { background: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
+.btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.btn-secondary:hover { background: var(--surface-2); }
+.btn-ghost { background: transparent; color: var(--ink); }
+.btn-ghost:hover { background: var(--surface); }
+
+/* Cards */
+.card {
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: var(--s-5); box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.card.is-interactive:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.card h3 { margin-bottom: var(--s-2); }
+
+/* Inputs */
+.field { display: grid; gap: 6px; margin-bottom: var(--s-4); }
+.field > label { font-size: var(--t-sm); font-weight: 500; color: var(--ink-soft); }
+.field > .hint { font-size: var(--t-xs); color: var(--muted); }
+.input, .textarea, .select {
+  width: 100%; font: var(--t-sm) / 1.4 var(--font-sans); color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: 10px 12px; transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.input:hover, .textarea:hover, .select:hover { border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
+.input:focus, .textarea:focus, .select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); }
+.field.has-error .input { border-color: var(--danger); }
+.field.has-error .error { color: var(--danger); font-size: var(--t-xs); }
+.input[disabled] { background: var(--surface); color: var(--muted); }
+
+/* Nav / header */
+.nav {
+  display: flex; align-items: center; gap: var(--s-5);
+  padding: var(--s-3) var(--s-5); border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 80%, transparent); backdrop-filter: saturate(1.2) blur(8px);
+  position: sticky; top: 0; z-index: 10;
+}
+.nav a { color: var(--ink-soft); text-decoration: none; font-size: var(--t-sm); font-weight: 500; }
+.nav a:hover, .nav a.active { color: var(--ink); }
+.nav .spacer { flex: 1; }
+
+/* Tables */
+.table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+.table thead th {
+  text-align: left; font-size: var(--t-xs); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--line);
+}
+.table td { padding: 12px; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
+.table tbody tr:hover { background: var(--surface); }
+.table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Badges + states */
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-xs); font-weight: 600; padding: 3px 9px; border-radius: var(--r-full); background: var(--accent-tint); color: var(--accent); }
+.badge-success { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.badge-warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.badge-danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+
+/* Empty / loading / error blocks — never ship a bare default */
+.state { display: grid; place-items: center; gap: var(--s-3); text-align: center; padding: var(--s-8) var(--s-5); color: var(--muted); }
+.state .title { color: var(--ink); font-weight: 600; }
+.skeleton { background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 37%, var(--surface) 63%); background-size: 400% 100%; border-radius: var(--r-md); animation: ui-shimmer 1.4s ease infinite; }
+@keyframes ui-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+/* Section rhythm helpers */
+.section { padding-block: var(--s-9); }
+.stack > * + * { margin-top: var(--s-4); }
+.grid { display: grid; gap: var(--s-5); }
+.hero { padding-block: var(--s-9); }
+.hero h1 { font-family: var(--font-display); font-size: var(--t-display); max-width: 16ch; }
+.hero p { font-size: var(--t-lg); color: var(--muted); max-width: 56ch; }

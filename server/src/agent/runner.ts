@@ -19,6 +19,7 @@ import { probeApp } from './runtimeCheck';
 import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 import { escalateModel, resolveProvider, selectModel } from './router';
+import { classifyTask, type TaskProfile } from './taskProfile';
 import { isAutoModel, MAX_MODEL } from '../../../shared/types';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
@@ -108,6 +109,7 @@ export class AgentRun {
   private flowRequired = false; // have we already asked it to demo the flow?
   private engineCostUsd = 0; // external-engine spend this run (e.g. Suno)
   private accruedCostUsd = 0; // model spend this run, summed per concrete model
+  private taskProfile!: TaskProfile; // classified at run start; drives design context + gating
   private client: OpenAI; // DeepSeek (also used for title gen)
   private minimaxClient: OpenAI | null = null;
   private minimaxAvailable = !!config.minimaxApiKey;
@@ -172,9 +174,13 @@ export class AgentRun {
     const context = await store.getContext(sessionId);
     context.push({ role: 'user', content: userText });
 
+    // Classify the task once → drives the design context, gating visual QC, and
+    // the quality model floor.
+    this.taskProfile = classifyTask(userText, this.session.mode);
+
     // Memory: global (every session) + this repo's project memory + an optional
     // ARKS.md in the workspace. Loaded once and injected into the system prompt.
-    const systemContent = buildSystemPrompt(this.session, dir, await this.loadMemoryBlock(dir));
+    const systemContent = buildSystemPrompt(this.session, dir, await this.loadMemoryBlock(dir), this.taskProfile);
 
     if (this.session.title === 'New session') {
       void this.generateTitleAsync(userText);

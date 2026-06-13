@@ -1,0 +1,33 @@
+/*
+ * ArksAI UI kit — curated named themes. These are the styles the agent OFFERS
+ * the user (one quick pick, "Aurora" is the gorgeous default). Apply with
+ * <html data-theme="aurora"> (combine with "dark" via data-theme="aurora dark"
+ * is not supported — use data-theme + prefers-color-scheme, or set dark tokens).
+ *
+ *  • aurora    — indigo, modern SaaS, clean & confident (DEFAULT)
+ *  • emerald   — fresh, calm, trustworthy (fintech/health)
+ *  • sunset    — warm amber, friendly & energetic (consumer/marketing)
+ *  • mono      — near-monochrome slate, serious & minimal (B2B/internal)
+ *  • editorial — rose accent + serif display, magazine/portfolio
+ */
+[data-theme='aurora'] {
+  --accent: #4f46e5; --accent-tint: #eef0fe; --accent-ink: #fff;
+}
+[data-theme='emerald'] {
+  --accent: #0f9d6e; --accent-tint: #e6f7f0; --accent-ink: #fff;
+}
+[data-theme='sunset'] {
+  --accent: #d9682a; --accent-tint: #fcefe6; --accent-ink: #fff;
+}
+[data-theme='mono'] {
+  --accent: #2a2f3a; --accent-tint: #eceef1; --accent-ink: #fff;
+  --bg: #ffffff; --surface: #f6f6f7; --line: #e6e7ea;
+}
+[data-theme='editorial'] {
+  --accent: #b03a5b; --accent-tint: #f8e9ee; --accent-ink: #fff;
+  --font-display: 'Source Serif 4', Georgia, serif;
+  --measure: 64ch;
+}
+[data-theme='editorial'] h1, [data-theme='editorial'] h2, [data-theme='editorial'] .hero h1 {
+  font-family: var(--font-display); letter-spacing: -0.015em;
+}
