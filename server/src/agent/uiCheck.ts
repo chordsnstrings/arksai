@@ -1,3 +1,6 @@
+import { analyzeImage } from '../engines/minimax';
+import { config } from '../config';
+
 export interface UiCheckResult {
   ran: boolean; // did the browser check actually run?
   ok: boolean; // no hard failures
@@ -9,8 +12,16 @@ export interface UiCheckResult {
   consoleErrors: string[];
   pageErrors: string[]; // uncaught exceptions
   failedRequests: string[]; // same-origin 4xx/5xx
+  /** MiniMax-VL visual judgment of the screenshot, when vision is available */
+  visualReview?: string;
   detail: string;
 }
+
+const VISION_PROMPT =
+  'You are reviewing a screenshot of a web app under automated test. Is the UI rendered ' +
+  'correctly and visually coherent? Check for: a blank/empty page, broken or unstyled layout, ' +
+  'overlapping or cut-off elements, visible error messages, or missing images. Answer "OK" if it ' +
+  'looks fine, otherwise briefly list the visual problems, one per line.';
 
 const base: UiCheckResult = {
   ran: false,
@@ -99,6 +110,20 @@ export async function browserSmokeTest(url: string, signal: AbortSignal): Promis
     const fr = dedupe(failedRequests);
     const hardFail = docFailed || blank || pe.length > 0 || fr.length > 0;
 
+    // True visual judgment: if MiniMax vision is configured, actually LOOK at
+    // the page (DeepSeek can't). Advisory — surfaced, not a hard gate.
+    let visualReview: string | undefined;
+    if (config.minimaxApiKey && !signal.aborted) {
+      try {
+        const shot = (await page.screenshot({ type: 'png', fullPage: false })) as Buffer;
+        const dataUrl = `data:image/png;base64,${shot.toString('base64')}`;
+        const r = await analyzeImage(dataUrl, VISION_PROMPT, signal);
+        if (r.ok && r.text) visualReview = r.text.trim();
+      } catch {
+        /* vision is a bonus signal — never let it break verification */
+      }
+    }
+
     const lines: string[] = [
       `Loaded in headless Chromium — title="${info.title}", ${domNodes} DOM nodes, ${renderedTextLen} chars visible.`,
     ];
@@ -108,6 +133,7 @@ export async function browserSmokeTest(url: string, signal: AbortSignal): Promis
     if (fr.length) lines.push(`✗ Failed requests (same-origin):\n  - ${fr.join('\n  - ')}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
     if (!hardFail && !ce.length) lines.push('✓ UI rendered cleanly — no errors, no failed requests.');
+    if (visualReview) lines.push(`👁 Visual review (MiniMax-VL): ${visualReview}`);
 
     return {
       ran: true,
@@ -120,6 +146,7 @@ export async function browserSmokeTest(url: string, signal: AbortSignal): Promis
       consoleErrors: ce,
       pageErrors: pe,
       failedRequests: fr,
+      visualReview,
       detail: lines.join('\n'),
     };
   } catch (e: any) {

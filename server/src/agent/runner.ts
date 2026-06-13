@@ -639,6 +639,7 @@ export class AgentRun {
     processRegistry.killAllForSession(this.session.id);
     sys('info', '⟳ Booting the app and exercising its endpoints (seeding real data)…');
     const probe = await probeApp(this.session.id, dir, startCmd, this.abort.signal);
+    if (probe.ui?.visualReview) this.engineCostUsd += config.minimaxVisionCost; // vision spend
     if (!probe.booted || probe.serverErrors > 0) {
       return failFix(probe.serverErrors > 0 ? 'the app errors at runtime' : 'the app does not run', probe.detail);
     }
