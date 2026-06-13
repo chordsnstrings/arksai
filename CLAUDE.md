@@ -10,10 +10,12 @@ durable context to reuse every session.
 - Agent loop: `server/src/agent/runner.ts`. Tools in `server/src/agent/tools/`. Prompts in `server/src/agent/prompts.ts`.
 - Engines/orchestration: `server/src/engines/` (registry + suno). Add an engine = registry entry + a gated tool.
 - Modes: chat / plan / code. Models are ArksAI-branded labels (`deepseek-v4-flash` = "ArksAI Flash", `-pro` = "ArksAI Pro"); model list is fetched live from DeepSeek's /models.
+- Canvas (in-app dev preview): `client/src/components/Canvas.tsx` (Preview/Files tabs). Preview proxies through `/api/sessions/:id/preview/:port/*` (`server/src/routes/preview.ts`), which rewrites root-absolute `src/href="/..."` and injects `<base href>`. Listening ports come from `/ports` → `server/src/lib/ports.ts` (`listeningPorts` parses /proc/net/tcp{,6}).
 
 ## How to work here
 - Before claiming done: `npm run typecheck && npm test && npm run build` (12 tests). All must pass.
 - After changes: commit to `main` and push. **Auto-deploy** (systemd timer on the Droplet) pulls + rebuilds `main` every ~2 min — no manual deploy needed. Don't hand-edit files in `/opt/arksai` (overwritten); `.env` is safe.
+- The user wants work landed on `main`. The web/task harness sometimes assigns a feature branch (e.g. `claude/...`); auto-deploy only watches `main`, so commit/merge to `main` — the user has said "commit to main" explicitly and repeatedly.
 - Local manual run for testing: `APP_PASSWORD=testpass PORT=3000 DEEPSEEK_API_KEY=... nohup node server/dist/server/src/index.js &` — start it in an ISOLATED bash command (a `pkill`/`kill` in the same command kills the new start; that's burned me repeatedly).
 - To reproduce UI bugs, drive a real headless browser (Playwright is installed) and click the actual element — curl tests miss frontend-path bugs (the DELETE-400 bug was only visible through the browser).
 
@@ -36,6 +38,7 @@ durable context to reuse every session.
 - Empty JSON body → Fastify 400. The client must not send `Content-Type: application/json` without a body; server has a tolerant JSON parser. (Caused the DELETE-not-working bug.)
 - Agent apps default to `PORT=4000` (childEnv) so they can't collide with / kill ArksAI on 3000.
 - DeepSeek v4 models default to THINKING mode — for tiny calls (titles) use the non-thinking `deepseek-chat` alias or the token budget is eaten by reasoning.
+- The sandbox/container has noise listening ports that are NOT apps (saw 2024, 2025, plus ephemeral 34xxx). Canvas must never auto-load the *lowest* port (`ports[0]`). `pickPreviewPort` in Canvas.tsx prefers known dev ports (agent default 4000 first, then 5173/3000/8080/…) and only auto-picks a single plausible 3000–9999 port otherwise; `orderPorts` lists recognised dev ports first. (This was the "canvas won't load apps" bug — it had been loading port 2024 and showing 502/401.)
 
 ## Behavior defaults baked into the agent
 - UI builds: modern/minimal/responsive, generous padding, micro-animations; ASK the user to choose a color palette (offer named complementary palettes) before building.
