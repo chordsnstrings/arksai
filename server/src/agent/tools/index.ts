@@ -9,6 +9,7 @@ import { verifyTool } from './verify';
 import { generateMusicTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
 import { renderReportTool } from './report';
+import { addFontsTool } from './fonts';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -32,6 +33,7 @@ export const ALL_TOOLS: ToolDef[] = [
   gitCommitTool,
   gitPushTool,
   renderReportTool,
+  addFontsTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,
@@ -47,6 +49,7 @@ const REPORT_TOOLS = new Set([
   'web_fetch',
   'see_image',
   'generate_image',
+  'add_fonts',
   'render_report',
 ]);
 

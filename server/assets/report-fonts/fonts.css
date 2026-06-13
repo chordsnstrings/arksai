@@ -1,0 +1,17 @@
+/*
+ * ArksAI embedded fonts — high-quality, self-hosted (no network needed at
+ * render time). Link this file and use the families below. All SIL Open Font
+ * License. Pick a pairing per the brand/audience:
+ *   • Inter (sans)            — body, UI, numbers, labels. Neutral, legible.
+ *   • Source Serif 4 (serif)  — editorial display / long-form headings.
+ *   • Space Grotesk (display) — modern geometric headings, distinctive.
+ * Typography first: clear scale, ~1.5 line-height, comfortable measure.
+ */
+@font-face{font-family:'Inter';font-weight:400;font-style:normal;font-display:swap;src:url('inter-400.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-weight:500;font-style:normal;font-display:swap;src:url('inter-500.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-weight:600;font-style:normal;font-display:swap;src:url('inter-600.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-weight:700;font-style:normal;font-display:swap;src:url('inter-700.woff2') format('woff2')}
+@font-face{font-family:'Source Serif 4';font-weight:400;font-style:normal;font-display:swap;src:url('source-serif-400.woff2') format('woff2')}
+@font-face{font-family:'Source Serif 4';font-weight:600;font-style:normal;font-display:swap;src:url('source-serif-600.woff2') format('woff2')}
+@font-face{font-family:'Space Grotesk';font-weight:500;font-style:normal;font-display:swap;src:url('space-grotesk-500.woff2') format('woff2')}
+@font-face{font-family:'Space Grotesk';font-weight:700;font-style:normal;font-display:swap;src:url('space-grotesk-700.woff2') format('woff2')}
