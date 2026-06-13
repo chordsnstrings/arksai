@@ -1,10 +1,14 @@
 import type {
+  CreateProjectRequest,
   CreateSessionRequest,
   CustomCommand,
   MemoryEntry,
   ModelInfo,
+  PatchProjectRequest,
   PatchSessionRequest,
   ProcessInfo,
+  Project,
+  ProjectFile,
   SessionDetail,
   SessionMeta,
 } from '@shared/types';
@@ -78,6 +82,29 @@ export const api = {
   addMemory: (scope: string, text: string) =>
     request<MemoryEntry>('/api/memory', { method: 'POST', body: JSON.stringify({ scope, text }) }),
   deleteMemory: (id: string) => request<{ ok: true }>(`/api/memory/${id}`, { method: 'DELETE' }),
+
+  // ---- projects ----
+  listProjects: () => request<{ projects: Project[] }>('/api/projects').then((r) => r.projects),
+  createProject: (body: CreateProjectRequest) =>
+    request<Project>('/api/projects', { method: 'POST', body: JSON.stringify(body) }),
+  getProject: (id: string) => request<Project>(`/api/projects/${id}`),
+  patchProject: (id: string, body: PatchProjectRequest) =>
+    request<Project>(`/api/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteProject: (id: string) => request<{ ok: true }>(`/api/projects/${id}`, { method: 'DELETE' }),
+  listProjectFiles: (id: string) =>
+    request<{ files: ProjectFile[] }>(`/api/projects/${id}/files`).then((r) => r.files),
+  uploadProjectFiles: (id: string, files: FileList | File[]) => {
+    const fd = new FormData();
+    for (const f of Array.from(files)) fd.append('file', f);
+    return fetch(`/api/projects/${id}/files`, { method: 'POST', credentials: 'same-origin', body: fd }).then(
+      async (r) => {
+        if (!r.ok) throw new ApiError(r.status, ((await r.json().catch(() => ({}))) as any).error ?? r.statusText);
+        return (await r.json()) as { ok: true; files: ProjectFile[] };
+      },
+    );
+  },
+  deleteProjectFile: (id: string, fileId: string) =>
+    request<{ ok: true }>(`/api/projects/${id}/files/${fileId}`, { method: 'DELETE' }),
 };
 
 export { ApiError };

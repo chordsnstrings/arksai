@@ -4,9 +4,17 @@ import { DEFAULT_MODEL, FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 
-export function NewSessionDialog({ onClose }: { onClose: () => void }) {
+export function NewSessionDialog({
+  onClose,
+  projectId: initialProjectId = null,
+}: {
+  onClose: () => void;
+  projectId?: string | null;
+}) {
   const models = useStore((s) => s.models);
+  const projects = useStore((s) => s.projects);
   const modelIds = models.length ? models.map((m) => m.id) : FALLBACK_MODEL_IDS;
+  const [projectId, setProjectId] = useState<string | null>(initialProjectId);
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('');
   const [mode, setMode] = useState<SessionMode>('code');
@@ -16,11 +24,16 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }) {
   const upsertSession = useStore((s) => s.upsertSession);
   const setActive = useStore((s) => s.setActive);
 
+  // When a project is chosen, its defaults fill in (the server is authoritative,
+  // but this previews the inheritance so blank fields aren't confusing).
+  const proj = projects.find((p) => p.id === projectId);
+
   const create = async () => {
     setBusy(true);
     setError('');
     try {
       const session = await api.createSession({
+        projectId: projectId ?? undefined,
         repoUrl: repoUrl.trim() || undefined,
         branch: branch.trim() || undefined,
         mode,
@@ -40,6 +53,24 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }) {
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
         <h2>New session</h2>
+        {projects.length > 0 && (
+          <div>
+            <label>Project</label>
+            <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)}>
+              <option value="">None (standalone)</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {proj && (
+              <div style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 4 }}>
+                Inherits this project's instructions, knowledge & branding. Leave fields blank to use its defaults.
+              </div>
+            )}
+          </div>
+        )}
         <div>
           <label>GitHub repository (optional)</label>
           <input

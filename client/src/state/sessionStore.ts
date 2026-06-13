@@ -4,6 +4,7 @@ import type {
   CustomCommand,
   GlobalEvent,
   ModelInfo,
+  Project,
   SessionDetail,
   SessionMeta,
   TimelineItem,
@@ -56,6 +57,7 @@ const emptyLive = (): LiveState => ({
 interface StoreState {
   authed: boolean | null;
   sessions: SessionMeta[];
+  projects: Project[];
   activeId: string | null;
   live: Record<string, LiveState>;
   models: ModelInfo[];
@@ -64,6 +66,9 @@ interface StoreState {
   navOpen: boolean;
   automation: Record<string, Automation>;
 
+  setProjects(list: Project[]): void;
+  upsertProject(p: Project): void;
+  removeProject(id: string): void;
   setAuthed(v: boolean): void;
   toggleNav(open?: boolean): void;
   setModels(models: ModelInfo[]): void;
@@ -85,6 +90,7 @@ interface StoreState {
 export const useStore = create<StoreState>((set, get) => ({
   authed: null,
   sessions: [],
+  projects: [],
   activeId: null,
   live: {},
   models: [],
@@ -94,6 +100,20 @@ export const useStore = create<StoreState>((set, get) => ({
   navOpen: typeof window === 'undefined' ? true : window.innerWidth > 860,
   automation: {},
 
+  setProjects: (list) => set({ projects: list }),
+  upsertProject: (p) =>
+    set((s) => {
+      const idx = s.projects.findIndex((x) => x.id === p.id);
+      const projects = idx >= 0 ? s.projects.map((x) => (x.id === p.id ? p : x)) : [p, ...s.projects];
+      projects.sort((a, b) => b.updatedAt - a.updatedAt);
+      return { projects };
+    }),
+  removeProject: (id) =>
+    set((s) => ({
+      projects: s.projects.filter((x) => x.id !== id),
+      // detach sessions client-side so they fall back to "ungrouped"
+      sessions: s.sessions.map((x) => (x.projectId === id ? { ...x, projectId: null } : x)),
+    })),
   setAuthed: (v) => set({ authed: v }),
   toggleNav: (open) => set((s) => ({ navOpen: open ?? !s.navOpen })),
   setModels: (models) => set({ models }),

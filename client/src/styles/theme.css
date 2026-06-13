@@ -823,6 +823,61 @@ button { font-family: inherit; cursor: pointer; }
   padding: 6px 15px;
 }
 .dialog .cancel:hover { color: var(--text); border-color: var(--text-muted); }
+.dialog textarea {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  padding: 9px 12px;
+  font-size: 13.5px;
+  font-family: var(--sans);
+  outline: none;
+  resize: vertical;
+}
+.dialog textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.dialog .file-pick {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.kb-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.kb-row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; font-size: 12.5px;
+}
+.kb-row .kb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-row .kb-del { background: none; border: 0; color: var(--text-faint); cursor: pointer; }
+.kb-row .kb-del:hover { color: var(--red); }
+
+/* ---------- sidebar: projects ---------- */
+.sidebar .nav-btn.subtle { margin-top: 6px; opacity: 0.85; }
+.sidebar .nav-btn.subtle .plus { font-size: 12px; }
+.project-group { margin-bottom: 2px; }
+.project-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px; border-radius: 8px; cursor: pointer;
+  color: var(--text-muted); font-size: 12.5px; font-weight: 600;
+}
+.project-head:hover { background: var(--bg-hover); color: var(--text); }
+.project-head .caret { font-size: 10px; transition: transform 0.12s; color: var(--text-faint); }
+.project-head .caret.open { transform: rotate(90deg); }
+.project-head .project-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-head .project-count {
+  font-size: 11px; color: var(--text-faint); font-weight: 500;
+  background: var(--bg-input); border-radius: 10px; padding: 0 6px;
+}
+.project-head .proj-act {
+  background: none; border: 0; color: var(--text-faint); cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 0 2px; opacity: 0; transition: opacity 0.1s;
+}
+.project-head:hover .proj-act { opacity: 1; }
+.project-head .proj-act:hover { color: var(--accent); }
+.project-sessions { padding-left: 8px; border-left: 1px solid var(--border-soft); margin-left: 10px; }
+.proj-empty { color: var(--text-faint); font-size: 12px; padding: 4px 10px; }
 
 /* ---------- responsive: phones & small tablets ---------- */
 @media (max-width: 860px) {
