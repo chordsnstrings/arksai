@@ -9,7 +9,9 @@ durable context to reuse every session.
 - Storage: dual driver in `server/src/db` — PostgreSQL when `DATABASE_URL` is set, else SQLite on the volume. The store (`server/src/sessions/store.ts`) is async.
 - Agent loop: `server/src/agent/runner.ts`. Tools in `server/src/agent/tools/`. Prompts in `server/src/agent/prompts.ts`.
 - Engines/orchestration: `server/src/engines/` (registry + suno). Add an engine = registry entry + a gated tool.
-- Modes: chat / plan / code. Models are ArksAI-branded labels (`deepseek-v4-flash` = "ArksAI Flash", `-pro` = "ArksAI Pro"); model list is fetched live from DeepSeek's /models.
+- Modes: chat / plan / code / **report**. Report mode (`server/src/agent/tools/report.ts` `render_report` + report block in `prompts.ts`) turns pasted text/CSV/uploads into a designed PDF or 16:9 deck via HTML/CSS → headless-Chromium `page.pdf()`; curated toolset via `REPORT_TOOLS` in `tools/index.ts` (no git/verify). Direction chosen: both doc+deck per request, hybrid templates, narrative+cited benchmarks allowed (never fabricate figures), charts+clean typography (no AI imagery). Core needs no MiniMax; vision QC (`see_image`) lights up when keyed.
+- Models are ArksAI-branded labels (`deepseek-v4-flash` = "ArksAI Flash", `-pro` = "ArksAI Pro"); model list is fetched live from DeepSeek's /models.
+- Sandbox egress is a **curated allowlist proxy** (set per environment, applies to NEW sessions only). `api.deepseek.com` is allowed; `api.minimax.io` was added but a running session keeps its old policy — MiniMax validation needs a fresh session. Generated-media download URLs sit on storage/CDN hosts that also need allowlisting.
 - Canvas (in-app dev preview): `client/src/components/Canvas.tsx` (Preview/Files tabs). Preview proxies through `/api/sessions/:id/preview/:port/*` (`server/src/routes/preview.ts`), which rewrites root-absolute `src/href="/..."` and injects `<base href>`. Listening ports come from `/ports` → `server/src/lib/ports.ts` (`listeningPorts` parses /proc/net/tcp{,6}).
 
 ## How to work here
