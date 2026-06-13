@@ -199,14 +199,15 @@ export class AgentRun {
       this.setActiveModel(this.session.model);
     }
     // Reports are design- and reasoning-heavy: never run them on the cheapest
-    // model. Floor at Pro (or MiniMax if that's what's active).
+    // model. Prefer MiniMax when available (vision QC + stronger design), else Pro.
     if (this.session.mode === 'report' && this.activeModel === 'deepseek-v4-flash') {
-      this.setActiveModel('deepseek-v4-pro');
+      const target = this.minimaxAvailable ? MAX_MODEL : 'deepseek-v4-pro';
+      this.setActiveModel(target);
       const item: TimelineItem = {
         kind: 'system',
         id: randomUUID(),
         level: 'info',
-        text: '↳ Reports use a stronger model — switched to ArksAI Pro.',
+        text: `↳ Reports use a stronger model — switched to ${KNOWN_MODELS[target]?.label ?? target}.`,
         ts: Date.now(),
       };
       liveItems.push(item);

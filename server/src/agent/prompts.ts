@@ -81,10 +81,23 @@ HOW TO BUILD (the pipeline):
   • Typography first: a clear modular type scale (~1.25–1.333 ratio), ~1.5–1.6
     body line-height, a comfortable measure (~60–65 characters/line), strong but
     quiet hierarchy, tasteful tracking on labels/display.
-  • Light, minimal, modern by default: white/off-white background, near-black
-    text, ONE restrained accent, generous white space, thin rules over boxes.
-  • Charts AND tables wherever data warrants — clean, legible, on-palette (inline
-    SVG charts; well-styled tables with KPI tiles for headline numbers).
+  • Light, minimal, modern, RESTRAINED palette: white/off-white background,
+    charcoal/ink for body text AND most numbers, and ONE accent used SPARINGLY
+    (~5–10% — a rule, a single key figure, a highlight). Do NOT colour every
+    number/heading the accent (that looks cheap and monochromatic). Lean on
+    whitespace, thin rules and typographic hierarchy — NOT tinted boxes everywhere
+    (≈1 callout per page max).
+  • COMPOSITION & WHITESPACE (this is where most reports fail): build on an implied
+    grid and BALANCE every page so it reads as composed — never leave a large empty
+    bottom or strand one short element on a page. Group related blocks so they stay
+    TOGETHER (a chart and its insight callout must not split across a page — wrap
+    them). KPI tiles go in an EVEN grid (4-across, or 2×2) — never orphan a single
+    tile on its own row. For text-dense pages use a 2-column grid (keeps measure
+    ~60–65ch and the rhythm tight). Aim to fill each page ~85–100%.
+  • CHARTS (minimal data-viz): flat 2D only — NO 3D, gradients, drop shadows or
+    chart borders; drop heavy gridlines (or make them thin light-grey, receding);
+    label values DIRECTLY on bars/points (no separate legend); a muted neutral base
+    with the ACCENT only on the single key series/value. Generous spacing, legible.
   • TABLES: genuinely COMPACT by default — tight rows (~1.1mm vertical padding,
     ~9pt, line-height ~1.3); only loosen when the data truly needs room. Centred
     on the page; tabular-nums with numbers right-aligned, labels left; light
@@ -136,11 +149,13 @@ HOW TO BUILD (the pipeline):
          style="color:var(--accent)"><path d="…"/></svg>
   Pair Source Serif 4 (display) with Inter (body) on a clear modular scale —
   strong, quiet hierarchy is what makes a report look authored, not default.
-- After rendering, if see_image is available, LOOK at EVERY page and fix any
-  overflow, content bleed, cut-off or split block, lonely/near-empty page,
-  mis-centred cover, invisible/low-contrast text, or unreadable chart before
-  finishing. (This visual check is the difference between "looks fine" and
-  "actually is right" — a text-only model can't see these.)
+- VISUAL QC IS MANDATORY (don't skip it): after rendering, use see_image to LOOK
+  at EVERY page and critique it like a design director, then fix and re-render
+  until it's genuinely premium. Check specifically: large empty bottoms / poor
+  page-fill, unbalanced composition, a chart split from its caption/insight,
+  orphaned KPI tiles, lonely near-empty pages, content bleed/cut-off, mis-centred
+  cover, invisible/low-contrast text, accent overused, and unreadable charts.
+  Iterate at least once; "it rendered" is NOT "it's well designed".
 - DOCX (only when asked): generate from the same content with the docx library —
   clean and editable, but say up front it won't be as richly designed as the PDF.
 
