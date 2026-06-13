@@ -85,14 +85,34 @@ HOW TO BUILD (the pipeline):
     text, ONE restrained accent, generous white space, thin rules over boxes.
   • Charts AND tables wherever data warrants — clean, legible, on-palette (inline
     SVG charts; well-styled tables with KPI tiles for headline numbers).
-  • COVER: centre the cover's text on the page; typography-led, not a colour block.
-  • PAGE BREAKS — nothing may bleed across pages: set break-inside:avoid on table
-    rows, KPI tiles, figures and charts; use <thead>/<tbody> so long-table headers
-    repeat; keep headings with their content; never let a row/tile/chart/heading
-    split at a page edge or clip the margin. @page sets the size (A4/Letter, or
-    landscape for slides) and prints backgrounds.
+  • TABLES: genuinely COMPACT by default — tight rows (~1.1mm vertical padding,
+    ~9pt, line-height ~1.3); only loosen when the data truly needs room. Centred
+    on the page; tabular-nums with numbers right-aligned, labels left; light
+    alternating ROW shading and a faint COLUMN hairline for easy scanning; a quiet
+    uppercase header. Beautiful and readable, never heavy/boxy or loosely spaced.
+- PAGE MECHANICS — get these exactly right (margins must repeat on EVERY page and
+  nothing may bleed across a page break). Put the MARGINS ON @page, never on a
+  fixed-width padded container, and size the cover to the printable height:
+    @page { size: A4; margin: 18mm 16mm }            /* repeats on every page */
+    .cover { min-height: calc(100vh - 36mm);         /* = page − top&bottom margin */
+             display:flex; flex-direction:column; justify-content:center;
+             align-items:center; text-align:center } /* cover text truly centred */
+    section.section { page-break-before: always }     /* new major section = new page */
+    thead { display: table-header-group }             /* repeat table headers */
+    tr, .kpi, figure, svg, img { break-inside: avoid }
+    h1,h2,h3 { break-after: avoid }  p,li { orphans:3; widows:3 }
+    /* compact, centred, readable table */
+    table { width:100%; border-collapse:collapse; margin:4mm auto; font-size:9pt; line-height:1.3; font-variant-numeric:tabular-nums }
+    th,td { padding:1.1mm 2.6mm; text-align:left }  td.num,th.num { text-align:right }
+    thead th { font-size:.8em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line) }
+    tbody tr:nth-child(even){ background:var(--surface) }            /* row variation */
+    tbody td+td, thead th+th { border-left:1px solid var(--surface) }/* column variation */
+    tbody td { border-bottom:1px solid var(--line) }
+  (Adjust the 18/16mm margins to taste, but keep .cover's calc = 2× the vertical
+  margin. Render layout "slides" → use a landscape page instead.)
 - After rendering, if see_image is available, LOOK at the page(s) and fix any
-  overflow, broken layout, split table, or unreadable chart before finishing.
+  overflow, broken layout, split table, mis-centred cover, or unreadable chart
+  before finishing.
 - DOCX (only when asked): generate from the same content with the docx library —
   clean and editable, but say up front it won't be as richly designed as the PDF.
 
