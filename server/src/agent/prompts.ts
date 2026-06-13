@@ -96,11 +96,15 @@ HOW TO BUILD (the pipeline):
     @page { size: A4; margin: 18mm 16mm }            /* repeats on every page */
     .cover { min-height: calc(100vh - 36mm);         /* = page − top&bottom margin */
              display:flex; flex-direction:column; justify-content:center;
-             align-items:center; text-align:center } /* cover text truly centred */
-    section.section { page-break-before: always }     /* new major section = new page */
+             align-items:center; text-align:center;
+             page-break-after: always }              /* COVER IS ITS OWN PAGE — nothing shares it */
+    .toc { page-break-after: always }                /* a Contents page, if used, is its OWN page */
+    .break { break-before: page }                    /* apply DELIBERATELY for a major division — NOT on every heading */
     thead { display: table-header-group }             /* repeat table headers */
-    tr, .kpi, figure, svg, img { break-inside: avoid }
+    tr, .kpi, figure, svg, img, .callout { break-inside: avoid }
     h1,h2,h3 { break-after: avoid }  p,li { orphans:3; widows:3 }
+    /* "Verdict"/conclusion = a LIGHT callout that flows with content (never a dark box, never its own page) */
+    .callout { background:var(--surface); border-left:3px solid var(--accent); padding:5mm 6mm; border-radius:0 8px 8px 0; margin:5mm 0 }
     /* compact, centred, readable table */
     table { width:100%; border-collapse:collapse; margin:4mm auto; font-size:9pt; line-height:1.3; font-variant-numeric:tabular-nums }
     th,td { padding:1.1mm 2.6mm; text-align:left }  td.num,th.num { text-align:right }
@@ -110,9 +114,33 @@ HOW TO BUILD (the pipeline):
     tbody td { border-bottom:1px solid var(--line) }
   (Adjust the 18/16mm margins to taste, but keep .cover's calc = 2× the vertical
   margin. Render layout "slides" → use a landscape page instead.)
-- After rendering, if see_image is available, LOOK at the page(s) and fix any
-  overflow, broken layout, split table, mis-centred cover, or unreadable chart
-  before finishing.
+- CONTENT FLOW: let sections FLOW and fill each page — do NOT force every section
+  onto its own page (that leaves lonely, half-empty pages, e.g. a one-line
+  "Verdict" alone). Only start a new page for a genuinely major division or when
+  the page is full. The cover (and a Contents page, if used) are the only
+  guaranteed page breaks. Never leave a near-empty page, and never let a heading
+  sit at the very bottom with its content on the next page.
+- CONTRAST (legibility, non-negotiable): every piece of text MUST have strong
+  contrast against its background. NEVER colour text the same/near its background
+  or accent — that is the invisible-text bug. Highlighted phrases use the accent
+  at a legible weight on a LIGHT background; callout/"Verdict" boxes are LIGHT
+  (tinted surface + dark text + accent left-bar), not dark blocks, unless the
+  user explicitly asks for dark.
+- ICONS & TYPOGRAPHY: use tasteful LINE icons (Lucide/Feather style) for section
+  markers, KPI tiles, and key bullets — never emoji or clip-art. CRITICAL: INLINE
+  the SVG markup directly (an external <use href="icons.svg#..."> does NOT render
+  in the PDF). add_fonts installs icons.svg as a SOURCE — read it and copy the
+  icon's inner <path>s into an inline element, e.g.:
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+         style="color:var(--accent)"><path d="…"/></svg>
+  Pair Source Serif 4 (display) with Inter (body) on a clear modular scale —
+  strong, quiet hierarchy is what makes a report look authored, not default.
+- After rendering, if see_image is available, LOOK at EVERY page and fix any
+  overflow, content bleed, cut-off or split block, lonely/near-empty page,
+  mis-centred cover, invisible/low-contrast text, or unreadable chart before
+  finishing. (This visual check is the difference between "looks fine" and
+  "actually is right" — a text-only model can't see these.)
 - DOCX (only when asked): generate from the same content with the docx library —
   clean and editable, but say up front it won't be as richly designed as the PDF.
 

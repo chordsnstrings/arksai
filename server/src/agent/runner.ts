@@ -198,6 +198,20 @@ export class AgentRun {
     } else {
       this.setActiveModel(this.session.model);
     }
+    // Reports are design- and reasoning-heavy: never run them on the cheapest
+    // model. Floor at Pro (or MiniMax if that's what's active).
+    if (this.session.mode === 'report' && this.activeModel === 'deepseek-v4-flash') {
+      this.setActiveModel('deepseek-v4-pro');
+      const item: TimelineItem = {
+        kind: 'system',
+        id: randomUUID(),
+        level: 'info',
+        text: '↳ Reports use a stronger model — switched to ArksAI Pro.',
+        ts: Date.now(),
+      };
+      liveItems.push(item);
+      this.emit({ type: 'timeline_item', item });
+    }
 
     const ticker = setInterval(() => {
       this.emit({

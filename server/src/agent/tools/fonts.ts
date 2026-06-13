@@ -42,9 +42,11 @@ export const addFontsTool: ToolDef = {
       return `Error: could not install fonts — ${e?.message ?? e}`;
     }
     return (
-      `Installed fonts into ${destRel}/ (Inter, Source Serif 4, Space Grotesk). Link it: ` +
+      `Installed fonts + icons into ${destRel}/. Link the fonts: ` +
       `<link rel="stylesheet" href="${destRel}/fonts.css"> (or @import). Families: "Inter" (sans/body), ` +
-      `"Source Serif 4" (serif display), "Space Grotesk" (modern display). Pick a pairing for the brand.`
+      `"Source Serif 4" (serif display), "Space Grotesk" (modern display). Also ${destRel}/icons.svg — a ` +
+      `Lucide line-icon source: read it and INLINE an icon's inner <path>s into your HTML (an external ` +
+      `<use href> does NOT render in the PDF). Pick a font pairing for the brand and use icons for section markers/KPIs.`
     );
   },
 };
