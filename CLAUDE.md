@@ -4,6 +4,11 @@ A self-hosted, Claude-Code-style web coding agent powered by DeepSeek, with an
 engine-orchestration layer (Suno for music, more later). This file is the
 durable context to reuse every session.
 
+## Current state & handoff (read first)
+- Everything is on **`main`** (GitHub `chordsnstrings/arksai`) and auto-deploys to the Droplet. A new session clones `main` fresh, so all code carries over; this file carries the context. The ephemeral container's gitignored local `.env` does NOT carry over — re-paste keys for local dev; live keys live in `/opt/arksai/.env` on the Droplet.
+- Built this arc: **ArksAI Auto** orchestrator (complexity routing Flash/Pro/MiniMax + escalation, server-authoritative blended cost), **MiniMax capability tools** (see_image/generate_image/text_to_speech/generate_video), and **Report mode** (bespoke designed PDFs/decks; full design protocol + page mechanics above).
+- **Pending / next steps**: (1) MiniMax request shapes (vision/image/tts/video LLM) are UNVALIDATED from the sandbox — validate on the Droplet (or a fresh session with egress) and tune model ids/costs. (2) Egress is a new-session allowlist: **a fresh session CAN reach `api.minimax.io`** (this/old sessions can't) → that's where vision-QC for reports actually runs. (3) Re-generate the GIC report in Report mode in a fresh session to get MiniMax + mandatory vision QC. (4) PWA dormant (needs HTTPS/domain), TLS parked.
+
 ## Stack & layout
 - npm workspaces: `server/` (Fastify + TS), `client/` (React + Vite), `shared/types.ts` (the contract).
 - Storage: dual driver in `server/src/db` — PostgreSQL when `DATABASE_URL` is set, else SQLite on the volume. The store (`server/src/sessions/store.ts`) is async.
