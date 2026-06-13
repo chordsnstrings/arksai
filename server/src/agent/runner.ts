@@ -17,6 +17,7 @@ import { Usage } from './usage';
 import { detectStartCommand, verifyProject } from './verify';
 import { probeApp } from './runtimeCheck';
 import { processRegistry } from './processes';
+import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
 const PREVIEW_CHARS = 700;
@@ -311,6 +312,23 @@ export class AgentRun {
       }
 
       const stat = await diffStat(sessionId).catch(() => null);
+
+      // On a successful code run with a real project: zip a complete export
+      // (surfaced below as a download chip) and, if it can render, leave a
+      // preview server up and tell the client to open the canvas to check it.
+      let shouldOpenCanvas = false;
+      let canvasPort: number | undefined;
+      if (finalStatus === 'done' && this.session.mode === 'code' && this.mutated && looksLikeProject(dir)) {
+        try {
+          await buildExportArchive(dir, this.session.repoName ?? 'arksai', this.abort.signal);
+        } catch {}
+        const renderable = detectRenderable(dir);
+        if (renderable.renderable) {
+          canvasPort = startPreviewServer(sessionId, dir, renderable) ?? undefined;
+          shouldOpenCanvas = true;
+        }
+      }
+
       for (const fileItem of await findDeliverables(dir, this.usage.startedAt)) {
         liveItems.push(fileItem);
         this.emit({ type: 'timeline_item', item: fileItem });
@@ -345,6 +363,9 @@ export class AgentRun {
         totalTokens: this.usage.totalTokens,
         diffStat: stat,
       });
+      if (shouldOpenCanvas) {
+        this.emit({ type: 'open_canvas', ...(canvasPort != null ? { port: canvasPort } : {}) });
+      }
       const finalMeta = await store.getSession(sessionId);
       if (finalMeta) bus.sessionChanged(finalMeta);
       bus.clear(sessionId);

@@ -15,7 +15,7 @@ RUN npm run build && npm prune --omit=dev
 FROM node:22-bookworm-slim
 # git + ripgrep are functional requirements (clone/push, grep tool)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git ripgrep ca-certificates bash procps unzip curl jq openssh-client \
+      git ripgrep ca-certificates bash procps zip unzip curl jq openssh-client \
       && rm -rf /var/lib/apt/lists/*
 # doctl (DigitalOcean CLI) so the agent can manage infrastructure
 ARG DOCTL_VERSION=1.120.0

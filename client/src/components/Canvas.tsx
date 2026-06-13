@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 
@@ -44,26 +44,50 @@ export function Canvas({ sessionId }: { sessionId: string }) {
   const [detectedPorts, setDetectedPorts] = useState<number[]>([]);
   const [previewSrc, setPreviewSrc] = useState('');
   const [nonce, setNonce] = useState(0);
+  // Mirror previewSrc in a ref so the poll loop sees the latest value (and a
+  // manual port pick) without re-subscribing the effect.
+  const previewSrcRef = useRef('');
+  useEffect(() => {
+    previewSrcRef.current = previewSrc;
+  }, [previewSrc]);
+
   const loadPreview = (p?: string) => {
     const usePort = p ?? port;
     if (!usePort) return;
     setPort(usePort);
+    previewSrcRef.current = `loading:${usePort}`;
     setPreviewSrc(`/api/sessions/${sessionId}/preview/${usePort}/?_=${Date.now()}`);
   };
 
-  // Auto-detect dev-server ports so the user doesn't have to guess.
+  // Auto-detect dev-server ports so the user doesn't have to guess. A preview
+  // server started on run-completion may still be binding when the canvas
+  // opens, so poll a few times until a recognised port shows up.
   const detectPorts = async () => {
     try {
       const ports = await api.ports(sessionId);
       setDetectedPorts(orderPorts(ports));
       const pick = pickPreviewPort(ports);
-      if (pick && !previewSrc) loadPreview(String(pick));
+      if (pick && !previewSrcRef.current) loadPreview(String(pick));
+      return !!pick;
     } catch {
       setDetectedPorts([]);
+      return false;
     }
   };
   useEffect(() => {
-    if (tab === 'preview') detectPorts();
+    if (tab !== 'preview') return;
+    let cancelled = false;
+    let tries = 0;
+    const tick = async () => {
+      if (cancelled || previewSrcRef.current) return;
+      const found = await detectPorts();
+      if (cancelled || found || previewSrcRef.current) return;
+      if (++tries < 6) setTimeout(tick, 1200);
+    };
+    tick();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, sessionId]);
 

@@ -159,6 +159,12 @@ export const useStore = create<StoreState>((set, get) => ({
       const existing = get().sessions.find((x) => x.id === ev.meta.id);
       if (existing) get().upsertSession({ ...existing, ...ev.meta });
     }
+    // Auto-open the canvas when a run finishes something renderable — but only
+    // for the session the user is actually looking at, so a background run
+    // doesn't yank the view.
+    if (ev.type === 'open_canvas' && get().activeId === sessionId) {
+      get().toggleCanvas(true);
+    }
   },
 
   applyGlobalEvent: (ev) => {
@@ -321,6 +327,7 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
     }
 
     case 'session_meta_updated':
+    case 'open_canvas':
       return live;
 
     default:

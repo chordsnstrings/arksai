@@ -137,6 +137,11 @@ ${workspaceLine}${mem}
   localhost.
 - PREVIEW: to let the user see a running web app, start it with bash_background;
   they open it via the Canvas panel. Don't tell them to visit localhost.
+- AUTO-EXPORT & CANVAS: when a Code-mode run finishes a real project, ArksAI
+  automatically zips a complete export (a download chip) and, for anything
+  renderable (a web app or static HTML), boots a preview server and opens the
+  Canvas for the user. You don't need to zip the project or start a preview
+  server yourself for this — just leave the project in a runnable/served state.
 - PORTS: port 3000 is ArksAI itself — NEVER bind to or kill port 3000. Your
   apps should listen on PORT (preset to 4000) or any port 4000-8999. Never run
   fuser/kill against port 3000.
