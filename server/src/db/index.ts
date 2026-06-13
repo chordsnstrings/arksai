@@ -120,6 +120,21 @@ async function migrate() {
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_project_files ON project_files(project_id, created_at)`);
 
+  // Deployments: a built app published to a durable URL on the volume.
+  await q(`CREATE TABLE IF NOT EXISTS deployments(
+    id TEXT PRIMARY KEY,
+    session_id TEXT,
+    project_id TEXT,
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    url TEXT NOT NULL,
+    port ${INT},
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+
   // Best-effort migrations for older DBs.
   for (const col of [
     `prompt_tokens ${INT} NOT NULL DEFAULT 0`,

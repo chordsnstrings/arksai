@@ -2,6 +2,7 @@ import { config, validateConfig } from './config';
 import { buildApp } from './app';
 import * as store from './sessions/store';
 import { sweepWorkspaces } from './sessions/workspace';
+import { recoverDeployments } from './deploy/registry';
 
 async function main() {
   validateConfig();
@@ -12,6 +13,7 @@ async function main() {
     console.log(`[boot] marked ${recovered.length} interrupted session(s) as errored`);
   }
   await sweepWorkspaces();
+  await recoverDeployments().catch((err) => console.error('[boot] deployment recovery:', err));
 
   const app = await buildApp();
   await app.listen({ port: config.port, host: '0.0.0.0' });

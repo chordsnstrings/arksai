@@ -229,6 +229,25 @@ export interface ProjectFile {
   createdAt: number;
 }
 
+// ---- Deployments (publish a built app to a durable URL) ----
+
+export type DeploymentKind = 'static' | 'node' | 'python';
+export type DeploymentStatus = 'running' | 'stopped' | 'error';
+
+export interface Deployment {
+  id: string;
+  sessionId: string;
+  projectId: string | null;
+  slug: string;
+  name: string;
+  kind: DeploymentKind;
+  status: DeploymentStatus;
+  url: string;
+  port: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface CreateProjectRequest {
   name: string;
   instructions?: string;

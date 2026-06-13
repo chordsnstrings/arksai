@@ -11,6 +11,7 @@ import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } 
 import { renderReportTool } from './report';
 import { addFontsTool } from './fonts';
 import { addUiKitTool } from './ui-kit';
+import { publishAppTool } from './publish';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -36,6 +37,7 @@ export const ALL_TOOLS: ToolDef[] = [
   renderReportTool,
   addFontsTool,
   addUiKitTool,
+  publishAppTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,

@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type {
   CustomCommand,
+  Deployment,
+  DeploymentKind,
+  DeploymentStatus,
   MemoryEntry,
   ModelId,
   Project,
@@ -361,6 +364,68 @@ export async function getProjectFile(id: string): Promise<ProjectFile | null> {
 
 export async function deleteProjectFile(id: string) {
   await q('DELETE FROM project_files WHERE id = $1', [id]);
+}
+
+// ---- deployments (published apps on a durable URL) ----
+
+function rowToDeployment(r: any): Deployment {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    projectId: r.project_id ?? null,
+    slug: r.slug,
+    name: r.name,
+    kind: r.kind as DeploymentKind,
+    status: r.status as DeploymentStatus,
+    url: r.url,
+    port: r.port != null ? Number(r.port) : null,
+    createdAt: Number(r.created_at),
+    updatedAt: Number(r.updated_at),
+  };
+}
+
+export async function createDeployment(d: Omit<Deployment, 'createdAt' | 'updatedAt'>): Promise<Deployment> {
+  const now = Date.now();
+  await q(
+    `INSERT INTO deployments(id, session_id, project_id, slug, name, kind, status, url, port, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [d.id, d.sessionId, d.projectId, d.slug, d.name, d.kind, d.status, d.url, d.port, now, now],
+  );
+  return { ...d, createdAt: now, updatedAt: now };
+}
+
+export async function getDeploymentBySlug(slug: string): Promise<Deployment | null> {
+  const row = await qOne('SELECT * FROM deployments WHERE slug = $1', [slug]);
+  return row ? rowToDeployment(row) : null;
+}
+
+export async function listDeployments(sessionId?: string): Promise<Deployment[]> {
+  const rows = sessionId
+    ? await q('SELECT * FROM deployments WHERE session_id = $1 ORDER BY updated_at DESC', [sessionId])
+    : await q('SELECT * FROM deployments ORDER BY updated_at DESC');
+  return rows.map(rowToDeployment);
+}
+
+export async function updateDeployment(
+  slug: string,
+  patch: Partial<Pick<Deployment, 'status' | 'port' | 'name' | 'kind' | 'url'>>,
+) {
+  const map: Record<string, string> = { status: 'status', port: 'port', name: 'name', kind: 'kind', url: 'url' };
+  const sets = ['updated_at = $1'];
+  const vals: unknown[] = [Date.now()];
+  let i = 2;
+  for (const [k, col] of Object.entries(map)) {
+    if (k in patch) {
+      sets.push(`${col} = $${i++}`);
+      vals.push((patch as any)[k]);
+    }
+  }
+  vals.push(slug);
+  await q(`UPDATE deployments SET ${sets.join(', ')} WHERE slug = $${i}`, vals);
+}
+
+export async function deleteDeployment(slug: string) {
+  await q('DELETE FROM deployments WHERE slug = $1', [slug]);
 }
 
 /** On boot: any session left "running" by a crash/restart becomes an error. */

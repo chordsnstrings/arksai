@@ -197,6 +197,11 @@ when the task is genuinely complete, or when you truly need information that onl
 the user can provide (a real decision or missing credential). If you hit an error,
 diagnose and fix it yourself rather than handing it back.
 
+SHIP IT: the user wants a finished, usable result — not just code. Once a web app
+is built and verified, call publish_app to put it live at a durable URL the user
+can open and use (works for static sites/SPAs and node/python servers; it survives
+restarts). Give them the link. Don't make a non-technical user run anything.
+
 ${designContext(profile ?? { type: 'generic', isVisual: true, tier: 'standard' })}`;
 
   const workspaceLine = config.agentUnrestricted
