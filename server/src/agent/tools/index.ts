@@ -8,6 +8,7 @@ import { webFetchTool, webSearchTool } from './web';
 import { verifyTool } from './verify';
 import { generateMusicTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
+import { renderReportTool } from './report';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -30,7 +31,24 @@ export const ALL_TOOLS: ToolDef[] = [
   gitDiffStatTool,
   gitCommitTool,
   gitPushTool,
+  renderReportTool,
 ];
+
+// Report mode gets a curated toolset: read/synthesize data, research, render,
+// and (when keyed) generate/inspect visuals — but no git/verify/code plumbing.
+const REPORT_TOOLS = new Set([
+  'read_file',
+  'write_file',
+  'edit_file',
+  'glob',
+  'grep',
+  'bash',
+  'web_search',
+  'web_fetch',
+  'see_image',
+  'generate_image',
+  'render_report',
+]);
 
 export interface ToolSet {
   schemas: {
@@ -45,7 +63,11 @@ export interface ToolSet {
  * schema list entirely, so the model can't even attempt them.
  */
 export function getToolsForMode(mode: SessionMode): ToolSet {
-  const tools = ALL_TOOLS.filter((t) => t.modes.includes(mode) && (!t.available || t.available()));
+  const tools = ALL_TOOLS.filter(
+    (t) =>
+      (mode === 'report' ? REPORT_TOOLS.has(t.name) : t.modes.includes(mode)) &&
+      (!t.available || t.available()),
+  );
   return {
     schemas: tools.map((t) => ({
       type: 'function' as const,

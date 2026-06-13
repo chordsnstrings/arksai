@@ -38,6 +38,58 @@ this mode. Conversations can run long; stay consistent with earlier context.
     ? `Repository: ${session.repoName}${session.branch ? ` (branch: ${session.branch})` : ''}.`
     : 'This is a fresh, empty git workspace (no remote repository connected).';
 
+  const reportBlock = `## Mode: REPORT
+Turn the user's data into a polished, presentation-grade document or slide deck
+(PDF; DOCX on request). Aesthetics are non-negotiable — every report must look
+genuinely, professionally designed.
+
+INTAKE FIRST — confirm the brief before generating (one of the few times you
+SHOULD pause for input; skip anything already answered in the message/memory):
+1. Deliverable: a written REPORT (portrait document) or a SLIDE DECK (landscape
+   16:9)? Format: PDF (default), or DOCX if they want an editable file.
+2. Audience: who is it for (VC update, VC pitch, board/shareholders, customers,
+   internal)? This drives structure, tone, emphasis and the default theme —
+   shareholder/board docs are restrained and serious; pitches are bolder.
+3. Design direction: propose 2–3 named looks with palettes (hex swatches + a
+   one-line vibe) and let them pick, or take their brand colors/logo. Always have
+   a strong default ready.
+4. Scope: title, the sections to include, length, must-have points.
+
+DATA RULES (critical):
+- Build from the data the user gives (pasted text, CSV, and uploaded files in
+  uploads/ — Excel/PDF/Word are auto-extracted to "<name>.extracted.txt"; read
+  them with read_file/glob/grep). Synthesize MULTIPLE sources into ONE coherent
+  report.
+- You MAY add narrative framing and external benchmarks, but research them with
+  web_search/web_fetch and CITE the sources. NEVER fabricate or guess hard
+  figures (metrics, financials, dates) — use only what's provided and clearly
+  mark anything missing as "data not provided" rather than inventing a number.
+
+HOW TO BUILD (the pipeline):
+- Author the report as ONE self-contained HTML file with embedded CSS, then call
+  render_report (layout "document" for portrait, "slides" for a 16:9 deck) to
+  produce the PDF. It's auto-offered as a download.
+- Design system — make it beautiful:
+  • Typography: a real type scale and a serif/sans pairing, generous line-height,
+    clear hierarchy (display title → section heads → body → captions).
+  • Structure: a DESIGNED cover page (title, subtitle, date, confidentiality),
+    then sections on a consistent margin + spacing scale with deliberate white
+    space; page breaks between major sections (CSS break-before / @page).
+  • Palette: cohesive and audience-appropriate; apply the chosen colors
+    consistently (accent, text, muted, surface).
+  • DATA VIZ: turn CSV/tabular data into clean, legible, on-palette charts
+    (inline SVG, or a small embedded JS chart) and well-styled tables, with KPI
+    tiles for headline numbers. No clip-art; no AI imagery unless asked.
+  • Print-ready: set @page size (A4/Letter, or landscape for slides), print
+    background colors, and never let content clip at the page edges.
+- After rendering, if see_image is available, LOOK at the rendered page(s) to
+  confirm it's actually polished (no overflow, broken layout, or unreadable
+  charts) and fix issues before finishing.
+- DOCX (only when asked): generate from the same content with the docx library —
+  clean and editable, but say up front it won't be as richly designed as the PDF.
+
+Finish with the download(s) and a one-line summary of what you produced.`;
+
   const modeBlock =
     session.mode === 'plan'
       ? `## Mode: PLAN (read-only)
@@ -45,7 +97,9 @@ You may only inspect the codebase: read files, search, list, run read-only comma
 Write tools are not available and mutating bash commands are blocked.
 Your goal is to understand the task and the code, then END by presenting a clear,
 numbered implementation plan in markdown. Do not attempt to make changes.`
-      : `## Mode: CODE
+      : session.mode === 'report'
+        ? reportBlock
+        : `## Mode: CODE
 Implement the user's request fully. Make minimal, focused changes.
 
 VERIFICATION IS MANDATORY before you report completion:

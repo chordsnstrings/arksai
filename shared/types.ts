@@ -4,12 +4,12 @@
  * client timeline reducer — change it here and both sides follow.
  */
 
-export type SessionMode = 'chat' | 'plan' | 'code';
+export type SessionMode = 'chat' | 'plan' | 'code' | 'report';
 export type SessionStatus = 'idle' | 'running' | 'done' | 'error';
 /** Any DeepSeek model id. The selectable list is fetched live from /api/models. */
 export type ModelId = string;
 
-export const SESSION_MODES: SessionMode[] = ['chat', 'plan', 'code'];
+export const SESSION_MODES: SessionMode[] = ['chat', 'plan', 'code', 'report'];
 
 export const DEFAULT_MODEL = 'deepseek-v4-flash';
 /** Used when the live model list can't be fetched. */

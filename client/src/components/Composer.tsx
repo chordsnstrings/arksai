@@ -87,8 +87,8 @@ export function Composer({
         sys('Commands:\n' + COMMANDS.map((c) => `/${c.name}${c.arg ? ' ' + c.arg : ''} — ${c.desc}`).join('\n'));
         break;
       case 'mode':
-        if (['chat', 'plan', 'code'].includes(args)) await setMode(args as SessionMode);
-        else sys('Usage: /mode chat|plan|code', 'error');
+        if (['chat', 'plan', 'code', 'report'].includes(args)) await setMode(args as SessionMode);
+        else sys('Usage: /mode chat|plan|code|report', 'error');
         break;
       case 'model':
         if (!args) sys('Available models:\n' + (modelIds.length ? modelIds : FALLBACK_MODEL_IDS).map((id) => `${id}${id === meta.model ? '  (current)' : ''}`).join('\n'));
@@ -382,6 +382,9 @@ export function Composer({
             </button>
             <button className={meta.mode === 'code' ? 'on' : ''} onClick={() => setMode('code')}>
               Code
+            </button>
+            <button className={meta.mode === 'report' ? 'on' : ''} onClick={() => setMode('report')}>
+              Report
             </button>
           </div>
           <span className="spacer" />

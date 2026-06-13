@@ -60,6 +60,7 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }) {
               <option value="code">Code</option>
               <option value="plan">Plan</option>
               <option value="chat">Chat</option>
+              <option value="report">Report</option>
             </select>
           </div>
         </div>
