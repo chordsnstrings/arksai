@@ -102,6 +102,7 @@ export async function probeApp(
   dir: string,
   startCmd: string,
   signal: AbortSignal,
+  opts?: { visual?: boolean },
 ): Promise<ProbeReport> {
   const empty = (detail: string): ProbeReport => ({
     booted: false,
@@ -192,7 +193,7 @@ export async function probeApp(
     let ui: UiCheckResult | null = null;
     const servesHtml = /<!doctype html|<html[\s>]/i.test(root.text);
     if (baseOk && servesHtml && !signal.aborted) {
-      ui = await browserSmokeTest(`http://127.0.0.1:${port}/`, signal);
+      ui = await browserSmokeTest(`http://127.0.0.1:${port}/`, signal, { visual: opts?.visual });
     }
 
     const lines = checks.map((c) => `  ${c.method} ${c.path} → ${c.code ?? 'no response'}${c.note ? '  ' + c.note : ''}`);

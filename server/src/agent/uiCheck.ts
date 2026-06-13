@@ -14,6 +14,9 @@ export interface UiCheckResult {
   failedRequests: string[]; // same-origin 4xx/5xx
   /** MiniMax-VL visual judgment of the screenshot, when vision is available */
   visualReview?: string;
+  /** Design rubric verdict (visual tasks): gating signal for the design loop */
+  designVerdict?: 'pass' | 'revise' | 'unknown';
+  designDefects?: string[];
   detail: string;
 }
 
@@ -22,6 +25,33 @@ const VISION_PROMPT =
   'correctly and visually coherent? Check for: a blank/empty page, broken or unstyled layout, ' +
   'overlapping or cut-off elements, visible error messages, or missing images. Answer "OK" if it ' +
   'looks fine, otherwise briefly list the visual problems, one per line.';
+
+const DESIGN_RUBRIC_PROMPT =
+  'You are a senior design director reviewing a screenshot of a UI a junior built. Judge it against ' +
+  'this rubric: typography (clear scale & hierarchy, readable), spacing & alignment (consistent rhythm, ' +
+  'on a grid, not cramped or sparsely empty), visual hierarchy, colour (restrained, strong contrast, ' +
+  'accent used sparingly), component polish & states, and overall "does this look professionally designed". ' +
+  'Respond EXACTLY in this format and nothing else:\n' +
+  'First line: "VERDICT: PASS" if it already looks genuinely well-designed, or "VERDICT: REVISE" if a ' +
+  'competent designer would change something.\n' +
+  'Then up to 5 lines, each one SHORT, concrete, fixable defect (what + where), prefixed "- ". ' +
+  'No preamble, no praise.';
+
+/** Parse the design-director response into a verdict + concrete defects. Pure. */
+export function parseDesignVerdict(text: string): { verdict: 'pass' | 'revise' | 'unknown'; defects: string[] } {
+  const lines = String(text || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const m = String(text || '').match(/verdict\s*:\s*(pass|revise)/i);
+  const verdict = m ? (m[1].toLowerCase() as 'pass' | 'revise') : 'unknown';
+  const defects = lines
+    .filter((l) => /^[-*•]/.test(l))
+    .map((l) => l.replace(/^[-*•]\s*/, '').trim())
+    .filter(Boolean)
+    .slice(0, 5);
+  return { verdict, defects };
+}
 
 const base: UiCheckResult = {
   ran: false,
@@ -46,7 +76,11 @@ const dedupe = (a: string[]) => [...new Set(a)].slice(0, 8);
  * blank-page check. Degrades gracefully (ran=false) when Playwright/Chromium
  * isn't available, so it never breaks a run.
  */
-export async function browserSmokeTest(url: string, signal: AbortSignal): Promise<UiCheckResult> {
+export async function browserSmokeTest(
+  url: string,
+  signal: AbortSignal,
+  opts?: { visual?: boolean },
+): Promise<UiCheckResult> {
   if (signal.aborted) return { ...base, detail: 'Browser check skipped: aborted.' };
 
   let pw: any;
@@ -110,17 +144,28 @@ export async function browserSmokeTest(url: string, signal: AbortSignal): Promis
     const fr = dedupe(failedRequests);
     const hardFail = docFailed || blank || pe.length > 0 || fr.length > 0;
 
-    // True visual judgment: if MiniMax vision is configured, actually LOOK at
-    // the page (DeepSeek can't). Advisory — surfaced, not a hard gate.
+    // True visual judgment: if vision is configured, actually LOOK at the page
+    // (the text-only model can't). For visual tasks run the DESIGN RUBRIC (gating
+    // signal); otherwise the lightweight "is it broken" check.
     let visualReview: string | undefined;
+    let designVerdict: 'pass' | 'revise' | 'unknown' | undefined;
+    let designDefects: string[] | undefined;
     if (config.minimaxApiKey && !signal.aborted) {
       try {
-        const shot = (await page.screenshot({ type: 'png', fullPage: false })) as Buffer;
+        const shot = (await page.screenshot({ type: 'png', fullPage: !!opts?.visual })) as Buffer;
         const dataUrl = `data:image/png;base64,${shot.toString('base64')}`;
-        const r = await analyzeImage(dataUrl, VISION_PROMPT, signal);
-        if (r.ok && r.text) visualReview = r.text.trim();
+        const prompt = opts?.visual ? DESIGN_RUBRIC_PROMPT : VISION_PROMPT;
+        const r = await analyzeImage(dataUrl, prompt, signal);
+        if (r.ok && r.text) {
+          visualReview = r.text.trim();
+          if (opts?.visual) {
+            const v = parseDesignVerdict(r.text);
+            designVerdict = v.verdict;
+            designDefects = v.defects;
+          }
+        }
       } catch {
-        /* vision is a bonus signal — never let it break verification */
+        /* vision is additive here — never let it break verification */
       }
     }
 
@@ -133,7 +178,13 @@ export async function browserSmokeTest(url: string, signal: AbortSignal): Promis
     if (fr.length) lines.push(`✗ Failed requests (same-origin):\n  - ${fr.join('\n  - ')}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
     if (!hardFail && !ce.length) lines.push('✓ UI rendered cleanly — no errors, no failed requests.');
-    if (visualReview) lines.push(`👁 Visual review (MiniMax-VL): ${visualReview}`);
+    if (designVerdict === 'revise' && designDefects?.length) {
+      lines.push(`👁 Design review — REVISE:\n  - ${designDefects.join('\n  - ')}`);
+    } else if (designVerdict === 'pass') {
+      lines.push('👁 Design review — PASS (looks well designed).');
+    } else if (visualReview) {
+      lines.push(`👁 Visual review: ${visualReview}`);
+    }
 
     return {
       ran: true,
@@ -147,6 +198,8 @@ export async function browserSmokeTest(url: string, signal: AbortSignal): Promis
       pageErrors: pe,
       failedRequests: fr,
       visualReview,
+      designVerdict,
+      designDefects,
       detail: lines.join('\n'),
     };
   } catch (e: any) {

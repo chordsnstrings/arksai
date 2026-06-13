@@ -24,6 +24,7 @@ import { isAutoModel, MAX_MODEL } from '../../../shared/types';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
 const PREVIEW_CHARS = 700;
+const MAX_DESIGN_ROUNDS = 2; // bounded internal design-critique iterations
 
 interface AccToolCall {
   id: string;
@@ -105,6 +106,7 @@ export class AgentRun {
   private runningTasks = 0;
   private mutated = false; // did this run change files? (triggers the verify gate)
   private verifyRounds = 0;
+  private designRounds = 0; // bounded gating design-critique rounds (separate budget)
   private didRuntimeTest = false; // did the agent curl a running server this run?
   private flowRequired = false; // have we already asked it to demo the flow?
   private engineCostUsd = 0; // external-engine spend this run (e.g. Suno)
@@ -214,6 +216,27 @@ export class AgentRun {
         id: randomUUID(),
         level: 'info',
         text: `↳ Reports use a stronger model — switched to ${KNOWN_MODELS[target]?.label ?? target}.`,
+        ts: Date.now(),
+      };
+      liveItems.push(item);
+      this.emit({ type: 'timeline_item', item });
+    }
+    // Non-trivial VISUAL builds shouldn't be done by the cheapest brain either —
+    // quality + the gating design loop want a stronger model. (Cheap tweaks stay
+    // light: EASY tasks already classify as tier 'light'.)
+    if (
+      this.session.mode === 'code' &&
+      this.taskProfile?.isVisual &&
+      this.taskProfile.tier !== 'light' &&
+      this.activeModel === 'deepseek-v4-flash'
+    ) {
+      const target = this.minimaxAvailable ? MAX_MODEL : 'deepseek-v4-pro';
+      this.setActiveModel(target);
+      const item: TimelineItem = {
+        kind: 'system',
+        id: randomUUID(),
+        level: 'info',
+        text: `↳ Polished UI work uses a stronger model — switched to ${KNOWN_MODELS[target]?.label ?? target}.`,
         ts: Date.now(),
       };
       liveItems.push(item);
@@ -659,13 +682,40 @@ export class AgentRun {
     // Clean any dev server the agent left running so the probe gets the port.
     processRegistry.killAllForSession(this.session.id);
     sys('info', '⟳ Booting the app and exercising its endpoints (seeding real data)…');
-    const probe = await probeApp(this.session.id, dir, startCmd, this.abort.signal);
+    const probe = await probeApp(this.session.id, dir, startCmd, this.abort.signal, {
+      visual: this.taskProfile?.isVisual,
+    });
     if (probe.ui?.visualReview) this.engineCostUsd += config.minimaxVisionCost; // vision spend
     if (!probe.booted || probe.serverErrors > 0) {
       return failFix(probe.serverErrors > 0 ? 'the app errors at runtime' : 'the app does not run', probe.detail);
     }
     if (probe.ui?.hardFail) {
       return failFix('the UI does not render correctly', probe.detail);
+    }
+    // Gating DESIGN critique (visual tasks): the agent must fix concrete defects
+    // and re-render, bounded — so the user gets a polished result without
+    // iterating. Then PASS-with-warnings (never block on subjective taste).
+    if (
+      config.designGate &&
+      this.taskProfile?.isVisual &&
+      probe.ui?.designVerdict === 'revise' &&
+      probe.ui.designDefects?.length
+    ) {
+      if (this.designRounds < MAX_DESIGN_ROUNDS) {
+        this.designRounds++;
+        const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
+        if (next !== this.activeModel) this.setActiveModel(next);
+        sys('info', `↻ Design review wants improvements — refining (round ${this.designRounds}).`);
+        context.push({
+          role: 'user',
+          content:
+            `A design review of the rendered UI flagged these concrete, fixable issues. The result must look ` +
+            `genuinely polished, so fix them and the page will be re-reviewed:\n- ${probe.ui.designDefects.join('\n- ')}`,
+        });
+        return 'retry';
+      }
+      sys('info', `✓ Verified — ${probe.detail}\n(design review noted minor items; delivering.)`);
+      return 'ok';
     }
     sys('info', `✓ Verified — ${probe.detail}`);
     return 'ok';
