@@ -550,6 +550,9 @@ export class AgentRun {
     if (!probe.booted || probe.serverErrors > 0) {
       return failFix(probe.serverErrors > 0 ? 'the app errors at runtime' : 'the app does not run', probe.detail);
     }
+    if (probe.ui?.hardFail) {
+      return failFix('the UI does not render correctly', probe.detail);
+    }
     sys('info', `✓ Verified — ${probe.detail}`);
     return 'ok';
   }

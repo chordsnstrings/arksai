@@ -1,6 +1,7 @@
 import { execBash } from '../lib/exec';
 import { listeningPorts } from '../lib/ports';
 import { processRegistry } from './processes';
+import { browserSmokeTest, type UiCheckResult } from './uiCheck';
 
 export interface ProbeCheck {
   method: string;
@@ -16,6 +17,7 @@ export interface ProbeReport {
   serverErrors: number; // count of 5xx / crashes
   roundTrip: boolean; // a create -> read-back succeeded
   routesFound: number;
+  ui: UiCheckResult | null; // headless-browser UI render check (HTML apps only)
   detail: string;
 }
 
@@ -109,6 +111,7 @@ export async function probeApp(
     serverErrors: 0,
     roundTrip: false,
     routesFound: 0,
+    ui: null,
     detail,
   });
 
@@ -183,15 +186,27 @@ export async function probeApp(
 
     const baseOk = root.code !== null && root.code > 0 && root.code < 500;
     const booted = baseOk && serverErrors === 0;
+
+    // UI smoke test: for HTML apps, load it in a real headless browser and check
+    // it actually renders (no uncaught errors, no blank page, assets resolve).
+    let ui: UiCheckResult | null = null;
+    const servesHtml = /<!doctype html|<html[\s>]/i.test(root.text);
+    if (baseOk && servesHtml && !signal.aborted) {
+      ui = await browserSmokeTest(`http://127.0.0.1:${port}/`, signal);
+    }
+
     const lines = checks.map((c) => `  ${c.method} ${c.path} → ${c.code ?? 'no response'}${c.note ? '  ' + c.note : ''}`);
     let detail =
       `App booted on port ${port}. Base / → ${root.code ?? 'no response'}.\n` +
       (routes.length ? `Exercised ${checks.length} route(s):\n${lines.join('\n')}` : 'No routes discovered from source.') +
       (roundTrip ? '\n✓ Verified a create→read-back flow end-to-end.' : '');
+    if (ui && ui.ran) detail += `\n\n--- UI render check ---\n${ui.detail}`;
     if (serverErrors > 0) {
       detail += `\n\n✗ ${serverErrors} endpoint(s) returned a 5xx — the app is erroring.\nLogs:\n${processRegistry.tail(proc.id, 25)}`;
     } else if (!baseOk) {
       detail += `\n\n✗ The app did not serve a healthy base response.\nLogs:\n${processRegistry.tail(proc.id, 25)}`;
+    } else if (ui && ui.hardFail) {
+      detail += `\n\nLogs:\n${processRegistry.tail(proc.id, 25)}`;
     }
 
     return {
@@ -202,6 +217,7 @@ export async function probeApp(
       serverErrors,
       roundTrip,
       routesFound: routes.length,
+      ui,
       detail,
     };
   } finally {

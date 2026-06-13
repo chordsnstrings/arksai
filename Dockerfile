@@ -26,6 +26,11 @@ RUN npm install -g exceljs pdfkit docx xlsx && npm cache clean --force
 ENV NODE_PATH=/usr/local/lib/node_modules
 WORKDIR /app
 COPY --from=build /app /app
+# Headless Chromium for the UI render verification (Playwright). Installed to a
+# shared path so the non-root `node` runtime user can read it.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN npx playwright install --with-deps chromium && \
+    chmod -R a+rx /ms-playwright
 ENV NODE_ENV=production \
     PORT=3000 \
     DATA_DIR=/data \
