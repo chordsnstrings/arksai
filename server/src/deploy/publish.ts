@@ -4,10 +4,15 @@ import { randomUUID } from 'node:crypto';
 import { execBash } from '../lib/exec';
 import { listeningPorts } from '../lib/ports';
 import { detectStartCommand } from '../agent/verify';
+import { browserSmokeTest } from '../agent/uiCheck';
+import { config } from '../config';
 import { repoDir } from '../sessions/workspace';
 import * as store from '../sessions/store';
 import { deploymentRegistry, deploymentDir } from './registry';
 import type { Deployment, DeploymentKind } from '../../../shared/types';
+
+/** A published deployment plus the result of smoke-testing its live public URL. */
+export type PublishResult = Deployment & { verifyDetail?: string; verifyOk?: boolean };
 
 function slugify(name: string): string {
   return (
@@ -30,7 +35,7 @@ async function uniqueSlug(base: string): Promise<string> {
 }
 
 /** Snapshot a session's built app into a durable dir and serve/run it at a slug URL. */
-export async function publishSession(sessionId: string, name?: string): Promise<Deployment> {
+export async function publishSession(sessionId: string, name?: string): Promise<PublishResult> {
   const session = await store.getSession(sessionId);
   if (!session) throw new Error('session not found');
   const src = repoDir(sessionId);
@@ -78,7 +83,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     if (!bound) status = 'error';
   }
 
-  return store.createDeployment({
+  const dep = await store.createDeployment({
     id: randomUUID(),
     sessionId,
     projectId: session.projectId,
@@ -89,6 +94,35 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     url: `/apps/${slug}/`,
     port,
   });
+
+  // POST-PUBLISH verification — smoke-test the REAL public URL the user will
+  // open (`/apps/<slug>/`, served by this same server), so they never get a
+  // broken link. On a hard failure mark it errored and hand the defect back to
+  // the agent to fix + republish. Bounded + best-effort (degrades to a pass if
+  // Playwright/Chromium is unavailable, e.g. in a bare sandbox).
+  let verifyDetail: string | undefined;
+  let verifyOk = true;
+  if (status !== 'error') {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 30_000);
+    try {
+      const ui = await browserSmokeTest(`http://127.0.0.1:${config.port}/apps/${slug}/`, ac.signal);
+      if (ui.ran && ui.hardFail) {
+        verifyOk = false;
+        await store.updateDeployment(slug, { status: 'error' });
+        dep.status = 'error';
+        verifyDetail = ui.detail;
+      } else if (ui.ran) {
+        verifyDetail = 'Post-publish check: the live URL renders cleanly in a headless browser.';
+      }
+    } catch {
+      /* never block a publish on the checker itself */
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return Object.assign(dep, { verifyDetail, verifyOk });
 }
 
 export async function stopDeployment(slug: string) {

@@ -23,9 +23,14 @@ export const publishAppTool: ToolDef = {
     try {
       const dep = await publishSession(ctx.session.id, args.name ? String(args.name) : undefined);
       if (dep.status === 'error') {
-        return `Snapshotted to ${dep.url}, but the server app didn't start — verify it boots with its start command, then republish.`;
+        const why = dep.verifyDetail ? `\n\n${dep.verifyDetail}` : '';
+        return (
+          `Published to ${dep.url}, but the LIVE app FAILED verification — do NOT give this URL to the user yet. ` +
+          `Diagnose and fix the issue, then call publish_app again to republish.${why}`
+        );
       }
-      return `Published live at ${dep.url} (${dep.kind}). The user can open it now; it stays up across sessions and server restarts.`;
+      const verified = dep.verifyDetail ? ` ${dep.verifyDetail}` : '';
+      return `Published live at ${dep.url} (${dep.kind}).${verified} The user can open it now; it stays up across sessions and server restarts.`;
     } catch (e: any) {
       return `Error: publish failed — ${e?.message ?? e}`;
     }

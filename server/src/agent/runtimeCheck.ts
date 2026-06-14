@@ -78,7 +78,33 @@ async function discoverRoutes(dir: string, signal: AbortSignal): Promise<{ metho
   return out.slice(0, MAX_ROUTES);
 }
 
-const hasParam = (p: string) => /[:{<]/.test(p);
+/** A seed value for a single route param, by name (so :id stays numeric-ish). */
+function paramValue(name: string): string {
+  const n = name.toLowerCase();
+  if (/slug/.test(n)) return 'arksai-verify';
+  if (/(^|_)(id|pk|num|count|page|index)$/.test(n) || n === 'id') return '1';
+  return 'arksai-verify';
+}
+
+/**
+ * Fill route params with seed values so parameterized routes are actually
+ * exercised instead of skipped: Express `:id`, brace `{id}`, Flask/FastAPI
+ * `<id>` / `<int:id>`. Returns null for catch-all/wildcard routes we can't
+ * meaningfully hit. A handler that 404s on a missing record is fine; one that
+ * 5xx-crashes is exactly the bug this surfaces.
+ */
+export function fillParams(p: string): string | null {
+  if (p.includes('*')) return null;
+  // Angle-bracket form first (Flask/FastAPI `<int:id>`) — it contains a colon
+  // that the Express `:param` rule would otherwise grab.
+  let out = p
+    .replace(/<(?:[a-zA-Z_]+:)?([a-zA-Z_][\w]*)>/g, (_m, name) => paramValue(name))
+    .replace(/\{([a-zA-Z_][\w]*)\}/g, (_m, name) => paramValue(name))
+    .replace(/:([a-zA-Z_][\w]*)\??/g, (_m, name) => paramValue(name));
+  // Any leftover param syntax means we couldn't fully resolve it — skip.
+  if (/[:{}<>]/.test(out)) return null;
+  return out;
+}
 
 async function curl(method: string, url: string, dir: string, signal: AbortSignal, body?: string) {
   const data = body ? `-X ${method} -H 'Content-Type: application/json' -d ${JSON.stringify(body)}` : `-X ${method}`;
@@ -157,19 +183,25 @@ export async function probeApp(
     const writePaths: string[] = [];
     for (const r of routes) {
       if (signal.aborted) break;
-      if (r.method === 'GET' && !hasParam(r.path)) {
-        const res = await curl('GET', base + r.path, dir, signal);
-        checks.push({ method: 'GET', path: r.path, code: res.code, note: note5xx(res.code) });
-      } else if (r.method === 'POST' && !hasParam(r.path)) {
-        const res = await curl('POST', base + r.path, dir, signal, SEED);
+      const reqPath = fillParams(r.path);
+      if (reqPath === null) continue; // wildcard / unresolvable param route
+      const paramNote = reqPath !== r.path ? ' [param-filled]' : '';
+      if (r.method === 'GET') {
+        const res = await curl('GET', base + reqPath, dir, signal);
+        checks.push({ method: 'GET', path: r.path, code: res.code, note: note5xx(res.code) + paramNote });
+      } else if (r.method === 'POST') {
+        const res = await curl('POST', base + reqPath, dir, signal, SEED);
         const ok2xx = res.code !== null && res.code >= 200 && res.code < 300;
         checks.push({
           method: 'POST',
           path: r.path,
           code: res.code,
-          note: note5xx(res.code) || (ok2xx ? 'seeded' : res.code && res.code < 500 ? '(payload rejected)' : ''),
+          note:
+            (note5xx(res.code) || (ok2xx ? 'seeded' : res.code && res.code < 500 ? '(payload rejected)' : '')) +
+            paramNote,
         });
-        if (ok2xx) writePaths.push(r.path);
+        // Only round-trip-check param-free write paths (a filled :id may not be GETtable).
+        if (ok2xx && reqPath === r.path) writePaths.push(r.path);
       }
     }
 

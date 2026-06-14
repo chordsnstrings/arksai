@@ -138,6 +138,52 @@ export async function browserSmokeTest(
     const renderedTextLen = info.text.length;
     const domNodes = info.nodes;
     const blank = renderedTextLen < 1 && domNodes < 15; // nothing meaningful rendered
+
+    // Interaction pass: a real user clicks things. Seed visible inputs, submit
+    // the first visible form, and click a few non-destructive primary buttons —
+    // then the error listeners below capture any client-side errors that only
+    // fire on interaction (the class of bug a static load never reveals).
+    let interacted = false;
+    if (!blank && !signal.aborted) {
+      try {
+        interacted = await page.evaluate(() => {
+          const d: any = (globalThis as any).document;
+          const vis = (el: any) => el && !el.disabled && el.offsetParent !== null;
+          let did = false;
+          for (const el of Array.from(d.querySelectorAll('input,textarea')) as any[]) {
+            const t = (el.type || 'text').toLowerCase();
+            if (!vis(el) || ['hidden', 'submit', 'button', 'file', 'checkbox', 'radio', 'range', 'color'].includes(t))
+              continue;
+            el.value = t === 'email' ? 'verify@arksai.test' : t === 'number' ? '1' : 'ArksAIVerify';
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            did = true;
+          }
+          const form = (Array.from(d.querySelectorAll('form')) as any[]).find(vis);
+          if (form && typeof form.requestSubmit === 'function') {
+            try {
+              form.requestSubmit();
+              did = true;
+            } catch {}
+          }
+          const danger = /delete|remove|sign\s*out|log\s*out|reset|clear|cancel|destroy/i;
+          const btns = (Array.from(d.querySelectorAll('button,[role="button"],input[type="submit"]')) as any[])
+            .filter((b) => vis(b) && !danger.test(String(b.innerText || b.value || '')))
+            .slice(0, 3);
+          for (const b of btns) {
+            try {
+              b.click();
+              did = true;
+            } catch {}
+          }
+          return did;
+        });
+        if (interacted) await page.waitForTimeout(900); // let handlers run / re-render
+      } catch {
+        /* interaction is best-effort; never let it break the check */
+      }
+    }
+
     const docFailed = !resp || resp.status() >= 400;
     const ce = dedupe(consoleErrors);
     const pe = dedupe(pageErrors);
@@ -177,6 +223,7 @@ export async function browserSmokeTest(
     if (pe.length) lines.push(`✗ Uncaught JS errors:\n  - ${pe.join('\n  - ')}`);
     if (fr.length) lines.push(`✗ Failed requests (same-origin):\n  - ${fr.join('\n  - ')}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
+    if (interacted) lines.push('• Interaction pass ran (seeded inputs, submitted a form, clicked primary actions).');
     if (!hardFail && !ce.length) lines.push('✓ UI rendered cleanly — no errors, no failed requests.');
     if (designVerdict === 'revise' && designDefects?.length) {
       lines.push(`👁 Design review — REVISE:\n  - ${designDefects.join('\n  - ')}`);
