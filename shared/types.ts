@@ -133,6 +133,8 @@ export interface SessionMeta {
   mode: SessionMode;
   model: ModelId;
   status: SessionStatus;
+  /** Department task key (e.g. "finance.cashflow") → injects expert standards. */
+  task: string | null;
   diffStat: string | null;
   totalTokens: number;
   promptTokens: number;
@@ -235,6 +237,8 @@ export interface CreateSessionRequest {
   model?: ModelId;
   /** create this session inside a project — it inherits the project's defaults */
   projectId?: string;
+  /** department task key (e.g. "finance.cashflow") for expert standards */
+  task?: string;
 }
 
 // ---- Projects (persistent workspaces: instructions + knowledge + defaults) ----

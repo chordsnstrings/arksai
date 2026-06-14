@@ -50,13 +50,13 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
 
   // One-step: create a session in the right mode and send the brief immediately
   // (send BEFORE activating so the loaded timeline already has the first message).
-  const run = async (prompt: string, mode: SessionMode, model: string = AUTO_MODEL) => {
+  const run = async (prompt: string, mode: SessionMode, model: string = AUTO_MODEL, task?: string) => {
     const brief = prompt.trim();
     if (!brief || busy) return;
     setBusy(true);
     setError('');
     try {
-      const session = await api.createSession({ mode, model });
+      const session = await api.createSession({ mode, model, task });
       await api.sendMessage(session.id, brief);
       upsertSession(session);
       setActive(session.id);
@@ -147,7 +147,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
                     <button
                       key={p.title}
                       className="play-card"
-                      onClick={() => run(p.prompt, p.mode, p.model)}
+                      onClick={() => run(p.prompt, p.mode, p.model, p.key)}
                       disabled={busy}
                     >
                       <span className="play-ico">

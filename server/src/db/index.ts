@@ -171,6 +171,7 @@ async function migrate() {
     `completion_tokens ${INT} NOT NULL DEFAULT 0`,
     `cost_usd ${REAL} NOT NULL DEFAULT 0`,
     `project_id TEXT`,
+    `task TEXT`,
   ]) {
     try {
       await q(`ALTER TABLE sessions ADD COLUMN ${col}`);

@@ -31,6 +31,7 @@ function rowToMeta(row: any): SessionMeta {
     mode: row.mode as SessionMode,
     model: row.model as ModelId,
     status: row.status as SessionStatus,
+    task: row.task ?? null,
     diffStat: row.diff_stat,
     totalTokens: Number(row.total_tokens),
     promptTokens: Number(row.prompt_tokens ?? 0),
@@ -48,13 +49,14 @@ export async function createSession(opts: {
   mode: SessionMode;
   model: ModelId;
   projectId?: string | null;
+  task?: string | null;
 }): Promise<SessionMeta> {
   const now = Date.now();
   const id = randomUUID();
   await q(
-    `INSERT INTO sessions(id, title, project_id, repo_url, repo_name, branch, mode, model, status, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'idle', $9, $10)`,
-    [id, 'New session', opts.projectId ?? null, opts.repoUrl, opts.repoName, opts.branch, opts.mode, opts.model, now, now],
+    `INSERT INTO sessions(id, title, project_id, repo_url, repo_name, branch, mode, model, status, task, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'idle', $9, $10, $11)`,
+    [id, 'New session', opts.projectId ?? null, opts.repoUrl, opts.repoName, opts.branch, opts.mode, opts.model, opts.task ?? null, now, now],
   );
   return (await getSession(id))!;
 }

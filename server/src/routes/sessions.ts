@@ -46,6 +46,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
       mode,
       model,
       projectId: project?.id ?? null,
+      task: typeof body.task === 'string' ? body.task.slice(0, 60) : null,
     });
     bus.emitGlobal({ type: 'session_status', session });
     void setupWorkspace(session).catch((err) => console.error('[workspace]', err));

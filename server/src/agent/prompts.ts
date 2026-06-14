@@ -1,6 +1,7 @@
 import type { SessionMeta } from '../../../shared/types';
 import { config } from '../config';
 import { designContext } from './designSystem';
+import { expertiseFor } from './expertise';
 import type { TaskProfile, TaskType } from './taskProfile';
 
 /** The few targeted questions to ask up front, by deliverable type. */
@@ -63,6 +64,10 @@ export function buildSystemPrompt(
   profile?: TaskProfile,
 ): string {
   const mem = memoryBlock ? `\n\n${memoryBlock}` : '';
+  // Domain-rigor layer: when started from a department task, inject the expert
+  // standards that make THAT deliverable genuinely good.
+  const expertise = expertiseFor(session.task);
+  const exp = expertise ? `\n\n${expertise}` : '';
   if (session.mode === 'chat') {
     const imageNote = config.minimaxApiKey
       ? `\n- IMAGES the user uploads can't be read as text — call see_image with the file
@@ -87,7 +92,7 @@ don't ask permission:
 - A polished PDF, slide DECK, or designed REPORT → switch_mode('report').
 Call switch_mode and proceed in one go; tell the user in ONE short line that you've
 switched ("Switching to build this…"). Only switch for genuine build/deliverable
-needs — ordinary questions, explanations, and research stay in CHAT.
+needs — ordinary questions, explanations, and research stay in CHAT.${exp}
 
 ## Style
 - Be direct and concise. Use markdown and code blocks where they help.
@@ -393,7 +398,7 @@ ${workspaceLine}${mem}
   messages. Then verify with bash (curl), inspect logs with bash_output, and
   stop it with kill_process when you are done.
 
-${modeBlock}
+${modeBlock}${exp}
 
 ## Style
 - Be concise. Write short prose between tool calls explaining what you're doing.
