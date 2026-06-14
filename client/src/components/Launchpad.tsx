@@ -1,50 +1,63 @@
 import { useState } from 'react';
+import type { SessionMode } from '@shared/types';
 import { AUTO_MODEL } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
+import { DEPARTMENTS, ICONS, departmentById, type IconName } from '../lib/departments';
 
-/** Curated, click-to-fill starting points so a newcomer never faces a blank box. */
-const EXAMPLES = [
-  {
-    emoji: '🎨',
-    title: 'A personal portfolio site',
-    prompt: 'Build me a clean, modern personal portfolio website with an about section, a projects grid, and a contact form.',
-  },
-  {
-    emoji: '✅',
-    title: 'A habit-tracker web app',
-    prompt: 'Build a habit-tracker web app where I can add daily habits, check them off, and see my weekly streak.',
-  },
-  {
-    emoji: '📊',
-    title: 'Turn data into a polished report',
-    prompt: 'Turn my data into a polished, presentation-ready PDF report with charts and the key takeaways.',
-  },
-  {
-    emoji: '💰',
-    title: 'A budgeting spreadsheet',
-    prompt: 'Create a budgeting spreadsheet with monthly income, categorized expenses, and a summary of what’s left over.',
-  },
-];
+const LS_KEY = 'arksai.department';
+
+function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      dangerouslySetInnerHTML={{ __html: ICONS[name] }}
+    />
+  );
+}
 
 export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
+  const [deptId, setDeptId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(LS_KEY);
+    } catch {
+      return null;
+    }
+  });
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const upsertSession = useStore((s) => s.upsertSession);
   const setActive = useStore((s) => s.setActive);
+  const dept = departmentById(deptId);
 
-  const go = async (value?: string) => {
-    const prompt = (value ?? text).trim();
-    if (!prompt || busy) return;
+  const pickDept = (id: string) => {
+    setDeptId(id);
+    setError('');
+    try {
+      localStorage.setItem(LS_KEY, id);
+    } catch {
+      /* private mode — fine */
+    }
+  };
+
+  // One-step: create a session in the right mode and send the brief immediately
+  // (send BEFORE activating so the loaded timeline already has the first message).
+  const run = async (prompt: string, mode: SessionMode, model: string = AUTO_MODEL) => {
+    const brief = prompt.trim();
+    if (!brief || busy) return;
     setBusy(true);
     setError('');
     try {
-      // Smart defaults: code mode + ArksAI Auto (the orchestrator picks the best
-      // engine per task). Send BEFORE activating so the loaded timeline already
-      // contains the first message — no create/load race.
-      const session = await api.createSession({ mode: 'code', model: AUTO_MODEL });
-      await api.sendMessage(session.id, prompt);
+      const session = await api.createSession({ mode, model });
+      await api.sendMessage(session.id, brief);
       upsertSession(session);
       setActive(session.id);
     } catch (e: any) {
@@ -53,51 +66,112 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
     }
   };
 
-  return (
-    <div className="launchpad">
-      <div className="launchpad-inner">
-        <div className="logo-mark" />
-        <h1 className="launchpad-title">Describe what you want.</h1>
-        <p className="launchpad-sub">
-          Get one finished thing that looks perfect, works perfectly, and is ready to use.
-        </p>
+  const masthead = (
+    <div className="lp-masthead">
+      <span className="lp-mark">
+        <span className="logo-mark sm" /> ARKSAI · STUDIO
+      </span>
+      <span className="lp-tagline">a builder for every team</span>
+    </div>
+  );
 
-        <div className="launchpad-box">
-          <textarea
-            value={text}
-            autoFocus
-            placeholder="e.g. a website for my bakery with a menu and an order form"
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                void go();
-              }
-            }}
-            disabled={busy}
-          />
-          <button className="launchpad-go" onClick={() => void go()} disabled={busy || !text.trim()}>
-            {busy ? 'Starting…' : 'Make it →'}
+  // STEP A — choose your function.
+  if (!dept) {
+    return (
+      <div className="launchpad">
+        <div className="lp-inner">
+          {masthead}
+          <div className="lp-kicker">Get started</div>
+          <h1 className="lp-title">Which team are you building for?</h1>
+          <p className="lp-sub">
+            Pick your function and we’ll show the work it ships — decks, dashboards, sites, reports, and
+            spreadsheets — built, verified, and ready to use.
+          </p>
+          <div className="lp-depts">
+            {DEPARTMENTS.map((d, i) => (
+              <button
+                key={d.id}
+                className="dept-tile"
+                style={{ ['--dept' as any]: d.accent }}
+                onClick={() => pickDept(d.id)}
+              >
+                <span className="dept-no">{String(i + 1).padStart(2, '0')}</span>
+                <span className="dept-ico">
+                  <Icon name={d.icon} size={22} />
+                </span>
+                <span className="dept-body">
+                  <span className="dept-name">{d.name}</span>
+                  <span className="dept-blurb">{d.blurb}</span>
+                </span>
+                <span className="dept-arrow">→</span>
+              </button>
+            ))}
+          </div>
+          <button className="lp-advanced" onClick={onAdvanced} disabled={busy}>
+            Connect a GitHub repo or choose a mode →
           </button>
         </div>
-        {error && <div className="launchpad-error">{error}</div>}
+      </div>
+    );
+  }
 
-        <div className="launchpad-examples">
-          {EXAMPLES.map((ex) => (
-            <button
-              key={ex.title}
-              className="example-card"
-              onClick={() => setText(ex.prompt)}
-              disabled={busy}
-              title="Click to use this idea"
-            >
-              <span className="ex-emoji">{ex.emoji}</span>
-              <span className="ex-title">{ex.title}</span>
+  // STEP B — that team's plays + a free-form brief.
+  return (
+    <div className="launchpad" style={{ ['--dept' as any]: dept.accent }}>
+      <div className="lp-inner">
+        {masthead}
+        <div className="lp-headrow">
+          <div>
+            <div className="lp-kicker dept-tinted">
+              <Icon name={dept.icon} size={13} /> {dept.name}
+            </div>
+            <h1 className="lp-title">What does your team need to ship?</h1>
+          </div>
+          <button className="lp-switch" onClick={() => setDeptId(null)} disabled={busy}>
+            ← teams
+          </button>
+        </div>
+
+        <div className="lp-plays">
+          {dept.plays.map((p, i) => (
+            <button key={p.title} className="play-card" onClick={() => run(p.prompt, p.mode, p.model)} disabled={busy}>
+              <span className="play-no">{String(i + 1).padStart(2, '0')}</span>
+              <span className="play-ico">
+                <Icon name={p.icon} size={18} />
+              </span>
+              <span className="play-body">
+                <span className="play-title">{p.title}</span>
+                <span className="play-blurb">{p.blurb}</span>
+              </span>
             </button>
           ))}
         </div>
 
-        <button className="launchpad-advanced" onClick={onAdvanced} disabled={busy}>
+        <div className="lp-rule" />
+
+        <div className="lp-free">
+          <label className="lp-kicker">Or describe what your team needs</label>
+          <div className="lp-box">
+            <textarea
+              value={text}
+              placeholder={`e.g. ${dept.plays[0].title.toLowerCase()} for our new launch…`}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  void run(text, 'code');
+                }
+              }}
+              disabled={busy}
+            />
+            <button className="lp-go" onClick={() => void run(text, 'code')} disabled={busy || !text.trim()}>
+              {busy ? 'Starting…' : 'Make it →'}
+            </button>
+          </div>
+          {error && <div className="lp-error">{error}</div>}
+        </div>
+
+        <button className="lp-advanced" onClick={onAdvanced} disabled={busy}>
           Connect a GitHub repo or choose a mode →
         </button>
       </div>
