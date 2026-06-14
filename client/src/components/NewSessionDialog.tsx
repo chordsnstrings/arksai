@@ -1,8 +1,16 @@
 import { useState } from 'react';
 import type { ModelId, SessionMode } from '@shared/types';
-import { DEFAULT_MODEL, FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
+import { AUTO_MODEL, DEFAULT_MODEL, FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
+
+/** One-line, confidence-building description of what each mode does. */
+const MODE_DESC: Record<SessionMode, string> = {
+  code: 'Build & ship a working app, site, or tool — verified end-to-end.',
+  plan: 'Explore the code and produce a step-by-step plan (no changes made).',
+  chat: 'Talk it through — questions, review, research. No file changes.',
+  report: 'Turn data into a polished, presentation-grade PDF or slide deck.',
+};
 
 export function NewSessionDialog({
   onClose,
@@ -18,7 +26,10 @@ export function NewSessionDialog({
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('');
   const [mode, setMode] = useState<SessionMode>('code');
-  const [model, setModel] = useState<ModelId>(modelIds.includes(DEFAULT_MODEL) ? DEFAULT_MODEL : modelIds[0]);
+  // Default to ArksAI Auto — the orchestrator picks the best engine per task.
+  const [model, setModel] = useState<ModelId>(
+    modelIds.includes(AUTO_MODEL) ? AUTO_MODEL : modelIds.includes(DEFAULT_MODEL) ? DEFAULT_MODEL : modelIds[0],
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const upsertSession = useStore((s) => s.upsertSession);
@@ -95,6 +106,7 @@ export function NewSessionDialog({
             </select>
           </div>
         </div>
+        <div style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: -4 }}>{MODE_DESC[mode]}</div>
         <div>
           <label>Model</label>
           <select value={model} onChange={(e) => setModel(e.target.value as ModelId)}>
@@ -104,6 +116,11 @@ export function NewSessionDialog({
               </option>
             ))}
           </select>
+          {model === AUTO_MODEL && (
+            <div style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 4 }}>
+              We pick the best engine for the job and step up automatically if a task needs more power.
+            </div>
+          )}
         </div>
         {error && <div className="error" style={{ color: 'var(--red)', fontSize: 13 }}>{error}</div>}
         <div className="actions">

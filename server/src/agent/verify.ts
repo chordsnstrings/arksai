@@ -14,6 +14,29 @@ export interface VerifyReport {
   summary: string;
 }
 
+/** Reports each static check as it starts/finishes so the runner can stream a
+ *  live "the system is rigorously checking this" progress beat. */
+export type PhaseReporter = (name: string, status: 'start' | 'ok' | 'fail') => void;
+
+/** Human, jargon-keeping labels for the checks (they advertise real work). */
+const CHECK_LABEL: Record<string, string> = {
+  'install deps': 'Installing dependencies',
+  typecheck: 'Type-checking',
+  'typecheck (tsc)': 'Type-checking',
+  lint: 'Linting',
+  test: 'Running the test suite',
+  build: 'Building',
+  'go build': 'Compiling (Go)',
+  'go test': 'Running the test suite',
+  'cargo build': 'Compiling (Rust)',
+  'cargo test': 'Running the test suite',
+  pytest: 'Running the test suite',
+  'py compile': 'Compiling (Python)',
+};
+export function checkLabel(name: string): string {
+  return CHECK_LABEL[name] ?? name;
+}
+
 const NO_TEST = /no test specified/i;
 
 /**
@@ -54,11 +77,23 @@ function exists(dir: string, p: string) {
  * Stops at the first failing check (that's the one to fix). Returns ran=false
  * if no recognizable project is present.
  */
-export async function verifyProject(dir: string, signal: AbortSignal): Promise<VerifyReport> {
+export async function verifyProject(
+  dir: string,
+  signal: AbortSignal,
+  onPhase?: PhaseReporter,
+): Promise<VerifyReport> {
   const checks: CheckResult[] = [];
   const add = (c: CheckResult) => {
     checks.push(c);
     return c.ok;
+  };
+  // Run a check while announcing its start/result, so the UI can show the system
+  // doing each piece of real work (install → typecheck → test → build).
+  const step = async (name: string, command: string, timeoutMs?: number): Promise<CheckResult> => {
+    onPhase?.(name, 'start');
+    const res = await run(name, command, dir, signal, timeoutMs);
+    onPhase?.(name, res.ok ? 'ok' : 'fail');
+    return res;
   };
   const done = (): VerifyReport => {
     const ran = checks.length > 0;
@@ -83,7 +118,7 @@ export async function verifyProject(dir: string, signal: AbortSignal): Promise<V
       const install = exists(dir, 'package-lock.json')
         ? 'npm ci --no-audit --no-fund'
         : 'npm install --no-audit --no-fund';
-      if (!add(await run('install deps', install, dir, signal, 300_000))) return done();
+      if (!add(await step('install deps', install, 300_000))) return done();
     }
     const order: [string, string][] = [];
     if (scripts.typecheck) order.push(['typecheck', 'npm run typecheck']);
@@ -91,21 +126,21 @@ export async function verifyProject(dir: string, signal: AbortSignal): Promise<V
     if (scripts.lint) order.push(['lint', 'npm run lint']);
     if (scripts.test && !NO_TEST.test(scripts.test)) order.push(['test', 'npm test']);
     if (scripts.build) order.push(['build', 'npm run build']);
-    for (const [name, cmd] of order) if (!add(await run(name, cmd, dir, signal))) return done();
+    for (const [name, cmd] of order) if (!add(await step(name, cmd))) return done();
     if (order.length > 0 || checks.length > 0) return done();
   }
 
   // ---- Go ----
   if (exists(dir, 'go.mod')) {
-    if (!add(await run('go build', 'go build ./... 2>&1', dir, signal))) return done();
-    add(await run('go test', 'go test ./... 2>&1', dir, signal));
+    if (!add(await step('go build', 'go build ./... 2>&1'))) return done();
+    add(await step('go test', 'go test ./... 2>&1'));
     return done();
   }
 
   // ---- Rust ----
   if (exists(dir, 'Cargo.toml')) {
-    if (!add(await run('cargo build', 'cargo build 2>&1', dir, signal, 300_000))) return done();
-    add(await run('cargo test', 'cargo test 2>&1', dir, signal, 300_000));
+    if (!add(await step('cargo build', 'cargo build 2>&1', 300_000))) return done();
+    add(await step('cargo test', 'cargo test 2>&1', 300_000));
     return done();
   }
 
@@ -117,12 +152,12 @@ export async function verifyProject(dir: string, signal: AbortSignal): Promise<V
       exists(dir, 'conftest.py') ||
       exists(dir, 'pyproject.toml');
     if (hasTests) {
-      const res = await run('pytest', 'python3 -m pytest -q 2>&1', dir, signal);
+      const res = await step('pytest', 'python3 -m pytest -q 2>&1');
       // "no tests ran" exit code 5 isn't a real failure; fall back to compile.
       if (res.ok || /no tests ran|collected 0 items/i.test(res.output)) add({ ...res, ok: true, name: 'pytest' });
       else return (add(res), done());
     }
-    add(await run('py compile', 'python3 -m compileall -q . 2>&1', dir, signal));
+    add(await step('py compile', 'python3 -m compileall -q . 2>&1'));
     return done();
   }
 

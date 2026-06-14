@@ -14,13 +14,13 @@ import { getToolsForMode } from './tools';
 import { ToolError, type ToolCtx } from './tools/common';
 import { generateTitle } from './titleGen';
 import { Usage } from './usage';
-import { detectStartCommand, verifyProject } from './verify';
+import { checkLabel, detectStartCommand, verifyProject } from './verify';
 import { probeApp } from './runtimeCheck';
 import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 import { escalateModel, resolveProvider, selectModel } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
-import { isAutoModel, MAX_MODEL } from '../../../shared/types';
+import { isAutoModel, MAX_MODEL, phaseFloor, phaseCeiling, type ProgressPhase } from '../../../shared/types';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
 const PREVIEW_CHARS = 700;
@@ -128,6 +128,8 @@ export class AgentRun {
   private engineCostUsd = 0; // external-engine spend this run (e.g. Suno)
   private accruedCostUsd = 0; // model spend this run, summed per concrete model
   private taskProfile!: TaskProfile; // classified at run start; drives design context + gating
+  private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
+  private progressPhase: ProgressPhase = 'understanding';
   private client: OpenAI; // DeepSeek (also used for title gen)
   private minimaxClient: OpenAI | null = null;
   private minimaxAvailable = !!config.minimaxApiKey;
@@ -171,6 +173,22 @@ export class AgentRun {
     this.abort.abort();
   }
 
+  /**
+   * Emit a live progress beat. The bar advertises the (deliberately visible)
+   * expert work at each stage. pct is clamped monotonic: entering a phase snaps
+   * up to its floor; finer beats within a phase nudge toward its ceiling — but it
+   * never goes backward (a self-healing retry must read as forward motion).
+   */
+  private emitProgress(phase: ProgressPhase, label: string, detail?: string) {
+    this.progressPhase = phase;
+    const floor = phaseFloor(phase);
+    const ceil = phaseCeiling(phase);
+    // Nudge a little past the current value within the band, capped at the ceiling.
+    const target = Math.min(ceil, Math.max(floor, this.progressPct + 2));
+    this.progressPct = Math.max(this.progressPct, target);
+    this.emit({ type: 'progress', phase, label, pct: Math.round(this.progressPct), detail });
+  }
+
   private emit(event: Parameters<typeof bus.emit>[1]) {
     bus.emit(this.session.id, event);
   }
@@ -188,6 +206,8 @@ export class AgentRun {
     await store.updateSession(sessionId, { status: 'running' });
     bus.sessionChanged((await store.getSession(sessionId))!);
     this.emit({ type: 'run_started', runId: this.runId, mode: this.session.mode });
+    this.progressPct = 0;
+    this.emitProgress('understanding', 'Understanding your request…');
 
     const context = await store.getContext(sessionId);
     context.push({ role: 'user', content: userText });
@@ -266,6 +286,14 @@ export class AgentRun {
         runningTasks: Math.max(1, this.runningTasks),
       });
     }, 1000);
+
+    const buildLabel =
+      this.session.mode === 'report'
+        ? 'Designing your report…'
+        : this.session.mode === 'code'
+          ? 'Building it…'
+          : 'Working on it…';
+    this.emitProgress('building', buildLabel);
 
     try {
       const maxIterations = config.maxIterations;
@@ -485,12 +513,23 @@ export class AgentRun {
         costUsd: (prev.costUsd ?? 0) + this.accruedCostUsd + this.engineCostUsd,
       });
 
+      // What the run produced — drives the "it's ready" completion card.
+      const deliverable =
+        finalStatus === 'done' && openCanvasEvent?.kind
+          ? {
+              kind: openCanvasEvent.kind,
+              name: openCanvasEvent.file ? openCanvasEvent.file.split('/').pop() : undefined,
+            }
+          : undefined;
+      if (finalStatus === 'done') this.emitProgress('done', 'Ready');
+
       this.emit({
         type: 'run_finished',
         runId: this.runId,
         status: finalStatus,
         totalTokens: this.usage.totalTokens,
         diffStat: stat,
+        ...(deliverable ? { deliverable } : {}),
       });
       if (openCanvasEvent) {
         this.emit({ type: 'open_canvas', ...openCanvasEvent });
@@ -558,6 +597,7 @@ export class AgentRun {
     }
     argsSummary = tool && args ? tool.summarize(args) : call.args.slice(0, 120);
     if (['write_file', 'edit_file', 'git_commit'].includes(call.name)) this.mutated = true;
+    if (call.name === 'publish_app') this.emitProgress('publishing', 'Putting it online & checking the live URL…');
     if (call.name === 'bash' && typeof args?.command === 'string') {
       const cmd = args.command as string;
       if (/(curl|wget|http)\b/i.test(cmd) && /(localhost|127\.0\.0\.1|0\.0\.0\.0|:\d{4})/.test(cmd)) {
@@ -657,19 +697,24 @@ export class AgentRun {
       liveItems.push(item);
       this.emit({ type: 'timeline_item', item });
     };
-    const failFix = (label: string, detail: string): 'retry' | 'failed' => {
-      sys('error', `✗ Verification failed: ${label}`);
+    // Self-healing reads as confident forward progress, NOT a scary failure:
+    // the system caught something and is hardening the result before the user
+    // ever sees it. Red/error styling is reserved for a genuinely terminal stop.
+    const failFix = (label: string, detail: string, phase: ProgressPhase = 'verifying'): 'retry' | 'failed' => {
       if (this.verifyRounds >= MAX_VERIFY) {
+        sys('error', `✗ Couldn't get past: ${label}.`);
         this.emit({ type: 'run_error', runId: this.runId, message: `Verification still failing (${label}).` });
         return 'failed';
       }
-      // Auto mode: a failing check is the signal to bring a stronger model in
-      // for the fix attempt.
+      const pass = this.verifyRounds + 1;
+      this.emitProgress(phase, `${label} caught something — hardening it (pass ${pass})…`);
+      sys('info', `↻ ${label} caught something — hardening it automatically (pass ${pass}).`);
+      // Auto mode: a caught issue is the signal to bring a stronger model in.
       if (isAutoModel(this.session.model)) {
         const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
         if (next !== this.activeModel) {
           this.setActiveModel(next);
-          sys('info', `↳ Escalating to ${KNOWN_MODELS[next]?.label ?? next} to fix it.`);
+          sys('info', `↳ Bringing in ${KNOWN_MODELS[next]?.label ?? next} to nail it.`);
         }
       }
       context.push({
@@ -680,9 +725,13 @@ export class AgentRun {
     };
 
     sys('info', '⟳ Verifying — running the project checks…');
+    this.emitProgress('verifying', 'Verifying it works…');
 
-    // 1) Static checks (typecheck / lint / test / build).
-    const report = await verifyProject(dir, this.abort.signal).catch((e) => ({
+    // 1) Static checks (typecheck / lint / test / build). Each check announces
+    //    itself so the user sees the system doing real, thorough work.
+    const report = await verifyProject(dir, this.abort.signal, (name, status) => {
+      if (status === 'start') this.emitProgress('verifying', `${checkLabel(name)}…`);
+    }).catch((e) => ({
       ran: false,
       ok: true,
       checks: [],
@@ -690,7 +739,7 @@ export class AgentRun {
     }));
     if (report.ran && !report.ok) {
       const failing = report.checks.find((c) => !c.ok)!;
-      return failFix(failing.name, failing.output);
+      return failFix(checkLabel(failing.name), failing.output);
     }
 
     // 2) Runtime + flow — for apps, ArksAI boots it and exercises the endpoints.
@@ -703,15 +752,17 @@ export class AgentRun {
     // Clean any dev server the agent left running so the probe gets the port.
     processRegistry.killAllForSession(this.session.id);
     sys('info', '⟳ Booting the app and exercising its endpoints (seeding real data)…');
+    this.emitProgress('testing', 'Booting a live instance…');
     const probe = await probeApp(this.session.id, dir, startCmd, this.abort.signal, {
       visual: this.taskProfile?.isVisual,
+      onPhase: (label) => this.emitProgress('testing', label),
     });
     if (probe.ui?.visualReview) this.engineCostUsd += config.minimaxVisionCost; // vision spend
     if (!probe.booted || probe.serverErrors > 0) {
-      return failFix(probe.serverErrors > 0 ? 'the app errors at runtime' : 'the app does not run', probe.detail);
+      return failFix(probe.serverErrors > 0 ? 'Runtime testing' : 'Booting the app', probe.detail, 'testing');
     }
     if (probe.ui?.hardFail) {
-      return failFix('the UI does not render correctly', probe.detail);
+      return failFix('The browser check', probe.detail, 'testing');
     }
     // Gating DESIGN critique (visual tasks): the agent must fix concrete defects
     // and re-render, bounded — so the user gets a polished result without
@@ -726,7 +777,8 @@ export class AgentRun {
         this.designRounds++;
         const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
         if (next !== this.activeModel) this.setActiveModel(next);
-        sys('info', `↻ Design review wants improvements — refining (round ${this.designRounds}).`);
+        this.emitProgress('polishing', `Design review — applying refinements (round ${this.designRounds})…`);
+        sys('info', `↻ Design review flagged refinements — applying them (round ${this.designRounds}).`);
         context.push({
           role: 'user',
           content:

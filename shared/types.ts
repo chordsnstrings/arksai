@@ -6,6 +6,39 @@
 
 export type SessionMode = 'chat' | 'plan' | 'code' | 'report';
 export type SessionStatus = 'idle' | 'running' | 'done' | 'error';
+
+/**
+ * Macro-stages of a run, in order. Drives the live progress bar: each phase owns
+ * a monotonic pct band so the bar only ever moves forward, while the labels
+ * advertise the (deliberately visible) expert work happening at each stage.
+ */
+export type ProgressPhase =
+  | 'understanding'
+  | 'building'
+  | 'verifying'
+  | 'testing'
+  | 'polishing'
+  | 'publishing'
+  | 'done';
+
+const PHASE_BANDS: Record<ProgressPhase, { floor: number; ceil: number }> = {
+  understanding: { floor: 0, ceil: 10 },
+  building: { floor: 10, ceil: 55 },
+  verifying: { floor: 55, ceil: 75 },
+  testing: { floor: 75, ceil: 88 },
+  polishing: { floor: 88, ceil: 94 },
+  publishing: { floor: 94, ceil: 99 },
+  done: { floor: 100, ceil: 100 },
+};
+
+/** Start-of-band pct for a phase (the bar snaps here when the phase begins). */
+export function phaseFloor(phase: ProgressPhase): number {
+  return PHASE_BANDS[phase]?.floor ?? 0;
+}
+/** End-of-band pct — the client eases ("creeps") toward this while the phase runs. */
+export function phaseCeiling(phase: ProgressPhase): number {
+  return PHASE_BANDS[phase]?.ceil ?? 100;
+}
 /** Any DeepSeek model id. The selectable list is fetched live from /api/models. */
 export type ModelId = string;
 
@@ -160,11 +193,22 @@ export type AgentEvent =
     }
   | { type: 'tick'; elapsedSeconds: number; runningTasks: number }
   | {
+      /** Live progress beat: which macro-phase we're in, a human label advertising
+       *  the work, a monotonic 0–100 pct, and an optional finer-grained detail. */
+      type: 'progress';
+      phase: ProgressPhase;
+      label: string;
+      pct: number;
+      detail?: string;
+    }
+  | {
       type: 'run_finished';
       runId: string;
       status: SessionStatus;
       totalTokens: number;
       diffStat: string | null;
+      /** What the run produced, for the "it's ready" completion card. */
+      deliverable?: { kind: 'app' | 'pdf' | 'sheet' | 'doc'; name?: string };
     }
   | { type: 'run_error'; runId: string; message: string }
   | { type: 'session_meta_updated'; meta: Partial<SessionMeta> & { id: string } }

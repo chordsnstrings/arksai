@@ -5,11 +5,23 @@ import type {
   GlobalEvent,
   ModelInfo,
   Project,
+  ProgressPhase,
   SessionDetail,
   SessionMeta,
   TimelineItem,
   ToolCallRecord,
 } from '@shared/types';
+
+export interface ProgressState {
+  phase: ProgressPhase;
+  label: string;
+  pct: number;
+  at: number;
+}
+export interface CompletionState {
+  kind: 'app' | 'pdf' | 'sheet' | 'doc';
+  name?: string;
+}
 
 export interface Automation {
   goalCondition?: string;
@@ -33,6 +45,10 @@ export interface LiveState {
   /** server-authoritative model spend this run (blends models in Auto mode) */
   modelCostUsd: number | null;
   runningTasks: number;
+  /** live progress beat for the smart-work bar (null when not running) */
+  progress: ProgressState | null;
+  /** what the last successful run produced — drives the "it's ready" card */
+  completion: CompletionState | null;
 }
 
 /** Sessions deleted this client session — never re-add them from late events. */
@@ -52,6 +68,8 @@ const emptyLive = (): LiveState => ({
   engineCostUsd: 0,
   modelCostUsd: null,
   runningTasks: 1,
+  progress: null,
+  completion: null,
 });
 
 interface StoreState {
@@ -223,6 +241,16 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
         cacheMissTokens: 0,
         engineCostUsd: 0,
         modelCostUsd: null,
+        progress: null,
+        completion: null,
+      };
+
+    case 'progress':
+      return {
+        ...live,
+        // Monotonic: the displayed phase always advances; pct never regresses
+        // (a self-healing retry must read as forward motion).
+        progress: { phase: ev.phase, label: ev.label, pct: Math.max(live.progress?.pct ?? 0, ev.pct), at: Date.now() },
       };
 
     case 'assistant_delta': {
@@ -319,6 +347,9 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
         cacheMissTokens: 0,
         engineCostUsd: 0,
         modelCostUsd: null,
+        progress: null,
+        // Stash what the run produced so the chat can show the "it's ready" card.
+        completion: ev.status === 'done' && ev.deliverable ? ev.deliverable : live.completion,
       };
     }
 

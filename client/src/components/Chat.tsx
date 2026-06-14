@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { TimelineItem, ToolCallRecord } from '@shared/types';
-import type { LiveState } from '../state/sessionStore';
+import type { CompletionState, LiveState } from '../state/sessionStore';
 import { useStore } from '../state/sessionStore';
 import { api } from '../api/client';
 
@@ -110,12 +110,15 @@ function TimelineRow({ item, sessionId }: { item: TimelineItem; sessionId: strin
 
 function StatusFooter({ live, sessionId }: { live: LiveState; sessionId: string }) {
   const tokens = live.tokens >= 1000 ? `${(live.tokens / 1000).toFixed(1)}k` : String(live.tokens);
+  // Lead with the live expert action ("Exercising every route…") so the user
+  // sees the system doing real work; keep the timer/tokens as proof of effort.
+  const label = live.progress?.label ?? 'Working…';
   return (
     <div className="status-footer">
       <span className="spinner" />
-      <span>
-        {live.elapsed}s · {tokens} tokens · {live.runningTasks} running task
-        {live.runningTasks === 1 ? '' : 's'}
+      <span className="sf-label">{label}</span>
+      <span className="sf-meta">
+        {live.elapsed}s · {tokens} tokens
       </span>
       <button
         className="stop"
@@ -126,6 +129,60 @@ function StatusFooter({ live, sessionId }: { live: LiveState; sessionId: string 
       >
         Stop
       </button>
+    </div>
+  );
+}
+
+const DELIVERABLE_NOUN: Record<string, string> = { app: 'app', pdf: 'report', sheet: 'spreadsheet', doc: 'document' };
+
+/** The "it's ready" moment: names the finished thing and offers the next action
+ *  in-flow (open it, or — for apps — put it online and get a shareable link). */
+function CompletionCard({ completion, sessionId }: { completion: CompletionState; sessionId: string }) {
+  const toggleCanvas = useStore((s) => s.toggleCanvas);
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const noun = DELIVERABLE_NOUN[completion.kind] ?? 'result';
+
+  const publish = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      const dep = await api.publish(sessionId);
+      if (dep.status === 'running') setLink(`${window.location.origin}${dep.url}`);
+      else setErr("Putting it online hit a snag — ask in the chat and the system will fix it and republish.");
+    } catch (e: any) {
+      setErr(e?.message ?? 'Could not publish');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="completion-card">
+      <div className="cc-head">
+        <span className="cc-check">✓</span> Your {noun} is ready
+      </div>
+      {completion.name && <div className="cc-name">{completion.name}</div>}
+      <div className="cc-actions">
+        <button className="cc-open" onClick={() => toggleCanvas(true)}>
+          Open
+        </button>
+        {completion.kind === 'app' && !link && (
+          <button className="cc-link" onClick={publish} disabled={busy}>
+            {busy ? 'Putting it online…' : '🔗 Get a shareable link'}
+          </button>
+        )}
+      </div>
+      {link && (
+        <div className="cc-live">
+          ✓ Live at{' '}
+          <a href={link} target="_blank" rel="noreferrer">
+            {link}
+          </a>
+        </div>
+      )}
+      {err && <div className="cc-err">{err}</div>}
     </div>
   );
 }
@@ -155,6 +212,9 @@ export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }
           </div>
         )}
         {live.running && <StatusFooter live={live} sessionId={sessionId} />}
+        {!live.running && live.completion && (
+          <CompletionCard completion={live.completion} sessionId={sessionId} />
+        )}
         <div ref={bottomRef} />
       </div>
     </div>

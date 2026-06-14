@@ -44,6 +44,11 @@ export function Canvas({ sessionId }: { sessionId: string }) {
   const [detectedPorts, setDetectedPorts] = useState<number[]>([]);
   const [previewSrc, setPreviewSrc] = useState('');
   const [nonce, setNonce] = useState(0);
+  // Delivery-moment loading states: while booting we show a confident spinner,
+  // not a blank iframe; if the boot genuinely never comes up, a friendly retry.
+  const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [booting, setBooting] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
   // Mirror previewSrc in a ref so the poll loop sees the latest value (and a
   // manual port pick) without re-subscribing the effect.
   const previewSrcRef = useRef('');
@@ -55,8 +60,19 @@ export function Canvas({ sessionId }: { sessionId: string }) {
     const usePort = p ?? port;
     if (!usePort) return;
     setPort(usePort);
+    setPreviewLoaded(false);
+    setPreviewFailed(false);
     previewSrcRef.current = `loading:${usePort}`;
     setPreviewSrc(`/api/sessions/${sessionId}/preview/${usePort}/?_=${Date.now()}`);
+  };
+
+  const retryPreview = () => {
+    setPreviewFailed(false);
+    setBooting(true);
+    previewSrcRef.current = '';
+    setPreviewSrc('');
+    setNonce((n) => n + 1);
+    detectPorts();
   };
 
   // Auto-detect dev-server ports so the user doesn't have to guess. A preview
@@ -90,18 +106,24 @@ export function Canvas({ sessionId }: { sessionId: string }) {
     if (tab !== 'preview') return;
     let cancelled = false;
     let tries = 0;
+    const MAX_TRIES = 12; // ~15s — a freshly-built app may still be binding its port
     const tick = async () => {
       if (cancelled || previewSrcRef.current) return;
       const found = await detectPorts();
       if (cancelled || found || previewSrcRef.current) return;
-      if (++tries < 6) setTimeout(tick, 1200);
+      if (++tries < MAX_TRIES) setTimeout(tick, 1200);
+      else if (booting) {
+        // It never came up — surface a friendly retry instead of a silent blank.
+        setBooting(false);
+        setPreviewFailed(true);
+      }
     };
     tick();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, sessionId]);
+  }, [tab, sessionId, nonce]);
 
   // files
   const [files, setFiles] = useState<string[]>([]);
@@ -136,12 +158,17 @@ export function Canvas({ sessionId }: { sessionId: string }) {
   const canvasTarget = useStore((s) => s.canvasTarget);
   const [docSrc, setDocSrc] = useState('');
   const [docName, setDocName] = useState('');
+  const [docLoaded, setDocLoaded] = useState(false);
   useEffect(() => {
     if (!canvasTarget) return;
     const enc = (p: string) => p.split('/').map(encodeURIComponent).join('/');
     if (canvasTarget.kind === 'app' || canvasTarget.port) {
       setDocSrc('');
       setTab('preview');
+      // We're expecting a freshly-built app — show the "Booting…" state until the
+      // preview iframe actually loads, rather than a bare blank.
+      setBooting(true);
+      setPreviewFailed(false);
       if (canvasTarget.port) loadPreview(String(canvasTarget.port));
     } else if (canvasTarget.file) {
       const f = canvasTarget.file;
@@ -150,6 +177,7 @@ export function Canvas({ sessionId }: { sessionId: string }) {
           ? `/api/sessions/${sessionId}/files/${enc(f)}?inline=1`
           : `/api/sessions/${sessionId}/docview/${enc(f)}`;
       setDocName(f.split('/').pop() || f);
+      setDocLoaded(false);
       setDocSrc(`${base}${base.includes('?') ? '&' : '?'}_=${Date.now()}`);
       setTab('doc');
     }
@@ -211,13 +239,55 @@ export function Canvas({ sessionId }: { sessionId: string }) {
 
       {tab === 'doc' ? (
         docSrc ? (
-          <iframe className="canvas-frame" src={docSrc} title={docName || 'document'} />
+          <div className="canvas-host">
+            <iframe
+              className="canvas-frame"
+              src={docSrc}
+              title={docName || 'document'}
+              onLoad={() => setDocLoaded(true)}
+            />
+            {!docLoaded && (
+              <div className="canvas-loading">
+                <span className="spinner" /> Opening your {docName ? `“${docName}”` : 'document'}…
+              </div>
+            )}
+          </div>
         ) : (
           <div className="canvas-empty">No document loaded yet.</div>
         )
       ) : tab === 'preview' ? (
         previewSrc ? (
-          <iframe key={nonce} className="canvas-frame" src={previewSrc} title="preview" />
+          <div className="canvas-host">
+            <iframe
+              key={nonce}
+              className="canvas-frame"
+              src={previewSrc}
+              title="preview"
+              onLoad={() => {
+                setPreviewLoaded(true);
+                setBooting(false);
+                setPreviewFailed(false);
+              }}
+            />
+            {!previewLoaded && (
+              <div className="canvas-loading">
+                <span className="spinner" /> Booting your live app…
+              </div>
+            )}
+          </div>
+        ) : booting ? (
+          <div className="canvas-loading big">
+            <span className="spinner" /> Booting your live app…
+          </div>
+        ) : previewFailed ? (
+          <div className="canvas-empty">
+            Couldn’t load the preview just yet.
+            <br />
+            <button className="canvas-btn" style={{ marginTop: 10 }} onClick={retryPreview}>
+              ↻ Retry
+            </button>{' '}
+            or open the <b>Files</b> tab to browse the result.
+          </div>
         ) : (
           <div className="canvas-empty">
             {detectedPorts.length === 0 ? (

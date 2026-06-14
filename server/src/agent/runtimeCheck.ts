@@ -128,8 +128,9 @@ export async function probeApp(
   dir: string,
   startCmd: string,
   signal: AbortSignal,
-  opts?: { visual?: boolean },
+  opts?: { visual?: boolean; onPhase?: (label: string) => void },
 ): Promise<ProbeReport> {
+  const phase = (label: string) => opts?.onPhase?.(label);
   const empty = (detail: string): ProbeReport => ({
     booted: false,
     port: null,
@@ -145,6 +146,7 @@ export async function probeApp(
   const before = new Set(listeningPorts());
   let proc;
   try {
+    phase('Starting it up…');
     proc = processRegistry.start(sessionId, startCmd, dir, 'verify-boot');
   } catch (e: any) {
     return empty(`Could not start the app: ${e?.message ?? e}`);
@@ -180,6 +182,7 @@ export async function probeApp(
 
     // Discover and exercise routes.
     const routes = await discoverRoutes(dir, signal);
+    if (routes.length) phase('Exercising every route with seeded data…');
     const writePaths: string[] = [];
     for (const r of routes) {
       if (signal.aborted) break;
@@ -225,6 +228,7 @@ export async function probeApp(
     let ui: UiCheckResult | null = null;
     const servesHtml = /<!doctype html|<html[\s>]/i.test(root.text);
     if (baseOk && servesHtml && !signal.aborted) {
+      phase('Checking it renders in a real browser…');
       ui = await browserSmokeTest(`http://127.0.0.1:${port}/`, signal, { visual: opts?.visual });
     }
 

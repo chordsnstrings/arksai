@@ -8,8 +8,10 @@ import { CommandsDialog } from './components/CommandsDialog';
 import { MemoryDialog } from './components/MemoryDialog';
 import { Composer } from './components/Composer';
 import { CostBar } from './components/CostBar';
+import { Launchpad } from './components/Launchpad';
 import { LoginScreen } from './components/LoginScreen';
 import { NewSessionDialog } from './components/NewSessionDialog';
+import { ProgressBar } from './components/ProgressBar';
 import { ProjectDialog } from './components/ProjectDialog';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
@@ -80,6 +82,7 @@ export default function App() {
         {activeMeta && live ? (
           <>
             <TopBar meta={activeMeta} />
+            <ProgressBar live={live} />
             <Chat live={live} sessionId={activeMeta.id} />
             <Composer
               meta={activeMeta}
@@ -90,13 +93,7 @@ export default function App() {
             <CostBar meta={activeMeta} live={live} />
           </>
         ) : (
-          <div className="empty-state">
-            <div className="logo-mark" />
-            <div>Start a new session to put the agent to work.</div>
-            <button className="send-btn" onClick={() => setShowNew({ projectId: null })}>
-              New session
-            </button>
-          </div>
+          <Launchpad onAdvanced={() => setShowNew({ projectId: null })} />
         )}
       </div>
       {canvasOpen && activeMeta && <Canvas sessionId={activeMeta.id} />}
