@@ -63,6 +63,8 @@ interface StoreState {
   models: ModelInfo[];
   commands: CustomCommand[];
   canvasOpen: boolean;
+  /** what the canvas should auto-load (set by the open_canvas event) */
+  canvasTarget: { port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc'; at: number } | null;
   navOpen: boolean;
   automation: Record<string, Automation>;
 
@@ -96,6 +98,7 @@ export const useStore = create<StoreState>((set, get) => ({
   models: [],
   commands: [],
   canvasOpen: false,
+  canvasTarget: null,
   // Open by default on wide screens, collapsed on phones.
   navOpen: typeof window === 'undefined' ? true : window.innerWidth > 860,
   automation: {},
@@ -182,10 +185,10 @@ export const useStore = create<StoreState>((set, get) => ({
       const existing = get().sessions.find((x) => x.id === ev.meta.id);
       if (existing) get().upsertSession({ ...existing, ...ev.meta });
     }
-    // Auto-open the canvas when a run finishes something renderable — but only
-    // for the session the user is actually looking at, so a background run
-    // doesn't yank the view.
+    // Auto-open AND auto-load the finished artifact in the canvas — only for the
+    // session the user is looking at, so a background run doesn't yank the view.
     if (ev.type === 'open_canvas' && get().activeId === sessionId) {
+      set({ canvasTarget: { port: ev.port, file: ev.file, kind: ev.kind, at: Date.now() } });
       get().toggleCanvas(true);
     }
   },

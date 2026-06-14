@@ -68,6 +68,22 @@ async function findDeliverables(repoDirPath: string, sinceTs: number): Promise<T
   }
 }
 
+/** Pick the best freshly-produced document to auto-open in the canvas. */
+function pickPreviewDoc(items: TimelineItem[]): { path: string; kind: 'pdf' | 'sheet' | 'doc' } | null {
+  const files = items.filter((i): i is Extract<TimelineItem, { kind: 'file' }> => i.kind === 'file');
+  const last = (re: RegExp) => {
+    const m = files.filter((f) => re.test(f.name));
+    return m.length ? m[m.length - 1].path : null;
+  };
+  const pdf = last(/\.pdf$/i);
+  if (pdf) return { path: pdf, kind: 'pdf' };
+  const sheet = last(/\.(xlsx|xls|csv)$/i);
+  if (sheet) return { path: sheet, kind: 'sheet' };
+  const doc = last(/\.(docx|doc)$/i);
+  if (doc) return { path: doc, kind: 'doc' };
+  return null;
+}
+
 /** Transient network/provider failures worth retrying; never auth errors. */
 function isTransientApiError(err: any): boolean {
   const status = err?.status ?? err?.response?.status;
@@ -419,11 +435,17 @@ export class AgentRun {
 
       const stat = await diffStat(sessionId).catch(() => null);
 
-      // On a successful code run with a real project: zip a complete export
-      // (surfaced below as a download chip) and, if it can render, leave a
-      // preview server up and tell the client to open the canvas to check it.
-      let shouldOpenCanvas = false;
-      let canvasPort: number | undefined;
+      // Surface every file produced this run as a download chip.
+      const deliverables = await findDeliverables(dir, this.usage.startedAt);
+      for (const fileItem of deliverables) {
+        liveItems.push(fileItem);
+        this.emit({ type: 'timeline_item', item: fileItem });
+      }
+
+      // Decide what the canvas should auto-open + load (zero clicks for the user):
+      // a renderable web app (preview a port), else the freshly produced
+      // document (PDF / spreadsheet / doc). Only after a successful run.
+      let openCanvasEvent: { port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc' } | null = null;
       const renderable = detectRenderable(dir);
       if (
         finalStatus === 'done' &&
@@ -435,14 +457,13 @@ export class AgentRun {
           await buildExportArchive(dir, this.session.repoName ?? 'arksai', this.abort.signal);
         } catch {}
         if (renderable.renderable) {
-          canvasPort = startPreviewServer(sessionId, dir, renderable) ?? undefined;
-          shouldOpenCanvas = true;
+          const port = startPreviewServer(sessionId, dir, renderable) ?? undefined;
+          openCanvasEvent = { kind: 'app', ...(port != null ? { port } : {}) };
         }
       }
-
-      for (const fileItem of await findDeliverables(dir, this.usage.startedAt)) {
-        liveItems.push(fileItem);
-        this.emit({ type: 'timeline_item', item: fileItem });
+      if (!openCanvasEvent && finalStatus === 'done') {
+        const doc = pickPreviewDoc(deliverables);
+        if (doc) openCanvasEvent = { kind: doc.kind, file: doc.path };
       }
       const prev = await store.getSession(sessionId);
       // The session may have been deleted mid-run — if so, don't resurrect it
@@ -471,8 +492,8 @@ export class AgentRun {
         totalTokens: this.usage.totalTokens,
         diffStat: stat,
       });
-      if (shouldOpenCanvas) {
-        this.emit({ type: 'open_canvas', ...(canvasPort != null ? { port: canvasPort } : {}) });
+      if (openCanvasEvent) {
+        this.emit({ type: 'open_canvas', ...openCanvasEvent });
       }
       const finalMeta = await store.getSession(sessionId);
       if (finalMeta) bus.sessionChanged(finalMeta);

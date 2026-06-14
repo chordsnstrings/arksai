@@ -1,0 +1,58 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import * as XLSX from 'xlsx';
+import type { FastifyInstance } from 'fastify';
+import * as store from '../sessions/store';
+import { repoDir } from '../sessions/workspace';
+import { resolveInWorkspace } from '../agent/tools/common';
+
+/** A clean, on-brand HTML shell so spreadsheet/doc previews look designed. */
+const SHELL = (body: string, title = 'Preview') => `<!doctype html><html><head><meta charset="utf-8">
+<title>${title}</title><style>
+:root{--ink:#16181d;--muted:#6b7280;--line:#e7e6e2;--surface:#f7f7f5;--accent:#4f46e5}
+*{box-sizing:border-box}
+body{margin:0;padding:26px;background:#fff;color:var(--ink);font-size:14px;line-height:1.55;
+  font-family:'Inter',-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased}
+h1{font-size:24px} h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:20px 0 8px}
+p,li{max-width:72ch}
+table{border-collapse:collapse;width:100%;margin:0 0 18px;font-size:13px}
+table td,table th{border:1px solid var(--line);padding:6px 10px;text-align:left;font-variant-numeric:tabular-nums}
+table tr:first-child td{background:var(--surface);font-weight:600}
+table tbody tr:nth-child(even){background:#fafaf9}
+img{max-width:100%}
+</style></head><body>${body}</body></html>`;
+
+export function registerDocviewRoutes(app: FastifyInstance) {
+  app.get('/api/sessions/:id/docview/*', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const rel = (req.params as Record<string, string>)['*'] ?? '';
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
+    let abs: string;
+    try {
+      abs = resolveInWorkspace(repoDir(id), rel);
+    } catch {
+      return reply.code(403).send('Forbidden');
+    }
+    if (!fs.existsSync(abs)) return reply.code(404).type('text/html').send(SHELL('<p>File not found.</p>'));
+    const ext = path.extname(abs).toLowerCase();
+    try {
+      if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
+        const wb = XLSX.read(fs.readFileSync(abs), { type: 'buffer' });
+        const parts = wb.SheetNames.map((n) => `<h2>${n}</h2>` + XLSX.utils.sheet_to_html(wb.Sheets[n]));
+        return reply.type('text/html').send(SHELL(parts.join('\n'), path.basename(abs)));
+      }
+      if (ext === '.docx') {
+        const mammoth = await import('mammoth');
+        const convert = (mammoth as any).convertToHtml ?? (mammoth as any).default?.convertToHtml;
+        const r = await convert({ path: abs });
+        return reply.type('text/html').send(SHELL(r.value, path.basename(abs)));
+      }
+      return reply
+        .code(415)
+        .type('text/html')
+        .send(SHELL('<p>No inline preview for this file type — download it instead.</p>'));
+    } catch (e: any) {
+      return reply.type('text/html').send(SHELL(`<p>Could not render preview: ${String(e?.message ?? e)}</p>`));
+    }
+  });
+}

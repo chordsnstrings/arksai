@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 
-type Tab = 'preview' | 'files';
+type Tab = 'preview' | 'files' | 'doc';
 
 // Ports we recognise as dev servers, in priority order. The agent defaults its
 // own apps to PORT=4000 (see server childEnv), so that wins; then the common
@@ -131,6 +131,31 @@ export function Canvas({ sessionId }: { sessionId: string }) {
   const rawUrl = (path: string) =>
     `/api/sessions/${sessionId}/files/${path.split('/').map(encodeURIComponent).join('/')}?inline=1`;
 
+  // Auto-load the finished artifact when a run completes (open_canvas event):
+  // an app preview (exact port), or a document (PDF / spreadsheet / doc).
+  const canvasTarget = useStore((s) => s.canvasTarget);
+  const [docSrc, setDocSrc] = useState('');
+  const [docName, setDocName] = useState('');
+  useEffect(() => {
+    if (!canvasTarget) return;
+    const enc = (p: string) => p.split('/').map(encodeURIComponent).join('/');
+    if (canvasTarget.kind === 'app' || canvasTarget.port) {
+      setDocSrc('');
+      setTab('preview');
+      if (canvasTarget.port) loadPreview(String(canvasTarget.port));
+    } else if (canvasTarget.file) {
+      const f = canvasTarget.file;
+      const base =
+        canvasTarget.kind === 'pdf'
+          ? `/api/sessions/${sessionId}/files/${enc(f)}?inline=1`
+          : `/api/sessions/${sessionId}/docview/${enc(f)}`;
+      setDocName(f.split('/').pop() || f);
+      setDocSrc(`${base}${base.includes('?') ? '&' : '?'}_=${Date.now()}`);
+      setTab('doc');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasTarget?.at]);
+
   return (
     <div className="canvas">
       <div className="canvas-head">
@@ -141,6 +166,11 @@ export function Canvas({ sessionId }: { sessionId: string }) {
           <button className={tab === 'files' ? 'on' : ''} onClick={() => setTab('files')}>
             Files
           </button>
+          {docSrc && (
+            <button className={tab === 'doc' ? 'on' : ''} onClick={() => setTab('doc')} title={docName}>
+              📄 {docName.length > 18 ? docName.slice(0, 16) + '…' : docName}
+            </button>
+          )}
         </div>
         <span className="spacer" />
         {tab === 'preview' && (
@@ -179,7 +209,13 @@ export function Canvas({ sessionId }: { sessionId: string }) {
         </button>
       </div>
 
-      {tab === 'preview' ? (
+      {tab === 'doc' ? (
+        docSrc ? (
+          <iframe className="canvas-frame" src={docSrc} title={docName || 'document'} />
+        ) : (
+          <div className="canvas-empty">No document loaded yet.</div>
+        )
+      ) : tab === 'preview' ? (
         previewSrc ? (
           <iframe key={nonce} className="canvas-frame" src={previewSrc} title="preview" />
         ) : (
