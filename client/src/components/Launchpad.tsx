@@ -4,6 +4,7 @@ import { AUTO_MODEL } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { CATEGORIES, DEPARTMENTS, ICONS, departmentById, type IconName } from '../lib/departments';
+import { applyDeptTheme } from '../lib/theme';
 
 const LS_KEY = 'arksai.department';
 
@@ -41,6 +42,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   const pickDept = (id: string) => {
     setDeptId(id);
     setError('');
+    applyDeptTheme(id); // Engineering → dark
     try {
       localStorage.setItem(LS_KEY, id);
     } catch {

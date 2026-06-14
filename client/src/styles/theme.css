@@ -32,6 +32,38 @@
   --radius: 12px;
 }
 
+/* ---- Dark theme (Engineering / developers) — same editorial identity, inverted ---- */
+:root[data-theme='dark'] {
+  --bg: #15171b;
+  --bg-sidebar: #101216;
+  --bg-elev: #1c1f25;
+  --bg-bubble: #21252c;
+  --bg-input: #1c1f25;
+  --bg-hover: #21262e;
+  --bg-active: #282e37;
+  --border: #2c313a;
+  --border-soft: #20242b;
+  --text: #e8eaef;
+  --text-muted: #9aa1ad;
+  --text-faint: #5b636e;
+  /* brightened engineering teal so it reads on dark */
+  --accent: #3aa6bd;
+  --accent-strong: #4cb8cf;
+  --accent-dim: rgba(58, 166, 189, 0.16);
+  --green: #44c08a;
+  --amber: #d99a3f;
+  --red: #e0707a;
+  --cyan: #3ec6d6;
+}
+:root[data-theme='dark'] body {
+  background:
+    radial-gradient(1100px 680px at 82% -12%, rgba(58, 166, 189, 0.06), transparent 62%),
+    var(--bg);
+}
+:root[data-theme='dark'] ::-webkit-scrollbar-thumb { background: #2d323b; }
+:root[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: #3a414c; }
+:root[data-theme='dark'] .user-bubble { color: #d3eef4; border-color: rgba(58, 166, 189, 0.3); }
+
 * { box-sizing: border-box; }
 
 html, body, #root { height: 100%; margin: 0; }
