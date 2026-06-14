@@ -1,7 +1,46 @@
 import type { SessionMeta } from '../../../shared/types';
 import { config } from '../config';
 import { designContext } from './designSystem';
-import type { TaskProfile } from './taskProfile';
+import type { TaskProfile, TaskType } from './taskProfile';
+
+/** The few targeted questions to ask up front, by deliverable type. */
+const INTAKE_QUESTIONS: Partial<Record<TaskType, string>> = {
+  'web-app': 'its core purpose and who it’s for; the 2–4 must-have features for a first version; any visual vibe/brand (or offer one curated style to pick)',
+  landing: 'what’s being launched and the audience; the single primary call-to-action; any brand colours/logo (or offer one curated style)',
+  dashboard: 'what data/metrics it shows and where they come from; the 3–5 key views or KPIs; who uses it',
+  form: 'what the form collects (the fields) and what happens on submit; any validation/required fields',
+  portfolio: 'whose it is and the goal (hire, clients, showcase); the sections/pieces to feature; a vibe/brand',
+  content: 'the topic and audience; the structure (sections/pages); a visual tone',
+  'internal-tool': 'the workflow it supports and who uses it; the core entities/actions (the CRUD); any data source',
+  'data-viz': 'the dataset (or where it comes from) and the question it should answer; the chart type(s); key dimensions',
+  mobile: 'the core purpose and platform/approach (PWA vs native); the 2–4 must-have features; a visual vibe',
+  api: 'the resources/endpoints and who consumes it; auth needs; the data store',
+  cli: 'the commands/flags and the primary workflow; input/output format',
+  library: 'the public API/surface and target consumers; the runtime/package manager',
+};
+
+/** A short, type-aware intake protocol: ask a few targeted questions ONCE, then
+ *  build fully autonomously. Keeps the start of every build consistent. */
+export function intakeContext(profile?: TaskProfile): string {
+  const type = profile?.type ?? 'generic';
+  const ask = INTAKE_QUESTIONS[type];
+  const head = `## Intake (do this FIRST, once)
+If the user's request already answers these, skip straight to building. Otherwise
+ask a SHORT brief — a few targeted questions in ONE message, then proceed fully
+autonomously (never interrogate, never drip questions across turns):`;
+  if (!ask) {
+    return `${head}
+- Confirm only what you genuinely need to start: the core goal and any hard
+  constraints. If the request is clear enough, don't ask — just build.
+After this one round, work autonomously to completion.`;
+  }
+  const styleLine = profile?.isVisual
+    ? `\n- If they have no design preference, offer ONE curated style direction (don't make\n  them design) and proceed with a strong default if they don't pick.`
+    : '';
+  return `${head}
+- Ask about: ${ask}.${styleLine}
+After this one round, work autonomously to completion — verify, then deliver.`;
+}
 
 function unrestrictedNote(): string {
   if (!config.agentUnrestricted) return '';
@@ -179,6 +218,8 @@ numbered implementation plan in markdown. Do not attempt to make changes.`
         ? reportBlock
         : `## Mode: CODE
 Implement the user's request fully. Make minimal, focused changes.
+
+${intakeContext(profile)}
 
 VERIFICATION IS MANDATORY before you report completion:
 1. Static: call the verify tool (typecheck/lint/tests/build) and make it pass.
