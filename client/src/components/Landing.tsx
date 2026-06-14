@@ -119,11 +119,12 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
                 <span className="lnd-dept-name">{d.name}</span>
               </div>
               <ul className="lnd-dept-list">
-                {d.plays.map((p) => (
+                {d.plays.slice(0, 5).map((p) => (
                   <li key={p.title}>
                     <Icon name={p.icon} size={14} /> {p.title}
                   </li>
                 ))}
+                {d.plays.length > 5 && <li className="lnd-dept-more">+{d.plays.length - 5} more</li>}
               </ul>
             </div>
           ))}

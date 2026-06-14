@@ -3,12 +3,19 @@ import { AUTO_MODEL } from '@shared/types';
 
 /**
  * The department-aware catalog. ArksAI for companies: each corporate function
- * gets its own language, curated "plays" (ready-to-run briefs), and a restrained
- * accent. This is the differentiator — not a generic one-box maker, but a studio
- * organized around the teams that use it. Pure data so adding functions
- * (Product, Support, Legal…) later — or promoting them to per-org templates — is
- * trivial.
+ * gets its own language and a comprehensive set of ready-to-run "plays" mapped to
+ * its real day-to-day work, grouped by the kind of work — Create / Analyze /
+ * Operate. Pure data so adding tasks/departments — or promoting them to per-org
+ * templates later — is trivial.
  */
+
+export type Category = 'create' | 'analyze' | 'operate';
+
+export const CATEGORIES: { id: Category; label: string; blurb: string }[] = [
+  { id: 'create', label: 'Create', blurb: 'Make a new thing' },
+  { id: 'analyze', label: 'Analyze', blurb: 'Turn data into insight' },
+  { id: 'operate', label: 'Operate', blurb: 'Run a recurring process' },
+];
 
 export interface Play {
   title: string;
@@ -17,6 +24,7 @@ export interface Play {
   prompt: string;
   /** Routes to the right engine. 'report' → PDFs/decks; 'code' → apps, sheets, docs. */
   mode: SessionMode;
+  category: Category;
   model?: string;
   icon: IconName;
 }
@@ -50,7 +58,13 @@ export type IconName =
   | 'code'
   | 'terminal'
   | 'rocket'
-  | 'git-branch';
+  | 'git-branch'
+  | 'calendar'
+  | 'lightbulb'
+  | 'mail'
+  | 'clipboard'
+  | 'search'
+  | 'image';
 
 /** Inner SVG markup for each line icon (Lucide-style, matches our report icon set). */
 export const ICONS: Record<IconName, string> = {
@@ -79,92 +93,76 @@ export const ICONS: Record<IconName, string> = {
   rocket:
     '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
   'git-branch': '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  lightbulb:
+    '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+  mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+  clipboard:
+    '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  image:
+    '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
 };
+
+const A = AUTO_MODEL;
 
 export const DEPARTMENTS: Department[] = [
   {
     id: 'marketing',
     name: 'Marketing',
-    blurb: 'Pages, campaigns, and reports that ship.',
+    blurb: 'Pages, campaigns, content, and reports.',
     accent: '#c0502f',
     icon: 'megaphone',
     plays: [
-      {
-        title: 'Landing page',
-        blurb: 'Conversion-focused, on-brand, live.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'layout',
-        prompt:
-          'Build a modern, conversion-focused landing page: a strong hero, a clear value proposition, three benefit sections, social-proof, an FAQ, and a working sign-up / contact form. Clean, responsive, on-brand. Ask me a couple of quick questions first (what we sell, the audience, a colour preference), then build and publish it.',
-      },
-      {
-        title: 'Campaign one-pager',
-        blurb: 'A polished brief, in PDF.',
-        mode: 'report',
-        icon: 'file-text',
-        prompt:
-          'Create a polished one-page campaign brief as a PDF: objective, target audience, key message, channels, timeline, and the success metrics. Minimal, editorial, presentation-grade.',
-      },
-      {
-        title: 'Launch / performance report',
-        blurb: 'Data into a clean report.',
-        mode: 'report',
-        icon: 'bar-chart-3',
-        prompt:
-          'Turn campaign performance data into a clean, presentation-grade report (PDF) with charts and the key takeaways. I will paste or upload the numbers; design it beautifully and flag anything missing rather than inventing figures.',
-      },
-      {
-        title: 'Email + social kit',
-        blurb: 'On-brand assets, ready to send.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'megaphone',
-        prompt:
-          'Design a small launch kit: a responsive HTML marketing email and three on-brand social post graphics for a product launch. Ask me for the product, the headline, and a colour, then build them.',
-      },
+      { title: 'Landing page', blurb: 'Conversion-focused, live.', mode: 'code', model: A, category: 'create', icon: 'layout',
+        prompt: 'Build a modern, conversion-focused landing page: a strong hero, a clear value proposition, three benefit sections, social proof, an FAQ, and a working sign-up/contact form. Clean, responsive, on-brand. Ask me a couple of quick questions (what we sell, the audience, a colour), then build, verify, and publish it.' },
+      { title: 'Email + social kit', blurb: 'On-brand assets to send.', mode: 'code', model: A, category: 'create', icon: 'mail',
+        prompt: 'Design a small launch kit: a responsive HTML marketing email and three on-brand social post graphics. Ask me for the product, the headline, and a colour, then build them.' },
+      { title: 'Blog post / article', blurb: 'An editable, structured draft.', mode: 'code', model: A, category: 'create', icon: 'file-text',
+        prompt: 'Write a structured, on-brand blog post / article (an editable .docx): a strong headline, intro, well-organised sections, and a closing CTA. Tell me the topic and audience; research anything factual and cite it, never invent.' },
+      { title: 'Campaign brief', blurb: 'A one-page plan, in PDF.', mode: 'report', category: 'create', icon: 'clipboard',
+        prompt: 'Create a polished one-page campaign brief (PDF): objective, target audience, key message, channels, timeline, and success metrics. Minimal, editorial, presentation-grade.' },
+      { title: 'Event / waitlist site', blurb: 'A microsite that captures leads.', mode: 'code', model: A, category: 'create', icon: 'calendar',
+        prompt: 'Build a small event / waitlist microsite: hero with the date and details, an agenda or highlights, and a working sign-up form. Clean and on-brand. Ask me the essentials, then build and publish it.' },
+      { title: 'Performance report', blurb: 'Campaign data into a report.', mode: 'report', category: 'analyze', icon: 'bar-chart-3',
+        prompt: 'Turn campaign performance data into a clean, presentation-grade report (PDF) with charts and the key takeaways. I will paste or upload the numbers; design it beautifully and flag anything missing rather than inventing figures.' },
+      { title: 'Competitor teardown', blurb: 'Rivals, compared.', mode: 'report', category: 'analyze', icon: 'target',
+        prompt: 'Research our competitors and produce a competitor teardown (PDF): positioning, messaging, pricing where public, strengths/gaps, and where we can win — in a clean comparison layout. Cite sources; never fabricate facts. Tell me the competitors and our product.' },
+      { title: 'Audience / market brief', blurb: 'Researched, cited.', mode: 'report', category: 'analyze', icon: 'search',
+        prompt: 'Research a target audience or market and produce a concise brief (PDF): who they are, what they care about, where they are, and the messaging angles that land — with cited sources. Tell me the audience/market.' },
+      { title: 'Content calendar', blurb: 'A month, organized.', mode: 'code', model: A, category: 'operate', icon: 'calendar',
+        prompt: 'Create a monthly content/social calendar spreadsheet (.xlsx): date, channel, format, topic/headline, owner, and status — formatted with a clean header and validated. Ask me the channels and cadence, then build it.' },
+      { title: 'Campaign tracker', blurb: 'Channels and results.', mode: 'code', model: A, category: 'operate', icon: 'circle-check',
+        prompt: 'Create a campaign tracker spreadsheet (.xlsx): campaign, channel, budget, status, and key results — formatted and validated. Ask me what to track, then build it.' },
     ],
   },
   {
     id: 'sales',
     name: 'Sales',
-    blurb: 'Decks and one-pagers that close.',
+    blurb: 'Decks, proposals, and account work.',
     accent: '#2f7d5b',
     icon: 'briefcase',
     plays: [
-      {
-        title: 'Pitch deck',
-        blurb: 'A 16:9 deck, board-ready.',
-        mode: 'report',
-        icon: 'presentation',
-        prompt:
-          'Create a 16:9 pitch deck (slides): problem, solution, product, market, traction, pricing, and the ask. Clean, modern, typography-first. Ask me for the company, the offer, and any numbers, then design it.',
-      },
-      {
-        title: 'Pricing one-pager',
-        blurb: 'Tiers and the value story.',
-        mode: 'report',
-        icon: 'dollar-sign',
-        prompt:
-          'Design a clean pricing one-pager (PDF): the tiers, what is included in each, and a short value story. Minimal and persuasive. Ask me for the tiers and prices, then build it.',
-      },
-      {
-        title: 'Account brief',
-        blurb: 'A prospect, summarized.',
-        mode: 'report',
-        icon: 'briefcase',
-        prompt:
-          'Produce a concise account brief (PDF) for a prospect: company overview, key stakeholders, likely pain points, and our angle. I will give you the prospect; research public info and cite sources, never invent facts.',
-      },
-      {
-        title: 'ROI calculator',
-        blurb: 'An interactive value tool.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'trending-up',
-        prompt:
-          'Build a simple, interactive ROI calculator web app: inputs for the customer’s current costs and our impact, and it outputs the savings and payback period with a clean chart. Ask me for the inputs and the formula, then build and publish it.',
-      },
+      { title: 'Pitch deck', blurb: 'A 16:9 deck, board-ready.', mode: 'report', category: 'create', icon: 'presentation',
+        prompt: 'Create a 16:9 pitch deck (slides): problem, solution, product, market, traction, pricing, and the ask. Clean, modern, typography-first. Ask me for the company, the offer, and any numbers, then design it.' },
+      { title: 'Pricing one-pager', blurb: 'Tiers and the value story.', mode: 'report', category: 'create', icon: 'dollar-sign',
+        prompt: 'Design a clean pricing one-pager (PDF): the tiers, what is included in each, and a short value story. Minimal and persuasive. Ask me for the tiers and prices, then build it.' },
+      { title: 'Proposal', blurb: 'Tailored to the deal.', mode: 'report', category: 'create', icon: 'file-text',
+        prompt: 'Produce a tailored sales proposal (PDF): the prospect’s problem, our solution and scope, pricing, timeline, and next steps. Persuasive and clean. Ask me about the prospect and the offer, then design it.' },
+      { title: 'Case study', blurb: 'A customer win, designed.', mode: 'report', category: 'create', icon: 'briefcase',
+        prompt: 'Create a one-page customer case study (PDF): the customer, the challenge, what we did, and the results (with a metric or two). Clean and credible. Give me the details; never invent figures.' },
+      { title: 'Cold outreach sequence', blurb: 'A multi-touch draft.', mode: 'code', model: A, category: 'create', icon: 'mail',
+        prompt: 'Write a multi-touch cold outreach sequence (an editable .docx): 4–5 short, personalised emails with subject lines and clear CTAs, plus a couple of LinkedIn notes. Tell me who we sell to and the value prop.' },
+      { title: 'Account brief', blurb: 'A prospect, researched.', mode: 'report', category: 'analyze', icon: 'search',
+        prompt: 'Produce a concise account brief (PDF) for a prospect: company overview, key stakeholders, likely pain points, recent news, and our angle. Research public info and cite it; never invent facts. Give me the company.' },
+      { title: 'Battlecard', blurb: 'Win the competitive deal.', mode: 'report', category: 'analyze', icon: 'target',
+        prompt: 'Build a one-page sales battlecard (PDF) for a competitor: how to position against them, their strengths/weaknesses, objection handling, and our key differentiators — scannable. Research public info, cite it. Name the competitor.' },
+      { title: 'ROI calculator', blurb: 'An interactive value tool.', mode: 'code', model: A, category: 'analyze', icon: 'trending-up',
+        prompt: 'Build a simple, interactive ROI calculator web app: inputs for the customer’s current costs and our impact, outputting the savings and payback with a clean chart. Ask me for the inputs and the formula, then build and publish it.' },
+      { title: 'Account plan', blurb: 'Stakeholders and actions.', mode: 'code', model: A, category: 'operate', icon: 'clipboard',
+        prompt: 'Create a strategic account plan spreadsheet (.xlsx): the account’s goals, the buying committee/stakeholders, our solution map, risks, and the action plan with owners and dates — formatted and validated. Ask me about the account.' },
+      { title: 'Pipeline tracker', blurb: 'Deals and next steps.', mode: 'code', model: A, category: 'operate', icon: 'bar-chart-3',
+        prompt: 'Create a sales pipeline tracker spreadsheet (.xlsx): deal, stage, value, close date, owner, and next step — with a clean header, totals, and validation. Ask me what to track, then build it.' },
     ],
   },
   {
@@ -174,129 +172,88 @@ export const DEPARTMENTS: Department[] = [
     accent: '#2a5a8c',
     icon: 'chart-pie',
     plays: [
-      {
-        title: 'KPI dashboard',
-        blurb: 'Metrics, interactive.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'bar-chart-3',
-        prompt:
-          'Build an interactive KPI dashboard web app from my metrics — revenue, growth, burn, runway — with charts and filters. I will paste the data; design it cleanly, verify it works, and publish it.',
-      },
-      {
-        title: 'Board deck',
-        blurb: 'Performance vs plan, in 16:9.',
-        mode: 'report',
-        icon: 'presentation',
-        prompt:
-          'Create a 16:9 board deck (slides): performance vs plan, the KPIs, financials, risks, and asks. Restrained and serious. Ask me for the figures, then design it; never fabricate numbers.',
-      },
-      {
-        title: 'Budget model',
-        blurb: 'A formatted, validated spreadsheet.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'wallet',
-        prompt:
-          'Create a budgeting spreadsheet (.xlsx): monthly income, categorized expenses, and a summary of what is left — properly formatted (currency, totals) and validated. Ask me for the categories and figures, then build it.',
-      },
-      {
-        title: 'Investor update',
-        blurb: 'The monthly note, polished.',
-        mode: 'report',
-        icon: 'trending-up',
-        prompt:
-          'Write a polished monthly investor update (PDF): highlights, the key metrics, lowlights, asks, and runway. Clear and honest. I will give you the inputs; design it beautifully.',
-      },
+      { title: 'Board deck', blurb: 'Performance vs plan, 16:9.', mode: 'report', category: 'create', icon: 'presentation',
+        prompt: 'Create a 16:9 board deck (slides): performance vs plan, the KPIs, financials, risks, and asks. Restrained and serious. Ask me for the figures, then design it; never fabricate numbers.' },
+      { title: 'Investor update', blurb: 'The monthly note, polished.', mode: 'report', category: 'create', icon: 'trending-up',
+        prompt: 'Write a polished monthly investor update (PDF): highlights, key metrics, lowlights, asks, and runway. Clear and honest. I will give you the inputs; design it beautifully.' },
+      { title: 'Strategy memo', blurb: 'A researched point of view.', mode: 'report', category: 'create', icon: 'lightbulb',
+        prompt: 'Write a strategy / market memo (PDF): the question, the analysis, cited benchmarks, options, and a clear recommendation. Crisp and well-structured. Tell me the topic; research and cite, never fabricate.' },
+      { title: 'KPI dashboard', blurb: 'Metrics, interactive.', mode: 'code', model: A, category: 'analyze', icon: 'bar-chart-3',
+        prompt: 'Build an interactive KPI dashboard web app from my metrics — revenue, growth, burn, runway — with charts and filters. I will paste the data (or give a CSV/Sheet link to fetch); design it cleanly, verify it works, and publish it.' },
+      { title: 'Variance report', blurb: 'Budget vs actual.', mode: 'report', category: 'analyze', icon: 'chart-pie',
+        prompt: 'Turn budget-vs-actual data into a clean variance report (PDF): the variances by line, charts, and a short narrative on what moved and why. I will provide the numbers; flag gaps rather than inventing.' },
+      { title: 'Financial model', blurb: 'Assumptions to outputs.', mode: 'code', model: A, category: 'analyze', icon: 'trending-up',
+        prompt: 'Build a financial model spreadsheet (.xlsx): an assumptions block driving a simple revenue/P&L projection with monthly columns and totals — formatted, with formulas, and validated. Ask me for the drivers, then build it.' },
+      { title: 'Cash-flow forecast', blurb: 'Runway, projected.', mode: 'code', model: A, category: 'analyze', icon: 'wallet',
+        prompt: 'Build a cash-flow forecast spreadsheet (.xlsx): opening cash, inflows, outflows, net, and closing cash by month, with runway highlighted — formatted with formulas and validated. Ask me for the inputs, then build it.' },
+      { title: 'Scenario model', blurb: 'Best / base / worst.', mode: 'code', model: A, category: 'analyze', icon: 'chart-pie',
+        prompt: 'Build a scenario / sensitivity model spreadsheet (.xlsx): best/base/worst cases driven by a few key assumptions, with the outputs compared side by side — formatted with formulas and validated. Ask me the drivers, then build it.' },
+      { title: 'Budget model', blurb: 'A validated spreadsheet.', mode: 'code', model: A, category: 'operate', icon: 'wallet',
+        prompt: 'Create a budgeting spreadsheet (.xlsx): monthly income, categorized expenses, and a summary of what is left — properly formatted (currency, totals) and validated. Ask me for the categories and figures, then build it.' },
+      { title: 'Expense tracker', blurb: 'Spend, categorized.', mode: 'code', model: A, category: 'operate', icon: 'dollar-sign',
+        prompt: 'Create an expense tracker spreadsheet (.xlsx): date, category, vendor, amount, and notes, with category subtotals and a clean header — formatted and validated. Ask me the categories, then build it.' },
     ],
   },
   {
     id: 'people',
     name: 'HR / People & Ops',
-    blurb: 'Handbooks, portals, and trackers.',
+    blurb: 'Hiring, onboarding, policies, and people data.',
     accent: '#7a4f93',
     icon: 'users',
     plays: [
-      {
-        title: 'Employee handbook',
-        blurb: 'An editable, on-brand doc.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'file-text',
-        prompt:
-          'Create a clean, editable employee handbook (.docx): values, the core policies, benefits, and ways of working — well-structured with clear headings. Ask me for our specifics, then build it.',
-      },
-      {
-        title: 'Onboarding portal',
-        blurb: 'A new-hire home, live.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'graduation-cap',
-        prompt:
-          'Build a simple new-hire onboarding portal web app: a first-week checklist, key links, team intros, and the schedule. Friendly and clear. Ask me for the content, then build, verify, and publish it.',
-      },
-      {
-        title: 'Team tracker',
-        blurb: 'People and dates, organized.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'users',
-        prompt:
-          'Create a team tracker spreadsheet (.xlsx): people, roles, status, and the key dates — formatted, with a clean header and validated. Ask me what to track, then build it.',
-      },
-      {
-        title: 'Process runbook',
-        blurb: 'A clear, shareable procedure.',
-        mode: 'report',
-        icon: 'circle-check',
-        prompt:
-          'Turn a process into a clear runbook (PDF): purpose, the steps in order, the owners, and the escalation path. Ask me for the process, then design it cleanly.',
-      },
+      { title: 'Job description', blurb: 'A clear, structured JD.', mode: 'code', model: A, category: 'create', icon: 'file-text',
+        prompt: 'Write a clear, inclusive job description (an editable .docx): the role summary, responsibilities, requirements, nice-to-haves, and what we offer — well-structured. Tell me the role and level.' },
+      { title: 'Offer letter', blurb: 'A clean, editable letter.', mode: 'code', model: A, category: 'create', icon: 'mail',
+        prompt: 'Draft a professional offer letter (an editable .docx): role, start date, compensation, key terms, and a warm welcome — with clearly marked placeholders for the specifics. Ask me what to fill in.' },
+      { title: 'Policy document', blurb: 'A specific HR policy.', mode: 'code', model: A, category: 'create', icon: 'clipboard',
+        prompt: 'Write a clear HR policy document (an editable .docx) for the topic I give you (e.g. PTO, remote work, expenses): purpose, scope, the policy itself, and how it’s applied — well-structured and plain-language.' },
+      { title: 'Employee handbook', blurb: 'The whole thing, editable.', mode: 'code', model: A, category: 'create', icon: 'file-text',
+        prompt: 'Create a clean, editable employee handbook (.docx): values, the core policies, benefits, and ways of working — well-structured with clear headings. Ask me for our specifics, then build it.' },
+      { title: 'Training guide / SOP', blurb: 'A how-to people can follow.', mode: 'report', category: 'create', icon: 'graduation-cap',
+        prompt: 'Turn a process into a clear training guide / SOP (PDF): purpose, prerequisites, the steps in order with screenshots-as-placeholders, and tips/pitfalls. Tell me the process; design it cleanly.' },
+      { title: 'Engagement survey', blurb: 'A form + a results sheet.', mode: 'code', model: A, category: 'analyze', icon: 'clipboard',
+        prompt: 'Build a simple employee engagement survey: a clean web form with the standard questions plus any I add, that records responses, and a results view/sheet. Ask me the questions, then build, verify, and publish it.' },
+      { title: 'People dashboard', blurb: 'Headcount and trends.', mode: 'code', model: A, category: 'analyze', icon: 'bar-chart-3',
+        prompt: 'Build a people dashboard web app from my HR data — headcount, by team, attrition, and leave — with charts and filters. I will paste the data (or a CSV/Sheet link); design it cleanly, verify, and publish it.' },
+      { title: 'Onboarding portal', blurb: 'A new-hire home, live.', mode: 'code', model: A, category: 'operate', icon: 'graduation-cap',
+        prompt: 'Build a simple new-hire onboarding portal web app: a first-week checklist, key links, team intros, and the schedule. Friendly and clear. Ask me for the content, then build, verify, and publish it.' },
+      { title: 'Onboarding checklist', blurb: 'A first-week plan.', mode: 'code', model: A, category: 'operate', icon: 'circle-check',
+        prompt: 'Create a new-hire onboarding checklist spreadsheet (.xlsx): task, owner, due day, and status across pre-start and the first week — formatted and validated. Ask me our steps, then build it.' },
+      { title: 'Team tracker', blurb: 'People and dates.', mode: 'code', model: A, category: 'operate', icon: 'users',
+        prompt: 'Create a team tracker spreadsheet (.xlsx): people, roles, status, and key dates — formatted, with a clean header and validated. Ask me what to track, then build it.' },
+      { title: 'Process runbook', blurb: 'A shareable procedure.', mode: 'report', category: 'operate', icon: 'circle-check',
+        prompt: 'Turn a process into a clear runbook (PDF): purpose, the steps in order, the owners, and the escalation path. Ask me for the process, then design it cleanly.' },
     ],
   },
   {
     id: 'engineering',
     name: 'Engineering',
-    blurb: 'Tools, prototypes, and docs — shipped.',
+    blurb: 'Tools, prototypes, dashboards, and docs.',
     accent: '#1f7a8c',
     icon: 'code',
     plays: [
-      {
-        title: 'Internal tool',
-        blurb: 'A web app for your team.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'code',
-        prompt:
-          'Build an internal tool / dashboard web app for the team. Tell me what it should do; I’ll design it cleanly, wire up the data, verify it works end-to-end, and publish it.',
-      },
-      {
-        title: 'API or automation',
-        blurb: 'A service or script that runs.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'terminal',
-        prompt:
-          'Build a small API/service or an automation script. Tell me the endpoints (or the task) and the inputs/outputs; I’ll implement it, exercise it with real requests, and hand back a runnable result.',
-      },
-      {
-        title: 'Working prototype',
-        blurb: 'An idea, made real fast.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'rocket',
-        prompt:
-          'Prototype an idea as a working web app so we can try it — fast, functional, and deployed. Describe the concept and I’ll build a clickable version, verified and live.',
-      },
-      {
-        title: 'Technical doc',
-        blurb: 'A README or design doc.',
-        mode: 'code',
-        model: AUTO_MODEL,
-        icon: 'file-text',
-        prompt:
-          'Write clear technical documentation — a README, a design doc, or an architecture overview — well-structured with sections and examples. Tell me the topic and I’ll produce an editable document.',
-      },
+      { title: 'Internal tool', blurb: 'A web app for your team.', mode: 'code', model: A, category: 'create', icon: 'code',
+        prompt: 'Build an internal tool / app for the team. Tell me what it should do; I’ll design it cleanly, wire up the data, verify it works end-to-end, and publish it.' },
+      { title: 'Working prototype', blurb: 'An idea, made real fast.', mode: 'code', model: A, category: 'create', icon: 'rocket',
+        prompt: 'Prototype an idea as a working web app so we can try it — fast, functional, and deployed. Describe the concept and I’ll build a clickable version, verified and live.' },
+      { title: 'Admin panel / CRUD', blurb: 'Manage your data.', mode: 'code', model: A, category: 'create', icon: 'layout',
+        prompt: 'Build an internal admin panel: list/create/edit/delete for the entities I describe, with a clean table UI and a working backend. Verify the full flow end-to-end and publish it. Tell me the entities and fields.' },
+      { title: 'Docs / landing site', blurb: 'A site for a project.', mode: 'code', model: A, category: 'create', icon: 'file-text',
+        prompt: 'Build a clean docs or marketing site for a project/tool: a clear hero, the key sections, and navigation. Tell me the project; I’ll design, verify, and publish it.' },
+      { title: 'Eng-metrics dashboard', blurb: 'Delivery, visualized.', mode: 'code', model: A, category: 'analyze', icon: 'bar-chart-3',
+        prompt: 'Build an engineering-metrics dashboard web app: throughput, cycle time, deploys, and incidents from the data I give you (paste or a CSV link). Clean charts and filters; verify and publish it.' },
+      { title: 'Data dashboard', blurb: 'Any dataset, charted.', mode: 'code', model: A, category: 'analyze', icon: 'chart-pie',
+        prompt: 'Build a data dashboard web app from a dataset — I’ll paste it or give a CSV/JSON/Sheet link to fetch. Pick the right charts, add filters, surface the key insights, verify it works, and publish it.' },
+      { title: 'API or automation', blurb: 'A service or script that runs.', mode: 'code', model: A, category: 'analyze', icon: 'terminal',
+        prompt: 'Build a small API/service or an automation script. Tell me the endpoints (or the task) and the inputs/outputs; I’ll implement it, exercise it with real requests, and hand back a runnable result.' },
+      { title: 'Technical doc', blurb: 'A README or design doc.', mode: 'code', model: A, category: 'operate', icon: 'file-text',
+        prompt: 'Write clear technical documentation — a README, an architecture overview, or a how-to — well-structured with sections and examples (an editable document). Tell me the topic.' },
+      { title: 'Runbook / SOP', blurb: 'Incident or ops procedure.', mode: 'report', category: 'operate', icon: 'circle-check',
+        prompt: 'Turn an operational process into a clear runbook (PDF): purpose, preconditions, the steps in order, rollback, and escalation/owners. Tell me the process; design it cleanly.' },
+      { title: 'Design doc / PRD', blurb: 'Align before building.', mode: 'code', model: A, category: 'operate', icon: 'clipboard',
+        prompt: 'Write a design doc / PRD (an editable document): the problem, goals and non-goals, the proposed approach, alternatives, risks, and a rollout plan — well-structured. Tell me the feature/project.' },
+      { title: 'Sprint / status report', blurb: 'What shipped, summarized.', mode: 'report', category: 'operate', icon: 'bar-chart-3',
+        prompt: 'Turn sprint/status data into a clean status report (PDF): what shipped, what’s in progress, risks/blockers, and what’s next — with a chart or two. I’ll give you the inputs; flag gaps rather than inventing.' },
     ],
   },
 ];

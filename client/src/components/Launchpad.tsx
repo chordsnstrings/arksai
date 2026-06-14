@@ -3,7 +3,7 @@ import type { SessionMode } from '@shared/types';
 import { AUTO_MODEL } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
-import { DEPARTMENTS, ICONS, departmentById, type IconName } from '../lib/departments';
+import { CATEGORIES, DEPARTMENTS, ICONS, departmentById, type IconName } from '../lib/departments';
 
 const LS_KEY = 'arksai.department';
 
@@ -132,19 +132,37 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
           </button>
         </div>
 
-        <div className="lp-plays">
-          {dept.plays.map((p, i) => (
-            <button key={p.title} className="play-card" onClick={() => run(p.prompt, p.mode, p.model)} disabled={busy}>
-              <span className="play-no">{String(i + 1).padStart(2, '0')}</span>
-              <span className="play-ico">
-                <Icon name={p.icon} size={18} />
-              </span>
-              <span className="play-body">
-                <span className="play-title">{p.title}</span>
-                <span className="play-blurb">{p.blurb}</span>
-              </span>
-            </button>
-          ))}
+        <div className="lp-cats">
+          {CATEGORIES.map((cat) => {
+            const plays = dept.plays.filter((p) => p.category === cat.id);
+            if (!plays.length) return null;
+            return (
+              <div key={cat.id} className="lp-cat">
+                <div className="lp-cat-head">
+                  <span className="lp-cat-label">{cat.label}</span>
+                  <span className="lp-cat-blurb">{cat.blurb}</span>
+                </div>
+                <div className="lp-plays">
+                  {plays.map((p) => (
+                    <button
+                      key={p.title}
+                      className="play-card"
+                      onClick={() => run(p.prompt, p.mode, p.model)}
+                      disabled={busy}
+                    >
+                      <span className="play-ico">
+                        <Icon name={p.icon} size={18} />
+                      </span>
+                      <span className="play-body">
+                        <span className="play-title">{p.title}</span>
+                        <span className="play-blurb">{p.blurb}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div className="lp-rule" />
