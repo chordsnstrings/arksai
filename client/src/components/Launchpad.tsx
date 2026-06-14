@@ -42,7 +42,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   const pickDept = (id: string) => {
     setDeptId(id);
     setError('');
-    applyDeptTheme(id); // Engineering → dark
+    applyDeptTheme(id, true); // Engineering → dark, animated
     try {
       localStorage.setItem(LS_KEY, id);
     } catch {
@@ -129,7 +129,14 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
             </div>
             <h1 className="lp-title">What does your team need to ship?</h1>
           </div>
-          <button className="lp-switch" onClick={() => setDeptId(null)} disabled={busy}>
+          <button
+            className="lp-switch"
+            onClick={() => {
+              setDeptId(null);
+              applyDeptTheme(null, true); // back to the neutral, light teams screen
+            }}
+            disabled={busy}
+          >
             ← teams
           </button>
         </div>

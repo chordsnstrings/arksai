@@ -64,6 +64,22 @@
 :root[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: #3a414c; }
 :root[data-theme='dark'] .user-bubble { color: #d3eef4; border-color: rgba(58, 166, 189, 0.3); }
 
+/* Smooth dark↔light crossfade — the class is added briefly during a switch, then
+ * removed so transitions don't linger on hovers/interactions. */
+:root.theme-animating,
+:root.theme-animating *,
+:root.theme-animating *::before,
+:root.theme-animating *::after {
+  transition: background-color 0.42s ease, color 0.42s ease, border-color 0.42s ease,
+    fill 0.42s ease, stroke 0.42s ease, box-shadow 0.42s ease !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root.theme-animating,
+  :root.theme-animating *,
+  :root.theme-animating *::before,
+  :root.theme-animating *::after { transition: none !important; }
+}
+
 * { box-sizing: border-box; }
 
 html, body, #root { height: 100%; margin: 0; }

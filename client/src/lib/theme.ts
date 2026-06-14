@@ -5,9 +5,16 @@
  */
 export const DEPT_KEY = 'arksai.department';
 
-export function applyDeptTheme(deptId: string | null | undefined): void {
+export function applyDeptTheme(deptId: string | null | undefined, animate = false): void {
   const dark = deptId === 'engineering';
   const root = document.documentElement;
+  if (animate && root.getAttribute('data-theme') !== (dark ? 'dark' : 'light')) {
+    // Briefly enable color transitions across the UI for a smooth crossfade,
+    // then remove them so they don't linger on hovers/interactions.
+    root.classList.add('theme-animating');
+    window.clearTimeout((root as any)._themeT);
+    (root as any)._themeT = window.setTimeout(() => root.classList.remove('theme-animating'), 480);
+  }
   root.setAttribute('data-theme', dark ? 'dark' : 'light');
   root.style.colorScheme = dark ? 'dark' : 'light';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#15171b' : '#f4f1ea');
