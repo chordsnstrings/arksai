@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import type { SessionMeta } from '@shared/types';
 import { useStore } from '../state/sessionStore';
+import { DeploymentsDialog } from './DeploymentsDialog';
 
 export function TopBar({ meta }: { meta: SessionMeta }) {
   const toggleCanvas = useStore((s) => s.toggleCanvas);
   const canvasOpen = useStore((s) => s.canvasOpen);
+  const [showDeploy, setShowDeploy] = useState(false);
   return (
     <header className="topbar">
       {meta.repoName ? (
@@ -22,9 +25,13 @@ export function TopBar({ meta }: { meta: SessionMeta }) {
           <span className="del">{meta.diffStat.split(' ')[1]}</span>
         </span>
       )}
+      <button className="canvas-toggle" onClick={() => setShowDeploy(true)} title="Publish this app to a live URL">
+        🚀 Publish
+      </button>
       <button className={`canvas-toggle ${canvasOpen ? 'on' : ''}`} onClick={() => toggleCanvas()}>
         ▦ Canvas
       </button>
+      {showDeploy && <DeploymentsDialog meta={meta} onClose={() => setShowDeploy(false)} />}
     </header>
   );
 }

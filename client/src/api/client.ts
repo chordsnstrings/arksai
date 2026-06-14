@@ -2,6 +2,7 @@ import type {
   CreateProjectRequest,
   CreateSessionRequest,
   CustomCommand,
+  Deployment,
   MemoryEntry,
   ModelInfo,
   PatchProjectRequest,
@@ -105,6 +106,19 @@ export const api = {
   },
   deleteProjectFile: (id: string, fileId: string) =>
     request<{ ok: true }>(`/api/projects/${id}/files/${fileId}`, { method: 'DELETE' }),
+
+  // ---- deployments ----
+  listDeployments: (sessionId?: string) =>
+    request<{ deployments: Deployment[] }>(
+      `/api/deployments${sessionId ? `?sessionId=${sessionId}` : ''}`,
+    ).then((r) => r.deployments),
+  publish: (sessionId: string, name?: string) =>
+    request<Deployment>(`/api/sessions/${sessionId}/publish`, { method: 'POST', body: JSON.stringify({ name }) }),
+  stopDeployment: (slug: string) =>
+    request<Deployment>(`/api/deployments/${slug}/stop`, { method: 'POST' }),
+  restartDeployment: (slug: string) =>
+    request<Deployment>(`/api/deployments/${slug}/restart`, { method: 'POST' }),
+  deleteDeployment: (slug: string) => request<{ ok: true }>(`/api/deployments/${slug}`, { method: 'DELETE' }),
 };
 
 export { ApiError };
