@@ -149,19 +149,48 @@ HOW TO BUILD (the pipeline):
     on the page; tabular-nums with numbers right-aligned, labels left; light
     alternating ROW shading and a faint COLUMN hairline for easy scanning; a quiet
     uppercase header. Beautiful and readable, never heavy/boxy or loosely spaced.
+  • EDITORIAL STRUCTURE & RULES (make it read like a fine newspaper/magazine, NOT
+    a flat web doc — this is a key brand cue): use THIN HAIRLINE RULES to separate
+    focus points and give the page architecture, not just whitespace:
+    – Wide side gutters (the @page margins below) so the text column is inset and
+      calm — never edge-to-edge.
+    – A KICKER/eyebrow over each section heading: small-caps, tracked-out, accent
+      or muted (e.g. "SECTION 02 · MARKETS"). A thin rule UNDER the heading (or a
+      short accent rule ABOVE it) anchors it.
+    – A SECTION DIVIDER (full-measure hairline, ~0.5pt, in --line) between major
+      sections to mark a clear break.
+    – For dense prose, flow body text in a 2-COLUMN layout with a COLUMN RULE
+      (thin hairline between columns) — the classic newspaper grid; keep the
+      measure ~58–64ch per column.
+    – A subtle MASTHEAD on interior pages (a running label + hairline at the top,
+      e.g. report title · section) reinforces the editorial feel.
+    – Group a stat band, a pull-quote, or a chart+insight as a bordered/hairlined
+      "focus block" so the eye lands on it. Restraint still rules: hairlines are
+      quiet (--line / faint), never heavy boxes everywhere.
+    Example CSS to adapt:
+      .kicker { font:600 .68em var(--sans); letter-spacing:.16em; text-transform:uppercase; color:var(--accent); margin:0 0 1.5mm }
+      h2 { border-bottom:1px solid var(--line); padding-bottom:2mm; margin:0 0 4mm }
+      .rule { border:0; border-top:1px solid var(--line); margin:8mm 0 6mm }   /* section divider */
+      .cols { column-count:2; column-gap:9mm; column-rule:1px solid var(--line) }
+      .masthead { display:flex; justify-content:space-between; font:.66em var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line); padding-bottom:1.5mm; margin-bottom:6mm }
 - PAGE MECHANICS — get these exactly right (margins must repeat on EVERY page and
   nothing may bleed across a page break). Put the MARGINS ON @page, never on a
   fixed-width padded container, and size the cover to the printable height:
-    @page { size: A4; margin: 18mm 16mm }            /* repeats on every page */
-    .cover { min-height: calc(100vh - 36mm);         /* = page − top&bottom margin */
+    @page { size: A4; margin: 20mm 26mm }            /* GENEROUS newspaper-style side gutters; repeats every page */
+    .cover { min-height: calc(100vh - 40mm);         /* = page − top&bottom margin (2×20mm) */
              display:flex; flex-direction:column; justify-content:center;
              align-items:center; text-align:center;
              page-break-after: always }              /* COVER IS ITS OWN PAGE — nothing shares it */
     .toc { page-break-after: always }                /* a Contents page, if used, is its OWN page */
     .break { break-before: page }                    /* apply DELIBERATELY for a major division — NOT on every heading */
     thead { display: table-header-group }             /* repeat table headers */
-    tr, .kpi, figure, svg, img, .callout { break-inside: avoid }
-    h1,h2,h3 { break-after: avoid }  p,li { orphans:3; widows:3 }
+    figure, .kpi, .kpi-row, .chart, svg, img, .callout, tr { break-inside: avoid }
+    h1,h2,h3,h4 { break-after: avoid }  p,li { orphans:3; widows:3 }
+    /* ANTI-ORPHAN (the #1 report bug): a heading must NEVER strand at the bottom
+       with its paragraph flowing to the next page. Mechanical fix — wrap EACH
+       section's heading + its opening paragraph (its "lede") in a keep-together
+       block; if the pair doesn't fit the remaining space they move as ONE. */
+    .lede { break-inside: avoid }                    /* = <h2>…</h2> + the first <p> after it, as one unit */
     /* "Verdict"/conclusion = a LIGHT callout that flows with content (never a dark box, never its own page) */
     .callout { background:var(--surface); border-left:3px solid var(--accent); padding:5mm 6mm; border-radius:0 8px 8px 0; margin:5mm 0 }
     /* compact, centred, readable table */
@@ -171,14 +200,20 @@ HOW TO BUILD (the pipeline):
     tbody tr:nth-child(even){ background:var(--surface) }            /* row variation */
     tbody td+td, thead th+th { border-left:1px solid var(--surface) }/* column variation */
     tbody td { border-bottom:1px solid var(--line) }
-  (Adjust the 18/16mm margins to taste, but keep .cover's calc = 2× the vertical
-  margin. Render layout "slides" → use a landscape page instead.)
+  (Keep the side margins WIDE — 24–28mm — for the editorial/newspaper feel the
+  brand wants; keep .cover's calc = 2× the vertical margin. Render layout
+  "slides" → use a landscape page instead.)
 - CONTENT FLOW: let sections FLOW and fill each page — do NOT force every section
   onto its own page (that leaves lonely, half-empty pages, e.g. a one-line
   "Verdict" alone). Only start a new page for a genuinely major division or when
   the page is full. The cover (and a Contents page, if used) are the only
-  guaranteed page breaks. Never leave a near-empty page, and never let a heading
-  sit at the very bottom with its content on the next page.
+  guaranteed page breaks. Never leave a near-empty page, and NEVER let a heading
+  sit at the very bottom with its content on the next page — this is the recurring
+  bug. ENFORCE it mechanically: wrap every section's heading together with its
+  opening paragraph in a single <div class="lede"> (break-inside:avoid), so the
+  heading+lede always move as one and a heading can never strand. Put the kicker
+  inside the .lede too. (A long section can still continue past the page break —
+  just never with the heading orphaned at the bottom.)
 - CONTRAST (legibility, non-negotiable): every piece of text MUST have strong
   contrast against its background. NEVER colour text the same/near its background
   or accent — that is the invisible-text bug. Highlighted phrases use the accent
@@ -197,11 +232,15 @@ HOW TO BUILD (the pipeline):
   strong, quiet hierarchy is what makes a report look authored, not default.
 - VISUAL QC IS MANDATORY (don't skip it): after rendering, use see_image to LOOK
   at EVERY page and critique it like a design director, then fix and re-render
-  until it's genuinely premium. Check specifically: large empty bottoms / poor
-  page-fill, unbalanced composition, a chart split from its caption/insight,
-  orphaned KPI tiles, lonely near-empty pages, content bleed/cut-off, mis-centred
-  cover, invisible/low-contrast text, accent overused, and unreadable charts.
-  Iterate at least once; "it rendered" is NOT "it's well designed".
+  until it's genuinely premium. Check specifically: ANY heading stranded near the
+  bottom with its text continuing on the next page (the #1 bug — fix with .lede);
+  side gutters too tight / text running edge-to-edge (widen the margins for the
+  newspaper feel); MISSING editorial rules (no kickers, no section dividers, no
+  column rule on multi-col prose — add them to give the page architecture); large
+  empty bottoms / poor page-fill, unbalanced composition, a chart split from its
+  caption/insight, orphaned KPI tiles, lonely near-empty pages, content
+  bleed/cut-off, mis-centred cover, invisible/low-contrast text, accent overused,
+  and unreadable charts. Iterate at least once; "it rendered" is NOT "well designed".
 - DOCX (only when asked): generate from the same content with the docx library —
   clean and editable, but say up front it won't be as richly designed as the PDF.
 
