@@ -14,6 +14,7 @@ import { addUiKitTool } from './ui-kit';
 import { publishAppTool } from './publish';
 import { generateSpreadsheetTool } from './excel';
 import { generateDocTool } from './docx';
+import { switchModeTool } from './mode';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -42,6 +43,7 @@ export const ALL_TOOLS: ToolDef[] = [
   publishAppTool,
   generateSpreadsheetTool,
   generateDocTool,
+  switchModeTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,
@@ -61,6 +63,7 @@ const REPORT_TOOLS = new Set([
   'render_report',
   'generate_spreadsheet',
   'generate_doc',
+  'switch_mode',
 ]);
 
 export interface ToolSet {

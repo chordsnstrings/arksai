@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import fg from 'fast-glob';
-import { computeCost, KNOWN_MODELS, type SessionMeta, type TimelineItem, type ToolCallRecord } from '../../../shared/types';
+import { computeCost, KNOWN_MODELS, type SessionMeta, type SessionMode, type TimelineItem, type ToolCallRecord } from '../../../shared/types';
 import { config } from '../config';
 import { bus } from '../events/bus';
 import * as store from '../sessions/store';
@@ -38,6 +38,13 @@ function estimateTokens(messages: unknown): number {
 
 const DELIVERABLE_GLOB =
   '**/*.{xlsx,xls,csv,pdf,docx,doc,pptx,png,jpg,jpeg,svg,zip,tar,gz,tgz,tar.gz,mp3,wav,mp4,json}';
+
+const MODE_LABELS: Record<SessionMode, string> = {
+  chat: 'Chat',
+  plan: 'Plan',
+  code: 'Build (Code)',
+  report: 'Report',
+};
 
 /** Document/binary files created or modified during a run → download chips in the chat. */
 async function findDeliverables(repoDirPath: string, sinceTs: number): Promise<TimelineItem[]> {
@@ -130,6 +137,7 @@ export class AgentRun {
   private taskProfile!: TaskProfile; // classified at run start; drives design context + gating
   private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
   private progressPhase: ProgressPhase = 'understanding';
+  private pendingMode: SessionMode | null = null; // set by switch_mode; applied between tool batches
   private client: OpenAI; // DeepSeek (also used for title gen)
   private minimaxClient: OpenAI | null = null;
   private minimaxAvailable = !!config.minimaxApiKey;
@@ -193,12 +201,78 @@ export class AgentRun {
     bus.emit(this.session.id, event);
   }
 
+  /** A stronger model the current mode demands, or null. Reports + non-trivial
+   *  visual code builds shouldn't run on the cheapest brain. */
+  private floorModel(): string | null {
+    if (this.activeModel !== 'deepseek-v4-flash') return null;
+    const strong = this.minimaxAvailable ? MAX_MODEL : 'deepseek-v4-pro';
+    if (this.session.mode === 'report') return strong;
+    if (this.session.mode === 'code' && this.taskProfile?.isVisual && this.taskProfile.tier !== 'light') return strong;
+    return null;
+  }
+
+  /** Pick the engine for the current mode: auto-route by complexity (Auto mode),
+   *  then apply the per-mode floor. Called at run start and after a mode switch. */
+  private routeModel(userText: string, sys: (text: string) => void) {
+    if (isAutoModel(this.session.model)) {
+      const pick = selectModel(userText, this.session.mode, { minimaxAvailable: this.minimaxAvailable });
+      this.setActiveModel(pick.model);
+      sys(`↳ Auto-routed to ${pick.reason}`);
+    } else {
+      this.setActiveModel(this.session.model);
+    }
+    const floor = this.floorModel();
+    if (floor && floor !== this.activeModel) {
+      this.setActiveModel(floor);
+      const why = this.session.mode === 'report' ? 'Reports use a stronger model' : 'Polished UI work uses a stronger model';
+      sys(`↳ ${why} — switched to ${KNOWN_MODELS[floor]?.label ?? floor}.`);
+    }
+  }
+
+  /** Inject a note so the text-only agent knows an image was uploaded and (if
+   *  vision is on) to see_image it. Only recent uploads, so old ones don't nag. */
+  private noteUploadedImages(dir: string, context: any[]) {
+    try {
+      const upDir = path.join(dir, 'uploads');
+      if (!fs.existsSync(upDir)) return;
+      const cutoff = Date.now() - 20 * 60_000;
+      const imgs = fs
+        .readdirSync(upDir)
+        .filter((f) => /\.(png|jpe?g|webp|gif|bmp)$/i.test(f))
+        .filter((f) => {
+          try {
+            return fs.statSync(path.join(upDir, f)).mtimeMs >= cutoff;
+          } catch {
+            return false;
+          }
+        })
+        .slice(0, 8);
+      if (!imgs.length) return;
+      const paths = imgs.map((f) => `uploads/${f}`).join(', ');
+      context.push({
+        role: 'user',
+        content: this.minimaxAvailable
+          ? `[System note: the user uploaded image file(s): ${paths}. You are text-only — if the request relates to them, call see_image with the path to view each one before answering. Do not guess their contents.]`
+          : `[System note: image file(s) were uploaded (${paths}), but image viewing is unavailable (MINIMAX_API_KEY is not set). Tell the user you can't view images right now rather than guessing.]`,
+      });
+    } catch {
+      /* uploads scan is best-effort */
+    }
+  }
+
   async run(userText: string): Promise<void> {
     const sessionId = this.session.id;
     const dir = repoDir(sessionId);
-    const { schemas, map } = getToolsForMode(this.session.mode);
+    // Reassignable: the agent can switch_mode mid-run, which reloads the toolset,
+    // system prompt, and engine for the new mode.
+    let { schemas, map } = getToolsForMode(this.session.mode);
     const liveItems: TimelineItem[] = [];
     let finalStatus: SessionMeta['status'] = 'done';
+    const sysInfo = (text: string) => {
+      const item: TimelineItem = { kind: 'system', id: randomUUID(), level: 'info', text, ts: Date.now() };
+      liveItems.push(item);
+      this.emit({ type: 'timeline_item', item });
+    };
 
     // Anything emitted before this run (e.g. uploads) is already persisted to
     // the timeline — drop it from the replay buffer so reconnects don't dupe.
@@ -212,72 +286,26 @@ export class AgentRun {
     const context = await store.getContext(sessionId);
     context.push({ role: 'user', content: userText });
 
+    // Make UPLOADED IMAGES visible to the text-only agent: it can't read an image,
+    // so tell it the file exists and (if vision is on) to see_image it. Without
+    // this the agent has no idea a photo was uploaded.
+    this.noteUploadedImages(dir, context);
+
     // Classify the task once → drives the design context, gating visual QC, and
     // the quality model floor.
     this.taskProfile = classifyTask(userText, this.session.mode);
 
     // Memory: global (every session) + this repo's project memory + an optional
-    // ARKS.md in the workspace. Loaded once and injected into the system prompt.
-    const systemContent = buildSystemPrompt(this.session, dir, await this.loadMemoryBlock(dir), this.taskProfile);
+    // ARKS.md in the workspace. Kept around so a mode switch can rebuild the prompt.
+    let memoryBlock = await this.loadMemoryBlock(dir);
+    let systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile);
 
     if (this.session.title === 'New session') {
       void this.generateTitleAsync(userText);
     }
 
-    // Resolve the model for this run. In Auto mode the orchestrator picks one by
-    // task complexity (and can escalate mid-run); otherwise use the session's
-    // model directly (which may be a MiniMax model the user chose).
-    if (isAutoModel(this.session.model)) {
-      const pick = selectModel(userText, this.session.mode, { minimaxAvailable: this.minimaxAvailable });
-      this.setActiveModel(pick.model);
-      const item: TimelineItem = {
-        kind: 'system',
-        id: randomUUID(),
-        level: 'info',
-        text: `↳ Auto-routed to ${pick.reason}`,
-        ts: Date.now(),
-      };
-      liveItems.push(item);
-      this.emit({ type: 'timeline_item', item });
-    } else {
-      this.setActiveModel(this.session.model);
-    }
-    // Reports are design- and reasoning-heavy: never run them on the cheapest
-    // model. Prefer MiniMax when available (vision QC + stronger design), else Pro.
-    if (this.session.mode === 'report' && this.activeModel === 'deepseek-v4-flash') {
-      const target = this.minimaxAvailable ? MAX_MODEL : 'deepseek-v4-pro';
-      this.setActiveModel(target);
-      const item: TimelineItem = {
-        kind: 'system',
-        id: randomUUID(),
-        level: 'info',
-        text: `↳ Reports use a stronger model — switched to ${KNOWN_MODELS[target]?.label ?? target}.`,
-        ts: Date.now(),
-      };
-      liveItems.push(item);
-      this.emit({ type: 'timeline_item', item });
-    }
-    // Non-trivial VISUAL builds shouldn't be done by the cheapest brain either —
-    // quality + the gating design loop want a stronger model. (Cheap tweaks stay
-    // light: EASY tasks already classify as tier 'light'.)
-    if (
-      this.session.mode === 'code' &&
-      this.taskProfile?.isVisual &&
-      this.taskProfile.tier !== 'light' &&
-      this.activeModel === 'deepseek-v4-flash'
-    ) {
-      const target = this.minimaxAvailable ? MAX_MODEL : 'deepseek-v4-pro';
-      this.setActiveModel(target);
-      const item: TimelineItem = {
-        kind: 'system',
-        id: randomUUID(),
-        level: 'info',
-        text: `↳ Polished UI work uses a stronger model — switched to ${KNOWN_MODELS[target]?.label ?? target}.`,
-        ts: Date.now(),
-      };
-      liveItems.push(item);
-      this.emit({ type: 'timeline_item', item });
-    }
+    // Resolve the model for this run (auto-route by complexity + per-mode floors).
+    this.routeModel(userText, sysInfo);
 
     const ticker = setInterval(() => {
       this.emit({
@@ -402,6 +430,29 @@ export class AgentRun {
           context.push({ role: 'tool', tool_call_id: call.id, content: result });
         }
         liveItems.push({ kind: 'tools', id: randomUUID(), calls: groupRecords, ts: Date.now() });
+
+        // The agent called switch_mode: move the session into the new mode and
+        // reload its toolset, system prompt, and engine — then keep going.
+        if (this.pendingMode && this.pendingMode !== this.session.mode) {
+          const newMode = this.pendingMode;
+          this.pendingMode = null;
+          this.session.mode = newMode;
+          await store.updateSession(sessionId, { mode: newMode }).catch(() => {});
+          this.taskProfile = classifyTask(userText, newMode); // re-classify for the new mode's floors
+          ({ schemas, map } = getToolsForMode(newMode));
+          memoryBlock = await this.loadMemoryBlock(dir);
+          systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile);
+          this.routeModel(userText, sysInfo);
+          sysInfo(`↳ Switched to ${MODE_LABELS[newMode]} mode.`);
+          this.emit({ type: 'session_meta_updated', meta: { id: sessionId, mode: newMode } });
+          const meta = await store.getSession(sessionId);
+          if (meta) bus.sessionChanged(meta);
+          this.emitProgress(
+            'building',
+            newMode === 'report' ? 'Designing your report…' : newMode === 'code' ? 'Building it…' : 'Working on it…',
+          );
+          stallSig = ''; // a fresh mode means a fresh batch — don't false-trip the stall guard
+        }
 
         // Stall guard: the model silently repeating the exact same tool batch
         // (e.g. re-running a failing command) is the real runaway signal.
@@ -629,6 +680,9 @@ export class AgentRun {
           repoDir: dir,
           mode: this.session.mode,
           signal: this.abort.signal,
+          requestModeSwitch: (mode: SessionMode) => {
+            if (mode !== this.session.mode) this.pendingMode = mode;
+          },
           addCost: (usd: number) => {
             if (usd > 0) {
               this.engineCostUsd += usd;

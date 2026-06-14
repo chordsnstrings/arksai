@@ -9,9 +9,9 @@ export const seeImageTool: ToolDef = {
   name: 'see_image',
   description:
     'Look at an image in the workspace and answer a question about it, using a vision model ' +
-    '(MiniMax). Use this whenever you need to actually SEE something — inspect a screenshot, ' +
-    'judge a UI mockup or rendered page, read a diagram/chart, or check a generated image. ' +
-    'You are text-only on your own; this is your eyes.',
+    '(MiniMax). Use this whenever you need to actually SEE something — a photo or screenshot the ' +
+    'USER uploaded (in uploads/), a UI mockup or rendered page, a diagram/chart, or a generated ' +
+    'image. You are text-only on your own, so an image is invisible until you see_image it.',
   parameters: {
     type: 'object',
     properties: {

@@ -46,7 +46,11 @@ export type IconName =
   | 'target'
   | 'wallet'
   | 'graduation-cap'
-  | 'circle-check';
+  | 'circle-check'
+  | 'code'
+  | 'terminal'
+  | 'rocket'
+  | 'git-branch';
 
 /** Inner SVG markup for each line icon (Lucide-style, matches our report icon set). */
 export const ICONS: Record<IconName, string> = {
@@ -70,6 +74,11 @@ export const ICONS: Record<IconName, string> = {
   'graduation-cap':
     '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
   'circle-check': '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
+  terminal: '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
+  rocket:
+    '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
+  'git-branch': '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
 };
 
 export const DEPARTMENTS: Department[] = [
@@ -242,6 +251,51 @@ export const DEPARTMENTS: Department[] = [
         icon: 'circle-check',
         prompt:
           'Turn a process into a clear runbook (PDF): purpose, the steps in order, the owners, and the escalation path. Ask me for the process, then design it cleanly.',
+      },
+    ],
+  },
+  {
+    id: 'engineering',
+    name: 'Engineering',
+    blurb: 'Tools, prototypes, and docs — shipped.',
+    accent: '#1f7a8c',
+    icon: 'code',
+    plays: [
+      {
+        title: 'Internal tool',
+        blurb: 'A web app for your team.',
+        mode: 'code',
+        model: AUTO_MODEL,
+        icon: 'code',
+        prompt:
+          'Build an internal tool / dashboard web app for the team. Tell me what it should do; I’ll design it cleanly, wire up the data, verify it works end-to-end, and publish it.',
+      },
+      {
+        title: 'API or automation',
+        blurb: 'A service or script that runs.',
+        mode: 'code',
+        model: AUTO_MODEL,
+        icon: 'terminal',
+        prompt:
+          'Build a small API/service or an automation script. Tell me the endpoints (or the task) and the inputs/outputs; I’ll implement it, exercise it with real requests, and hand back a runnable result.',
+      },
+      {
+        title: 'Working prototype',
+        blurb: 'An idea, made real fast.',
+        mode: 'code',
+        model: AUTO_MODEL,
+        icon: 'rocket',
+        prompt:
+          'Prototype an idea as a working web app so we can try it — fast, functional, and deployed. Describe the concept and I’ll build a clickable version, verified and live.',
+      },
+      {
+        title: 'Technical doc',
+        blurb: 'A README or design doc.',
+        mode: 'code',
+        model: AUTO_MODEL,
+        icon: 'file-text',
+        prompt:
+          'Write clear technical documentation — a README, a design doc, or an architecture overview — well-structured with sections and examples. Tell me the topic and I’ll produce an editable document.',
       },
     ],
   },

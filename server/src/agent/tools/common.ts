@@ -10,6 +10,8 @@ export interface ToolCtx {
   signal: AbortSignal;
   /** Report external-engine spend (e.g. Suno) so it's added to the session cost. */
   addCost: (usd: number) => void;
+  /** Switch this session's mode mid-run (the runner reloads tools/prompt/engine). */
+  requestModeSwitch?: (mode: SessionMode) => void;
 }
 
 export interface ToolDef {
