@@ -12,6 +12,8 @@ import { renderReportTool } from './report';
 import { addFontsTool } from './fonts';
 import { addUiKitTool } from './ui-kit';
 import { publishAppTool } from './publish';
+import { generateSpreadsheetTool } from './excel';
+import { generateDocTool } from './docx';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -38,6 +40,8 @@ export const ALL_TOOLS: ToolDef[] = [
   addFontsTool,
   addUiKitTool,
   publishAppTool,
+  generateSpreadsheetTool,
+  generateDocTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,
@@ -55,6 +59,8 @@ const REPORT_TOOLS = new Set([
   'generate_image',
   'add_fonts',
   'render_report',
+  'generate_spreadsheet',
+  'generate_doc',
 ]);
 
 export interface ToolSet {

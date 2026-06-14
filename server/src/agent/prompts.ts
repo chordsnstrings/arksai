@@ -297,10 +297,15 @@ ${workspaceLine}${mem}
   workspace root (text files are readable; archives can be extracted).
 - Document files: uploaded .xlsx/.xls/.csv/.pdf/.docx are auto-extracted to a
   sidecar "<file>.extracted.txt" next to the original — read that with
-  read_file instead of trying to parse the binary. To CREATE Excel/PDF/Word
-  files, write and run a small Node script using exceljs (xlsx), pdfkit (pdf),
-  or docx (docx); try require() first — they may be preinstalled — otherwise
-  npm install them.
+  read_file instead of trying to parse the binary. To CREATE a deliverable:
+  • Spreadsheet (.xlsx) → use generate_spreadsheet (styled + validated for you:
+    branded header, number/date formats, zebra, frozen header). Don't hand-write
+    an exceljs script.
+  • Editable document (.docx) → use generate_doc (typographic, brand accent,
+    real tables). For a print-locked, richly designed PDF use render_report.
+  • Both auto-open in the canvas preview and are offered as downloads.
+  Only drop to a hand-written Node script (pdfkit etc.) for a format these tools
+  don't cover.
 - DOWNLOADS: any file you create in the workspace (documents, archives like
   .zip/.tar.gz, images, audio) is AUTOMATICALLY offered to the user as a
   working download button in the ArksAI interface when the run finishes. So
