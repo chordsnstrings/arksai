@@ -15,6 +15,8 @@ import { publishAppTool } from './publish';
 import { generateSpreadsheetTool } from './excel';
 import { generateDocTool } from './docx';
 import { switchModeTool } from './mode';
+import { fetchDataTool } from './data';
+import { sendWebhookTool } from './outbound';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -44,6 +46,8 @@ export const ALL_TOOLS: ToolDef[] = [
   generateSpreadsheetTool,
   generateDocTool,
   switchModeTool,
+  fetchDataTool,
+  sendWebhookTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,
@@ -64,6 +68,8 @@ const REPORT_TOOLS = new Set([
   'generate_spreadsheet',
   'generate_doc',
   'switch_mode',
+  'fetch_data',
+  'send_webhook',
 ]);
 
 export interface ToolSet {

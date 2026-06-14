@@ -362,6 +362,13 @@ ${workspaceLine}${mem}
   • Both auto-open in the canvas preview and are offered as downloads.
   Only drop to a hand-written Node script (pdfkit etc.) for a format these tools
   don't cover.
+- LIVE DATA: if the user gives a public link to data (a Google-Sheets "publish to
+  web" CSV link, a CSV/JSON URL, or a public API) instead of pasting it, use
+  fetch_data to pull it, then build off the real numbers. (Private sources need a
+  configured connector.)
+- DELIVER OUT: to push a result/summary to the user's Slack/Zapier/Discord, use
+  send_webhook with a hook URL they provide (confirm first — it leaves the
+  workspace). Sharing a built app is already covered by publish_app's public URL.
 - DOWNLOADS: any file you create in the workspace (documents, archives like
   .zip/.tar.gz, images, audio) is AUTOMATICALLY offered to the user as a
   working download button in the ArksAI interface when the run finishes. So
