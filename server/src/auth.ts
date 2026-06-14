@@ -63,7 +63,12 @@ export function registerAuth(app: FastifyInstance) {
 
   app.addHook('preHandler', (req: FastifyRequest, reply: FastifyReply, done) => {
     const url = req.url.split('?')[0];
-    const open = url === '/api/auth/login' || url === '/healthz' || !url.startsWith('/api/');
+    const open =
+      url === '/api/auth/login' ||
+      url === '/healthz' ||
+      // Public B2B lead capture from the landing page (POST only; GET is admin).
+      (url === '/api/leads' && req.method === 'POST') ||
+      !url.startsWith('/api/');
     if (open || isAuthenticated(req)) return done();
     reply.code(401).send({ error: 'Unauthorized' });
     done();

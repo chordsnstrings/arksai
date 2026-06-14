@@ -46,6 +46,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   login: (password: string) =>
     request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
+  submitLead: (lead: { email: string; company?: string; role?: string; team?: string; note?: string }) =>
+    request<{ ok: true }>('/api/leads', { method: 'POST', body: JSON.stringify(lead) }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   listModels: () => request<{ models: ModelInfo[] }>('/api/models').then((r) => r.models),
   listSessions: () => request<SessionMeta[]>('/api/sessions'),

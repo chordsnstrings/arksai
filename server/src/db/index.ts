@@ -97,6 +97,18 @@ async function migrate() {
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_memory_scope ON memory(scope, created_at)`);
 
+  // B2B leads captured from the public landing page (pre-login).
+  await q(`CREATE TABLE IF NOT EXISTS leads(
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    company TEXT,
+    role TEXT,
+    team TEXT,
+    note TEXT,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at)`);
+
   // Projects: persistent workspaces (instructions + knowledge + defaults) that
   // group sessions. branding is JSON.
   await q(`CREATE TABLE IF NOT EXISTS projects(

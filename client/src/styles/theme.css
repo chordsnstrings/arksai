@@ -1126,3 +1126,85 @@ button { font-family: inherit; cursor: pointer; }
   .canvas, .completion-card { animation: none; }
   .progress-fill.running::after { animation: none; }
 }
+
+.login-back { background: none; border: none; color: var(--text-faint); font-family: var(--label); font-size: 12px; letter-spacing: 0.04em; margin-top: 2px; }
+.login-back:hover { color: var(--text-muted); }
+
+/* ---- B2B acquisition landing ---- */
+.landing { height: 100%; overflow-y: auto; }
+.landing > * { max-width: 980px; margin-left: auto; margin-right: auto; }
+.lnd-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 28px; border-bottom: 1px solid var(--border); margin-bottom: 0;
+}
+.lnd-nav-actions { display: flex; align-items: center; gap: 8px; }
+.lnd-link { background: none; border: none; color: var(--text-muted); font-family: var(--label); font-size: 12.5px; letter-spacing: 0.04em; padding: 6px 8px; }
+.lnd-link:hover { color: var(--text); }
+.lnd-signin { background: var(--text); color: var(--bg); border: none; border-radius: 9px; font-family: var(--label); font-size: 12.5px; font-weight: 500; letter-spacing: 0.03em; padding: 8px 16px; }
+.lnd-signin:hover { background: var(--accent-strong); }
+
+.lnd-hero { padding: 72px 28px 56px; text-align: left; }
+.lnd-h1 { font-family: var(--serif); font-size: 58px; line-height: 1.03; font-weight: 600; letter-spacing: -0.018em; color: var(--text); margin: 12px 0 0; max-width: 14ch; }
+.lnd-h1 em { font-style: italic; color: var(--accent); }
+.lnd-lede { font-size: 18px; line-height: 1.55; color: var(--text-muted); max-width: 60ch; margin: 22px 0 0; }
+.lnd-cta { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+.lnd-primary { background: var(--accent); color: #fff; border: none; border-radius: 11px; font-size: 15px; font-weight: 600; padding: 12px 24px; transition: background 0.12s; }
+.lnd-primary:hover:not(:disabled) { background: var(--accent-strong); }
+.lnd-primary:disabled { opacity: 0.45; }
+.lnd-secondary { background: none; color: var(--text); border: 1px solid var(--border); border-radius: 11px; font-size: 15px; font-weight: 500; padding: 12px 22px; }
+.lnd-secondary:hover { border-color: var(--text-muted); }
+
+.lnd-section { padding: 52px 28px; border-top: 1px solid var(--border); }
+.lnd-h2 { font-family: var(--serif); font-size: 32px; line-height: 1.12; font-weight: 600; letter-spacing: -0.01em; color: var(--text); margin: 10px 0 28px; max-width: 22ch; }
+
+.lnd-depts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.lnd-dept { background: var(--bg-elev); border: 1px solid var(--border); border-top: 2px solid var(--dept); border-radius: 14px; padding: 22px; }
+.lnd-dept-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.lnd-dept-ico { color: var(--dept); display: inline-flex; }
+.lnd-dept-name { font-family: var(--serif); font-size: 20px; font-weight: 600; color: var(--text); }
+.lnd-dept-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.lnd-dept-list li { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--text-muted); }
+.lnd-dept-list li svg { color: var(--dept); flex-shrink: 0; }
+
+.lnd-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.lnd-step { display: flex; flex-direction: column; gap: 6px; padding-top: 14px; border-top: 1px solid var(--border); }
+.lnd-step-no { font-family: var(--label); font-size: 13px; color: var(--accent); letter-spacing: 0.08em; }
+.lnd-step-title { font-family: var(--serif); font-size: 18px; font-weight: 600; color: var(--text); }
+.lnd-step-body { font-size: 14px; line-height: 1.55; color: var(--text-muted); }
+.lnd-formats { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 32px; }
+.lnd-formats-label { font-family: var(--label); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin-right: 4px; }
+.lnd-chip { font-size: 13px; color: var(--text); background: var(--bg-elev); border: 1px solid var(--border); border-radius: 999px; padding: 6px 13px; }
+
+.lnd-getaccess { background: var(--bg-sidebar); }
+.lnd-form-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+.lnd-form-copy { padding-top: 4px; }
+.lnd-form { display: flex; flex-direction: column; gap: 10px; }
+.lnd-form input, .lnd-form select, .lnd-form textarea {
+  width: 100%; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); font-family: var(--sans); font-size: 15px; padding: 11px 13px; outline: none;
+}
+.lnd-form input:focus, .lnd-form select:focus, .lnd-form textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.lnd-form textarea { min-height: 72px; resize: vertical; }
+.lnd-form-row { display: flex; gap: 10px; }
+.lnd-form-row input { flex: 1; }
+.lnd-form .lnd-primary { margin-top: 4px; }
+.lnd-error { color: var(--red); font-size: 13px; }
+.lnd-thanks { display: flex; gap: 12px; align-items: flex-start; background: var(--bg-elev); border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 12px; padding: 18px 20px; }
+.lnd-thanks .cc-check { color: var(--green); font-size: 18px; }
+.lnd-thanks strong { font-family: var(--serif); font-size: 17px; }
+.lnd-thanks p { color: var(--text-muted); font-size: 14px; margin: 4px 0 0; }
+
+.lnd-faq { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 40px; }
+.lnd-faq-q { font-family: var(--serif); font-size: 16.5px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.lnd-faq-a { font-size: 14px; line-height: 1.6; color: var(--text-muted); }
+
+.lnd-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 26px 28px 40px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.lnd-foot-tag { font-family: var(--label); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); }
+
+@media (max-width: 760px) {
+  .lnd-h1 { font-size: 40px; }
+  .lnd-depts, .lnd-steps, .lnd-form-wrap, .lnd-faq { grid-template-columns: 1fr; }
+  .lnd-hero { padding: 48px 22px 40px; }
+  .lnd-section { padding: 40px 22px; }
+  .lnd-nav { padding: 16px 22px; }
+}

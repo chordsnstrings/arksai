@@ -8,6 +8,7 @@ import { CommandsDialog } from './components/CommandsDialog';
 import { MemoryDialog } from './components/MemoryDialog';
 import { Composer } from './components/Composer';
 import { CostBar } from './components/CostBar';
+import { Landing } from './components/Landing';
 import { Launchpad } from './components/Launchpad';
 import { LoginScreen } from './components/LoginScreen';
 import { NewSessionDialog } from './components/NewSessionDialog';
@@ -35,6 +36,7 @@ export default function App() {
   const [projectDialog, setProjectDialog] = useState<Project | 'new' | null>(null);
   const [showCommands, setShowCommands] = useState(false);
   const [showMemory, setShowMemory] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
     if (authed !== true) {
@@ -63,7 +65,12 @@ export default function App() {
   useAutomation(authed === true ? activeId : null);
 
   if (authed === null) return null;
-  if (!authed) return <LoginScreen />;
+  if (!authed)
+    return showLogin ? (
+      <LoginScreen onBack={() => setShowLogin(false)} />
+    ) : (
+      <Landing onSignIn={() => setShowLogin(true)} />
+    );
 
   const activeMeta = sessions.find((s) => s.id === activeId) ?? null;
 

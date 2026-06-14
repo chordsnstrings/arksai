@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 
-export function LoginScreen() {
+export function LoginScreen({ onBack }: { onBack?: () => void }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -41,6 +41,11 @@ export function LoginScreen() {
         <button className="send-btn" type="submit" disabled={busy || !password}>
           {busy ? '…' : 'Log in'}
         </button>
+        {onBack && (
+          <button type="button" className="login-back" onClick={onBack}>
+            ← Back
+          </button>
+        )}
       </form>
     </div>
   );
