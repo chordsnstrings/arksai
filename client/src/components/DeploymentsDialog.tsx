@@ -19,9 +19,20 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
   const publish = async () => {
     setBusy(true);
     setError('');
+    setLatest('');
     try {
       const dep = await api.publish(meta.id, meta.title === 'New session' ? undefined : meta.title);
-      setLatest(dep.url);
+      // Only surface the live URL when the deployment is verified-green. A failed
+      // post-publish smoke test means the user must NOT get a broken link.
+      if (dep.status === 'running') {
+        setLatest(dep.url);
+      } else {
+        setError(
+          dep.verifyDetail
+            ? `The published app failed its live check, so the URL is held back. Ask the agent to fix it and republish.\n\n${dep.verifyDetail}`
+            : "The published app didn't start, so the URL is held back. Ask the agent to fix it and republish.",
+        );
+      }
       await refresh();
     } catch (e: any) {
       setError(e?.message ?? 'Publish failed');
@@ -53,18 +64,28 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
         </button>
 
         {latest && (
-          <div className="kb-row" style={{ marginTop: 8 }}>
-            <span className="kb-name">
-              <a href={fullUrl(latest)} target="_blank" rel="noreferrer">
-                {fullUrl(latest)}
+          <div style={{ marginTop: 8 }}>
+            <div style={{ color: 'var(--green, #16a34a)', fontSize: 12, marginBottom: 4 }}>
+              ✓ Verified live — the public URL renders cleanly.
+            </div>
+            <div className="kb-row">
+              <span className="kb-name">
+                <a href={fullUrl(latest)} target="_blank" rel="noreferrer">
+                  {fullUrl(latest)}
+                </a>
+              </span>
+              <a className="canvas-btn" href={fullUrl(latest)} target="_blank" rel="noreferrer">
+                Open
               </a>
-            </span>
-            <button className="canvas-btn" onClick={() => navigator.clipboard?.writeText(fullUrl(latest))}>
-              Copy
-            </button>
+              <button className="canvas-btn" onClick={() => navigator.clipboard?.writeText(fullUrl(latest))}>
+                Copy
+              </button>
+            </div>
           </div>
         )}
-        {error && <div style={{ color: 'var(--red)', fontSize: 13 }}>{error}</div>}
+        {error && (
+          <div style={{ color: 'var(--red)', fontSize: 13, whiteSpace: 'pre-wrap', marginTop: 6 }}>{error}</div>
+        )}
 
         <div style={{ marginTop: 10 }}>
           <label>Live deployments</label>

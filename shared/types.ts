@@ -246,6 +246,8 @@ export interface Deployment {
   port: number | null;
   createdAt: number;
   updatedAt: number;
+  /** Result of the post-publish smoke test (present on the publish response only). */
+  verifyDetail?: string;
 }
 
 export interface CreateProjectRequest {
