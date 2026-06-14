@@ -109,6 +109,24 @@ async function migrate() {
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at)`);
 
+  // Scheduled / recurring tasks (durable, server-side).
+  await q(`CREATE TABLE IF NOT EXISTS schedules(
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    model TEXT NOT NULL,
+    cadence TEXT NOT NULL,
+    at TEXT,
+    weekday ${INT},
+    interval_ms ${INT},
+    enabled ${INT} NOT NULL DEFAULT 1,
+    next_run_at ${INT} NOT NULL,
+    last_run_at ${INT},
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_schedules_next ON schedules(enabled, next_run_at)`);
+
   // Projects: persistent workspaces (instructions + knowledge + defaults) that
   // group sessions. branding is JSON.
   await q(`CREATE TABLE IF NOT EXISTS projects(

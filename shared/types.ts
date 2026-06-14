@@ -248,6 +248,41 @@ export interface ProjectBranding {
   logoName?: string;
 }
 
+// ---- Scheduled / recurring tasks (durable server-side) ----
+
+export type ScheduleCadence = 'daily' | 'weekly' | 'interval';
+
+export interface Schedule {
+  id: string;
+  label: string;
+  /** The brief sent as the first message of each run. */
+  prompt: string;
+  mode: SessionMode;
+  model: ModelId;
+  cadence: ScheduleCadence;
+  /** "HH:MM" (24h, server local time) for daily/weekly. */
+  at: string | null;
+  /** 0–6 (Sun–Sat) for weekly. */
+  weekday: number | null;
+  /** milliseconds for the 'interval' cadence. */
+  intervalMs: number | null;
+  enabled: boolean;
+  nextRunAt: number;
+  lastRunAt: number | null;
+  createdAt: number;
+}
+
+export interface CreateScheduleRequest {
+  label: string;
+  prompt: string;
+  mode?: SessionMode;
+  model?: ModelId;
+  cadence: ScheduleCadence;
+  at?: string;
+  weekday?: number;
+  intervalMs?: number;
+}
+
 export interface Project {
   id: string;
   name: string;

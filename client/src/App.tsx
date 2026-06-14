@@ -14,6 +14,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { NewSessionDialog } from './components/NewSessionDialog';
 import { ProgressBar } from './components/ProgressBar';
 import { ProjectDialog } from './components/ProjectDialog';
+import { SchedulesDialog } from './components/SchedulesDialog';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { useStore } from './state/sessionStore';
@@ -37,6 +38,7 @@ export default function App() {
   const [showCommands, setShowCommands] = useState(false);
   const [showMemory, setShowMemory] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [showSchedules, setShowSchedules] = useState(false);
 
   useEffect(() => {
     if (authed !== true) {
@@ -80,6 +82,7 @@ export default function App() {
         onNewSession={(projectId) => setShowNew({ projectId: projectId ?? null })}
         onNewProject={() => setProjectDialog('new')}
         onEditProject={(p) => setProjectDialog(p)}
+        onSchedules={() => setShowSchedules(true)}
       />
       <div className="nav-backdrop" onClick={() => toggleNav(false)} />
       <div className="main">
@@ -113,6 +116,7 @@ export default function App() {
       )}
       {showCommands && <CommandsDialog onClose={() => setShowCommands(false)} />}
       {showMemory && <MemoryDialog meta={activeMeta} onClose={() => setShowMemory(false)} />}
+      {showSchedules && <SchedulesDialog onClose={() => setShowSchedules(false)} />}
     </div>
   );
 }

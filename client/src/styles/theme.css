@@ -1130,6 +1130,11 @@ button { font-family: inherit; cursor: pointer; }
   .progress-fill.running::after { animation: none; }
 }
 
+.sched-form { display: flex; flex-direction: column; gap: 10px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.sched-form textarea { min-height: 56px; resize: vertical; }
+.sched-form .row { display: flex; gap: 12px; }
+.sched-form .row > div { flex: 1; }
+
 .login-back { background: none; border: none; color: var(--text-faint); font-family: var(--label); font-size: 12px; letter-spacing: 0.04em; margin-top: 2px; }
 .login-back:hover { color: var(--text-muted); }
 

@@ -10,6 +10,8 @@ import type {
   ProcessInfo,
   Project,
   ProjectFile,
+  Schedule,
+  CreateScheduleRequest,
   SessionDetail,
   SessionMeta,
 } from '@shared/types';
@@ -121,6 +123,14 @@ export const api = {
   restartDeployment: (slug: string) =>
     request<Deployment>(`/api/deployments/${slug}/restart`, { method: 'POST' }),
   deleteDeployment: (slug: string) => request<{ ok: true }>(`/api/deployments/${slug}`, { method: 'DELETE' }),
+
+  // ---- scheduled / recurring tasks ----
+  listSchedules: () => request<{ schedules: Schedule[] }>('/api/schedules').then((r) => r.schedules),
+  createSchedule: (body: CreateScheduleRequest) =>
+    request<Schedule>('/api/schedules', { method: 'POST', body: JSON.stringify(body) }),
+  toggleSchedule: (id: string, enabled: boolean) =>
+    request<{ ok: true }>(`/api/schedules/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  deleteSchedule: (id: string) => request<{ ok: true }>(`/api/schedules/${id}`, { method: 'DELETE' }),
 };
 
 export { ApiError };

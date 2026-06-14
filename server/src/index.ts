@@ -3,6 +3,7 @@ import { buildApp } from './app';
 import * as store from './sessions/store';
 import { sweepWorkspaces } from './sessions/workspace';
 import { recoverDeployments } from './deploy/registry';
+import { startScheduler } from './schedule/scheduler';
 
 async function main() {
   validateConfig();
@@ -17,6 +18,7 @@ async function main() {
 
   const app = await buildApp();
   await app.listen({ port: config.port, host: '0.0.0.0' });
+  startScheduler();
   console.log(`ArksAI server listening on :${config.port} (data: ${config.dataDir})`);
   if (config.agentUnrestricted) {
     console.warn(

@@ -11,10 +11,12 @@ export function Sidebar({
   onNewSession,
   onNewProject,
   onEditProject,
+  onSchedules,
 }: {
   onNewSession: (projectId?: string) => void;
   onNewProject: () => void;
   onEditProject: (p: Project) => void;
+  onSchedules: () => void;
 }) {
   const sessions = useStore((s) => s.sessions);
   const projects = useStore((s) => s.projects);
@@ -125,6 +127,9 @@ export function Sidebar({
       </button>
       <button className="nav-btn subtle" onClick={onNewProject}>
         <span className="plus">▤</span> New project
+      </button>
+      <button className="nav-btn subtle" onClick={onSchedules}>
+        <span className="plus">⏱</span> Scheduled
       </button>
 
       <input
