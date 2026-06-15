@@ -328,8 +328,10 @@ export class AgentRun {
     try {
       const maxIterations = config.maxIterations;
       const STALL_LIMIT = 6;
+      const EMPTY_RETRY_LIMIT = 2; // a thinking model that truncates mid-reasoning gets a couple of nudged retries
       let stallSig = '';
       let stallCount = 0;
+      let emptyRetries = 0;
       let iteration = 0;
       let stopReason: 'natural' | 'ceiling' | 'stall' | null = null;
       while (!this.abort.signal.aborted) {
@@ -353,13 +355,16 @@ export class AgentRun {
 
         let text = '';
         let reasoning = ''; // M3 reasoning (reasoning_split) — echoed back next turn so multi-turn tool use doesn't 400
+        let finishReason = ''; // 'stop' | 'length' | 'tool_calls' — 'length' on an empty turn means reasoning truncated the answer
         const toolCalls: AccToolCall[] = [];
         // Strip any inline <think>…</think> from the visible stream — a no-op once
         // reasoning_split moves M3's reasoning out of content (belt + suspenders).
         const stripThink = makeThinkFilter();
 
         for await (const chunk of stream) {
-          const delta: any = chunk.choices?.[0]?.delta;
+          const choice = chunk.choices?.[0];
+          if (choice?.finish_reason) finishReason = choice.finish_reason;
+          const delta: any = choice?.delta;
           if (delta?.reasoning_content) reasoning += delta.reasoning_content;
           if (delta?.content) {
             const visible = stripThink(delta.content);
@@ -425,6 +430,31 @@ export class AgentRun {
         });
 
         if (calls.length === 0) {
+          // Empty turn from a thinking model: it spent the whole output budget reasoning and
+          // got cut off (finish_reason 'length') before emitting any content or tool call.
+          // Silently ending here finishes the run with nothing built (the spreadsheet-task
+          // failure). Don't: nudge it to be concise and act, then retry — bounded.
+          if (!text.trim() && finishReason === 'length' && emptyRetries < EMPTY_RETRY_LIMIT && !this.abort.signal.aborted) {
+            emptyRetries++;
+            context.push({
+              role: 'user',
+              content:
+                'Your previous response was cut off before you produced any answer or tool call — your internal reasoning used the entire output budget. Keep reasoning brief and decisive, then immediately call the appropriate tool to build the deliverable.',
+            });
+            sysInfo(`↳ Response was truncated mid-thought — retrying (${emptyRetries}/${EMPTY_RETRY_LIMIT}).`);
+            continue;
+          }
+          // Retries exhausted but the turn is STILL empty + truncated: surface it as an error
+          // rather than reporting a silent "done" with nothing built (the worst outcome).
+          if (!text.trim() && finishReason === 'length' && !this.abort.signal.aborted) {
+            finalStatus = 'error';
+            const msg =
+              'The model kept running out of its output budget before completing a step — nothing was produced. Try narrowing the request or splitting it up.';
+            this.emit({ type: 'run_error', runId: this.runId, message: msg });
+            liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
+            stopReason = 'natural';
+            break;
+          }
           // Completion gate: in Code mode, don't finish on unverified changes —
           // run the project's checks and, if they fail, keep fixing.
           if (this.session.mode === 'code' && this.mutated && !this.abort.signal.aborted) {
@@ -617,18 +647,21 @@ export class AgentRun {
     let triedFallback = false;
     for (let attempt = 0; ; attempt++) {
       try {
-        // MiniMax M3 is a thinking model. (1) Cap output — with no max_tokens it can fail
-        // to return for minutes and hang the loop. (2) reasoning_split:true moves its
-        // chain-of-thought into a separate reasoning_content field, keeping `content`
-        // clean AND letting us echo the reasoning back next turn — M3 multi-turn tool use
-        // REQUIRES the reasoning in history or it 400s ("reasoning_content must be passed
-        // back"). DeepSeek needs neither.
-        const extra: Record<string, unknown> =
-          resolveProvider(this.activeModel).provider === 'minimax'
-            ? { max_tokens: 16384, reasoning_split: true }
-            : {};
+        // MiniMax M3 goes through the ANTHROPIC-compatible endpoint, not the OpenAI one.
+        // Why it matters (verified live): on the OpenAI surface (/v1) M3's thinking is forced
+        // ON and unbounded — it reasons for minutes and never emits a tool call (0 tool calls
+        // in 150s on a real agent prompt), which our token budget then truncates into a silent
+        // empty turn (the spreadsheet hang). Every documented thinking-control knob
+        // (reasoning_effort, thinking, enable_thinking, chat_template_kwargs) is IGNORED there.
+        // On the Anthropic surface (/anthropic/v1/messages) M3 thinking is OFF by default, so
+        // it acts immediately — it called generate_spreadsheet in ~2.8s in the same scenario.
+        // We translate our OpenAI-shaped loop to/from the Anthropic wire format (see
+        // createMinimaxStream) so nothing else in the agent loop changes.
+        if (resolveProvider(this.activeModel).provider === 'minimax') {
+          return await this.createMinimaxStream(params);
+        }
         return (await this.activeClient.chat.completions.create(
-          { ...params, ...extra, model: this.activeApiModel } as any,
+          { ...params, model: this.activeApiModel } as any,
           { signal: this.abort.signal },
         )) as unknown as AsyncIterable<any>;
       } catch (err) {
@@ -656,6 +689,55 @@ export class AgentRun {
         await new Promise((r) => setTimeout(r, delays[attempt]));
       }
     }
+  }
+
+  /** Anthropic-compatible base for MiniMax (…/anthropic), derived from the configured /v1 base. */
+  private get minimaxAnthropicBase(): string {
+    return config.minimaxBaseUrl.replace(/\/v1\/?$/, '') + '/anthropic';
+  }
+
+  /**
+   * Call MiniMax (M3) on its Anthropic-compatible endpoint and adapt the response back into
+   * the OpenAI streaming shape the agent loop consumes. We translate our OpenAI-format
+   * messages + tools to Anthropic format on the way out, and Anthropic SSE events to
+   * OpenAI-style deltas on the way back — so the rest of the loop is unchanged. Thinking is
+   * left OFF (the M3 default on this endpoint) for fast, decisive tool use; `max_tokens` is
+   * generous so a large tool payload (e.g. a full spreadsheet spec) isn't truncated.
+   */
+  private async createMinimaxStream(params: any): Promise<AsyncIterable<any>> {
+    const { system, messages } = toAnthropicMessages(params.messages || []);
+    const tools = (params.tools || []).map((t: any) => ({
+      name: t.function.name,
+      description: t.function.description,
+      input_schema: t.function.parameters,
+    }));
+    const body: Record<string, unknown> = { model: this.activeApiModel, max_tokens: 64000, system, messages, stream: true };
+    if (tools.length) body.tools = tools;
+    // fetch has no built-in timeout. Use our own AbortController, chained to the run's
+    // abort (so an interrupt still cancels), and hand it to the stream adapter which
+    // idle-aborts if M3 goes silent too long (stall guard).
+    const ac = new AbortController();
+    if (this.abort.signal.aborted) ac.abort();
+    else this.abort.signal.addEventListener('abort', () => ac.abort(), { once: true });
+    const resp = await fetch(`${this.minimaxAnthropicBase}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.minimaxApiKey}`,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: ac.signal,
+    });
+    if (!resp.ok || !resp.body) {
+      const detail = await resp.text().catch(() => '');
+      // Carry the HTTP status so the retry/fallback classifier treats 429/5xx as
+      // transient (retry on M3) and 4xx as hard (fall back to DeepSeek Pro).
+      const err: any = new Error(`MiniMax (Anthropic) ${resp.status}: ${detail.slice(0, 300)}`);
+      err.status = resp.status;
+      throw err;
+    }
+    return anthropicSseToOpenAI(resp.body as any, { controller: ac, idleMs: 120_000 });
   }
 
   private async executeTool(
@@ -943,5 +1025,175 @@ export class AgentRun {
     if (!title) return;
     await store.updateSession(this.session.id, { title });
     bus.sessionChanged((await store.getSession(this.session.id))!);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MiniMax (M3) Anthropic-endpoint adapters. M3 only behaves on the Anthropic
+// surface (thinking off by default → fast tool use); these translate between our
+// OpenAI-shaped agent loop and the Anthropic wire format, in both directions.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Translate OpenAI-format chat messages into Anthropic `{ system, messages }`. */
+export function toAnthropicMessages(oai: any[]): { system: string; messages: any[] } {
+  let system = '';
+  const messages: any[] = [];
+  for (const m of oai) {
+    if (m.role === 'system') {
+      system += (system ? '\n\n' : '') + String(m.content ?? '');
+    } else if (m.role === 'user') {
+      messages.push({ role: 'user', content: [{ type: 'text', text: String(m.content ?? '') }] });
+    } else if (m.role === 'assistant') {
+      const blocks: any[] = [];
+      if (m.content) blocks.push({ type: 'text', text: String(m.content) });
+      for (const tc of m.tool_calls ?? []) {
+        let input: any = {};
+        try {
+          input = JSON.parse(tc.function?.arguments || '{}');
+        } catch {
+          input = {};
+        }
+        blocks.push({ type: 'tool_use', id: tc.id, name: tc.function?.name, input });
+      }
+      // Anthropic requires non-empty content on every message.
+      messages.push({ role: 'assistant', content: blocks.length ? blocks : [{ type: 'text', text: '' }] });
+    } else if (m.role === 'tool') {
+      // Tool results are user-turn content blocks; merge consecutive ones into one user message.
+      const block = { type: 'tool_result', tool_use_id: m.tool_call_id, content: String(m.content ?? '') };
+      const last = messages[messages.length - 1];
+      if (last && last.role === 'user' && Array.isArray(last.content)) last.content.push(block);
+      else messages.push({ role: 'user', content: [block] });
+    }
+  }
+  return { system, messages };
+}
+
+/** Map an Anthropic stop_reason to the OpenAI finish_reason the loop expects. */
+export function mapAnthropicStop(reason: string | undefined): string | undefined {
+  switch (reason) {
+    case 'tool_use':
+      return 'tool_calls';
+    case 'max_tokens':
+      return 'length';
+    case 'end_turn':
+    case 'stop_sequence':
+    case 'pause_turn':
+      return 'stop';
+    default:
+      return reason || undefined;
+  }
+}
+
+/**
+ * Adapt an Anthropic Messages SSE stream into the OpenAI streaming-chunk shape the runner
+ * already consumes (`delta.content` / `delta.tool_calls` / `delta.reasoning_content` /
+ * `finish_reason` / `usage`). Tool-call args arrive as `input_json_delta`; the Anthropic
+ * content-block index doubles as the OpenAI tool_call index (the loop filters gaps).
+ */
+export async function* anthropicSseToOpenAI(
+  body: any,
+  opts?: { controller?: AbortController; idleMs?: number },
+): AsyncIterable<any> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let inTok = 0;
+  let cacheRead = 0;
+  let cacheCreate = 0;
+  let outTok = 0;
+  // Idle-abort guard: M3 buffers tool-arg generation server-side (silent gaps of ~30s
+  // are normal) and concurrent streams can stall indefinitely. fetch has no idle timeout,
+  // so if NO bytes arrive for idleMs, abort the request — the run then errors cleanly
+  // (or, at create time, falls back) instead of hanging forever.
+  const idleMs = opts?.idleMs ?? 0;
+  const ctrl = opts?.controller;
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let stalled = false;
+  const arm = () => {
+    if (!idleMs || !ctrl) return;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      stalled = true;
+      ctrl.abort();
+    }, idleMs);
+  };
+  const usageChunk = () => ({
+    prompt_tokens: inTok + cacheRead + cacheCreate,
+    completion_tokens: outTok,
+    prompt_cache_hit_tokens: cacheRead,
+    prompt_cache_miss_tokens: inTok + cacheCreate,
+  });
+  try {
+    arm();
+    for (;;) {
+    let read;
+    try {
+      read = await reader.read();
+    } catch (e) {
+      if (stalled) throw new Error(`MiniMax (Anthropic) stream stalled — no data for ${Math.round(idleMs / 1000)}s.`);
+      throw e;
+    }
+    const { done, value } = read;
+    if (done) break;
+    arm(); // reset idle timer on activity
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const line of lines) {
+      const s = line.trim();
+      if (!s.startsWith('data:')) continue;
+      const data = s.slice(5).trim();
+      if (!data) continue;
+      let ev: any;
+      try {
+        ev = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      switch (ev.type) {
+        case 'message_start': {
+          const u = ev.message?.usage || {};
+          inTok = u.input_tokens ?? 0;
+          cacheRead = u.cache_read_input_tokens ?? 0;
+          cacheCreate = u.cache_creation_input_tokens ?? 0;
+          break;
+        }
+        case 'content_block_start': {
+          const cb = ev.content_block;
+          if (cb?.type === 'tool_use') {
+            yield {
+              choices: [
+                { delta: { tool_calls: [{ index: ev.index, id: cb.id, type: 'function', function: { name: cb.name, arguments: '' } }] } },
+              ],
+            };
+          }
+          break;
+        }
+        case 'content_block_delta': {
+          const d = ev.delta;
+          if (d?.type === 'text_delta') yield { choices: [{ delta: { content: d.text } }] };
+          else if (d?.type === 'thinking_delta') yield { choices: [{ delta: { reasoning_content: d.thinking } }] };
+          else if (d?.type === 'input_json_delta')
+            yield { choices: [{ delta: { tool_calls: [{ index: ev.index, function: { arguments: d.partial_json } }] } }] };
+          break;
+        }
+        case 'message_delta': {
+          if (ev.usage?.output_tokens != null) outTok = ev.usage.output_tokens;
+          const fr = mapAnthropicStop(ev.delta?.stop_reason);
+          if (fr) yield { choices: [{ delta: {}, finish_reason: fr }] };
+          break;
+        }
+        case 'message_stop': {
+          yield { choices: [{ delta: {} }], usage: usageChunk() };
+          break;
+        }
+        case 'error': {
+          throw new Error(`MiniMax (Anthropic) stream error: ${JSON.stringify(ev.error).slice(0, 300)}`);
+        }
+      }
+    }
+    }
+  } finally {
+    clearTimeout(idleTimer);
   }
 }

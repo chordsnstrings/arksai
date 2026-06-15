@@ -64,20 +64,36 @@
 :root[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: #3a414c; }
 :root[data-theme='dark'] .user-bubble { color: #d3eef4; border-color: rgba(58, 166, 189, 0.3); }
 
-/* Smooth dark↔light crossfade — the class is added briefly during a switch, then
- * removed so transitions don't linger on hovers/interactions. */
+/* Preferred dark↔light switch: a full-page crossfade via the View Transition API
+ * (driven from applyDeptTheme). The snapshot dissolve covers gradients/images that
+ * property transitions can't — a smooth, native-feeling theme change. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.5s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* New theme fades in over the old for a clean cross-dissolve (no flash of either). */
+::view-transition-new(root) { animation-name: theme-fade-in; }
+::view-transition-old(root) { animation-name: theme-fade-out; }
+@keyframes theme-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes theme-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* Fallback crossfade (browsers without the View Transition API): the class is added
+ * briefly during a switch, then removed so transitions don't linger on hovers. */
 :root.theme-animating,
 :root.theme-animating *,
 :root.theme-animating *::before,
 :root.theme-animating *::after {
-  transition: background-color 0.42s ease, color 0.42s ease, border-color 0.42s ease,
-    fill 0.42s ease, stroke 0.42s ease, box-shadow 0.42s ease !important;
+  transition: background-color 0.5s ease, color 0.5s ease, border-color 0.5s ease,
+    fill 0.5s ease, stroke 0.5s ease, box-shadow 0.5s ease !important;
 }
 @media (prefers-reduced-motion: reduce) {
   :root.theme-animating,
   :root.theme-animating *,
   :root.theme-animating *::before,
   :root.theme-animating *::after { transition: none !important; }
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none !important; }
 }
 
 * { box-sizing: border-box; }

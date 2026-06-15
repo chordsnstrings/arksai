@@ -29,7 +29,7 @@ capability layer being dark, and (4) a few consistency gaps (publish, cover icon
 | Product UI (landing / launchpad / catalog / mobile) | ✅ Excellent | Warm editorial identity, accent-coded teams, responsive |
 | Web apps (code mode) | ✅ Excellent | **Visually verified** (KPI dashboard, ROI calculator) — polished, real charts, restrained accent; microanimations + `@media` responsive (desktop **and** mobile confirmed); self-hosted Inter/Source-Serif/Space-Grotesk. **13/14 published live** |
 | Reports & 16:9 decks (report mode) | ✅ Excellent | Mastheads, kickers, hairline rules, KPI grids, direct-labeled flat charts, compact zebra tables, callouts, brand-derived palettes, takeaway-headline slides |
-| Documents (.docx) | ⚠ Good content, weak type | Strong structure + cited sources; uses the `generate_doc` default font, not the editorial stack |
+| Documents (.docx) | ✅ Strong content + editorial type | Strong structure + cited sources; now embeds the editorial stack (Source Serif 4 display + Inter body) — matches the reports/app |
 | Spreadsheets (.xlsx) | ⚠ Mixed | Trackers/lists are formatted & fine; **financial *models* are mostly formula-less** (only `finance.model` had formulas; `cashflow`/`scenario`/`budget`/`expenses` had 0) — `cashflow` had neither formulas nor formatting |
 | Host/agent isolation | 🔴 Broken | Unrestricted agents killed the server (×2) and mutated the host repo |
 | MiniMax capability layer | 🔴 Dark | Vision / image / TTS / video unusable (account balance); design-critique gate inert |
@@ -145,8 +145,11 @@ ships a protocol-compatible surface; the provider/model is MiniMax.
    still need confirming on the Droplet.
 4. **P2 deployments** — ✅ FIXED (`cf26c37`): re-publish supersedes a session's prior deployments,
    so errored duplicates no longer accumulate and the URL stays stable.
-5. **P2 polish** — ✅ report covers are type-only now, no faux-logo icon (`2dc4559`). ⏳ `.docx`
-   editorial font needs bundled TTF assets to embed (uses Calibri for now).
+5. **P2 polish** — ✅ report covers are type-only now, no faux-logo icon (`2dc4559`). ✅ `.docx`
+   now ships the **editorial identity, embedded**: bundled Inter + Source Serif 4 TTFs (converted
+   from the report woff2) are embedded into every `generate_doc` output (Source Serif 4 display +
+   Inter body), so documents match the reports/app — no more Calibri. Verified at the file level
+   (document.xml fonts + `word/fonts/*.odttf` + fontTable; zero Calibri).
 
 ---
 

@@ -17,7 +17,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 
 ## Orchestration & engines
 - **ArksAI Auto** — routes each task to Flash / Pro / MiniMax by complexity, escalates a stronger model when verification fails; server-authoritative blended cost in the footer.
-- **ArksAI Max** — MiniMax LLM, selectable when keyed.
+- **ArksAI Max** — MiniMax M3, selectable when keyed. Called via M3's **Anthropic-compatible endpoint** (where thinking is off by default → fast, decisive tool use; the OpenAI surface forces unbounded thinking and stalls), through an adapter that keeps the rest of the agent loop unchanged. Guarded with an idle-timeout (no hangs) and falls back to ArksAI Pro on a hard error.
 - **MiniMax capability tools:** `see_image` (vision), `generate_image`, `text_to_speech`, `generate_video` (Hailuo).
 - **Suno** music engine (`generate_music`), per-track cost.
 
@@ -36,7 +36,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 ## Deliverables & deployment
 - Live publishing (`publish_app` + TopBar) — durable public URL at `/apps/<slug>/`; static or node/python apps via a process registry that survives restarts (boot recovery).
 - Auto-export (zip download chip) + auto-canvas — the canvas auto-opens and loads the result (web app, PDF, spreadsheet, or doc).
-- Styled office docs: `generate_spreadsheet` (exceljs, validated) and `generate_doc` (docx).
+- Styled office docs: `generate_spreadsheet` (exceljs, formula-driven, validated) and `generate_doc` (docx) — documents embed the editorial typefaces (Source Serif 4 display + Inter body, the same as the reports/app), so they render designed everywhere instead of as office default.
 - Report mode — PDFs and 16:9 decks with a full editorial protocol (newspaper margins, anti-orphan `.lede`, kickers, rules, page mechanics).
 - In-app doc viewer (xlsx/csv/docx → styled HTML); Canvas preview (Preview/Files/Doc tabs, port auto-detect).
 

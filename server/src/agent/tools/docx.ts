@@ -1,5 +1,30 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import { repoRoot } from '../../config';
 import { resolveInWorkspace, type ToolDef } from './common';
+
+// Editorial identity (same typefaces as the reports): Source Serif 4 for the
+// display/headings, Inter for body. Embedded into the .docx so it renders that
+// way everywhere — Word/LibreOffice honour the embed; Google Docs substitutes
+// but the bold flags below keep the hierarchy intact. Falls back to a clean
+// system stack if the TTFs are ever missing, so generation never breaks.
+const DOC_FONTS_DIR = path.join(repoRoot, 'server', 'assets', 'report-fonts');
+function loadEmbedFonts(): { fonts: Array<{ name: string; data: Buffer }>; display: string; body: string } {
+  try {
+    const inter = fs.readFileSync(path.join(DOC_FONTS_DIR, 'Inter-Regular.ttf'));
+    const serif = fs.readFileSync(path.join(DOC_FONTS_DIR, 'SourceSerif4-Regular.ttf'));
+    return {
+      fonts: [
+        { name: 'Inter', data: inter },
+        { name: 'Source Serif 4', data: serif },
+      ],
+      display: 'Source Serif 4',
+      body: 'Inter',
+    };
+  } catch {
+    return { fonts: [], display: 'Georgia', body: 'Calibri' };
+  }
+}
 
 type BlockType = 'heading' | 'subheading' | 'paragraph' | 'bullets' | 'numbered' | 'table' | 'quote' | 'spacer';
 interface Block {
@@ -98,21 +123,21 @@ export const generateDocTool: ToolDef = {
     } = docx;
 
     const accent = hex6(args.accent, '4F46E5');
-    const FONT = 'Calibri'; // clean, universally available; Word substitutes gracefully
+    const { fonts: embedFonts, display: DISPLAY, body: BODY } = loadEmbedFonts();
     const children: any[] = [];
 
     if (args.title) {
       children.push(
         new Paragraph({
           spacing: { after: args.subtitle ? 60 : 240 },
-          children: [new TextRun({ text: String(args.title), bold: true, size: 52, font: FONT, color: '16181D' })],
+          children: [new TextRun({ text: String(args.title), bold: true, size: 52, font: DISPLAY, color: '16181D' })],
         }),
       );
       if (args.subtitle) {
         children.push(
           new Paragraph({
             spacing: { after: 280 },
-            children: [new TextRun({ text: String(args.subtitle), size: 24, font: FONT, color: '6B7280' })],
+            children: [new TextRun({ text: String(args.subtitle), size: 24, font: BODY, color: '6B7280' })],
           }),
         );
       }
@@ -121,7 +146,7 @@ export const generateDocTool: ToolDef = {
     const para = (text: string, opts: any = {}) =>
       new Paragraph({
         spacing: { after: 140, line: 300 },
-        children: [new TextRun({ text, font: FONT, size: 22, color: '16181D', ...opts })],
+        children: [new TextRun({ text, font: BODY, size: 22, color: '16181D', ...opts })],
       });
 
     for (const b of blocks) {
@@ -131,7 +156,7 @@ export const generateDocTool: ToolDef = {
             new Paragraph({
               heading: HeadingLevel.HEADING_1,
               spacing: { before: 260, after: 120 },
-              children: [new TextRun({ text: String(b.text || ''), bold: true, size: 30, font: FONT, color: accent })],
+              children: [new TextRun({ text: String(b.text || ''), bold: true, size: 30, font: DISPLAY, color: accent })],
             }),
           );
           break;
@@ -140,7 +165,7 @@ export const generateDocTool: ToolDef = {
             new Paragraph({
               heading: HeadingLevel.HEADING_2,
               spacing: { before: 180, after: 90 },
-              children: [new TextRun({ text: String(b.text || ''), bold: true, size: 24, font: FONT, color: '16181D' })],
+              children: [new TextRun({ text: String(b.text || ''), bold: true, size: 24, font: DISPLAY, color: '16181D' })],
             }),
           );
           break;
@@ -153,7 +178,7 @@ export const generateDocTool: ToolDef = {
               spacing: { before: 120, after: 160, line: 300 },
               indent: { left: 360 },
               border: { left: { style: BorderStyle.SINGLE, size: 18, space: 12, color: accent } },
-              children: [new TextRun({ text: String(b.text || ''), italics: true, size: 22, font: FONT, color: '374151' })],
+              children: [new TextRun({ text: String(b.text || ''), italics: true, size: 22, font: BODY, color: '374151' })],
             }),
           );
           break;
@@ -165,7 +190,7 @@ export const generateDocTool: ToolDef = {
                 spacing: { after: 70, line: 290 },
                 bullet: b.type === 'bullets' ? { level: 0 } : undefined,
                 numbering: b.type === 'numbered' ? { reference: 'arksai-num', level: 0 } : undefined,
-                children: [new TextRun({ text: String(item), font: FONT, size: 22, color: '16181D' })],
+                children: [new TextRun({ text: String(item), font: BODY, size: 22, color: '16181D' })],
               }),
             );
           }
@@ -187,7 +212,7 @@ export const generateDocTool: ToolDef = {
                   children: [
                     new TextRun({
                       text: String(txt ?? ''),
-                      font: FONT,
+                      font: BODY,
                       size: 20,
                       bold: kind === 'head',
                       color: kind === 'head' ? 'FFFFFF' : '16181D',
@@ -229,6 +254,7 @@ export const generateDocTool: ToolDef = {
     try {
       const doc = new Document({
         creator: 'ArksAI',
+        ...(embedFonts.length ? { fonts: embedFonts } : {}),
         numbering: {
           config: [
             {
