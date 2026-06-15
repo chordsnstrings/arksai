@@ -17,7 +17,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 
 ## Orchestration & engines
 - **ArksAI Auto** — routes each task to Flash / Pro / MiniMax by complexity, escalates a stronger model when verification fails; server-authoritative blended cost in the footer.
-- **ArksAI Max** — MiniMax M3, selectable when keyed. Called via M3's **Anthropic-compatible endpoint** (where thinking is off by default → fast, decisive tool use; the OpenAI surface forces unbounded thinking and stalls), through an adapter that keeps the rest of the agent loop unchanged. Guarded with an idle-timeout (no hangs) and falls back to ArksAI Pro on a hard error.
+- **ArksAI Max** — MiniMax M3, selectable when keyed. Called via M3's **Anthropic-compatible endpoint** (thinking off by default → fast, decisive tool use; the OpenAI surface forces unbounded thinking and stalls), through an adapter that keeps the rest of the agent loop unchanged. **Self-healing speed:** M3 can over-buffer on complex turns, so if a turn exceeds a deadline the run auto-switches to a faster always-thinking MiniMax coding model (M2.7-highspeed) for the rest of the build — M3's refinement by default, reliable speed when it's slow. Idle-timeout guard (no hangs); falls back to ArksAI Pro on a hard error.
 - **MiniMax capability tools:** `see_image` (vision), `generate_image`, `text_to_speech`, `generate_video` (Hailuo).
 - **Suno** music engine (`generate_music`), per-track cost.
 
