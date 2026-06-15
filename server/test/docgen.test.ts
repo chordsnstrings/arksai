@@ -6,6 +6,7 @@ import path from 'node:path';
 import type { ToolCtx } from '../src/agent/tools/common';
 import { generateSpreadsheetTool } from '../src/agent/tools/excel';
 import { generateDocTool } from '../src/agent/tools/docx';
+import { auditFormulaModel } from '../src/agent/deliverableCheck';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-docgen-'));
 const ctx = (): ToolCtx => ({
@@ -54,6 +55,71 @@ test('generate_spreadsheet writes a styled, validated xlsx', async () => {
 test('generate_spreadsheet rejects empty spec', async () => {
   const res = await generateSpreadsheetTool.run({ sheets: [] }, ctx());
   assert.match(res, /^Error/);
+});
+
+async function readWb(file: string): Promise<any> {
+  const XLSX: any = await import('xlsx');
+  return XLSX.read(fs.readFileSync(file), { type: 'buffer' });
+}
+
+test('auditFormulaModel: a formula-driven model is NOT flagged', async () => {
+  await generateSpreadsheetTool.run(
+    {
+      output: 'model_good.xlsx',
+      sheets: [
+        { name: 'Assumptions', columns: [{ header: 'Driver' }, { header: 'Value', type: 'number' }], rows: [['Growth', 0.1], ['Start', 1000]] },
+        {
+          name: 'Cash Flow',
+          columns: [{ header: 'Month' }, { header: 'Revenue', type: 'currency' }],
+          rows: [
+            ['M1', { f: 'Assumptions!B3', v: 1000 }],
+            ['M2', { f: 'B2*(1+Assumptions!B2)', v: 1100 }],
+            ['Total', { f: 'SUM(B2:B3)', v: 2100 }],
+          ],
+        },
+      ],
+    },
+    ctx(),
+  );
+  const r = auditFormulaModel(await readWb(path.join(ws, 'model_good.xlsx')));
+  assert.equal(r.isModel, false, r.reason);
+});
+
+test('auditFormulaModel: a hard-coded model (Total row, 0 formulas) IS flagged', async () => {
+  await generateSpreadsheetTool.run(
+    {
+      output: 'model_bad.xlsx',
+      sheets: [
+        { name: 'Assumptions', columns: [{ header: 'Driver' }, { header: 'Value', type: 'number' }], rows: [['Growth', 0.1], ['Start', 1000]] },
+        {
+          name: 'Cash Flow',
+          columns: [{ header: 'Month' }, { header: 'Revenue', type: 'currency' }],
+          rows: [['M1', 1000], ['M2', 1100], ['M3', 1210], ['Total', 3310]],
+        },
+      ],
+    },
+    ctx(),
+  );
+  const r = auditFormulaModel(await readWb(path.join(ws, 'model_bad.xlsx')));
+  assert.equal(r.isModel, true, r.reason);
+});
+
+test('auditFormulaModel: a plain data table is NOT flagged', async () => {
+  await generateSpreadsheetTool.run(
+    {
+      output: 'plain.xlsx',
+      sheets: [
+        {
+          name: 'Contacts',
+          columns: [{ header: 'Name' }, { header: 'Email' }, { header: 'Age', type: 'number' }],
+          rows: [['Ada', 'ada@x.com', 36], ['Alan', 'alan@x.com', 41]],
+        },
+      ],
+    },
+    ctx(),
+  );
+  const r = auditFormulaModel(await readWb(path.join(ws, 'plain.xlsx')));
+  assert.equal(r.isModel, false, r.reason);
 });
 
 test('generate_doc writes a valid docx (zip/OOXML)', async () => {

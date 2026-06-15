@@ -27,6 +27,12 @@ import { isAutoModel, MAX_MODEL, phaseFloor, phaseCeiling, type ProgressPhase } 
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
 const PREVIEW_CHARS = 700;
 const MAX_DESIGN_ROUNDS = 2; // bounded internal design-critique iterations
+// Tools that emit ONE large structured output (the whole spreadsheet/deck/doc as tool-call
+// args). M3 reliably over-buffers these server-side → it would burn the full 150s patience
+// before falling back. When one of these starts on the PRIMARY model we shorten the deadline
+// so we fall back to the fast model quickly instead (the fast coding model handles big
+// structured output well). Env-tunable via MINIMAX_HEAVY_TOOL_DEADLINE_MS.
+const HEAVY_GENERATORS = new Set(['generate_spreadsheet', 'generate_pptx', 'generate_doc']);
 
 interface AccToolCall {
   id: string;
@@ -789,7 +795,19 @@ export class AgentRun {
     }
     // Idle backstop ≥ the total deadline so a still-streaming-but-slow turn isn't cut off
     // before its patience window (M3 gaps run 24–76s; the total deadline governs).
-    return anthropicSseToOpenAI(resp.body as any, { controller: ac, idleMs: Math.max(totalMs, 120_000), totalTimer, stall });
+    // On the PRIMARY model (M3, code mode), a heavy structured-output tool call gets a SHORT
+    // deadline once it starts streaming — M3 over-buffers these, so we'd rather fall back to
+    // the fast model in ~30s than wait the full 150s. (No effect once useFast is set.)
+    const heavyMs = Number(process.env.MINIMAX_HEAVY_TOOL_DEADLINE_MS || '30000') || 30_000;
+    return anthropicSseToOpenAI(resp.body as any, {
+      controller: ac,
+      idleMs: Math.max(totalMs, 120_000),
+      totalTimer,
+      stall,
+      isPrimary: !useFast,
+      heavyNames: HEAVY_GENERATORS,
+      heavyMs,
+    });
   }
 
   private async executeTool(
@@ -1257,7 +1275,15 @@ export function mapAnthropicStop(reason: string | undefined): string | undefined
  */
 export async function* anthropicSseToOpenAI(
   body: any,
-  opts?: { controller?: AbortController; idleMs?: number; totalTimer?: ReturnType<typeof setTimeout>; stall?: { tripped: boolean } },
+  opts?: {
+    controller?: AbortController;
+    idleMs?: number;
+    totalTimer?: ReturnType<typeof setTimeout>;
+    stall?: { tripped: boolean };
+    isPrimary?: boolean;
+    heavyNames?: Set<string>;
+    heavyMs?: number;
+  },
 ): AsyncIterable<any> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -1276,6 +1302,7 @@ export async function* anthropicSseToOpenAI(
   const stall = opts?.stall ?? { tripped: false };
   const totalTimer = opts?.totalTimer;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let heavyTimer: ReturnType<typeof setTimeout> | undefined;
   const arm = () => {
     if (!idleMs || !ctrl) return;
     clearTimeout(idleTimer);
@@ -1332,6 +1359,18 @@ export async function* anthropicSseToOpenAI(
         case 'content_block_start': {
           const cb = ev.content_block;
           if (cb?.type === 'tool_use') {
+            // Heavy structured generator on the PRIMARY model → shorten the deadline. M3
+            // over-buffers the (large) tool-call args; rather than wait the full patience
+            // window, give it a brief chance then trip the stall so the loop re-issues the
+            // turn on the fast model. (A small sheet still completes within heavyMs.)
+            if (opts?.isPrimary && opts?.heavyMs && ctrl && opts.heavyNames?.has(cb.name)) {
+              clearTimeout(totalTimer);
+              clearTimeout(heavyTimer);
+              heavyTimer = setTimeout(() => {
+                stall.tripped = true;
+                ctrl.abort();
+              }, opts.heavyMs);
+            }
             yield {
               choices: [
                 { delta: { tool_calls: [{ index: ev.index, id: cb.id, type: 'function', function: { name: cb.name, arguments: '' } }] } },
@@ -1367,5 +1406,6 @@ export async function* anthropicSseToOpenAI(
   } finally {
     clearTimeout(idleTimer);
     clearTimeout(totalTimer);
+    clearTimeout(heavyTimer);
   }
 }

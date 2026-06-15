@@ -26,7 +26,7 @@ const DEPARTMENT: Record<string, string> = {
 
 // ---- Reusable archetype standards (research-backed) ----
 const FIN_SHEET =
-  'Financial-spreadsheet rigor: separate inputs/assumptions from calculations from outputs; put every assumption in its OWN labelled cell (never bury a number inside a formula) so a single change flows through; clean number formats (currency symbol, thousands separators, % where due); bold/shade the header row and totals, freeze the header; include a summary/totals; add light sanity checks. Never invent figures.';
+  'Financial-spreadsheet rigor: separate inputs/assumptions from calculations from outputs; put every assumption in its OWN labelled cell (never bury a number inside a formula) so a single change flows through. EVERY derived number MUST be a LIVE formula in generate_spreadsheet (pass {"f":"C5*(1+Assumptions!B5)","v":<result>} — formula + cached result — or a "=B2*C2" string; totals via =SUM(...)); a model that hard-codes its totals/balances/growth is rejected by the automated review. Clean number formats (currency symbol, thousands separators, % where due); bold/shade the header row and totals, freeze the header; include a summary/totals; add light sanity checks. Never invent figures.';
 const TRACKER =
   'Tracker spreadsheet: a clean, frozen header row, one record per row, sensible column types, dropdown/validation on status fields, subtotals where useful, and light banding so it scans. Usable and editable, not over-engineered.';
 const DECK =

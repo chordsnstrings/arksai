@@ -160,6 +160,84 @@ async function functionalCheck(abs: string, kind: DeliverableKind): Promise<{ ok
   }
 }
 
+// ---------------------------------------------------------------- formula audit
+
+// A row label that names a DERIVED number (one that should be computed, not typed).
+const DERIVED_LABEL_RE =
+  /\b(total|subtotal|sum|net|gross|cumulative|balance|ending|opening|margin|growth|profit|ebitda|runway|burn|variance|roi|irr|npv|payback|ratio)\b/i;
+// A sheet whose values are meant to FEED other sheets' calculations.
+const MODEL_SHEET_RE = /assumption|driver|input/i;
+
+/** "A1" → { col: 0-based index, row: 1-based } (or null for a non-cell key). */
+function parseAddr(addr: string): { col: number; row: number } | null {
+  const m = /^([A-Z]+)(\d+)$/.exec(addr);
+  if (!m) return null;
+  let col = 0;
+  for (const ch of m[1]) col = col * 26 + (ch.charCodeAt(0) - 64);
+  return { col: col - 1, row: parseInt(m[2], 10) };
+}
+
+/**
+ * Heuristic: is this workbook a financial/calculation MODEL that was built with hard-coded
+ * numbers instead of live formulas? The vision design gate can't catch this — it renders
+ * COMPUTED VALUES (SheetJS sheet_to_html), so a `=SUM()` and a typed-in literal look identical.
+ * This reads `cell.f` (which only the functional parse can see) and flags ONLY when the whole
+ * workbook has ZERO formulas AND it clearly shows derived numbers: a "Total/Net/Ending Balance/
+ * Growth…" ROW carrying numbers, or a multi-sheet model with an Assumptions/Drivers tab feeding
+ * a numeric grid. Plain data tables (no derived rows, no assumptions sheet) are never flagged.
+ * Pure + synchronous so it's trivially unit-testable. Takes an already-parsed SheetJS workbook.
+ */
+export function auditFormulaModel(wb: any): { isModel: boolean; reason: string } {
+  let formulas = 0;
+  let numericTotal = 0;
+  let derivedHardcoded = '';
+  const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
+  for (const name of names) {
+    const sh = wb?.Sheets?.[name];
+    if (!sh) continue;
+    // Group cells by row so we can read each row's label + whether it carries numbers.
+    const rows = new Map<number, { label?: string; labelCol: number; hasNum: boolean }>();
+    for (const addr of Object.keys(sh)) {
+      if (addr[0] === '!') continue;
+      const c = sh[addr];
+      if (c?.f) formulas++;
+      const p = parseAddr(addr);
+      if (!p) continue;
+      let r = rows.get(p.row);
+      if (!r) {
+        r = { labelCol: Infinity, hasNum: false };
+        rows.set(p.row, r);
+      }
+      const isNum = c?.t === 'n' && typeof c?.v === 'number';
+      if (isNum) {
+        numericTotal++;
+        r.hasNum = true;
+      }
+      const isText = (c?.t === 's' || c?.t === 'str') && typeof c?.v === 'string' && c.v.trim();
+      if (isText && p.col < r.labelCol) {
+        r.labelCol = p.col;
+        r.label = String(c.v);
+      }
+    }
+    if (!derivedHardcoded) {
+      for (const r of rows.values()) {
+        if (r.label && r.hasNum && DERIVED_LABEL_RE.test(r.label)) {
+          derivedHardcoded = r.label.trim();
+          break;
+        }
+      }
+    }
+  }
+  // Any formula at all → the model is (at least partly) formula-driven; don't flag.
+  if (formulas > 0) return { isModel: false, reason: `${formulas} formula cells` };
+  if (derivedHardcoded)
+    return { isModel: true, reason: `the "${derivedHardcoded}" row is hard-coded, 0 formulas` };
+  const hasAssumptions = names.some((n) => MODEL_SHEET_RE.test(n));
+  if (names.length >= 2 && hasAssumptions && numericTotal >= 30)
+    return { isModel: true, reason: `multi-sheet model with an assumptions sheet but 0 formulas (${numericTotal} hard-coded numbers)` };
+  return { isModel: false, reason: '' };
+}
+
 // ---------------------------------------------------------------- main
 
 export async function checkDeliverable(abs: string, kind: DeliverableKind, signal: AbortSignal): Promise<DeliverableQC> {
@@ -180,6 +258,33 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
   base.functionalDetail = fn.detail;
   if (fn.pages) base.pages = fn.pages;
   if (!fn.ok) return { ...base, ran: true, designVerdict: 'unknown', detail: `✗ ${kind} validation: ${fn.detail}` };
+
+  // 1b) Spreadsheet formula enforcement — independent of the vision gate. The vision review
+  // renders COMPUTED VALUES, so it can't tell a =SUM() from a typed-in literal; this reads
+  // cell.f directly and flags a calculation MODEL that was built with hard-coded numbers.
+  // Seeded into designDefects BEFORE the render/vision early-returns so it's enforced even
+  // when no vision model is available (MiniMax egress is flaky).
+  const seedDefects: string[] = [];
+  if (kind === 'xlsx') {
+    try {
+      const XLSX: any = await import('xlsx');
+      const wb = XLSX.read(fs.readFileSync(abs), { type: 'buffer' });
+      const audit = auditFormulaModel(wb);
+      if (audit.isModel) {
+        seedDefects.push(
+          `This spreadsheet is a financial/calculation model but every derived value is hard-coded (${audit.reason}). ` +
+            `Re-run generate_spreadsheet with LIVE formulas for every derived cell — totals as =SUM(...), and ` +
+            `growth/balances/ratios referencing the assumption cells, e.g. {"f":"C5*(1+Assumptions!B5)","v":<result>} — ` +
+            `so changing one assumption flows through. Keep the same structure and styling; include the cached result ` +
+            `"v" so the preview shows numbers.`,
+        );
+        base.designVerdict = 'revise';
+        base.designDefects = [...seedDefects];
+      }
+    } catch {
+      /* formula audit is best-effort — never block the gate on it */
+    }
+  }
 
   // 2) Render to PNG(s).
   let pngs: Buffer[] = [];
@@ -220,20 +325,24 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
   }
 
   if (!pngs.length) {
+    const formulaNote = seedDefects.length ? ' ⚠ formula model flagged for revise.' : '';
     return {
       ...base,
       ran: false,
-      detail: `✓ ${kind} valid (${fn.detail}) — but could not render it for a visual review${renderNote}; shipped without the design gate.`,
+      detail: `✓ ${kind} valid (${fn.detail}) — but could not render it for a visual review${renderNote}; shipped without the design gate.${formulaNote}`,
     };
   }
 
   // 3) Vision design rubric per page; aggregate.
   if (!config.minimaxApiKey || signal.aborted) {
-    return { ...base, ran: false, detail: `✓ ${kind} valid (${fn.detail}); visual gate skipped (no vision model).` };
+    const formulaNote = seedDefects.length ? ' ⚠ formula model flagged for revise.' : '';
+    return { ...base, ran: false, detail: `✓ ${kind} valid (${fn.detail}); visual gate skipped (no vision model).${formulaNote}` };
   }
   const prompt = (KIND_PREAMBLE[kind] || '') + DESIGN_RUBRIC_PROMPT;
-  const defects: string[] = [];
-  let verdict: 'pass' | 'revise' | 'unknown' = 'unknown';
+  // Seed with the spreadsheet formula finding (if any) so vision defects APPEND rather than
+  // overwrite it, and a vision "pass" can't downgrade the formula "revise".
+  const defects: string[] = [...seedDefects];
+  let verdict: 'pass' | 'revise' | 'unknown' = base.designVerdict === 'revise' ? 'revise' : 'unknown';
   let visionFails = 0;
   for (let i = 0; i < pngs.length; i++) {
     if (signal.aborted) break;

@@ -61,8 +61,11 @@ export const generateSpreadsheetTool: ToolDef = {
     'header row, number/currency/percent/date formatting, auto column widths, zebra banding, frozen ' +
     'header and auto-filter are applied for you. Provide one or more sheets, each with typed columns ' +
     'and rows. The file is validated after writing and offered to the user as a download. Prefer this ' +
-    'over hand-writing a script when the deliverable is a spreadsheet. Cells may be values OR ' +
-    'formulas ("=B2*C2" or {"f":"B2*C2","v":<result>}) — use formulas to build genuinely formula-driven models. ' +
+    'over hand-writing a script when the deliverable is a spreadsheet. Cells may be values OR formulas — ' +
+    'REQUIRED for any model: make every DERIVED number a LIVE formula, passed as {"f":"C5*(1+Assumptions!B5)","v":<result>} ' +
+    '(formula + cached result, so the preview and first open show the number) or as a "=B2*C2" string; totals via =SUM(...). ' +
+    'A finance/cash-flow/budget/forecast/model sheet that hard-codes its totals, balances or growth WILL BE REJECTED by the ' +
+    'automated review and sent back to you. ' +
     'DESIGN STANDARDS (judged like a finance pro): make it FORMULA-DRIVEN — never hard-code a derived number ' +
     '(totals via SUM, ratios/growth as formulas) so changing an assumption flows through; lead with a Summary/KPI ' +
     'sheet; give every column an explicit type (currency/percent/date) so numbers align and format consistently; ' +

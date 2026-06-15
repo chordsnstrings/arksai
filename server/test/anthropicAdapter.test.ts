@@ -68,6 +68,65 @@ function sseStream(frames: string[]): any {
   };
 }
 
+// A stream that emits ONE tool_use block, then a read that resolves `done` after `tailMs`
+// (simulating M3 buffering the args) but REJECTS early if the controller aborts.
+function stallingToolStream(toolName: string, ctrl: AbortController, tailMs: number): any {
+  const enc = new TextEncoder();
+  const frames = [`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"c1","name":"${toolName}"}}\n\n`];
+  let i = 0;
+  return {
+    getReader() {
+      return {
+        read() {
+          if (i < frames.length) return Promise.resolve({ done: false, value: enc.encode(frames[i++]) });
+          return new Promise((resolve, reject) => {
+            const t = setTimeout(() => resolve({ done: true, value: undefined }), tailMs);
+            ctrl.signal.addEventListener('abort', () => { clearTimeout(t); reject(new Error('aborted')); }, { once: true });
+          });
+        },
+      };
+    },
+  };
+}
+
+test('anthropicSseToOpenAI: heavy generator on the PRIMARY model shortens the deadline → stall→fallback', async () => {
+  const ctrl = new AbortController();
+  let threw: any;
+  try {
+    for await (const _ of anthropicSseToOpenAI(stallingToolStream('generate_spreadsheet', ctrl, 5000), {
+      controller: ctrl,
+      idleMs: 120_000, // idle backstop must NOT fire first
+      stall: { tripped: false },
+      isPrimary: true,
+      heavyNames: new Set(['generate_spreadsheet']),
+      heavyMs: 25, // tiny → trips right after the tool_use block
+    })) {
+      /* consume */
+    }
+  } catch (e) {
+    threw = e;
+  }
+  assert.ok(threw, 'expected a stall throw once the shortened deadline fired');
+  assert.equal(threw.minimaxStall, true);
+  assert.equal(ctrl.signal.aborted, true);
+});
+
+test('anthropicSseToOpenAI: heavy generator on the FAST model does NOT shorten the deadline', async () => {
+  const ctrl = new AbortController();
+  // isPrimary:false → no heavy timer; the stream completes normally (no premature stall).
+  for await (const _ of anthropicSseToOpenAI(stallingToolStream('generate_spreadsheet', ctrl, 60), {
+    controller: ctrl,
+    idleMs: 120_000,
+    stall: { tripped: false },
+    isPrimary: false,
+    heavyNames: new Set(['generate_spreadsheet']),
+    heavyMs: 25,
+  })) {
+    /* consume */
+  }
+  assert.equal(ctrl.signal.aborted, false);
+});
+
 test('anthropicSseToOpenAI: text + tool_use + usage translate to OpenAI chunks', async () => {
   const frames = [
     'data: {"type":"message_start","message":{"usage":{"input_tokens":100,"cache_read_input_tokens":20}}}\n\n',
