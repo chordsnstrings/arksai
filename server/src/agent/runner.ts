@@ -17,6 +17,7 @@ import { makeThinkFilter } from './thinkFilter';
 import { Usage } from './usage';
 import { checkLabel, detectStartCommand, verifyProject } from './verify';
 import { probeApp } from './runtimeCheck';
+import { checkDeliverable, type DeliverableKind } from './deliverableCheck';
 import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 import { escalateModel, resolveProvider, selectModel } from './router';
@@ -478,6 +479,12 @@ export class AgentRun {
               break;
             }
           }
+          // Report mode: auto-render + design-review the produced pages and bounded-revise
+          // (the gate that replaces manual see_image so quality is guaranteed, not optional).
+          if (this.session.mode === 'report' && this.mutated && !this.abort.signal.aborted) {
+            const gate = await this.runReportGate(dir, liveItems, context);
+            if (gate === 'retry') continue;
+          }
           stopReason = 'natural'; // task done, or the model is awaiting the user
           break;
         }
@@ -924,6 +931,28 @@ export class AgentRun {
       return failFix(checkLabel(failing.name), failing.output);
     }
 
+    // 1b) Document deliverables (docx/xlsx/pptx/pdf from the generate_*/render tools) —
+    //     render + functional + design-review them, bounded-revise. Web apps are covered by
+    //     the live probe below; this gates the FILE deliverables that probe never sees.
+    if (config.designGate && !this.abort.signal.aborted) {
+      const { fail, defects } = await this.reviewDeliverables(dir);
+      if (fail) return failFix(fail.label, fail.detail);
+      if (defects.length && this.designRounds < MAX_DESIGN_ROUNDS) {
+        this.designRounds++;
+        if (isAutoModel(this.session.model)) {
+          const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
+          if (next !== this.activeModel) this.setActiveModel(next);
+        }
+        this.emitProgress('polishing', `Design review — applying refinements (round ${this.designRounds})…`);
+        sys('info', `↻ Design review of the document flagged refinements — applying them (round ${this.designRounds}).`);
+        context.push({
+          role: 'user',
+          content: `A design review of the rendered document flagged these concrete, fixable issues. Fix them and re-generate; it will be re-reviewed:\n- ${defects.join('\n- ')}`,
+        });
+        return 'retry';
+      }
+    }
+
     // 2) Runtime + flow — for apps, ArksAI boots it and exercises the endpoints.
     const startCmd = detectStartCommand(dir);
     if (!startCmd) {
@@ -973,6 +1002,93 @@ export class AgentRun {
       return 'ok';
     }
     sys('info', `✓ Verified — ${probe.detail}`);
+    return 'ok';
+  }
+
+  /** Newest workspace file with one of the given extensions (the just-produced one). */
+  private async newestDeliverable(dir: string, exts: string[]): Promise<string | null> {
+    try {
+      const matches = await fg(
+        exts.map((e) => `**/*${e}`),
+        { cwd: dir, ignore: ['**/node_modules/**', '**/.git/**', 'uploads/**'], onlyFiles: true, suppressErrors: true },
+      );
+      let best: { abs: string; mt: number } | null = null;
+      for (const rel of matches) {
+        const abs = path.join(dir, rel);
+        const mt = fs.statSync(abs).mtimeMs;
+        if (!best || mt > best.mt) best = { abs, mt };
+      }
+      return best?.abs ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Render + functional-check + design-review the freshly-produced document deliverables
+   * (pdf / pptx / xlsx / docx) via the universal QC module. Returns the first functional
+   * failure (hard) and the merged design defects (soft), so the caller can bounded-revise.
+   */
+  private async reviewDeliverables(dir: string): Promise<{ fail?: { label: string; detail: string }; defects: string[] }> {
+    const kinds: Array<[DeliverableKind, string[]]> = [
+      ['pdf', ['.pdf']],
+      ['pptx', ['.pptx']],
+      ['xlsx', ['.xlsx']],
+      ['docx', ['.docx']],
+    ];
+    const defects: string[] = [];
+    let fail: { label: string; detail: string } | undefined;
+    for (const [kind, exts] of kinds) {
+      if (this.abort.signal.aborted) break;
+      const abs = await this.newestDeliverable(dir, exts);
+      if (!abs) continue;
+      const qc = await checkDeliverable(abs, kind, this.abort.signal);
+      this.engineCostUsd += config.minimaxVisionCost * (qc.visionCalls || 0);
+      if (!qc.functionalOk && !fail) fail = { label: `${kind.toUpperCase()} validation`, detail: qc.functionalDetail };
+      if (qc.designVerdict === 'revise' && qc.designDefects?.length) {
+        const tag = path.basename(abs);
+        for (const d of qc.designDefects) defects.push(`[${tag}] ${d}`);
+      }
+    }
+    return { fail, defects: [...new Set(defects)].slice(0, 6) };
+  }
+
+  /**
+   * Report-mode completion gate: auto-render every page of the produced PDF/deck (+ any
+   * docx/xlsx) and design-review it — the bounded render→critique→revise loop that REPLACES
+   * the manual see_image discipline. Returns 'retry' (defects injected) or 'ok'.
+   */
+  private async runReportGate(dir: string, liveItems: TimelineItem[], context: any[]): Promise<'retry' | 'ok'> {
+    if (this.abort.signal.aborted) return 'ok';
+    const sys = (level: 'info' | 'error', text: string) => {
+      const item: TimelineItem = { kind: 'system', id: randomUUID(), level, text, ts: Date.now() };
+      liveItems.push(item);
+      this.emit({ type: 'timeline_item', item });
+    };
+    const hasOutput = (await this.newestDeliverable(dir, ['.pdf', '.pptx', '.docx', '.xlsx'])) !== null;
+    if (!hasOutput || !config.minimaxApiKey) return 'ok'; // nothing rendered yet, or no vision model
+
+    sys('info', '⟳ Auto-rendering every page and design-reviewing the output…');
+    this.emitProgress('verifying', 'Reviewing the rendered pages…');
+    const { fail, defects } = await this.reviewDeliverables(dir);
+
+    if ((fail || defects.length) && this.designRounds < MAX_DESIGN_ROUNDS) {
+      this.designRounds++;
+      if (isAutoModel(this.session.model)) {
+        const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
+        if (next !== this.activeModel) this.setActiveModel(next);
+      }
+      this.emitProgress('polishing', `Design review — refining the output (round ${this.designRounds})…`);
+      sys('info', `↻ Design review flagged refinements — applying them (round ${this.designRounds}).`);
+      context.push({
+        role: 'user',
+        content: fail
+          ? `Automated review found a problem with the rendered ${fail.label}: ${fail.detail}. Fix it and re-render.`
+          : `A design review of the RENDERED pages flagged these concrete, fixable issues. Fix them in the HTML/spec and re-render (call render_report / the generate_* tool again); it will be re-reviewed:\n- ${defects.join('\n- ')}`,
+      });
+      return 'retry';
+    }
+    sys('info', fail || defects.length ? '✓ Reviewed — minor items noted; delivering.' : '✓ Reviewed — every page renders cleanly and looks designed.');
     return 'ok';
   }
 
