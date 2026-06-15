@@ -739,8 +739,12 @@ export class AgentRun {
     // big prompt (report mode) — so the deadline must cover BOTH the headers wait AND body
     // streaming, or the run hangs forever. Arm it BEFORE the fetch. On the PRIMARY model a
     // timeout means M3 is over-buffering → trip a STALL so the loop falls back to the fast
-    // model; the fallback model gets a generous cap (it legitimately takes ~1min).
-    const totalMs = onFallback ? 240_000 : 90_000;
+    // model. M3's latency is MiniMax-serving-bound (server-side buffering, ~7s first byte,
+    // 24–76s gaps — service_tier:priority doesn't help), so we're PATIENT (150s) to prefer
+    // M3's superior quality and only fall back on the genuinely slow tail; the fallback
+    // model gets a generous cap (it legitimately takes ~1min). Env-overridable.
+    const PRIMARY_MS = Number(process.env.MINIMAX_TURN_DEADLINE_MS || '150000') || 150_000;
+    const totalMs = onFallback ? 240_000 : PRIMARY_MS;
     const ac = new AbortController();
     const stall = { tripped: false }; // shared with the stream adapter (idle stalls trip it too)
     if (this.abort.signal.aborted) ac.abort();
@@ -779,7 +783,9 @@ export class AgentRun {
       err.status = resp.status;
       throw err;
     }
-    return anthropicSseToOpenAI(resp.body as any, { controller: ac, idleMs: 120_000, totalTimer, stall });
+    // Idle backstop ≥ the total deadline so a still-streaming-but-slow turn isn't cut off
+    // before its patience window (M3 gaps run 24–76s; the total deadline governs).
+    return anthropicSseToOpenAI(resp.body as any, { controller: ac, idleMs: Math.max(totalMs, 120_000), totalTimer, stall });
   }
 
   private async executeTool(
