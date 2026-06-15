@@ -199,6 +199,14 @@ export async function browserSmokeTest(
     let visionUnavailable = '';
     if (config.minimaxApiKey && !signal.aborted) {
       try {
+        // Reveal any scroll-in [data-reveal] content so the visual review sees the
+        // full page, not blank below-the-fold sections it never scrolled to.
+        await page
+          .evaluate(() => {
+            const d: any = (globalThis as any).document;
+            d?.querySelectorAll('[data-reveal]').forEach((e: any) => { e.classList.add('in'); e.classList.remove('reveal-hidden'); });
+          })
+          .catch(() => {});
         const shot = (await page.screenshot({ type: 'png', fullPage: !!opts?.visual })) as Buffer;
         const dataUrl = `data:image/png;base64,${shot.toString('base64')}`;
         const prompt = opts?.visual ? DESIGN_RUBRIC_PROMPT : VISION_PROMPT;

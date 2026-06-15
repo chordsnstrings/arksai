@@ -22,6 +22,12 @@ Start from the bundled design system; do not hand-roll mediocre CSS.
   default browser fonts/spacing. Link the kit/fonts with RELATIVE paths and keep
   them inside the folder you actually serve — never root-absolute "/ui-kit/" (it
   404s when the app is served from a subdirectory, the #1 cause of an unstyled deploy).
+- COMPOSE, DON'T TEMPLATE: build the page from the kit's SECTION PATTERNS (.hero /
+  .hero-split / .hero-center, .features, .bento, .stat-band, .pricing, .testimonials,
+  .cta(.is-accent), .logos, .split, .footer) + the components, arranged bespoke to the
+  content. NEVER output the generic centered-hero-with-a-glowing-box look — that's the
+  commodity-AI aesthetic we exist to beat. Aim for ONE signature moment per page (a
+  gradient CTA, a bento, a hero visual); restraint everywhere else.
 - TYPOGRAPHY (the backbone): a real modular type scale (≈1.25), generous
   line-height (~1.5 body), a comfortable measure (~60–75 chars), and a strong but
   quiet hierarchy (display → headings → body → caption). One refined font pairing.
@@ -37,7 +43,9 @@ Start from the bundled design system; do not hand-roll mediocre CSS.
 - RESPONSIVE: fluid from small phones to wide desktop; test the key breakpoints;
   sensible touch targets (≥40px).
 - MOTION: subtle, purposeful micro-interactions (hover/focus/enter) with short
-  durations and easeful curves; ALWAYS respect prefers-reduced-motion.
+  durations and easeful curves; use the kit's [data-reveal] (scroll-in) + .animate-in
+  (entrance) and the spring easings; ONE signature motion moment, restraint elsewhere;
+  ALWAYS respect prefers-reduced-motion.
 - POLISH: aligned to a grid, consistent component sizing, rounded corners + soft
   elevation where appropriate, accessible contrast, real icons (inline SVG line
   icons), no clip-art/emoji as UI.

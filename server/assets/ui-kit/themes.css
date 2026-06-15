@@ -1,33 +1,30 @@
 /*
- * ArksAI UI kit — curated named themes. These are the styles the agent OFFERS
- * the user (one quick pick, "Aurora" is the gorgeous default). Apply with
- * <html data-theme="aurora"> (combine with "dark" via data-theme="aurora dark"
- * is not supported — use data-theme + prefers-color-scheme, or set dark tokens).
+ * ArksAI UI kit — named themes = design PERSONALITIES (not just accent swaps).
+ * Each varies hue + radius + type + measure + shadow, so the whole feel changes.
+ * The agent OFFERS one (Aurora is the gorgeous default). Apply on <html>:
+ *   <html data-theme="aurora">   ·   add dark: <html data-theme="aurora dark">
  *
- *  • aurora    — indigo, modern SaaS, clean & confident (DEFAULT)
- *  • emerald   — fresh, calm, trustworthy (fintech/health)
- *  • sunset    — warm amber, friendly & energetic (consumer/marketing)
- *  • mono      — near-monochrome slate, serious & minimal (B2B/internal)
- *  • editorial — rose accent + serif display, magazine/portfolio
+ *  • aurora    — indigo · rounded · soft         — modern SaaS (DEFAULT)
+ *  • emerald   — green  · rounded · calm          — fintech / health
+ *  • sunset    — amber  · extra-rounded · warm     — consumer / marketing
+ *  • mono      — slate  · sharp · minimal shadow   — B2B / internal / technical
+ *  • editorial — rose   · serif display            — magazine / portfolio
+ *  • noir      — graphite · tight · premium         — luxury / premium brand
+ *  • ocean     — blue   · rounded · corporate        — enterprise
  */
-[data-theme='aurora'] {
-  --accent: #4f46e5; --accent-tint: #eef0fe; --accent-ink: #fff;
-}
-[data-theme='emerald'] {
-  --accent: #0f9d6e; --accent-tint: #e6f7f0; --accent-ink: #fff;
-}
-[data-theme='sunset'] {
-  --accent: #d9682a; --accent-tint: #fcefe6; --accent-ink: #fff;
-}
-[data-theme='mono'] {
-  --accent: #2a2f3a; --accent-tint: #eceef1; --accent-ink: #fff;
-  --bg: #ffffff; --surface: #f6f6f7; --line: #e6e7ea;
-}
-[data-theme='editorial'] {
-  --accent: #b03a5b; --accent-tint: #f8e9ee; --accent-ink: #fff;
-  --font-display: 'Source Serif 4', Georgia, serif;
-  --measure: 64ch;
-}
-[data-theme='editorial'] h1, [data-theme='editorial'] h2, [data-theme='editorial'] .hero h1 {
-  font-family: var(--font-display); letter-spacing: -0.015em;
-}
+[data-theme~='aurora']    { --accent: #4f46e5; --accent-2: #7c74f2; --accent-tint: #eef0fe; --accent-ink: #fff; }
+[data-theme~='emerald']   { --accent: #0f9d6e; --accent-2: #34c79a; --accent-tint: #e6f7f0; --accent-ink: #fff; }
+[data-theme~='sunset']    { --accent: #e0682a; --accent-2: #f4a259; --accent-tint: #fcefe6; --accent-ink: #fff; --r-md: 14px; --r-lg: 22px; --r-xl: 30px; }
+[data-theme~='mono']      { --accent: #2a2f3a; --accent-2: #4a515f; --accent-tint: #eceef1; --accent-ink: #fff; --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-xl: 14px; --shadow-md: 0 1px 3px rgba(16,18,29,.08); }
+[data-theme~='editorial'] { --accent: #b03a5b; --accent-2: #d06a86; --accent-tint: #f8e9ee; --accent-ink: #fff; --font-display: 'Source Serif 4', Georgia, serif; --measure: 62ch; }
+[data-theme~='noir']      { --accent: #1b1d22; --accent-2: #3a3d44; --accent-tint: #ededee; --accent-ink: #fff; --r-sm: 4px; --r-md: 7px; --r-lg: 12px; }
+[data-theme~='ocean']     { --accent: #2563eb; --accent-2: #5b8def; --accent-tint: #e8f0fe; --accent-ink: #fff; }
+
+/* editorial: serif display headings */
+[data-theme~='editorial'] h1,
+[data-theme~='editorial'] h2,
+[data-theme~='editorial'] .hero h1,
+[data-theme~='editorial'] .display { font-family: var(--font-display); letter-spacing: -0.015em; }
+/* noir: extra-tight premium display */
+[data-theme~='noir'] h1,
+[data-theme~='noir'] .display { letter-spacing: var(--track-tight); }

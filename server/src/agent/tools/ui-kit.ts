@@ -52,20 +52,27 @@ export const addUiKitTool: ToolDef = {
       return `Error: could not install the UI kit — ${e?.message ?? e}`;
     }
     return (
-      `Installed the UI kit into ${destRel}/. In your HTML <head>, link these with paths RELATIVE to the HTML ` +
-      `file (NOT root-absolute "/${destRel}/..."), in THIS ORDER:\n` +
+      `Installed the UI kit into ${destRel}/. In <head>, link these RELATIVE to your HTML (NOT root-absolute ` +
+      `"/${destRel}/..."), IN ORDER:\n` +
       `  <link rel="stylesheet" href="${destRel}/fonts.css">\n` +
       `  <link rel="stylesheet" href="${destRel}/design-tokens.css">\n` +
       `  <link rel="stylesheet" href="${destRel}/components.css">\n` +
+      `  <link rel="stylesheet" href="${destRel}/patterns.css">\n` +
       `  <link rel="stylesheet" href="${destRel}/themes.css">\n` +
-      `CRITICAL: keep the kit in (or under) the directory your app actually serves — if you serve a subfolder ` +
-      `like public/, install it there (dest: "public/ui-kit"). Root-absolute "/${destRel}/..." 404s when the app ` +
-      `is served from a subdir or by a server that doesn't serve the workspace root — the #1 cause of an unstyled, ` +
-      `failed deploy. Build with the CSS variables (--accent, --ink, --surface, --s-*, --t-*, --r-*, --shadow-*). ` +
-      `Pick a look with <html data-theme="aurora|emerald|sunset|mono|editorial"> (aurora default); offer the user a ` +
-      `quick choice. Override --accent to match a brand. Icons: inline a symbol's <path>s from ${destRel}/icons.svg ` +
-      `(external <use href> does NOT render reliably). Use the component classes (.btn, .card, .field, .input, ` +
-      `.table, .badge, .state, .skeleton, .hero, .container, .section) and keep all interactive/empty/loading/error states.`
+      `…and before </body>:  <script src="${destRel}/ui-kit.js" defer></script>\n` +
+      `CRITICAL: keep the kit in (or under) the directory your app serves — if you serve a subfolder like public/, ` +
+      `install it there (dest "public/ui-kit"). Root-absolute "/${destRel}/..." 404s when served from a subdir — ` +
+      `the #1 cause of an unstyled, failed deploy.\n` +
+      `THEME: <html data-theme="aurora"> — pick ONE personality (aurora·emerald·sunset·mono·editorial·noir·ocean) ` +
+      `and offer the user a quick choice; add " dark" for dark mode; override --accent for a brand.\n` +
+      `BUILD WITH the tokens (--accent/--ink/--surface/--s-*/--t-*/--r-*/--shadow-*/--ease*; the type scale is ` +
+      `already fluid/responsive); COMPONENTS (.btn .card .field .input .switch .segmented .tabs .table .badge ` +
+      `.alert .avatar .progress .kpi .price .quote .menu dialog .accordion .toast — all with states); and SECTION ` +
+      `PATTERNS (.hero/.hero-split/.hero-center .features .bento .stat-band .pricing .testimonials .cta[.is-accent] ` +
+      `.logos .split .footer). COMPOSE these blocks into a bespoke page — never output a generic centered-hero ` +
+      `template. MOTION: add [data-reveal] (scroll-in) and .animate-in (entrance); use ONE signature moment per page ` +
+      `(a gradient .cta.is-accent, a .bento, or a hero visual), restraint elsewhere. Icons: inline a symbol's ` +
+      `<path>s from ${destRel}/icons.svg (external <use href> does NOT render reliably).`
     );
   },
 };
