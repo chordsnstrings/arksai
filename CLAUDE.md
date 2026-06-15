@@ -35,6 +35,7 @@ ArksAI is for **general, non-technical people**, NOT developers. Promise: descri
 
 ## How to work here
 - Before claiming done: `npm run typecheck && npm test && npm run build` (12 tests). All must pass.
+- **Keep `FEATURES.md` current**: every commit that adds/removes/meaningfully changes a feature must update `FEATURES.md` (the living, user-facing feature list) in the SAME commit. The user asked for this explicitly.
 - After changes: commit to `main` and push. **Auto-deploy** (systemd timer on the Droplet) pulls + rebuilds `main` every ~2 min — no manual deploy needed. Don't hand-edit files in `/opt/arksai` (overwritten); `.env` is safe.
 - The user wants work landed on `main`. The web/task harness sometimes assigns a feature branch (e.g. `claude/...`); auto-deploy only watches `main`, so commit/merge to `main` — the user has said "commit to main" explicitly and repeatedly.
 - Local manual run for testing: `APP_PASSWORD=testpass PORT=3000 DEEPSEEK_API_KEY=... nohup node server/dist/server/src/index.js &` — start it in an ISOLATED bash command (a `pkill`/`kill` in the same command kills the new start; that's burned me repeatedly).

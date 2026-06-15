@@ -1,0 +1,81 @@
+# ArksAI — Feature List
+
+A self-hosted, Claude-Code-style web coding agent for **non-technical teams**: describe
+something once → get one finished thing that looks perfect, works perfectly, and is
+actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability engines.
+
+> **Maintenance:** keep this file current — every shipped change that adds, removes, or
+> meaningfully alters a feature should update this list in the same commit.
+> _Last updated: 2026-06-14._
+
+---
+
+## Core product & agent
+- Autonomous agent loop — streaming, tool-calling, stall guard, context truncation, graceful error handling.
+- **4 modes:** Chat, Plan (read-only), Code (build/verify/publish), Report (designed PDFs/decks) — each with a curated toolset.
+- Tooling: file read/write/edit, glob/grep, bash + persistent background processes, git, web search/fetch.
+
+## Orchestration & engines
+- **ArksAI Auto** — routes each task to Flash / Pro / MiniMax by complexity, escalates a stronger model when verification fails; server-authoritative blended cost in the footer.
+- **ArksAI Max** — MiniMax LLM, selectable when keyed.
+- **MiniMax capability tools:** `see_image` (vision), `generate_image`, `text_to_speech`, `generate_video` (Hailuo).
+- **Suno** music engine (`generate_music`), per-track cost.
+
+## One-shot quality system
+- Task classification (`taskProfile`) → deliverable type + isVisual + tier.
+- Opinionated design system + a bundled UI kit (tokens/components/themes, `add_ui_kit`) injected for visual tasks.
+- Gating design-critique loop — MiniMax-VL reviews the rendered UI against a rubric; the agent iterates (bounded) so the user never does.
+- Visual model floor — non-trivial visual/report work never runs on the cheapest model.
+
+## Bulletproof verification
+- Static gate (typecheck/lint/test/build) + runtime gate (boots the app, exercises routes).
+- Parameterized-route filling (`:id`/`{id}`/`<int:id>`/`:slug`) + an interaction pass (seeds inputs, submits a form, clicks primary buttons).
+- Headless-Chromium UI smoke test (blank/console-error/failed-request detection).
+- Post-publish smoke test of the real `/apps/<slug>/` URL — a broken deploy is caught and handed back to the agent, never the user.
+
+## Deliverables & deployment
+- Live publishing (`publish_app` + TopBar) — durable public URL at `/apps/<slug>/`; static or node/python apps via a process registry that survives restarts (boot recovery).
+- Auto-export (zip download chip) + auto-canvas — the canvas auto-opens and loads the result (web app, PDF, spreadsheet, or doc).
+- Styled office docs: `generate_spreadsheet` (exceljs, validated) and `generate_doc` (docx).
+- Report mode — PDFs and 16:9 decks with a full editorial protocol (newspaper margins, anti-orphan `.lede`, kickers, rules, page mechanics).
+- In-app doc viewer (xlsx/csv/docx → styled HTML); Canvas preview (Preview/Files/Doc tabs, port auto-detect).
+
+## The flow (effortless AND expert)
+- Smart intake — a short, type-aware brief (one round), then fully autonomous.
+- Launchpad — one-step "describe → Make it" onboarding.
+- Live "smart-work" progress bar — named phases with an anticipation creep so it never looks frozen; technical work stays visible (visible competence = trust).
+- Self-healing reframed as confident "hardening it (pass N)" forward progress, not failure.
+- Delivery moment — "Booting your live app…" loading + retry, and a completion card ("✓ Your app is ready" → Open / Get a shareable link).
+
+## Smart agent
+- Sees uploaded images — the agent is told an image was uploaded and uses `see_image` to read it (or says vision is unavailable if unkeyed).
+- Auto mode/engine switching — `switch_mode` lets a chat become a build/report mid-conversation; the runner reloads the toolset, prompt, and engine on the fly with an inline note.
+
+## B2B department platform
+- Department-aware studio — Marketing, Sales, Finance/Strategy, HR·People & Ops, Engineering; pick your function → that team's curated tasks.
+- ~50-task catalog grouped **Create / Analyze / Operate**, each a ready-to-run brief in the right mode.
+- Per-task expert standards (server-side) — a department persona (FP&A rigor, inclusive HR, RevOps, brand-growth, senior-eng) + research-backed standards injected per task.
+- B2B acquisition landing (pre-login) — "Give every team a builder," by-department value grid, FAQ, and lead capture (`POST /api/leads` + admin list).
+
+## Day-to-day capabilities
+- Recurring/scheduled tasks — a durable server scheduler (daily/weekly/interval) that fires a fresh session even with the browser closed; managed via a Schedules dialog.
+- Data in — `fetch_data` pulls a public CSV/JSON/published-Sheet URL (SSRF-guarded).
+- Deliver out — `send_webhook` posts a result to a Slack/Zapier/Discord hook.
+
+## Visual identity & theming
+- Editorial light/warm identity — ivory canvas, Source Serif 4 + Inter + Space Grotesk (same fonts the reports use), publication masthead, hairline rules, per-department accent coding. Token-driven.
+- Dark mode for the Engineering (developer) team, with a smooth animated dark↔light crossfade (mobile + desktop, reduced-motion aware).
+
+## Platform plumbing
+- Projects — persistent workspaces (instructions, defaults, branding, knowledge base) that sessions inherit.
+- Memory (global/repo/project scopes + ARKS.md); custom slash commands.
+- Dual-driver storage (Postgres or SQLite); durable timeline; cost/token accounting.
+- Auth (single-operator password, cookie-based; public lead endpoint allowlisted); PWA scaffolding.
+
+---
+
+## Status & honest caveats
+- **65 automated tests green**; typecheck + build clean.
+- Anything needing the **model key or open egress** (live builds, real vision calls, scheduled runs firing, external data/webhook delivery) is wired + unit/integration-tested but fully exercised only on the **Droplet**.
+- **Staged (needs Droplet credentials):** OAuth Google Sheets/Drive & CRM connectors, a Slack app, SMTP email.
+- **Next big arc (not yet built):** org/team multi-seat platform — per-user accounts, roles/invites, org-scoped data, departments → per-org templates.
