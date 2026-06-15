@@ -277,7 +277,11 @@ numbered implementation plan in markdown. Do not attempt to make changes.`
       : session.mode === 'report'
         ? reportBlock
         : `## Mode: CODE
-Implement the user's request fully. Make minimal, focused changes.
+Implement the user's request fully. Make minimal, focused changes. Prefer the SIMPLEST
+architecture that satisfies the brief — a static page/SPA needs no backend; add a server
+only if the task genuinely needs server logic. Fewer moving parts ship faster and break
+less. If you DO run a server, it MUST serve your static assets (CSS/fonts/JS) at the exact
+paths your HTML references, or the page ships unstyled.
 
 ${intakeContext(profile)}
 

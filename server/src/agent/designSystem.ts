@@ -19,7 +19,9 @@ Start from the bundled design system; do not hand-roll mediocre CSS.
 - FOUNDATION: call add_ui_kit to install the design tokens + component patterns
   (and add_fonts for embedded type). Link the tokens CSS first and build with the
   CSS variables (color, type scale, spacing, radius, shadow, motion). Never leave
-  default browser fonts/spacing.
+  default browser fonts/spacing. Link the kit/fonts with RELATIVE paths and keep
+  them inside the folder you actually serve — never root-absolute "/ui-kit/" (it
+  404s when the app is served from a subdirectory, the #1 cause of an unstyled deploy).
 - TYPOGRAPHY (the backbone): a real modular type scale (≈1.25), generous
   line-height (~1.5 body), a comfortable measure (~60–75 chars), and a strong but
   quiet hierarchy (display → headings → body → caption). One refined font pairing.

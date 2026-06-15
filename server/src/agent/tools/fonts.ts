@@ -42,11 +42,12 @@ export const addFontsTool: ToolDef = {
       return `Error: could not install fonts — ${e?.message ?? e}`;
     }
     return (
-      `Installed fonts + icons into ${destRel}/. Link the fonts: ` +
-      `<link rel="stylesheet" href="${destRel}/fonts.css"> (or @import). Families: "Inter" (sans/body), ` +
-      `"Source Serif 4" (serif display), "Space Grotesk" (modern display). Also ${destRel}/icons.svg — a ` +
-      `Lucide line-icon source: read it and INLINE an icon's inner <path>s into your HTML (an external ` +
-      `<use href> does NOT render in the PDF). Pick a font pairing for the brand and use icons for section markers/KPIs.`
+      `Installed fonts + icons into ${destRel}/. Link RELATIVE to your HTML (NOT root-absolute "/${destRel}/..."): ` +
+      `<link rel="stylesheet" href="${destRel}/fonts.css"> (or @import). Keep ${destRel}/ in (or under) the directory ` +
+      `your app serves — if you serve public/, install it there — or root-absolute paths 404 and fonts won't load. ` +
+      `Families: "Inter" (sans/body), "Source Serif 4" (serif display), "Space Grotesk" (modern display). Also ` +
+      `${destRel}/icons.svg — a Lucide line-icon source: read it and INLINE an icon's inner <path>s into your HTML ` +
+      `(an external <use href> does NOT render in the PDF). Pick a font pairing for the brand and use icons for section markers/KPIs.`
     );
   },
 };

@@ -52,11 +52,18 @@ export const addUiKitTool: ToolDef = {
       return `Error: could not install the UI kit — ${e?.message ?? e}`;
     }
     return (
-      `Installed the UI kit into ${destRel}/. In your HTML <head>, link in THIS ORDER: ` +
-      `fonts.css → design-tokens.css → components.css → themes.css. Build with the CSS variables ` +
-      `(--accent, --ink, --surface, --s-*, --t-*, --r-*, --shadow-*). Pick a look with ` +
-      `<html data-theme="aurora|emerald|sunset|mono|editorial"> (aurora is the default); offer the user a ` +
-      `quick choice. Override --accent to match a brand. Icons: inline a symbol's <path>s from icons.svg ` +
+      `Installed the UI kit into ${destRel}/. In your HTML <head>, link these with paths RELATIVE to the HTML ` +
+      `file (NOT root-absolute "/${destRel}/..."), in THIS ORDER:\n` +
+      `  <link rel="stylesheet" href="${destRel}/fonts.css">\n` +
+      `  <link rel="stylesheet" href="${destRel}/design-tokens.css">\n` +
+      `  <link rel="stylesheet" href="${destRel}/components.css">\n` +
+      `  <link rel="stylesheet" href="${destRel}/themes.css">\n` +
+      `CRITICAL: keep the kit in (or under) the directory your app actually serves — if you serve a subfolder ` +
+      `like public/, install it there (dest: "public/ui-kit"). Root-absolute "/${destRel}/..." 404s when the app ` +
+      `is served from a subdir or by a server that doesn't serve the workspace root — the #1 cause of an unstyled, ` +
+      `failed deploy. Build with the CSS variables (--accent, --ink, --surface, --s-*, --t-*, --r-*, --shadow-*). ` +
+      `Pick a look with <html data-theme="aurora|emerald|sunset|mono|editorial"> (aurora default); offer the user a ` +
+      `quick choice. Override --accent to match a brand. Icons: inline a symbol's <path>s from ${destRel}/icons.svg ` +
       `(external <use href> does NOT render reliably). Use the component classes (.btn, .card, .field, .input, ` +
       `.table, .badge, .state, .skeleton, .hero, .container, .section) and keep all interactive/empty/loading/error states.`
     );
