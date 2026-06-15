@@ -41,6 +41,20 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   const src = repoDir(sessionId);
   if (!fs.existsSync(src)) throw new Error('no workspace to publish');
 
+  // Supersede any prior deployment(s) for this session — kill + remove them — so
+  // re-publishes (including verification retries) don't pile up errored/duplicate
+  // slugs, and the public URL stays stable instead of drifting to -2/-3.
+  try {
+    const prior = (await store.listDeployments()).filter((d) => d.sessionId === sessionId);
+    for (const d of prior) {
+      deploymentRegistry.kill(d.slug);
+      await store.deleteDeployment(d.slug);
+      try {
+        fs.rmSync(deploymentDir(d.slug), { recursive: true, force: true });
+      } catch {}
+    }
+  } catch {}
+
   const appName = String(name || session.repoName || session.title || 'app');
   const slug = await uniqueSlug(slugify(appName));
   const dest = deploymentDir(slug);
