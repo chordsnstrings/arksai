@@ -160,8 +160,9 @@ ships a protocol-compatible surface; the provider/model is MiniMax.
 
 **Aggregate:** every completed play produced a deliverable and **0 stalled** asking for input
 (fully autonomous). Web apps **13/14 live**; reports/decks **18 PDFs**; documents **8 .docx**;
-spreadsheets **11 (only `finance.model` formula-driven)**. `engineering.api` is a backend
-service (no standard file deliverable). `✅` = meets bar; `⚠` = produced but flawed (see findings).
+spreadsheets **11 (only `finance.model` formula-driven)**; `engineering.api` built a working
+Express API (routes + db + seed — a code service, not a file download). **Net: 52/52 produced a
+real deliverable.** `✅` = meets bar; `⚠` = produced but flawed (see findings).
 
 ### Marketing
 
@@ -234,6 +235,7 @@ service (no standard file deliverable). `✅` = meets bar; `⚠` = produced but 
 | docssite | code | app | ✅ live · anim · responsive |
 | engmetrics | code | app | ✅ live · anim · responsive |
 | datadash | code | app | ✅ live · anim · responsive |
+| api | code | service | ✅ Express API (products/reviews/stats routes + db + seed) |
 | techdoc | code | docx | ✅ .docx |
 | runbook | report | pdf | ✅ 9pp PDF |
 | designdoc | code | docx | ✅ .docx |
