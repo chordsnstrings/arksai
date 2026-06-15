@@ -352,13 +352,15 @@ export class AgentRun {
         });
 
         let text = '';
+        let reasoning = ''; // M3 reasoning (reasoning_split) — echoed back next turn so multi-turn tool use doesn't 400
         const toolCalls: AccToolCall[] = [];
-        // Strip MiniMax M3's inline <think>…</think> reasoning from the visible
-        // stream and the stored context; a no-op for models that don't emit it.
+        // Strip any inline <think>…</think> from the visible stream — a no-op once
+        // reasoning_split moves M3's reasoning out of content (belt + suspenders).
         const stripThink = makeThinkFilter();
 
         for await (const chunk of stream) {
           const delta: any = chunk.choices?.[0]?.delta;
+          if (delta?.reasoning_content) reasoning += delta.reasoning_content;
           if (delta?.content) {
             const visible = stripThink(delta.content);
             if (visible) {
@@ -409,6 +411,8 @@ export class AgentRun {
         context.push({
           role: 'assistant',
           content: text || null,
+          // Echo M3's reasoning back into history — required for its multi-turn tool use.
+          ...(reasoning ? { reasoning_content: reasoning } : {}),
           ...(calls.length
             ? {
                 tool_calls: calls.map((c) => ({
@@ -613,13 +617,18 @@ export class AgentRun {
     let triedFallback = false;
     for (let attempt = 0; ; attempt++) {
       try {
-        // MiniMax M3 is a thinking model that, with no max_tokens cap, can fail to
-        // return for minutes and hang the agent loop. Cap it for MiniMax only;
-        // DeepSeek stops naturally and needs no cap.
-        const extra =
-          resolveProvider(this.activeModel).provider === 'minimax' ? { max_tokens: 16384 } : {};
+        // MiniMax M3 is a thinking model. (1) Cap output — with no max_tokens it can fail
+        // to return for minutes and hang the loop. (2) reasoning_split:true moves its
+        // chain-of-thought into a separate reasoning_content field, keeping `content`
+        // clean AND letting us echo the reasoning back next turn — M3 multi-turn tool use
+        // REQUIRES the reasoning in history or it 400s ("reasoning_content must be passed
+        // back"). DeepSeek needs neither.
+        const extra: Record<string, unknown> =
+          resolveProvider(this.activeModel).provider === 'minimax'
+            ? { max_tokens: 16384, reasoning_split: true }
+            : {};
         return (await this.activeClient.chat.completions.create(
-          { ...params, ...extra, model: this.activeApiModel },
+          { ...params, ...extra, model: this.activeApiModel } as any,
           { signal: this.abort.signal },
         )) as unknown as AsyncIterable<any>;
       } catch (err) {
