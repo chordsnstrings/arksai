@@ -970,17 +970,15 @@ export class AgentRun {
     if (config.designGate && !this.abort.signal.aborted) {
       const { fail, defects } = await this.reviewDeliverables(dir);
       if (fail) return failFix(fail.label, fail.detail);
-      if (defects.length && this.designRounds < MAX_DESIGN_ROUNDS) {
+      // ONE bounded revise for documents: re-authoring a whole sheet/doc/deck is expensive, so
+      // a 2nd round doubles the time for diminishing returns. Cap at 1 + demand targeted edits.
+      if (defects.length && this.designRounds < 1) {
         this.designRounds++;
-        if (isAutoModel(this.session.model)) {
-          const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
-          if (next !== this.activeModel) this.setActiveModel(next);
-        }
-        this.emitProgress('polishing', `Design review — applying refinements (round ${this.designRounds})…`);
-        sys('info', `↻ Design review of the document flagged refinements — applying them (round ${this.designRounds}).`);
+        this.emitProgress('polishing', 'Design review — applying refinements…');
+        sys('info', '↻ Design review of the document flagged refinements — applying them.');
         context.push({
           role: 'user',
-          content: `A design review of the rendered document flagged these concrete, fixable issues. Fix them and re-generate; it will be re-reviewed:\n- ${defects.join('\n- ')}`,
+          content: `A design review of the rendered document flagged these concrete, fixable issues. Make MINIMAL, TARGETED edits to fix ONLY these — do NOT regenerate the whole document — then it will be re-reviewed:\n- ${defects.join('\n- ')}`,
         });
         return 'retry';
       }
