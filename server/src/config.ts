@@ -72,11 +72,12 @@ export const config = {
   minimaxApiKey: process.env.MINIMAX_API_KEY || '',
   minimaxBaseUrl: process.env.MINIMAX_BASE_URL || 'https://api.minimax.io/v1',
   minimaxGroupId: process.env.MINIMAX_GROUP_ID || '',
-  // OpenAI-compatible chat model sent to MiniMax (override once validated on the
-  // Droplet, e.g. MiniMax-M2). The branded id surfaced in ArksAI is 'arksai-max'.
-  minimaxModel: process.env.MINIMAX_MODEL || 'MiniMax-Text-01',
+  // OpenAI-compatible chat model sent to MiniMax. MiniMax-M3 (June 2026) is the
+  // current frontier model; the branded id surfaced in ArksAI is 'arksai-max'.
+  minimaxModel: process.env.MINIMAX_MODEL || 'MiniMax-M3',
   // MiniMax capability models (override per the MiniMax console once validated).
-  minimaxVlModel: process.env.MINIMAX_VL_MODEL || 'MiniMax-VL-01', // vision
+  // M3 is natively multimodal, so vision runs on the same model (no separate VL id).
+  minimaxVlModel: process.env.MINIMAX_VL_MODEL || 'MiniMax-M3', // vision (M3 multimodal)
   minimaxImageModel: process.env.MINIMAX_IMAGE_MODEL || 'image-01',
   minimaxTtsModel: process.env.MINIMAX_TTS_MODEL || 'speech-02-hd',
   minimaxVideoModel: process.env.MINIMAX_VIDEO_MODEL || 'MiniMax-Hailuo-02',
