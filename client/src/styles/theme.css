@@ -281,7 +281,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .search-box {
-  margin: 0 6px 6px;
+  margin: 12px 6px 8px;
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 8px;

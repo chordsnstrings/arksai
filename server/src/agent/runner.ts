@@ -735,27 +735,43 @@ export class AgentRun {
     const model = onFallback ? config.minimaxFallbackModel : this.activeApiModel;
     const body: Record<string, unknown> = { model, max_tokens: 64000, system, messages, stream: true };
     if (tools.length) body.tools = tools;
-    // On the PRIMARY model (M3), bound the whole turn: if it hasn't completed in time it's
-    // over-buffering — abort and let the loop retry on the fallback model. The fallback
-    // model legitimately takes ~1min, so it gets no total deadline (just the idle backstop).
-    const totalMs = onFallback ? 0 : 90_000;
-    // fetch has no built-in timeout. Use our own AbortController, chained to the run's
-    // abort (so an interrupt still cancels), and hand it to the stream adapter which
-    // idle-aborts if M3 goes silent too long (stall guard).
+    // fetch has NO built-in timeout, and M3 can be slow to even send response headers on a
+    // big prompt (report mode) — so the deadline must cover BOTH the headers wait AND body
+    // streaming, or the run hangs forever. Arm it BEFORE the fetch. On the PRIMARY model a
+    // timeout means M3 is over-buffering → trip a STALL so the loop falls back to the fast
+    // model; the fallback model gets a generous cap (it legitimately takes ~1min).
+    const totalMs = onFallback ? 240_000 : 90_000;
     const ac = new AbortController();
+    const stall = { tripped: false }; // shared with the stream adapter (idle stalls trip it too)
     if (this.abort.signal.aborted) ac.abort();
     else this.abort.signal.addEventListener('abort', () => ac.abort(), { once: true });
-    const resp = await fetch(`${this.minimaxAnthropicBase}/v1/messages`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.minimaxApiKey}`,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: ac.signal,
-    });
+    const totalTimer = setTimeout(() => {
+      stall.tripped = true;
+      ac.abort();
+    }, totalMs);
+    let resp: Response;
+    try {
+      resp = await fetch(`${this.minimaxAnthropicBase}/v1/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${config.minimaxApiKey}`,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: ac.signal,
+      });
+    } catch (e: any) {
+      clearTimeout(totalTimer);
+      if (stall.tripped) {
+        const err: any = new Error(`MiniMax (${model}) stalled — no response within ${totalMs / 1000}s.`);
+        err.minimaxStall = true; // → the loop falls back to the faster model
+        throw err;
+      }
+      throw e;
+    }
     if (!resp.ok || !resp.body) {
+      clearTimeout(totalTimer);
       const detail = await resp.text().catch(() => '');
       // Carry the HTTP status so the retry/fallback classifier treats 429/5xx as
       // transient (retry on M3) and 4xx as hard (fall back to DeepSeek Pro).
@@ -763,7 +779,7 @@ export class AgentRun {
       err.status = resp.status;
       throw err;
     }
-    return anthropicSseToOpenAI(resp.body as any, { controller: ac, idleMs: 120_000, totalMs });
+    return anthropicSseToOpenAI(resp.body as any, { controller: ac, idleMs: 120_000, totalTimer, stall });
   }
 
   private async executeTool(
@@ -1234,7 +1250,7 @@ export function mapAnthropicStop(reason: string | undefined): string | undefined
  */
 export async function* anthropicSseToOpenAI(
   body: any,
-  opts?: { controller?: AbortController; idleMs?: number; totalMs?: number },
+  opts?: { controller?: AbortController; idleMs?: number; totalTimer?: ReturnType<typeof setTimeout>; stall?: { tripped: boolean } },
 ): AsyncIterable<any> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -1244,27 +1260,20 @@ export async function* anthropicSseToOpenAI(
   let cacheCreate = 0;
   let outTok = 0;
   // Stall guards (M3 buffers tool-arg generation server-side, and concurrent streams can
-  // stall indefinitely; fetch has no timeout):
-  //  • idleMs  — reset on every chunk; fires on a long SILENCE (true stall backstop).
-  //  • totalMs — armed once; fires if the whole turn takes too long (M3 over-buffering) so
-  //    the loop can fall back to the faster model. Both abort + flag the error .minimaxStall.
+  // stall indefinitely; fetch has no timeout). The caller (createMinimaxStream) owns the
+  // TOTAL-turn timer (it must cover the headers wait too) + the shared `stall` flag; here we
+  // add the IDLE backstop (resets on every chunk, fires on a long SILENCE). Either tripping
+  // `stall` makes the read throw `.minimaxStall` so the loop falls back to the faster model.
   const idleMs = opts?.idleMs ?? 0;
-  const totalMs = opts?.totalMs ?? 0;
   const ctrl = opts?.controller;
+  const stall = opts?.stall ?? { tripped: false };
+  const totalTimer = opts?.totalTimer;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
-  let totalTimer: ReturnType<typeof setTimeout> | undefined;
-  let stalled = false;
-  if (totalMs && ctrl) {
-    totalTimer = setTimeout(() => {
-      stalled = true;
-      ctrl.abort();
-    }, totalMs);
-  }
   const arm = () => {
     if (!idleMs || !ctrl) return;
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
-      stalled = true;
+      stall.tripped = true;
       ctrl.abort();
     }, idleMs);
   };
@@ -1281,7 +1290,7 @@ export async function* anthropicSseToOpenAI(
     try {
       read = await reader.read();
     } catch (e) {
-      if (stalled) {
+      if (stall.tripped) {
         const err: any = new Error('MiniMax (M3) stalled / over-buffered the turn.');
         err.minimaxStall = true; // the loop uses this to fall back to the faster model
         throw err;
