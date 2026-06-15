@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { resolveInWorkspace, ToolError } from '../src/agent/tools/common';
 import { planModeViolation, protectedCommand } from '../src/agent/tools/bash';
+import { toCell } from '../src/agent/tools/excel';
 import { truncateMiddle } from '../src/lib/exec';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-test-'));
@@ -66,6 +67,15 @@ test('protected denylist allows normal build/dev commands', () => {
   for (const cmd of ['npm run build', 'node server.js', 'npm install', 'git commit -m x', 'curl localhost:4000', 'kill 12345', 'ls -la']) {
     assert.equal(protectedCommand(cmd), null, `expected allow: ${cmd}`);
   }
+});
+
+test('spreadsheet toCell converts formula specs and leaves plain values', () => {
+  assert.deepEqual(toCell('=B2*C2'), { formula: 'B2*C2' });
+  assert.deepEqual(toCell({ f: 'SUM(A1:A3)', v: 6 }), { formula: 'SUM(A1:A3)', result: 6 });
+  assert.deepEqual(toCell({ f: 'A1+1' }), { formula: 'A1+1' });
+  assert.equal(toCell('hello'), 'hello');
+  assert.equal(toCell(42), 42);
+  assert.equal(toCell('='), '='); // too short to be a formula
 });
 
 test('computeCost matches DeepSeek cache-aware billing', async () => {

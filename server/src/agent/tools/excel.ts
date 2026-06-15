@@ -25,6 +25,30 @@ function toArgb(hex: string | undefined, fallback: string): string {
 }
 
 /**
+ * A row cell may be a literal value, a formula string like "=B2*C2", or
+ * { f: "B2*C2", v: 1234 } (formula + cached result so the value shows before Excel
+ * recalculates, and so the SheetJS validation/preview can read it). Converts those
+ * into ExcelJS formula cells; leaves plain values untouched. This is what lets a
+ * model be genuinely formula-driven (change one assumption → everything flows).
+ */
+export function toCell(v: any): any {
+  if (typeof v === 'string' && v.length > 1 && v[0] === '=') return { formula: v.slice(1) };
+  if (v && typeof v === 'object' && typeof v.f === 'string') {
+    return v.v !== undefined ? { formula: v.f, result: v.v } : { formula: v.f };
+  }
+  return v;
+}
+function toRow(r: any): any {
+  if (Array.isArray(r)) return r.map(toCell);
+  if (r && typeof r === 'object') {
+    const o: Record<string, any> = {};
+    for (const k of Object.keys(r)) o[k] = toCell(r[k]);
+    return o;
+  }
+  return r;
+}
+
+/**
  * Generate a styled, validated .xlsx spreadsheet from a high-level spec — so a
  * non-technical user gets a genuinely designed sheet (branded header, number/
  * date formats, zebra banding, frozen header, auto-filter), not a raw dump.
@@ -37,7 +61,8 @@ export const generateSpreadsheetTool: ToolDef = {
     'header row, number/currency/percent/date formatting, auto column widths, zebra banding, frozen ' +
     'header and auto-filter are applied for you. Provide one or more sheets, each with typed columns ' +
     'and rows. The file is validated after writing and offered to the user as a download. Prefer this ' +
-    'over hand-writing a script when the deliverable is a spreadsheet.',
+    'over hand-writing a script when the deliverable is a spreadsheet. Cells may be values OR ' +
+    'formulas ("=B2*C2" or {"f":"B2*C2","v":<result>}) — use formulas to build genuinely formula-driven models.',
   parameters: {
     type: 'object',
     properties: {
@@ -66,7 +91,7 @@ export const generateSpreadsheetTool: ToolDef = {
             },
             rows: {
               type: 'array',
-              description: 'Rows as arrays (cell values in column order) OR objects keyed by column key.',
+              description: 'Rows as arrays (cell values in column order) OR objects keyed by column key. A cell may be a literal value, a formula string like "=B2*C2", or {"f":"B2*C2","v":1234} (formula + cached result). USE FORMULAS for models (cash-flow, budget, scenario) so changing one assumption flows through — never hard-code derived numbers.',
               items: {},
             },
           },
@@ -126,8 +151,8 @@ export const generateSpreadsheetTool: ToolDef = {
           cell.border = { bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } } };
         });
 
-        // Data rows.
-        for (const r of rows) ws.addRow(r);
+        // Data rows (cells may be literal values OR formulas — see toCell/toRow).
+        for (const r of rows) ws.addRow(toRow(r));
 
         // Number/date formats + right-align numerics.
         cols.forEach((c, i) => {

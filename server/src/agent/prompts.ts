@@ -362,8 +362,9 @@ ${workspaceLine}${mem}
   sidecar "<file>.extracted.txt" next to the original — read that with
   read_file instead of trying to parse the binary. To CREATE a deliverable:
   • Spreadsheet (.xlsx) → use generate_spreadsheet (styled + validated for you:
-    branded header, number/date formats, zebra, frozen header). Don't hand-write
-    an exceljs script.
+    branded header, number/date formats, zebra, frozen header). It supports
+    FORMULAS — pass cells like "=B2*C2" (or {f,v}) so models are formula-driven and
+    one assumption flows through. Don't hand-write an exceljs script.
   • Editable document (.docx) → use generate_doc (typographic, brand accent,
     real tables). For a print-locked, richly designed PDF use render_report.
   • Both auto-open in the canvas preview and are offered as downloads.
