@@ -730,21 +730,25 @@ export class AgentRun {
       description: t.function.description,
       input_schema: t.function.parameters,
     }));
-    // Default to M3; once it has stalled on this run, use the faster fallback coding model.
-    const onFallback = this.minimaxFellBack;
-    const model = onFallback ? config.minimaxFallbackModel : this.activeApiModel;
+    // Report mode → use the fast coding model directly. M3 reliably STALLS on report mode's
+    // GIANT single-HTML output (the report system prompt is huge and M3 buffers it → ~20min),
+    // whereas the fast model produces the same magazine-grade report ~4× faster. Code mode
+    // keeps M3 (it succeeds there with the 150s patience). Once M3 has stalled on a code run,
+    // also switch to the fast model for the rest of that run.
+    const useFast = this.minimaxFellBack || this.session.mode === 'report';
+    const model = useFast ? config.minimaxFallbackModel : this.activeApiModel;
     const body: Record<string, unknown> = { model, max_tokens: 64000, system, messages, stream: true };
     if (tools.length) body.tools = tools;
     // fetch has NO built-in timeout, and M3 can be slow to even send response headers on a
-    // big prompt (report mode) — so the deadline must cover BOTH the headers wait AND body
-    // streaming, or the run hangs forever. Arm it BEFORE the fetch. On the PRIMARY model a
+    // big prompt — so the deadline must cover BOTH the headers wait AND body streaming, or
+    // the run hangs forever. Arm it BEFORE the fetch. On the PRIMARY model (M3, code mode) a
     // timeout means M3 is over-buffering → trip a STALL so the loop falls back to the fast
     // model. M3's latency is MiniMax-serving-bound (server-side buffering, ~7s first byte,
     // 24–76s gaps — service_tier:priority doesn't help), so we're PATIENT (150s) to prefer
-    // M3's superior quality and only fall back on the genuinely slow tail; the fallback
-    // model gets a generous cap (it legitimately takes ~1min). Env-overridable.
+    // M3's quality and only fall back on the genuinely slow tail; the fast model gets a
+    // generous cap (it legitimately takes ~1min). Env-overridable.
     const PRIMARY_MS = Number(process.env.MINIMAX_TURN_DEADLINE_MS || '150000') || 150_000;
-    const totalMs = onFallback ? 240_000 : PRIMARY_MS;
+    const totalMs = useFast ? 240_000 : PRIMARY_MS;
     const ac = new AbortController();
     const stall = { tripped: false }; // shared with the stream adapter (idle stalls trip it too)
     if (this.abort.signal.aborted) ac.abort();
