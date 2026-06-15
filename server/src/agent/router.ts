@@ -32,7 +32,10 @@ export interface RouteOpts {
   minimaxAvailable: boolean;
 }
 
-const tierModel = (tier: Tier, o: RouteOpts): string => {
+const tierModel = (tier: Tier, mode: SessionMode, o: RouteOpts): string => {
+  // Coding & sensitive deliverables (code/report) → MiniMax M3 primary when it's
+  // available; DeepSeek Pro is the automatic in-runner fallback if M3 errors.
+  if (o.minimaxAvailable && (mode === 'code' || mode === 'report')) return MAX_MODEL;
   if (tier === 'light') return 'deepseek-v4-flash';
   if (tier === 'standard') return 'deepseek-v4-pro';
   // heavy: prefer MiniMax for the hardest tasks, else the strongest DeepSeek.
@@ -48,8 +51,17 @@ const LABELS: Record<string, string> = {
 /** Pick a concrete model for a task. Pure + deterministic so it's testable. */
 export function selectModel(task: string, mode: SessionMode, o: RouteOpts): { model: string; tier: Tier; reason: string } {
   const tier = complexityTier(task, mode);
-  const model = tierModel(tier, o);
-  const why = tier === 'light' ? 'a quick task' : tier === 'standard' ? 'a moderate task' : 'a complex task';
+  const model = tierModel(tier, mode, o);
+  const why =
+    model === MAX_MODEL && (mode === 'code' || mode === 'report')
+      ? mode === 'code'
+        ? 'coding'
+        : 'a designed deliverable'
+      : tier === 'light'
+        ? 'a quick task'
+        : tier === 'standard'
+          ? 'a moderate task'
+          : 'a complex task';
   return { model, tier, reason: `${LABELS[model] ?? model} — ${why}` };
 }
 

@@ -13,6 +13,7 @@ import { buildSystemPrompt } from './prompts';
 import { getToolsForMode } from './tools';
 import { ToolError, type ToolCtx } from './tools/common';
 import { generateTitle } from './titleGen';
+import { makeThinkFilter } from './thinkFilter';
 import { Usage } from './usage';
 import { checkLabel, detectStartCommand, verifyProject } from './verify';
 import { probeApp } from './runtimeCheck';
@@ -351,12 +352,18 @@ export class AgentRun {
 
         let text = '';
         const toolCalls: AccToolCall[] = [];
+        // Strip MiniMax M3's inline <think>…</think> reasoning from the visible
+        // stream and the stored context; a no-op for models that don't emit it.
+        const stripThink = makeThinkFilter();
 
         for await (const chunk of stream) {
           const delta: any = chunk.choices?.[0]?.delta;
           if (delta?.content) {
-            text += delta.content;
-            this.emit({ type: 'assistant_delta', runId: this.runId, text: delta.content });
+            const visible = stripThink(delta.content);
+            if (visible) {
+              text += visible;
+              this.emit({ type: 'assistant_delta', runId: this.runId, text: visible });
+            }
           }
           for (const tc of delta?.tool_calls ?? []) {
             const slot = (toolCalls[tc.index] ??= { id: '', name: '', args: '' });
@@ -385,6 +392,11 @@ export class AgentRun {
               costUsd: this.accruedCostUsd,
             });
           }
+        }
+        const tail = stripThink.flush();
+        if (tail) {
+          text += tail;
+          this.emit({ type: 'assistant_delta', runId: this.runId, text: tail });
         }
 
         const calls = toolCalls.filter(Boolean);
