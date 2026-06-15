@@ -142,6 +142,9 @@ export class AgentRun {
   private client: OpenAI; // DeepSeek (also used for title gen)
   private minimaxClient: OpenAI | null = null;
   private minimaxAvailable = !!config.minimaxApiKey;
+  // Set once M3 has stalled on this run; subsequent MiniMax turns use the faster
+  // fallback coding model instead (the user's "M3, but fall back if slow" choice).
+  private minimaxFellBack = false;
   // The concrete model the orchestrator is using right now (resolved from the
   // session model, which may be the virtual 'arksai-auto').
   private activeModel = '';
@@ -342,6 +345,14 @@ export class AgentRun {
         }
         truncateContext(context);
 
+        let text = '';
+        let reasoning = ''; // M3 reasoning (reasoning_split) — echoed back next turn so multi-turn tool use doesn't 400
+        let finishReason = ''; // 'stop' | 'length' | 'tool_calls' — 'length' on an empty turn means reasoning truncated the answer
+        const toolCalls: AccToolCall[] = [];
+        // Strip any inline <think>…</think> from the visible stream (M3 inline reasoning).
+        const stripThink = makeThinkFilter();
+
+        try {
         const stream = await this.createCompletionWithRetry({
           model: this.activeApiModel,
           messages: [
@@ -352,15 +363,6 @@ export class AgentRun {
           stream: true,
           stream_options: { include_usage: true },
         });
-
-        let text = '';
-        let reasoning = ''; // M3 reasoning (reasoning_split) — echoed back next turn so multi-turn tool use doesn't 400
-        let finishReason = ''; // 'stop' | 'length' | 'tool_calls' — 'length' on an empty turn means reasoning truncated the answer
-        const toolCalls: AccToolCall[] = [];
-        // Strip any inline <think>…</think> from the visible stream — a no-op once
-        // reasoning_split moves M3's reasoning out of content (belt + suspenders).
-        const stripThink = makeThinkFilter();
-
         for await (const chunk of stream) {
           const choice = chunk.choices?.[0];
           if (choice?.finish_reason) finishReason = choice.finish_reason;
@@ -400,6 +402,16 @@ export class AgentRun {
               costUsd: this.accruedCostUsd,
             });
           }
+        }
+        } catch (err: any) {
+          // M3 over-buffered/stalled this turn → switch to the faster MiniMax model and
+          // redo the turn (the user's "M3, but fall back if slow" choice). Once only.
+          if (err?.minimaxStall && !this.minimaxFellBack && resolveProvider(this.activeModel).provider === 'minimax') {
+            this.minimaxFellBack = true;
+            sysInfo(`↳ ArksAI Max was slow — switching to a faster model for the rest of this build.`);
+            continue;
+          }
+          throw err;
         }
         const tail = stripThink.flush();
         if (tail) {
@@ -711,8 +723,15 @@ export class AgentRun {
       description: t.function.description,
       input_schema: t.function.parameters,
     }));
-    const body: Record<string, unknown> = { model: this.activeApiModel, max_tokens: 64000, system, messages, stream: true };
+    // Default to M3; once it has stalled on this run, use the faster fallback coding model.
+    const onFallback = this.minimaxFellBack;
+    const model = onFallback ? config.minimaxFallbackModel : this.activeApiModel;
+    const body: Record<string, unknown> = { model, max_tokens: 64000, system, messages, stream: true };
     if (tools.length) body.tools = tools;
+    // On the PRIMARY model (M3), bound the whole turn: if it hasn't completed in time it's
+    // over-buffering — abort and let the loop retry on the fallback model. The fallback
+    // model legitimately takes ~1min, so it gets no total deadline (just the idle backstop).
+    const totalMs = onFallback ? 0 : 90_000;
     // fetch has no built-in timeout. Use our own AbortController, chained to the run's
     // abort (so an interrupt still cancels), and hand it to the stream adapter which
     // idle-aborts if M3 goes silent too long (stall guard).
@@ -737,7 +756,7 @@ export class AgentRun {
       err.status = resp.status;
       throw err;
     }
-    return anthropicSseToOpenAI(resp.body as any, { controller: ac, idleMs: 120_000 });
+    return anthropicSseToOpenAI(resp.body as any, { controller: ac, idleMs: 120_000, totalMs });
   }
 
   private async executeTool(
@@ -1092,7 +1111,7 @@ export function mapAnthropicStop(reason: string | undefined): string | undefined
  */
 export async function* anthropicSseToOpenAI(
   body: any,
-  opts?: { controller?: AbortController; idleMs?: number },
+  opts?: { controller?: AbortController; idleMs?: number; totalMs?: number },
 ): AsyncIterable<any> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -1101,14 +1120,23 @@ export async function* anthropicSseToOpenAI(
   let cacheRead = 0;
   let cacheCreate = 0;
   let outTok = 0;
-  // Idle-abort guard: M3 buffers tool-arg generation server-side (silent gaps of ~30s
-  // are normal) and concurrent streams can stall indefinitely. fetch has no idle timeout,
-  // so if NO bytes arrive for idleMs, abort the request — the run then errors cleanly
-  // (or, at create time, falls back) instead of hanging forever.
+  // Stall guards (M3 buffers tool-arg generation server-side, and concurrent streams can
+  // stall indefinitely; fetch has no timeout):
+  //  • idleMs  — reset on every chunk; fires on a long SILENCE (true stall backstop).
+  //  • totalMs — armed once; fires if the whole turn takes too long (M3 over-buffering) so
+  //    the loop can fall back to the faster model. Both abort + flag the error .minimaxStall.
   const idleMs = opts?.idleMs ?? 0;
+  const totalMs = opts?.totalMs ?? 0;
   const ctrl = opts?.controller;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let totalTimer: ReturnType<typeof setTimeout> | undefined;
   let stalled = false;
+  if (totalMs && ctrl) {
+    totalTimer = setTimeout(() => {
+      stalled = true;
+      ctrl.abort();
+    }, totalMs);
+  }
   const arm = () => {
     if (!idleMs || !ctrl) return;
     clearTimeout(idleTimer);
@@ -1130,7 +1158,11 @@ export async function* anthropicSseToOpenAI(
     try {
       read = await reader.read();
     } catch (e) {
-      if (stalled) throw new Error(`MiniMax (Anthropic) stream stalled — no data for ${Math.round(idleMs / 1000)}s.`);
+      if (stalled) {
+        const err: any = new Error('MiniMax (M3) stalled / over-buffered the turn.');
+        err.minimaxStall = true; // the loop uses this to fall back to the faster model
+        throw err;
+      }
       throw e;
     }
     const { done, value } = read;
@@ -1195,5 +1227,6 @@ export async function* anthropicSseToOpenAI(
     }
   } finally {
     clearTimeout(idleTimer);
+    clearTimeout(totalTimer);
   }
 }

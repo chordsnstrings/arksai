@@ -75,6 +75,10 @@ export const config = {
   // OpenAI-compatible chat model sent to MiniMax. MiniMax-M3 (June 2026) is the
   // current frontier model; the branded id surfaced in ArksAI is 'arksai-max'.
   minimaxModel: process.env.MINIMAX_MODEL || 'MiniMax-M3',
+  // When M3 over-buffers / stalls on an agentic turn, fall back to this faster
+  // always-thinking coding model for the rest of the run (verified ~1min, detailed
+  // output). Same Anthropic endpoint, so the adapter is unchanged.
+  minimaxFallbackModel: process.env.MINIMAX_FALLBACK_MODEL || 'MiniMax-M2.7-highspeed',
   // MiniMax capability models (override per the MiniMax console once validated).
   // M3 is natively multimodal, so vision runs on the same model (no separate VL id).
   minimaxVlModel: process.env.MINIMAX_VL_MODEL || 'MiniMax-M3', // vision (M3 multimodal)
