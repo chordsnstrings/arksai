@@ -196,6 +196,7 @@ export async function browserSmokeTest(
     let visualReview: string | undefined;
     let designVerdict: 'pass' | 'revise' | 'unknown' | undefined;
     let designDefects: string[] | undefined;
+    let visionUnavailable = '';
     if (config.minimaxApiKey && !signal.aborted) {
       try {
         const shot = (await page.screenshot({ type: 'png', fullPage: !!opts?.visual })) as Buffer;
@@ -209,9 +210,13 @@ export async function browserSmokeTest(
             designVerdict = v.verdict;
             designDefects = v.defects;
           }
+        } else {
+          visionUnavailable = r.error || 'no result';
         }
-      } catch {
-        /* vision is additive here — never let it break verification */
+      } catch (e: any) {
+        // Vision is additive — never let it break verification — but don't fail SILENTLY:
+        // record why so the design gate's absence is visible, not invisible.
+        visionUnavailable = String(e?.message ?? e);
       }
     }
 
@@ -231,6 +236,9 @@ export async function browserSmokeTest(
       lines.push('👁 Design review — PASS (looks well designed).');
     } else if (visualReview) {
       lines.push(`👁 Visual review: ${visualReview}`);
+    }
+    if (visionUnavailable) {
+      lines.push(`⚠ Visual design review unavailable (MiniMax vision: ${visionUnavailable.slice(0, 100)}) — shipped without the visual gate.`);
     }
 
     return {

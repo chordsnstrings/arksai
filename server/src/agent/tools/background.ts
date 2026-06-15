@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { processRegistry } from '../processes';
+import { protectedCommand } from './bash';
 import type { ToolDef } from './common';
 
 export const bashBackgroundTool: ToolDef = {
@@ -22,6 +23,8 @@ export const bashBackgroundTool: ToolDef = {
   async run(args, ctx) {
     const command = String(args.command ?? '');
     if (!command.trim()) return 'Error: empty command';
+    const blocked = protectedCommand(command);
+    if (blocked) return blocked;
     let proc;
     try {
       proc = processRegistry.start(ctx.session.id, command, ctx.repoDir, args.name);

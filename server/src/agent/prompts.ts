@@ -240,7 +240,9 @@ HOW TO BUILD (the pipeline):
   (tinted surface + dark text + accent left-bar), not dark blocks, unless the
   user explicitly asks for dark.
 - ICONS & TYPOGRAPHY: use tasteful LINE icons (Lucide/Feather style) for section
-  markers, KPI tiles, and key bullets — never emoji or clip-art. CRITICAL: INLINE
+  markers, KPI tiles, and key bullets — never emoji or clip-art. The COVER is
+  type-only (title/kicker/rule) — do NOT place a decorative icon or a filled-accent
+  badge as a faux logo on the cover unless the user supplied a real brand logo. CRITICAL: INLINE
   the SVG markup directly (an external <use href="icons.svg#..."> does NOT render
   in the PDF). add_fonts installs icons.svg as a SOURCE — read it and copy the
   icon's inner <path>s into an inline element, e.g.:

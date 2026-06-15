@@ -24,6 +24,28 @@ export function planModeViolation(command: string): string | null {
   return null;
 }
 
+/**
+ * Commands blocked in EVERY mode (even AGENT_UNRESTRICTED): the agent loop runs
+ * INSIDE the ArksAI server process, so a broad process-kill or a host power command
+ * can take the whole server down (it has, repeatedly). The agent manages its own
+ * background processes with kill_process, never the host.
+ */
+const PROTECTED: { re: RegExp; why: string }[] = [
+  { re: /(^|[\s;&|`(])(pkill|killall)\b/i, why: 'kills processes by name (e.g. "pkill node" kills ArksAI itself)' },
+  { re: /\bfuser\b[^\n]*-k/i, why: 'fuser -k kills whatever holds a port' },
+  { re: /\b(shutdown|reboot|halt|poweroff)\b/i, why: 'is host power control' },
+  { re: /\binit\s+[06]\b/i, why: 'halts/reboots the host' },
+  { re: /\bsystemctl\s+(stop|restart|kill|disable|mask)\b/i, why: 'controls host services' },
+];
+export function protectedCommand(command: string): string | null {
+  for (const { re, why } of PROTECTED) {
+    if (re.test(command)) {
+      return `Blocked: that command ${why} — the agent runs inside the ArksAI server, so it could kill the server or the host. Use kill_process to stop your OWN background processes; never pkill/killall/fuser/shutdown the host.`;
+    }
+  }
+  return null;
+}
+
 export const bashTool: ToolDef = {
   name: 'bash',
   description:
@@ -47,6 +69,8 @@ export const bashTool: ToolDef = {
   async run(args, ctx) {
     const command = String(args.command ?? '');
     if (!command.trim()) return 'Error: empty command';
+    const protectedHit = protectedCommand(command);
+    if (protectedHit) return protectedHit;
     if (ctx.mode === 'plan') {
       const violation = planModeViolation(command);
       if (violation) return violation;

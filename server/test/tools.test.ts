@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveInWorkspace, ToolError } from '../src/agent/tools/common';
-import { planModeViolation } from '../src/agent/tools/bash';
+import { planModeViolation, protectedCommand } from '../src/agent/tools/bash';
 import { truncateMiddle } from '../src/lib/exec';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-test-'));
@@ -44,6 +44,27 @@ test('plan mode denylist blocks mutating commands', () => {
 test('plan mode denylist allows read-only commands', () => {
   for (const cmd of ['ls -la', 'git log --oneline', 'cat package.json', 'git diff', 'grep -r foo src']) {
     assert.equal(planModeViolation(cmd), null, `expected allow: ${cmd}`);
+  }
+});
+
+test('protected denylist blocks host/process-killing commands (all modes)', () => {
+  for (const cmd of [
+    'pkill node',
+    'pkill -f server',
+    'killall -9 node',
+    'fuser -k 3000/tcp',
+    'sudo shutdown -h now',
+    'reboot',
+    'systemctl stop nginx',
+    'ls && pkill node',
+  ]) {
+    assert.ok(protectedCommand(cmd), `expected block: ${cmd}`);
+  }
+});
+
+test('protected denylist allows normal build/dev commands', () => {
+  for (const cmd of ['npm run build', 'node server.js', 'npm install', 'git commit -m x', 'curl localhost:4000', 'kill 12345', 'ls -la']) {
+    assert.equal(protectedCommand(cmd), null, `expected allow: ${cmd}`);
   }
 });
 
