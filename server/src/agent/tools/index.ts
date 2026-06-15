@@ -14,6 +14,7 @@ import { addUiKitTool } from './ui-kit';
 import { publishAppTool } from './publish';
 import { generateSpreadsheetTool } from './excel';
 import { generateDocTool } from './docx';
+import { generatePptxTool } from './pptx';
 import { switchModeTool } from './mode';
 import { fetchDataTool } from './data';
 import { sendWebhookTool } from './outbound';
@@ -45,6 +46,7 @@ export const ALL_TOOLS: ToolDef[] = [
   publishAppTool,
   generateSpreadsheetTool,
   generateDocTool,
+  generatePptxTool,
   switchModeTool,
   fetchDataTool,
   sendWebhookTool,
@@ -67,6 +69,7 @@ const REPORT_TOOLS = new Set([
   'render_report',
   'generate_spreadsheet',
   'generate_doc',
+  'generate_pptx',
   'switch_mode',
   'fetch_data',
   'send_webhook',

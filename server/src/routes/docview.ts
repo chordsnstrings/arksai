@@ -42,6 +42,12 @@ export async function renderDocHtml(abs: string): Promise<{ html: string; title:
     const r = await convert({ path: abs });
     return { html: SHELL(r.value, title), title };
   }
+  if (ext === '.pptx') {
+    // generate_pptx emits a faithful slide-by-slide HTML mirror alongside the .pptx.
+    const preview = abs.replace(/\.pptx$/i, '.preview.html');
+    if (fs.existsSync(preview)) return { html: fs.readFileSync(preview, 'utf8'), title };
+    return { html: SHELL('<p>Download the .pptx to view it in PowerPoint/Keynote/Slides.</p>', title), title };
+  }
   return null;
 }
 
