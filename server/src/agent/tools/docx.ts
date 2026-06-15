@@ -53,7 +53,11 @@ export const generateDocTool: ToolDef = {
     'Create a polished, editable Word (.docx) document from a high-level block spec — title, headings, ' +
     'paragraphs, bullet/numbered lists, tables and quotes — with consistent typography and a brand ' +
     'accent on headings. Use this when the deliverable is an editable document (vs a print-locked PDF ' +
-    'via render_report). The file is offered to the user as a download and can be previewed in the canvas.',
+    'via render_report). The file is offered to the user as a download and can be previewed in the canvas. ' +
+    'DESIGN STANDARDS (editorial, not "office default"): the editorial typefaces are embedded for you ' +
+    '(Source Serif 4 display + Inter body) — lean on a clear hierarchy (kicker/subheading → heading → body), ' +
+    'accent on headings ONLY, generous spacing, real structured tables (not walls of text), and a comfortable ' +
+    'reading measure. The output is re-opened + design-reviewed — a sloppy/blind document is sent back to fix.',
   parameters: {
     type: 'object',
     properties: {

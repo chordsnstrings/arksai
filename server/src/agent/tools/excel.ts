@@ -62,7 +62,12 @@ export const generateSpreadsheetTool: ToolDef = {
     'header and auto-filter are applied for you. Provide one or more sheets, each with typed columns ' +
     'and rows. The file is validated after writing and offered to the user as a download. Prefer this ' +
     'over hand-writing a script when the deliverable is a spreadsheet. Cells may be values OR ' +
-    'formulas ("=B2*C2" or {"f":"B2*C2","v":<result>}) — use formulas to build genuinely formula-driven models.',
+    'formulas ("=B2*C2" or {"f":"B2*C2","v":<result>}) — use formulas to build genuinely formula-driven models. ' +
+    'DESIGN STANDARDS (judged like a finance pro): make it FORMULA-DRIVEN — never hard-code a derived number ' +
+    '(totals via SUM, ratios/growth as formulas) so changing an assumption flows through; lead with a Summary/KPI ' +
+    'sheet; give every column an explicit type (currency/percent/date) so numbers align and format consistently; ' +
+    'keep the accent restrained; no orphan/empty columns. The output is auto re-opened, formula-error-checked, and ' +
+    'design-reviewed — a broken or sloppy sheet is sent back to you to fix.',
   parameters: {
     type: 'object',
     properties: {
