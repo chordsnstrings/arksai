@@ -58,6 +58,8 @@ test('protected denylist blocks host/process-killing commands (all modes)', () =
     'reboot',
     'systemctl stop nginx',
     'ls && pkill node',
+    'kill $(pgrep node)',
+    'kill $(lsof -ti:3000)',
   ]) {
     assert.ok(protectedCommand(cmd), `expected block: ${cmd}`);
   }

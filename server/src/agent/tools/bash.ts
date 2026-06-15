@@ -32,6 +32,7 @@ export function planModeViolation(command: string): string | null {
  */
 const PROTECTED: { re: RegExp; why: string }[] = [
   { re: /(^|[\s;&|`(])(pkill|killall)\b/i, why: 'kills processes by name (e.g. "pkill node" kills ArksAI itself)' },
+  { re: /\bkill\b[^\n]*(\$\(|`|\bpgrep\b|\blsof\b|\bpidof\b)/i, why: 'kills PIDs from a command substitution (e.g. "kill $(pgrep node)") — can take the server down' },
   { re: /\bfuser\b[^\n]*-k/i, why: 'fuser -k kills whatever holds a port' },
   { re: /\b(shutdown|reboot|halt|poweroff)\b/i, why: 'is host power control' },
   { re: /\binit\s+[06]\b/i, why: 'halts/reboots the host' },
