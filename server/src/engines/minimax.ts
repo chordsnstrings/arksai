@@ -16,6 +16,9 @@ import { config } from '../config';
  */
 
 const base = () => config.minimaxBaseUrl.replace(/\/$/, '');
+// M3 only behaves on the Anthropic-compatible surface (on the OpenAI `/v1` surface its
+// thinking is forced on + unbounded → it stalls). Derive the Anthropic base from the /v1 base.
+const anthropicBase = () => config.minimaxBaseUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '') + '/anthropic';
 const authHeaders = () => ({
   Authorization: `Bearer ${config.minimaxApiKey}`,
   'Content-Type': 'application/json',
@@ -61,31 +64,56 @@ export async function analyzeImage(
   prompt: string,
   signal: AbortSignal,
 ): Promise<{ ok: boolean; text?: string; error?: string }> {
+  // M3 vision MUST go through the Anthropic endpoint: on the OpenAI `/v1` surface M3's
+  // thinking is forced on + unbounded and it stalls (verified live); on /anthropic thinking
+  // is OFF by default → a fast, decisive verdict (~12s). Build the Anthropic image block
+  // from the data URL (both internal callers pass one); fetch+base64 an http URL if given.
+  let imageBlock: any;
   try {
-    const res = await fetch(`${base()}/chat/completions`, {
+    const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s.exec(imageUrl);
+    if (m) {
+      imageBlock = { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } };
+    } else {
+      const r = await fetch(imageUrl, { signal });
+      if (!r.ok) return { ok: false, error: `could not fetch image: HTTP ${r.status}` };
+      const buf = Buffer.from(await r.arrayBuffer());
+      const mt = r.headers.get('content-type')?.split(';')[0] || 'image/png';
+      imageBlock = { type: 'image', source: { type: 'base64', media_type: mt, data: buf.toString('base64') } };
+    }
+  } catch (e: any) {
+    return { ok: false, error: `image read failed: ${String(e?.message ?? e)}` };
+  }
+  // Vision has no model fallback, so bound it: abort on the run's signal OR a local timeout
+  // and degrade to {ok:false} rather than hang the gate.
+  const ac = new AbortController();
+  const onAbort = () => ac.abort();
+  if (signal.aborted) ac.abort();
+  else signal.addEventListener('abort', onAbort, { once: true });
+  const timer = setTimeout(() => ac.abort(), 60_000);
+  try {
+    const res = await fetch(`${anthropicBase()}/v1/messages`, {
       method: 'POST',
-      headers: authHeaders(),
-      signal,
+      headers: { ...authHeaders(), 'anthropic-version': '2023-06-01' },
+      signal: ac.signal,
       body: JSON.stringify({
         model: config.minimaxVlModel,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: imageUrl } },
-            ],
-          },
-        ],
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, imageBlock] }],
       }),
     });
     const data: any = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${JSON.stringify(data).slice(0, 300)}` };
-    const text = data?.choices?.[0]?.message?.content;
-    if (typeof text !== 'string') return { ok: false, error: `unexpected response: ${JSON.stringify(data).slice(0, 300)}` };
+    // Anthropic response: content is an array of blocks; concatenate the text blocks.
+    const text = Array.isArray(data?.content)
+      ? data.content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('').trim()
+      : undefined;
+    if (typeof text !== 'string' || !text) return { ok: false, error: `unexpected response: ${JSON.stringify(data).slice(0, 300)}` };
     return { ok: true, text };
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) };
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', onAbort);
   }
 }
 

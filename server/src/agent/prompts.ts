@@ -203,7 +203,12 @@ HOW TO BUILD (the pipeline):
     .toc { page-break-after: always }                /* a Contents page, if used, is its OWN page */
     .break { break-before: page }                    /* apply DELIBERATELY for a major division — NOT on every heading */
     thead { display: table-header-group }             /* repeat table headers */
-    figure, .kpi, .kpi-row, .chart, svg, img, .callout, tr { break-inside: avoid }
+    /* ATOMIC blocks — these may NEVER split across a page. .keep / .fig are the
+       catch-all: wrap ANY chart (incl. CSS bar-lists), figure, legend, stat band,
+       or data group you build in <figure class="fig"> or class="keep". */
+    figure, .fig, .keep, .kpi, .kpi-row, .stat-band, .chart, .bars, .bar-list, .legend,
+    svg, img, .callout { break-inside: avoid }
+    thead { break-inside: avoid }  tr { break-inside: avoid }   /* header + each row stay whole; a LONG table still flows (thead repeats) */
     h1,h2,h3,h4 { break-after: avoid }  p,li { orphans:3; widows:3 }
     /* ANTI-ORPHAN (the #1 report bug): a heading must NEVER strand at the bottom
        with its paragraph flowing to the next page. Mechanical fix — wrap EACH
@@ -233,6 +238,17 @@ HOW TO BUILD (the pipeline):
   heading+lede always move as one and a heading can never strand. Put the kicker
   inside the .lede too. (A long section can still continue past the page break —
   just never with the heading orphaned at the bottom.)
+- ATOMIC VISUALS — NO CONTENT BLEED (the other recurring bug): a chart, a CSS
+  bar-list, a figure, a legend, a stat band, or an image is ONE indivisible unit.
+  Wrap EACH in <figure class="fig"> (or class="keep") so it can NEVER split across a
+  page. A chart whose bars/rows land half on one page and half on the next — or a
+  figure torn from the numbers it visualises — is the bleed defect the user keeps
+  seeing. If a visual doesn't fit the space left on the page it MUST move WHOLE to
+  the next page (that is exactly what break-inside:avoid does). In a TWO-COLUMN
+  section that pairs a visual with prose, put the visual in its own .keep wrapper
+  (so the prose may flow but the chart stays intact) and keep the columns balanced
+  so neither side strands a fragment. Likewise wrap a short data table + its title
+  in .keep so the title never sits alone above a page break.
 - CONTRAST (legibility, non-negotiable): every piece of text MUST have strong
   contrast against its background. NEVER colour text the same/near its background
   or accent — that is the invisible-text bug. Highlighted phrases use the accent
@@ -258,8 +274,9 @@ HOW TO BUILD (the pipeline):
   side gutters too tight / text running edge-to-edge (widen the margins for the
   newspaper feel); MISSING editorial rules (no kickers, no section dividers, no
   column rule on multi-col prose — add them to give the page architecture); large
-  empty bottoms / poor page-fill, unbalanced composition, a chart split from its
-  caption/insight, orphaned KPI tiles, lonely near-empty pages, content
+  empty bottoms / poor page-fill, unbalanced composition, ANY chart/figure/bar-list
+  SPLIT across a page boundary or torn from its values (wrap it in .keep), a chart
+  split from its caption/insight, orphaned KPI tiles, lonely near-empty pages, content
   bleed/cut-off, mis-centred cover, invisible/low-contrast text, accent overused,
   and unreadable charts. Iterate at least once; "it rendered" is NOT "well designed".
 - DOCX (only when asked): generate from the same content with the docx library —
