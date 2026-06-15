@@ -26,7 +26,7 @@ const VISION_PROMPT =
   'overlapping or cut-off elements, visible error messages, or missing images. Answer "OK" if it ' +
   'looks fine, otherwise briefly list the visual problems, one per line.';
 
-const DESIGN_RUBRIC_PROMPT =
+export const DESIGN_RUBRIC_PROMPT =
   'You are a senior design director reviewing a screenshot of a UI a junior built. Judge it against ' +
   'this rubric: typography (clear scale & hierarchy, readable), spacing & alignment (consistent rhythm, ' +
   'on a grid, not cramped or sparsely empty), visual hierarchy, colour (restrained, strong contrast, ' +

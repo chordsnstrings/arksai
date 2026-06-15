@@ -7,7 +7,7 @@ import { repoDir } from '../sessions/workspace';
 import { resolveInWorkspace } from '../agent/tools/common';
 
 /** A clean, on-brand HTML shell so spreadsheet/doc previews look designed. */
-const SHELL = (body: string, title = 'Preview') => `<!doctype html><html><head><meta charset="utf-8">
+export const SHELL = (body: string, title = 'Preview') => `<!doctype html><html><head><meta charset="utf-8">
 <title>${title}</title><style>
 :root{--ink:#16181d;--muted:#6b7280;--line:#e7e6e2;--surface:#f7f7f5;--accent:#4f46e5}
 *{box-sizing:border-box}
@@ -22,6 +22,29 @@ table tbody tr:nth-child(even){background:#fafaf9}
 img{max-width:100%}
 </style></head><body>${body}</body></html>`;
 
+/**
+ * Render a workspace .xlsx/.csv/.docx file to a styled HTML string (SheetJS / mammoth),
+ * or null for an unsupported type. Shared by the docview HTTP route AND the deliverable
+ * visual-QC module (so a doc/sheet can be screenshotted + design-reviewed). Throws on a
+ * corrupt file (the caller decides how to surface it).
+ */
+export async function renderDocHtml(abs: string): Promise<{ html: string; title: string } | null> {
+  const ext = path.extname(abs).toLowerCase();
+  const title = path.basename(abs);
+  if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
+    const wb = XLSX.read(fs.readFileSync(abs), { type: 'buffer' });
+    const parts = wb.SheetNames.map((n) => `<h2>${n}</h2>` + XLSX.utils.sheet_to_html(wb.Sheets[n]));
+    return { html: SHELL(parts.join('\n'), title), title };
+  }
+  if (ext === '.docx') {
+    const mammoth = await import('mammoth');
+    const convert = (mammoth as any).convertToHtml ?? (mammoth as any).default?.convertToHtml;
+    const r = await convert({ path: abs });
+    return { html: SHELL(r.value, title), title };
+  }
+  return null;
+}
+
 export function registerDocviewRoutes(app: FastifyInstance) {
   app.get('/api/sessions/:id/docview/*', async (req, reply) => {
     const { id } = req.params as { id: string };
@@ -34,23 +57,15 @@ export function registerDocviewRoutes(app: FastifyInstance) {
       return reply.code(403).send('Forbidden');
     }
     if (!fs.existsSync(abs)) return reply.code(404).type('text/html').send(SHELL('<p>File not found.</p>'));
-    const ext = path.extname(abs).toLowerCase();
     try {
-      if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
-        const wb = XLSX.read(fs.readFileSync(abs), { type: 'buffer' });
-        const parts = wb.SheetNames.map((n) => `<h2>${n}</h2>` + XLSX.utils.sheet_to_html(wb.Sheets[n]));
-        return reply.type('text/html').send(SHELL(parts.join('\n'), path.basename(abs)));
+      const rendered = await renderDocHtml(abs);
+      if (!rendered) {
+        return reply
+          .code(415)
+          .type('text/html')
+          .send(SHELL('<p>No inline preview for this file type — download it instead.</p>'));
       }
-      if (ext === '.docx') {
-        const mammoth = await import('mammoth');
-        const convert = (mammoth as any).convertToHtml ?? (mammoth as any).default?.convertToHtml;
-        const r = await convert({ path: abs });
-        return reply.type('text/html').send(SHELL(r.value, path.basename(abs)));
-      }
-      return reply
-        .code(415)
-        .type('text/html')
-        .send(SHELL('<p>No inline preview for this file type — download it instead.</p>'));
+      return reply.type('text/html').send(rendered.html);
     } catch (e: any) {
       return reply.type('text/html').send(SHELL(`<p>Could not render preview: ${String(e?.message ?? e)}</p>`));
     }
