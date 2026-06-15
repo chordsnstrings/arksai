@@ -1105,19 +1105,18 @@ export class AgentRun {
     this.emitProgress('verifying', 'Reviewing the rendered pages…');
     const { fail, defects } = await this.reviewDeliverables(dir);
 
-    if ((fail || defects.length) && this.designRounds < MAX_DESIGN_ROUNDS) {
+    // ONE bounded revise for documents: unlike a web app (cheap incremental edit), a revise
+    // round here can re-author a whole multi-page report, so a 2nd round doubles the time for
+    // diminishing returns. Cap at 1 and demand MINIMAL TARGETED edits (not a full rebuild).
+    if ((fail || defects.length) && this.designRounds < 1) {
       this.designRounds++;
-      if (isAutoModel(this.session.model)) {
-        const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
-        if (next !== this.activeModel) this.setActiveModel(next);
-      }
-      this.emitProgress('polishing', `Design review — refining the output (round ${this.designRounds})…`);
-      sys('info', `↻ Design review flagged refinements — applying them (round ${this.designRounds}).`);
+      this.emitProgress('polishing', 'Design review — refining the output…');
+      sys('info', '↻ Design review flagged refinements — applying them.');
       context.push({
         role: 'user',
         content: fail
-          ? `Automated review found a problem with the rendered ${fail.label}: ${fail.detail}. Fix it and re-render.`
-          : `A design review of the RENDERED pages flagged these concrete, fixable issues. Fix them in the HTML/spec and re-render (call render_report / the generate_* tool again); it will be re-reviewed:\n- ${defects.join('\n- ')}`,
+          ? `Automated review found a problem with the rendered ${fail.label}: ${fail.detail}. Make a MINIMAL targeted fix (edit the existing HTML/spec — do NOT regenerate the whole document), then re-render.`
+          : `A design review of the RENDERED pages flagged these concrete, fixable issues. Make MINIMAL, TARGETED edits to the EXISTING HTML/spec with edit_file to fix ONLY these — do NOT regenerate the whole document — then re-render (render_report / the generate_* tool); it will be re-reviewed:\n- ${defects.join('\n- ')}`,
       });
       return 'retry';
     }
