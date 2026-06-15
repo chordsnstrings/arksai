@@ -1,0 +1,151 @@
+# ArksAI — System Audit (2026-06-15)
+
+A full, hands-on audit of `main`: the product UI, all **52 department plays** across the
+5 teams, and every output type (web app, landing, dashboard, PDF report, 16:9 deck,
+spreadsheet, document). Each play was driven **through the real API** (create session →
+send the play's brief → run to completion → harvest the deliverable), and outputs were
+captured with Playwright (web) and mupdf (PDF).
+
+> **Scope of this pass:** all 52 plays were executed end-to-end (autonomously — the briefs
+> were augmented so the agent invents realistic specifics instead of waiting for answers).
+> Models: `arksai-auto` (the product default). MiniMax is keyed but the account returns
+> `insufficient_balance` on `/v1`, so MiniMax-dependent features (vision, image, the design
+> gate) were exercised in their **degraded** path — itself a finding.
+
+**Status: audit only — no application code changed.** Findings are ranked; we fix them one
+by one next.
+
+---
+
+## Verdict in one line
+The core is **genuinely high quality** — the product UI and the report/deck/web pipelines
+produce polished, editorial, microanimated, responsive output that meets the bar. The
+problems are concentrated in **(1) host/agent isolation, (2) spreadsheets, (3) the MiniMax
+capability layer being dark, and (4) a few consistency gaps (publish, cover icons, doc fonts).**
+
+## Scorecard
+| Surface | Verdict | Notes |
+|---|---|---|
+| Product UI (landing / launchpad / catalog / mobile) | ✅ Excellent | Warm editorial identity, accent-coded teams, responsive |
+| Web apps (code mode) | ✅ Strong | `@keyframes`+`transition` microanimations, `@media` responsive, `prefers-reduced-motion`, self-hosted Inter/Source-Serif/Space-Grotesk; ui-kit linked |
+| Reports & 16:9 decks (report mode) | ✅ Excellent | Mastheads, kickers, hairline rules, KPI grids, direct-labeled flat charts, compact zebra tables, callouts, brand-derived palettes, takeaway-headline slides |
+| Documents (.docx) | ⚠ Good content, weak type | Strong structure + cited sources; uses the `generate_doc` default font, not the editorial stack |
+| Spreadsheets (.xlsx) | 🔴 Weak | Right *structure*, but static values — no formulas, no number formatting |
+| Host/agent isolation | 🔴 Broken | Unrestricted agents killed the server (×2) and mutated the host repo |
+| MiniMax capability layer | 🔴 Dark | Vision / image / TTS / video unusable (account balance); design-critique gate inert |
+
+---
+
+## Findings (ranked)
+
+### P0 — Agents are not isolated from the host (security + reliability)
+`AGENT_UNRESTRICTED=true` runs each agent's shell with full host access, **and the agent
+loop runs inside the ArksAI server process**. During the audit this caused, twice:
+- **The server was SIGKILLed mid-run** (no OOM — 16 GB free, no cgroup limit; the log just
+  stops). A concurrent web-app build almost certainly ran a broad `pkill`/`kill`/`fuser`
+  cleanup that killed ArksAI itself. There is zero isolation between an agent's shell and
+  the host server.
+- **The host repo was mutated:** an agent ran `npm install exceljs` that landed in
+  `/home/user/arksai/package.json` (added a `dependencies` block) and disturbed the host
+  `node_modules`.
+
+Single-operator trusted mode mitigates the blast radius today, but this blocks any
+multi-seat/multi-tenant future and makes the single instance fragile. *(Mitigated for this
+audit with an auto-respawn supervisor; the real fix is process isolation / a command
+denylist for the agent shell, even in unrestricted mode.)*
+
+### P0 — Spreadsheets are static, formula-less, unformatted
+Finance "models" (e.g. `finance.cashflow`) come out with the right **sheet structure**
+(Assumptions / Forecast / Dashboard / Validation) but:
+- **0 formula cells** across the workbook — numbers are hard-coded, so changing an
+  assumption does **not** flow through. This defeats the purpose of a model and contradicts
+  the FP&A expert standard ("formula-driven, so a single assumption flows through").
+- **No number formatting** — every cell is `General` (no currency symbol, thousands
+  separators, %, or dates).
+- **Root cause:** the agent **bypasses the purpose-built `generate_spreadsheet` tool** and
+  hand-writes a raw `exceljs` script (`build_cashflow.js`) run via bash — losing the tool's
+  validation/branding/number-formats — *and* `generate_spreadsheet`'s own schema has **no
+  formula support** (rows are values only). So even using the tool correctly can't produce a
+  real model.
+
+### P1 — The MiniMax capability layer is entirely dark
+MiniMax is keyed but every `/v1` call returns `insufficient_balance (1008)`. Consequences
+observed:
+- `see_image`, `generate_image`, `text_to_speech`, `generate_video` are unusable.
+- The **gating visual design-critique loop** (MiniMax-VL judging the rendered UI) silently
+  no-ops — so the headline "one-shot quality" gate is **not actually gating** anything;
+  output quality currently rides entirely on DeepSeek following the design prompt.
+- Tasks that need images **silently substitute**: `marketing.emailkit`'s "3 social
+  graphics" came out as **HTML files**, not images.
+- (Also fixed in commit `aadb8dc`: the vision model id `MiniMax-VL-01` was *invalid* on the
+  account; chat/vision now default to `MiniMax-M3`. Still blocked by balance.)
+
+### P1 — `publish_app` is invoked inconsistently
+Most web apps publish to a durable `/apps/<slug>/` URL, but some build + verify and then
+**stop short of publishing** (e.g. `marketing.landing` burned its whole budget self-healing
+a port bug and never called `publish_app`). For a "it's actually live" promise, publish
+should be reliable, not best-effort.
+
+### P2 — Arbitrary "faux-logo" icon on some report covers
+Document-style report covers sometimes render a random Lucide icon (a ⚠ "alert" triangle)
+on a filled accent square as a stand-in brand mark — off-brand against the otherwise
+restrained editorial type. (Decks and content pages use icons appropriately.)
+
+### P2 — .docx uses a non-editorial font
+`generate_doc` output is well-structured (real headings, tables, a *Sources* section) but
+uses the library default (Calibri), not the embedded editorial stack (Inter / Source Serif)
+the rest of the system uses — so documents look "office default", not designed.
+
+### P3 — Concurrency caveats (single-process design)
+The preview server is hard-coded to port 4000, so concurrent code runs collide on it; and
+`MAX_CONCURRENT_RUNS` + in-process agents means heavy parallel runs (Chromium verify +
+render) strain one process. Fine for single-user; relevant for scale.
+
+---
+
+## What works well (keep)
+- **Product identity & UX** — the warm editorial system, team accent-coding, Create/Analyze/
+  Operate catalog, and mobile layout are genuinely premium.
+- **The report/deck pipeline** — editorial protocol (mastheads, kickers, rules, KPI grids,
+  flat direct-labeled charts, compact tables, callouts, anti-orphan layout) produces
+  presentation-grade PDFs and real 16:9 decks with takeaway headlines and brand-derived
+  palettes.
+- **Web design system** — microanimations, responsiveness, reduced-motion, and self-hosted
+  Google-font typefaces are baked into generated apps by default.
+- **The agent loop** — autonomous completion (no stalls), the self-healing verify gate
+  (it caught and fixed a real port bug), auto-routing, and download/canvas plumbing.
+- **Catalog integrity** — all 52 plays map to matching server-side expert standards.
+
+## Note on "Google fonts"
+The system uses the requested typefaces (Inter, Source Serif 4, Space Grotesk) **self-hosted
+as woff2**, not via the Google Fonts CDN (0 CDN references found). Same typefaces, and better
+for PDF/offline reliability. If you specifically want the CDN, that's a deliberate change.
+
+## `arksai-max` = MiniMax (not Anthropic)
+Confirmed and corrected throughout: `arksai-max` is MiniMax's own model (M3). MiniMax merely
+ships a protocol-compatible surface; the provider/model is MiniMax.
+
+---
+
+## Suggested fix order
+1. **P0 isolation** — sandbox the agent shell (or denylist `kill`/`pkill`/`fuser`/`npm i`
+   outside the workspace) even in unrestricted mode; consider running agents out-of-process.
+2. **P0 spreadsheets** — add formula support to `generate_spreadsheet` (or a finance-model
+   builder) and steer the agent to it; enforce number formats. Re-test the finance plays.
+3. **P1 MiniMax** — resolve the account balance / endpoint so vision + the design gate
+   actually run; re-validate image/TTS/video.
+4. **P1 publish** — make `publish_app` a reliable terminal step for web-app plays.
+5. **P2** — drop the faux-logo cover icon; embed the editorial font in `generate_doc`.
+
+---
+
+## Methodology & artifacts
+- Driven via the live server (`/api/sessions` + SSE), auto-respawn supervisor to survive
+  agent-kills, concurrency 3, per-run cap 10 min, one auto-retry per play.
+- Outputs captured: web apps via Playwright (`/apps/<slug>/`, desktop + mobile), PDFs via
+  mupdf, structure/feature scans via ripgrep + SheetJS.
+- Full per-play results table and the screenshot gallery: **appended below after the pass
+  completes.**
+
+<!-- RESULTS_TABLE -->
+<!-- GALLERY -->
