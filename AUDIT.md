@@ -27,10 +27,10 @@ capability layer being dark, and (4) a few consistency gaps (publish, cover icon
 | Surface | Verdict | Notes |
 |---|---|---|
 | Product UI (landing / launchpad / catalog / mobile) | ✅ Excellent | Warm editorial identity, accent-coded teams, responsive |
-| Web apps (code mode) | ✅ Strong | `@keyframes`+`transition` microanimations, `@media` responsive, `prefers-reduced-motion`, self-hosted Inter/Source-Serif/Space-Grotesk; ui-kit linked |
+| Web apps (code mode) | ✅ Excellent | **Visually verified** (KPI dashboard, ROI calculator) — polished, real charts, restrained accent; microanimations + `@media` responsive (desktop **and** mobile confirmed); self-hosted Inter/Source-Serif/Space-Grotesk. **13/14 published live** |
 | Reports & 16:9 decks (report mode) | ✅ Excellent | Mastheads, kickers, hairline rules, KPI grids, direct-labeled flat charts, compact zebra tables, callouts, brand-derived palettes, takeaway-headline slides |
 | Documents (.docx) | ⚠ Good content, weak type | Strong structure + cited sources; uses the `generate_doc` default font, not the editorial stack |
-| Spreadsheets (.xlsx) | 🔴 Weak | Right *structure*, but static values — no formulas, no number formatting |
+| Spreadsheets (.xlsx) | ⚠ Mixed | Trackers/lists are formatted & fine; **financial *models* are mostly formula-less** (only `finance.model` had formulas; `cashflow`/`scenario`/`budget`/`expenses` had 0) — `cashflow` had neither formulas nor formatting |
 | Host/agent isolation | 🔴 Broken | Unrestricted agents killed the server (×2) and mutated the host repo |
 | MiniMax capability layer | 🔴 Dark | Vision / image / TTS / video unusable (account balance); design-critique gate inert |
 
@@ -54,19 +54,22 @@ multi-seat/multi-tenant future and makes the single instance fragile. *(Mitigate
 audit with an auto-respawn supervisor; the real fix is process isolation / a command
 denylist for the agent shell, even in unrestricted mode.)*
 
-### P0 — Spreadsheets are static, formula-less, unformatted
-Finance "models" (e.g. `finance.cashflow`) come out with the right **sheet structure**
-(Assumptions / Forecast / Dashboard / Validation) but:
-- **0 formula cells** across the workbook — numbers are hard-coded, so changing an
-  assumption does **not** flow through. This defeats the purpose of a model and contradicts
-  the FP&A expert standard ("formula-driven, so a single assumption flows through").
-- **No number formatting** — every cell is `General` (no currency symbol, thousands
-  separators, %, or dates).
+### P1 — Financial models aren't formula-driven (and it's inconsistent)
+Measured across all 11 spreadsheet plays (formula-cell + number-format scan via SheetJS):
+- **Only 1 of 11 (`finance.model`) is formula-driven** (52 formulas). The other finance
+  *models* — `cashflow`, `scenario`, `budget`, `expenses` — have **0 formulas**: numbers are
+  hard-coded, so changing an assumption does **not** flow through. This contradicts the FP&A
+  expert standard ("formula-driven, so a single assumption flows through").
+- **`finance.cashflow` is the worst case:** 0 formulas **and** 0 number formatting (every
+  cell `General` — no currency/thousands/%/dates), despite having the right *structure*
+  (Assumptions / Forecast / Dashboard / Validation sheets).
+- Trackers/lists (`tracker`, `pipeline`, `teamtracker`, `calendar`, …) are **formatted and
+  fine** — formula-less is acceptable for a list, less so for a "model".
 - **Root cause:** the agent **bypasses the purpose-built `generate_spreadsheet` tool** and
-  hand-writes a raw `exceljs` script (`build_cashflow.js`) run via bash — losing the tool's
-  validation/branding/number-formats — *and* `generate_spreadsheet`'s own schema has **no
-  formula support** (rows are values only). So even using the tool correctly can't produce a
-  real model.
+  hand-writes raw `exceljs` scripts (e.g. `build_cashflow.js`) run via bash — sometimes with
+  formulas (`finance.model`), often without. And `generate_spreadsheet`'s own schema has **no
+  formula support** (rows are values only), so even using the tool correctly can't produce a
+  real model. Fix: give the tool formula support and steer the agent to it.
 
 ### P1 — The MiniMax capability layer is entirely dark
 MiniMax is keyed but every `/v1` call returns `insufficient_balance (1008)`. Consequences
@@ -80,11 +83,14 @@ observed:
 - (Also fixed in commit `aadb8dc`: the vision model id `MiniMax-VL-01` was *invalid* on the
   account; chat/vision now default to `MiniMax-M3`. Still blocked by balance.)
 
-### P1 — `publish_app` is invoked inconsistently
-Most web apps publish to a durable `/apps/<slug>/` URL, but some build + verify and then
-**stop short of publishing** (e.g. `marketing.landing` burned its whole budget self-healing
-a port bug and never called `publish_app`). For a "it's actually live" promise, publish
-should be reliable, not best-effort.
+### P2 — Retries leave orphaned, errored duplicate deployments
+Publishing itself works well — **13 of 14 web apps are live** at a durable `/apps/<slug>/`
+URL (only `engineering.admin` errored). But the deployments table held **57 records (19
+running / 38 error)**: every retry re-published under a new slug (`…-2`, `…-3`) and the
+agent-kills left the older deployments' processes dead, so stale **errored duplicates
+accumulate with no cleanup**. The *latest* deployment per app is almost always healthy; the
+clutter is the issue (and it made the live state look worse than it is). Fix: supersede/GC
+prior deployments for the same session on re-publish.
 
 ### P2 — Arbitrary "faux-logo" icon on some report covers
 Document-style report covers sometimes render a random Lucide icon (a ⚠ "alert" triangle)
@@ -130,12 +136,15 @@ ships a protocol-compatible surface; the provider/model is MiniMax.
 ## Suggested fix order
 1. **P0 isolation** — sandbox the agent shell (or denylist `kill`/`pkill`/`fuser`/`npm i`
    outside the workspace) even in unrestricted mode; consider running agents out-of-process.
-2. **P0 spreadsheets** — add formula support to `generate_spreadsheet` (or a finance-model
-   builder) and steer the agent to it; enforce number formats. Re-test the finance plays.
+2. **P1 spreadsheet models** — add formula support to `generate_spreadsheet` (or a finance-model
+   builder) and steer the agent to it; enforce number formats. Re-test the finance plays
+   (esp. `cashflow`, which had neither formulas nor formatting).
 3. **P1 MiniMax** — resolve the account balance / endpoint so vision + the design gate
    actually run; re-validate image/TTS/video.
-4. **P1 publish** — make `publish_app` a reliable terminal step for web-app plays.
-5. **P2** — drop the faux-logo cover icon; embed the editorial font in `generate_doc`.
+4. **P2 deployments** — GC/supersede prior deployments on re-publish so errored duplicates
+   don't accumulate; fix the one `engineering.admin` deploy error.
+5. **P2 polish** — drop the faux-logo cover icon on document covers; embed the editorial font
+   in `generate_doc`.
 
 ---
 
@@ -147,5 +156,92 @@ ships a protocol-compatible surface; the provider/model is MiniMax.
 - Full per-play results table and the screenshot gallery: **appended below after the pass
   completes.**
 
-<!-- RESULTS_TABLE -->
-<!-- GALLERY -->
+## Full per-play results (all 52)
+
+**Aggregate:** every completed play produced a deliverable and **0 stalled** asking for input
+(fully autonomous). Web apps **13/14 live**; reports/decks **18 PDFs**; documents **8 .docx**;
+spreadsheets **11 (only `finance.model` formula-driven)**. `engineering.api` is a backend
+service (no standard file deliverable). `✅` = meets bar; `⚠` = produced but flawed (see findings).
+
+### Marketing
+
+| Play | Mode | Output | Result |
+|---|---|---|---|
+| landing | code | app | ✅ live · anim · responsive |
+| emailkit | code | app | ✅ live · anim · responsive (social "graphics" are HTML, not images) |
+| blog | code | docx | ✅ .docx (cited sources) |
+| brief | report | pdf | ✅ 1pp PDF |
+| eventsite | code | app | ✅ live · anim · responsive |
+| perfreport | report | pdf | ✅ 6pp PDF |
+| competitor | report | pdf | ✅ 12pp PDF |
+| audience | report | pdf | ✅ 9pp PDF |
+| calendar | code | xlsx | ⚠ formatted, no formulas |
+| tracker | code | xlsx | ⚠ formatted, no formulas |
+
+### Sales
+
+| Play | Mode | Output | Result |
+|---|---|---|---|
+| pitchdeck | report | pdf | ✅ 12pp 16:9 deck |
+| pricing | report | pdf | ✅ 1pp PDF |
+| proposal | report | pdf | ✅ 8pp PDF |
+| casestudy | report | pdf | ✅ 1pp PDF |
+| outreach | code | docx | ✅ .docx |
+| accountbrief | report | pdf | ✅ 8pp PDF |
+| battlecard | report | pdf | ✅ 3pp PDF |
+| roi | code | app | ✅ live · anim · responsive (interactive calculator) |
+| accountplan | code | xlsx | ⚠ formatted, no formulas |
+| pipeline | code | xlsx | ⚠ formatted, no formulas |
+
+### Finance
+
+| Play | Mode | Output | Result |
+|---|---|---|---|
+| boarddeck | report | pdf | ✅ 12pp 16:9 deck |
+| investorupdate | report | pdf | ✅ 5pp PDF |
+| strategymemo | report | pdf | ✅ 10pp PDF |
+| kpidashboard | code | app | ✅ live · anim · responsive (charts + table) |
+| variance | report | pdf | ✅ 7pp PDF |
+| model | code | xlsx | ✅ **formula-driven** (52 formulas) + formatted |
+| cashflow | code | xlsx | 🔴 0 formulas, 0 formatting |
+| scenario | code | xlsx | ⚠ formatted, no formulas |
+| budget | code | xlsx | ⚠ formatted, no formulas |
+| expenses | code | xlsx | ⚠ formatted, no formulas |
+
+### HR / People
+
+| Play | Mode | Output | Result |
+|---|---|---|---|
+| jd | code | docx | ✅ .docx |
+| offer | code | docx | ✅ .docx |
+| policy | code | docx | ✅ .docx |
+| handbook | code | docx | ✅ .docx |
+| training | report | pdf | ✅ 18pp PDF |
+| survey | code | app | ✅ live |
+| peopledash | code | app | ✅ live · anim · responsive |
+| onboardingportal | code | app | ✅ live · anim · responsive |
+| onboardingchecklist | code | xlsx | ⚠ formatted, no formulas |
+| teamtracker | code | xlsx | ⚠ formatted, no formulas |
+| runbook | report | pdf | ✅ 10pp PDF |
+
+### Engineering
+
+| Play | Mode | Output | Result |
+|---|---|---|---|
+| internaltool | code | app | ✅ live · anim · responsive |
+| prototype | code | app | ✅ live · anim · responsive |
+| admin | code | app | ⚠ deploy errored (latest) |
+| docssite | code | app | ✅ live · anim · responsive |
+| engmetrics | code | app | ✅ live · anim · responsive |
+| datadash | code | app | ✅ live · anim · responsive |
+| techdoc | code | docx | ✅ .docx |
+| runbook | report | pdf | ✅ 9pp PDF |
+| designdoc | code | docx | ✅ .docx |
+| statusreport | report | pdf | ✅ 6pp PDF |
+
+## Screenshot gallery
+Captured this run (shared in chat): **product UI** (B2B landing, launchpad team-picker,
+Marketing catalog, mobile); **web apps** (NovaCloud KPI dashboard + Platform-Migration ROI
+calculator — desktop *and* mobile); **reports/decks** (Q1 performance-report pages, Veridian
+16:9 pitch deck). All confirm the minimal / editorial / microanimated / responsive bar — the
+exceptions are the spreadsheet-model and host-isolation issues above.
