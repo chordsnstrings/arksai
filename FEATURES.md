@@ -23,8 +23,10 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 
 ## One-shot quality system
 - Task classification (`taskProfile`) → deliverable type + isVisual + tier.
-- Opinionated design system + a bundled UI kit (tokens/components/themes, `add_ui_kit`) injected for visual tasks.
-- Gating design-critique loop — MiniMax-VL reviews the rendered UI against a rubric; the agent iterates (bounded) so the user never does.
+- Opinionated design system + a bundled UI kit (tokens/components/themes, `add_ui_kit`) injected for visual tasks; per-type design standards (web/app, report, docx, xlsx, pptx).
+- **Universal visual-quality gate** (`deliverableCheck`) — EVERY deliverable is rendered to image(s) and design-reviewed by a senior-design-director rubric (M3 vision), then bounded-revised: web apps (live Chromium), PDF reports/decks (mupdf raster, per page), .xlsx/.docx (HTML render), and .pptx (LibreOffice or a faithful preview). The same "looks perfect, works perfectly" guarantee across all types, not just web apps.
+- Per-type functional check ("it actually works"): xlsx re-open + formulas + no #REF/error cells; docx re-open + embedded fonts; pptx valid slides; pdf page/blank/bleed; apps boot + routes + interaction.
+- Vision runs on M3's Anthropic endpoint (thinking off → fast, decisive; bounded by a timeout so it degrades, never hangs).
 - Visual model floor — non-trivial visual/report work never runs on the cheapest model.
 
 ## Bulletproof verification
@@ -37,8 +39,9 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Live publishing (`publish_app` + TopBar) — durable public URL at `/apps/<slug>/`; static or node/python apps via a process registry that survives restarts (boot recovery).
 - Auto-export (zip download chip) + auto-canvas — the canvas auto-opens and loads the result (web app, PDF, spreadsheet, or doc).
 - Styled office docs: `generate_spreadsheet` (exceljs, formula-driven, validated) and `generate_doc` (docx) — documents embed the editorial typefaces (Source Serif 4 display + Inter body, the same as the reports/app), so they render designed everywhere instead of as office default.
-- Report mode — PDFs and 16:9 decks with a full editorial protocol (newspaper margins, anti-orphan `.lede`, kickers, rules, page mechanics).
-- In-app doc viewer (xlsx/csv/docx → styled HTML); Canvas preview (Preview/Files/Doc tabs, port auto-detect).
+- **`generate_pptx`** — real, editable PowerPoint (PptxGenJS): editorial 16:9 decks (title/section/bullets/two-col/stat/quote/table/chart/image), one accent, flat on-palette charts, embedded preview for the canvas + the visual gate.
+- Report mode — PDFs and 16:9 decks with a full editorial protocol (newspaper margins, anti-orphan `.lede`, kickers, rules, page mechanics); charts/figures are ATOMIC (`.keep`/`.fig`) so nothing splits across a page, and every page is auto design-reviewed before delivery.
+- In-app doc viewer (xlsx/csv/docx/pptx → styled HTML); Canvas preview (Preview/Files/Doc tabs, port auto-detect).
 
 ## The flow (effortless AND expert)
 - Smart intake — a short, type-aware brief (one round), then fully autonomous.

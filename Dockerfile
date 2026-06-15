@@ -22,7 +22,7 @@ ARG DOCTL_VERSION=1.120.0
 RUN curl -sL "https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-amd64.tar.gz" \
       | tar -xz -C /usr/local/bin doctl && chmod +x /usr/local/bin/doctl
 # Document-generation libraries available to agent workspaces via NODE_PATH
-RUN npm install -g exceljs pdfkit docx xlsx && npm cache clean --force
+RUN npm install -g exceljs pdfkit docx xlsx pptxgenjs && npm cache clean --force
 ENV NODE_PATH=/usr/local/lib/node_modules
 WORKDIR /app
 # Headless Chromium for the UI render verification (Playwright), installed to a
@@ -34,6 +34,13 @@ WORKDIR /app
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN ( npx --yes playwright@1.60.0 install --with-deps chromium && chmod -R a+rx /ms-playwright ) \
       || echo "WARN: Chromium install failed — UI render verification will be skipped at runtime."
+# LibreOffice (headless) for HIGH-FIDELITY .pptx/.docx → PDF rendering in the deliverable
+# visual-QC gate. OPTIONAL + non-fatal: the gate falls back to the HTML/preview render when
+# absent, so a failed install never strands a deploy. Cached before the app copy.
+RUN ( apt-get update && apt-get install -y --no-install-recommends \
+        libreoffice-impress libreoffice-calc libreoffice-writer \
+        && rm -rf /var/lib/apt/lists/* ) \
+      || echo "WARN: LibreOffice install failed — pptx/docx fidelity rendering falls back to HTML preview."
 COPY --from=build /app /app
 ENV NODE_ENV=production \
     PORT=3000 \
