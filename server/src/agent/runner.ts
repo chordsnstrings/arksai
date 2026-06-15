@@ -782,7 +782,14 @@ export class AgentRun {
       args = null;
     }
     argsSummary = tool && args ? tool.summarize(args) : call.args.slice(0, 120);
-    if (['write_file', 'edit_file', 'git_commit'].includes(call.name)) this.mutated = true;
+    // File-producing tools all flag the run as mutated so the completion gate fires — incl.
+    // the document generators / renderer (a run that ONLY calls generate_pptx must still be gated).
+    if (
+      ['write_file', 'edit_file', 'git_commit', 'generate_spreadsheet', 'generate_doc', 'generate_pptx', 'render_report'].includes(
+        call.name,
+      )
+    )
+      this.mutated = true;
     if (call.name === 'publish_app') this.emitProgress('publishing', 'Putting it online & checking the live URL…');
     if (call.name === 'bash' && typeof args?.command === 'string') {
       const cmd = args.command as string;
