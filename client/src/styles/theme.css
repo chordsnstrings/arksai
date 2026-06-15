@@ -69,7 +69,7 @@
  * property transitions can't — a smooth, native-feeling theme change. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 0.5s;
+  animation-duration: 0.9s;
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 /* New theme fades in over the old for a clean cross-dissolve (no flash of either). */
@@ -78,14 +78,26 @@
 @keyframes theme-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes theme-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
+/* Optional light/dark toggle in the sidebar wordmark (top-left, after the logo). */
+.wordmark .theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; margin-left: 8px; padding: 0;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--bg-elev); color: var(--text-muted); cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.wordmark .theme-toggle:hover { color: var(--text); border-color: var(--text-faint); background: var(--bg-hover); }
+.wordmark .theme-toggle:active { transform: scale(0.92); }
+.wordmark .theme-toggle svg { display: block; }
+
 /* Fallback crossfade (browsers without the View Transition API): the class is added
  * briefly during a switch, then removed so transitions don't linger on hovers. */
 :root.theme-animating,
 :root.theme-animating *,
 :root.theme-animating *::before,
 :root.theme-animating *::after {
-  transition: background-color 0.5s ease, color 0.5s ease, border-color 0.5s ease,
-    fill 0.5s ease, stroke 0.5s ease, box-shadow 0.5s ease !important;
+  transition: background-color 0.9s ease, color 0.9s ease, border-color 0.9s ease,
+    fill 0.9s ease, stroke 0.9s ease, box-shadow 0.9s ease !important;
 }
 @media (prefers-reduced-motion: reduce) {
   :root.theme-animating,

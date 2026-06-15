@@ -2,9 +2,34 @@ import { useState } from 'react';
 import type { Project, SessionMeta, SessionStatus } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
+import { isDark, toggleTheme } from '../lib/theme';
 
 function StatusDot({ status }: { status: SessionStatus }) {
   return <span className={`status-dot ${status}`} />;
+}
+
+/** Optional manual light/dark switch (top-left, after the logo). Overrides the dept theme. */
+function ThemeToggle() {
+  const [dark, setDark] = useState<boolean>(() => isDark());
+  return (
+    <button
+      className="theme-toggle"
+      title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label="Toggle light or dark theme"
+      onClick={() => setDark(toggleTheme())}
+    >
+      {dark ? (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+        </svg>
+      ) : (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      )}
+    </button>
+  );
 }
 
 export function Sidebar({
@@ -111,6 +136,7 @@ export function Sidebar({
         <span className="logo-mark sm" />
         <span className="name">ArksAI</span>
         <span className="badge">studio</span>
+        <ThemeToggle />
         <span className="spacer" style={{ flex: 1 }} />
         <button className="nav-collapse" title="Collapse sidebar" onClick={() => toggleNav(false)}>
           «
