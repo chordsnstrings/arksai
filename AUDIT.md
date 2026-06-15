@@ -133,18 +133,20 @@ ships a protocol-compatible surface; the provider/model is MiniMax.
 
 ---
 
-## Suggested fix order
-1. **P0 isolation** — sandbox the agent shell (or denylist `kill`/`pkill`/`fuser`/`npm i`
-   outside the workspace) even in unrestricted mode; consider running agents out-of-process.
-2. **P1 spreadsheet models** — add formula support to `generate_spreadsheet` (or a finance-model
-   builder) and steer the agent to it; enforce number formats. Re-test the finance plays
-   (esp. `cashflow`, which had neither formulas nor formatting).
-3. **P1 MiniMax** — resolve the account balance / endpoint so vision + the design gate
-   actually run; re-validate image/TTS/video.
-4. **P2 deployments** — GC/supersede prior deployments on re-publish so errored duplicates
-   don't accumulate; fix the one `engineering.admin` deploy error.
-5. **P2 polish** — drop the faux-logo cover icon on document covers; embed the editorial font
-   in `generate_doc`.
+## Fix status (2026-06-15)
+1. **P0 isolation** — ✅ *partial* (`2dc4559`): an always-on denylist blocks `pkill`/`killall`/
+   `fuser -k`/`shutdown`/`systemctl stop` on both bash tools in every mode, so an agent can no
+   longer kill the server. ⏳ *deferred:* the uid-drop (run agent children as a low-priv user)
+   needs Docker/Droplet testing — it's also what fully fixes the host-repo `npm install` mutation.
+2. **P1 spreadsheet models** — ✅ FIXED (`8c76445`): `generate_spreadsheet` now accepts formula
+   cells (`"=B2*C2"` / `{f,v}`) and the prompt steers the agent to use them for models.
+3. **P1 MiniMax** — ✅ the design-gate now fails LOUDLY, not silently (`2dc4559`); the M3 LLM is
+   live via the `sk-cp` subscription key + a hang-fix (`1fff244`). ⏳ image/TTS/video model ids
+   still need confirming on the Droplet.
+4. **P2 deployments** — ✅ FIXED (`cf26c37`): re-publish supersedes a session's prior deployments,
+   so errored duplicates no longer accumulate and the URL stays stable.
+5. **P2 polish** — ✅ report covers are type-only now, no faux-logo icon (`2dc4559`). ⏳ `.docx`
+   editorial font needs bundled TTF assets to embed (uses Calibri for now).
 
 ---
 
