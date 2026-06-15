@@ -162,6 +162,7 @@ export class AgentRun {
         this.minimaxClient = new OpenAI({
           apiKey: config.minimaxApiKey || 'missing-key',
           baseURL: config.minimaxBaseUrl,
+          timeout: 180_000, // M3 can be slow — bound a hung request so the DeepSeek fallback can fire
         });
       }
       return this.minimaxClient;
@@ -612,8 +613,13 @@ export class AgentRun {
     let triedFallback = false;
     for (let attempt = 0; ; attempt++) {
       try {
+        // MiniMax M3 is a thinking model that, with no max_tokens cap, can fail to
+        // return for minutes and hang the agent loop. Cap it for MiniMax only;
+        // DeepSeek stops naturally and needs no cap.
+        const extra =
+          resolveProvider(this.activeModel).provider === 'minimax' ? { max_tokens: 16384 } : {};
         return (await this.activeClient.chat.completions.create(
-          { ...params, model: this.activeApiModel },
+          { ...params, ...extra, model: this.activeApiModel },
           { signal: this.abort.signal },
         )) as unknown as AsyncIterable<any>;
       } catch (err) {
