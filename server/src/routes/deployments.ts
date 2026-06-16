@@ -5,6 +5,7 @@ import * as store from '../sessions/store';
 import { deploymentDir, deploymentRegistry } from '../deploy/registry';
 import { publishSession, removeDeployment, restartDeployment, stopDeployment } from '../deploy/publish';
 import { resolveInWorkspace } from '../agent/tools/common';
+import { scopeOf } from '../auth';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html',
@@ -37,7 +38,7 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
   // ---- management API (auth-protected, under /api) ----
   app.get('/api/deployments', async (req) => {
     const { sessionId } = (req.query ?? {}) as { sessionId?: string };
-    return { deployments: await store.listDeployments(sessionId) };
+    return { deployments: await store.listDeployments(sessionId, scopeOf(req)) };
   });
 
   app.post('/api/sessions/:id/publish', async (req, reply) => {
@@ -51,21 +52,23 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
     }
   });
 
+  // Management ops are ORG-SCOPED: a cross-org slug resolves to null → 404, so one
+  // org can never stop/restart/delete another org's app.
   app.post('/api/deployments/:slug/stop', async (req, reply) => {
     const { slug } = req.params as { slug: string };
-    if (!(await store.getDeploymentBySlug(slug))) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getDeploymentBySlug(slug, scopeOf(req)))) return reply.code(404).send({ error: 'Not found' });
     await stopDeployment(slug);
-    return store.getDeploymentBySlug(slug);
+    return store.getDeploymentBySlug(slug, scopeOf(req));
   });
   app.post('/api/deployments/:slug/restart', async (req, reply) => {
     const { slug } = req.params as { slug: string };
-    if (!(await store.getDeploymentBySlug(slug))) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getDeploymentBySlug(slug, scopeOf(req)))) return reply.code(404).send({ error: 'Not found' });
     await restartDeployment(slug);
-    return store.getDeploymentBySlug(slug);
+    return store.getDeploymentBySlug(slug, scopeOf(req));
   });
   app.delete('/api/deployments/:slug', async (req, reply) => {
     const { slug } = req.params as { slug: string };
-    if (!(await store.getDeploymentBySlug(slug))) return reply.code(404).send({ error: 'Not found' });
+    if (!(await store.getDeploymentBySlug(slug, scopeOf(req)))) return reply.code(404).send({ error: 'Not found' });
     await removeDeployment(slug);
     return { ok: true };
   });

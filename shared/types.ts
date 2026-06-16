@@ -224,6 +224,8 @@ export type AgentEvent =
 export type GlobalEvent = { type: 'session_status'; session: SessionMeta } | {
   type: 'session_deleted';
   sessionId: string;
+  /** Owning org — lets the global stream filter so it never leaks across orgs. */
+  orgId: string | null;
 };
 
 // ---- REST DTOs ----

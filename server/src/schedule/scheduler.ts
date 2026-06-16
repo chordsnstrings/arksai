@@ -3,6 +3,10 @@ import type { CreateScheduleRequest, Schedule, SessionMode } from '../../../shar
 import { SESSION_MODES, DEFAULT_MODEL, AUTO_MODEL } from '../../../shared/types';
 import { q } from '../db';
 import * as store from '../sessions/store';
+import type { Scope } from '../sessions/store';
+
+/** A tenant (real org member, not the platform operator) is constrained to its org. */
+const isTenant = (s?: Scope): s is { orgId: string | null; userId: string; isSuperadmin: boolean } => !!s && !s.isSuperadmin;
 import { setupWorkspace } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import * as manager from '../sessions/manager';
@@ -61,12 +65,14 @@ function rowToSchedule(r: any): Schedule {
   };
 }
 
-export async function listSchedules(): Promise<Schedule[]> {
-  const rows = await q(`SELECT * FROM schedules ORDER BY created_at DESC`);
+export async function listSchedules(scope?: Scope): Promise<Schedule[]> {
+  const rows = isTenant(scope)
+    ? await q(`SELECT * FROM schedules WHERE org_id = $1 ORDER BY created_at DESC`, [scope.orgId])
+    : await q(`SELECT * FROM schedules ORDER BY created_at DESC`);
   return rows.map(rowToSchedule);
 }
 
-export async function createSchedule(req: CreateScheduleRequest): Promise<Schedule> {
+export async function createSchedule(req: CreateScheduleRequest, orgId: string | null = null): Promise<Schedule> {
   const mode: SessionMode = SESSION_MODES.includes(req.mode as any) ? (req.mode as SessionMode) : 'code';
   const model = req.model || AUTO_MODEL || DEFAULT_MODEL;
   const cadence = ['daily', 'weekly', 'interval'].includes(req.cadence) ? req.cadence : 'daily';
@@ -90,23 +96,29 @@ export async function createSchedule(req: CreateScheduleRequest): Promise<Schedu
     createdAt: Date.now(),
   };
   await q(
-    `INSERT INTO schedules(id,label,prompt,mode,model,cadence,at,weekday,interval_ms,enabled,next_run_at,last_run_at,created_at)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-    [s.id, s.label, s.prompt, s.mode, s.model, s.cadence, s.at, s.weekday, s.intervalMs, 1, s.nextRunAt, null, s.createdAt],
+    `INSERT INTO schedules(id,label,prompt,mode,model,cadence,at,weekday,interval_ms,enabled,next_run_at,last_run_at,created_at,org_id)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+    [s.id, s.label, s.prompt, s.mode, s.model, s.cadence, s.at, s.weekday, s.intervalMs, 1, s.nextRunAt, null, s.createdAt, orgId],
   );
   return s;
 }
 
-export async function setEnabled(id: string, enabled: boolean): Promise<void> {
-  await q(`UPDATE schedules SET enabled=$1 WHERE id=$2`, [enabled ? 1 : 0, id]);
+// setEnabled/deleteSchedule are ORG-SCOPED for a tenant: the WHERE clause includes
+// org_id so a tenant can never enable/disable/delete another org's schedule.
+export async function setEnabled(id: string, enabled: boolean, scope?: Scope): Promise<void> {
+  if (isTenant(scope)) await q(`UPDATE schedules SET enabled=$1 WHERE id=$2 AND org_id=$3`, [enabled ? 1 : 0, id, scope.orgId]);
+  else await q(`UPDATE schedules SET enabled=$1 WHERE id=$2`, [enabled ? 1 : 0, id]);
 }
 
-export async function deleteSchedule(id: string): Promise<void> {
-  await q(`DELETE FROM schedules WHERE id=$1`, [id]);
+export async function deleteSchedule(id: string, scope?: Scope): Promise<void> {
+  if (isTenant(scope)) await q(`DELETE FROM schedules WHERE id=$1 AND org_id=$2`, [id, scope.orgId]);
+  else await q(`DELETE FROM schedules WHERE id=$1`, [id]);
 }
 
-/** Spawn a fresh session and run the schedule's brief — the normal run path. */
-async function fire(s: Schedule) {
+/** Spawn a fresh session and run the schedule's brief — the normal run path. The
+ *  session is stamped with the schedule's org so a scheduled run stays inside the
+ *  owning workspace (and never appears in another org). */
+async function fire(s: Schedule, orgId: string | null) {
   const session = await store.createSession({
     repoUrl: null,
     repoName: null,
@@ -114,6 +126,7 @@ async function fire(s: Schedule) {
     mode: s.mode,
     model: s.model,
     projectId: null,
+    orgId,
   });
   const dateLabel = new Date().toISOString().slice(0, 10);
   await store.updateSession(session.id, { title: `${s.label} · ${dateLabel}`.slice(0, 80) });
@@ -127,20 +140,20 @@ async function fire(s: Schedule) {
 let timer: ReturnType<typeof setInterval> | null = null;
 
 export async function tick(now = Date.now()) {
-  let due: Schedule[] = [];
+  let due: any[] = [];
   try {
-    const rows = await q(`SELECT * FROM schedules WHERE enabled=1 AND next_run_at <= $1`, [now]);
-    due = rows.map(rowToSchedule);
+    due = await q(`SELECT * FROM schedules WHERE enabled=1 AND next_run_at <= $1`, [now]);
   } catch (e) {
     console.error('[schedule] tick query failed:', e);
     return;
   }
-  for (const s of due) {
+  for (const row of due) {
+    const s = rowToSchedule(row);
     // Advance next_run_at FIRST so a slow/failed fire can't double-trigger.
     const next = computeNextRun(new Date(now), s.cadence, s.at, s.weekday, s.intervalMs);
     await q(`UPDATE schedules SET next_run_at=$1, last_run_at=$2 WHERE id=$3`, [next, now, s.id]).catch(() => {});
     try {
-      await fire(s);
+      await fire(s, row.org_id ?? null);
       console.log(`[schedule] fired "${s.label}" → next ${new Date(next).toISOString()}`);
     } catch (e) {
       console.error(`[schedule] fire failed for "${s.label}":`, e);

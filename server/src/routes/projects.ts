@@ -117,6 +117,7 @@ export function registerProjectRoutes(app: FastifyInstance) {
   app.patch('/api/projects/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!(await store.getProject(id))) return reply.code(404).send({ error: 'Not found' });
+    if (!(await canManageProject(req, id))) return reply.code(403).send({ error: 'Only the project owner or an admin can change it.' });
     const body = (req.body ?? {}) as PatchProjectRequest;
     const patch: Record<string, unknown> = {};
     if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim().slice(0, 80);
@@ -140,6 +141,7 @@ export function registerProjectRoutes(app: FastifyInstance) {
   app.delete('/api/projects/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!(await store.getProject(id))) return reply.code(404).send({ error: 'Not found' });
+    if (!(await canManageProject(req, id))) return reply.code(403).send({ error: 'Only the project owner or an admin can delete it.' });
     await store.deleteProject(id);
     try {
       fs.rmSync(projectDir(id), { recursive: true, force: true });
@@ -158,6 +160,7 @@ export function registerProjectRoutes(app: FastifyInstance) {
   app.post('/api/projects/:id/files', async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!(await store.getProject(id))) return reply.code(404).send({ error: 'Not found' });
+    if (!(await canManageProject(req, id))) return reply.code(403).send({ error: 'Only the project owner or an admin can add files.' });
     const kdir = projectKnowledgeDir(id);
     fs.mkdirSync(kdir, { recursive: true });
 
@@ -181,6 +184,7 @@ export function registerProjectRoutes(app: FastifyInstance) {
 
   app.delete('/api/projects/:id/files/:fileId', async (req, reply) => {
     const { id, fileId } = req.params as { id: string; fileId: string };
+    if (!(await canManageProject(req, id))) return reply.code(403).send({ error: 'Only the project owner or an admin can remove files.' });
     const file = await store.getProjectFile(fileId);
     if (!file || file.projectId !== id) return reply.code(404).send({ error: 'Not found' });
     await store.deleteProjectFile(fileId);

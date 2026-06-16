@@ -468,14 +468,18 @@ export async function createDeployment(d: Omit<Deployment, 'createdAt' | 'update
   return { ...d, createdAt: now, updatedAt: now };
 }
 
-export async function getDeploymentBySlug(slug: string): Promise<Deployment | null> {
+export async function getDeploymentBySlug(slug: string, scope?: Scope): Promise<Deployment | null> {
   const row = await qOne('SELECT * FROM deployments WHERE slug = $1', [slug]);
-  return row ? rowToDeployment(row) : null;
+  if (!row) return null;
+  if (scoped(scope) && row.org_id !== scope!.orgId) return null; // cross-org → not found
+  return rowToDeployment(row);
 }
 
 export async function listDeployments(sessionId?: string, scope?: Scope): Promise<Deployment[]> {
   let rows: any[];
-  if (sessionId) rows = await q('SELECT * FROM deployments WHERE session_id = $1 ORDER BY updated_at DESC', [sessionId]);
+  if (sessionId && scoped(scope))
+    rows = await q('SELECT * FROM deployments WHERE session_id = $1 AND org_id = $2 ORDER BY updated_at DESC', [sessionId, scope!.orgId]);
+  else if (sessionId) rows = await q('SELECT * FROM deployments WHERE session_id = $1 ORDER BY updated_at DESC', [sessionId]);
   else if (scoped(scope)) rows = await q('SELECT * FROM deployments WHERE org_id = $1 ORDER BY updated_at DESC', [scope!.orgId]);
   else rows = await q('SELECT * FROM deployments ORDER BY updated_at DESC');
   return rows.map(rowToDeployment);

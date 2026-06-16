@@ -95,7 +95,8 @@ export function registerSessionRoutes(app: FastifyInstance) {
 
   app.delete('/api/sessions/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
+    const sess = await store.getSession(id);
+    if (!sess) return reply.code(404).send({ error: 'Not found' });
     try {
       manager.interrupt(id);
     } catch {}
@@ -106,7 +107,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
     try {
       deleteWorkspace(id);
     } catch {}
-    bus.emitGlobal({ type: 'session_deleted', sessionId: id });
+    bus.emitGlobal({ type: 'session_deleted', sessionId: id, orgId: sess.orgId });
     return { ok: true };
   });
 
