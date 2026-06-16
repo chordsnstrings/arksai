@@ -49,7 +49,7 @@ function rowToMeta(row: any): SessionMeta {
  * means "no org filter" — so the runner/scheduler and the platform operator are
  * unaffected; only org members are constrained to their current org.
  */
-export type Scope = { orgId: string | null; isSuperadmin: boolean } | undefined;
+export type Scope = { orgId: string | null; userId: string; isSuperadmin: boolean } | undefined;
 const scoped = (scope: Scope) => !!scope && !scope.isSuperadmin;
 
 export async function createSession(opts: {
@@ -296,7 +296,14 @@ export async function createProject(opts: {
 export async function getProject(id: string, scope?: Scope): Promise<Project | null> {
   const row = await qOne('SELECT * FROM projects WHERE id = $1', [id]);
   if (!row) return null;
-  if (scoped(scope) && row.org_id !== scope!.orgId) return null; // cross-org → not found
+  if (scoped(scope)) {
+    if (row.org_id !== scope!.orgId) return null; // cross-org → not found
+    const vis = row.visibility ?? 'org';
+    if (vis !== 'org' && row.owner_user_id !== scope!.userId) {
+      const m = await qOne('SELECT 1 AS x FROM project_members WHERE project_id = $1 AND user_id = $2', [id, scope!.userId]);
+      if (!m) return null; // private project, not the owner and not invited
+    }
+  }
   const sc = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM sessions WHERE project_id = $1', [id]);
   const fc = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM project_files WHERE project_id = $1', [id]);
   return rowToProject(row, Number(sc?.n ?? 0), Number(fc?.n ?? 0));
@@ -304,7 +311,13 @@ export async function getProject(id: string, scope?: Scope): Promise<Project | n
 
 export async function listProjects(scope?: Scope): Promise<Project[]> {
   const rows = scoped(scope)
-    ? await q('SELECT * FROM projects WHERE org_id = $1 ORDER BY updated_at DESC', [scope!.orgId])
+    ? await q(
+        `SELECT * FROM projects WHERE org_id = $1
+           AND (visibility = 'org' OR visibility IS NULL OR owner_user_id = $2
+                OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = projects.id AND pm.user_id = $3))
+         ORDER BY updated_at DESC`,
+        [scope!.orgId, scope!.userId, scope!.userId],
+      )
     : await q('SELECT * FROM projects ORDER BY updated_at DESC');
   const out: Project[] = [];
   for (const r of rows) {
@@ -322,6 +335,7 @@ const PROJECT_COLUMN: Record<string, string> = {
   defaultBranch: 'default_branch',
   defaultMode: 'default_mode',
   defaultModel: 'default_model',
+  visibility: 'visibility',
 };
 
 export async function updateProject(
@@ -390,6 +404,31 @@ export async function getProjectFile(id: string): Promise<ProjectFile | null> {
 
 export async function deleteProjectFile(id: string) {
   await q('DELETE FROM project_files WHERE id = $1', [id]);
+}
+
+// ---- project visibility / sharing ("creator + invited") ----
+export async function setProjectVisibility(projectId: string, visibility: 'org' | 'private'): Promise<void> {
+  await q('UPDATE projects SET visibility = $1, updated_at = $2 WHERE id = $3', [visibility, Date.now(), projectId]);
+}
+export async function getProjectOwner(
+  projectId: string,
+): Promise<{ ownerUserId: string | null; orgId: string | null; visibility: string } | null> {
+  const r = await qOne<any>('SELECT owner_user_id, org_id, visibility FROM projects WHERE id = $1', [projectId]);
+  return r ? { ownerUserId: r.owner_user_id ?? null, orgId: r.org_id ?? null, visibility: r.visibility ?? 'org' } : null;
+}
+export async function addProjectMember(projectId: string, userId: string): Promise<void> {
+  await q(
+    'INSERT INTO project_members(project_id, user_id, created_at) VALUES ($1,$2,$3) ON CONFLICT(project_id, user_id) DO NOTHING',
+    [projectId, userId, Date.now()],
+  );
+}
+export async function removeProjectMember(projectId: string, userId: string): Promise<void> {
+  await q('DELETE FROM project_members WHERE project_id = $1 AND user_id = $2', [projectId, userId]);
+}
+export async function listProjectMemberIds(projectId: string): Promise<string[]> {
+  return (await q<{ user_id: string }>('SELECT user_id FROM project_members WHERE project_id = $1', [projectId])).map(
+    (r) => r.user_id,
+  );
 }
 
 // ---- deployments (published apps on a durable URL) ----

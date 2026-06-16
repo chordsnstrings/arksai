@@ -9,6 +9,7 @@ import { isValidModel } from '../agent/models';
 import { parseRepoUrl, projectKnowledgeDir } from '../sessions/workspace';
 import { config } from '../config';
 import { scopeOf } from '../auth';
+import { getUserByEmail, roleInOrg } from '../orgs/store';
 
 function sanitizeFilename(name: string): string {
   const base = path.basename(name || 'file').replace(/[^\w.\- ()]/g, '_');
@@ -56,6 +57,54 @@ export function registerProjectRoutes(app: FastifyInstance) {
       ownerUserId: req.identity?.userId ?? null,
     });
     return reply.code(201).send(project);
+  });
+
+  // ---- project visibility + sharing ("creator + invited") ----
+  // Only the project owner, an org admin, or the super-admin can change sharing.
+  // (The :id guard hook above already 404s anyone who can't even see the project.)
+  const canManageProject = async (req: any, id: string): Promise<boolean> => {
+    const idn = req.identity;
+    if (!idn) return false;
+    if (idn.isSuperadmin) return true;
+    const owner = await store.getProjectOwner(id);
+    if (!owner) return false;
+    if (owner.ownerUserId === idn.userId) return true;
+    return idn.role === 'admin' && owner.orgId === idn.orgId;
+  };
+
+  app.patch('/api/projects/:id/visibility', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!(await canManageProject(req, id))) return reply.code(403).send({ error: 'Only the project owner or an admin can change visibility.' });
+    const vis = (req.body as any)?.visibility === 'private' ? 'private' : 'org';
+    await store.setProjectVisibility(id, vis);
+    return { ok: true, visibility: vis };
+  });
+
+  app.get('/api/projects/:id/members', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!(await canManageProject(req, id))) return reply.code(403).send({ error: 'Not allowed.' });
+    return { userIds: await store.listProjectMemberIds(id) };
+  });
+
+  app.post('/api/projects/:id/members', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!(await canManageProject(req, id))) return reply.code(403).send({ error: 'Not allowed.' });
+    const email = String((req.body as any)?.email ?? '').trim();
+    const user = await getUserByEmail(email);
+    if (!user) return reply.code(404).send({ error: 'No user with that email yet — they must accept an org invite first.' });
+    const owner = await store.getProjectOwner(id);
+    if (owner?.orgId && !(await roleInOrg(user.id, owner.orgId))) {
+      return reply.code(400).send({ error: 'That person is not a member of this organization.' });
+    }
+    await store.addProjectMember(id, user.id);
+    return { ok: true };
+  });
+
+  app.delete('/api/projects/:id/members/:userId', async (req, reply) => {
+    const { id, userId } = req.params as { id: string; userId: string };
+    if (!(await canManageProject(req, id))) return reply.code(403).send({ error: 'Not allowed.' });
+    await store.removeProjectMember(id, userId);
+    return { ok: true };
   });
 
   app.get('/api/projects/:id', async (req, reply) => {

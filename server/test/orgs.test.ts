@@ -85,7 +85,7 @@ test('store scoping isolates orgs; super-admin/unscoped sees all', async () => {
   const base = { repoUrl: null, repoName: null, branch: null, mode: 'code' as const, model: 'arksai-auto' as any };
   const sA = await store.createSession({ ...base, orgId: a.id, createdBy: 'uA' });
   const sB = await store.createSession({ ...base, orgId: b.id, createdBy: 'uB' });
-  const scopeA = { orgId: a.id, isSuperadmin: false };
+  const scopeA = { orgId: a.id, userId: 'uA', isSuperadmin: false };
 
   const listA = await store.listSessions(scopeA);
   assert.ok(listA.some((s) => s.id === sA.id), 'org A sees its own session');
@@ -94,7 +94,29 @@ test('store scoping isolates orgs; super-admin/unscoped sees all', async () => {
   assert.ok(await store.getSession(sA.id, scopeA), 'same-org get works');
 
   // super-admin (and the unscoped internal path) see everything
-  const all = await store.listSessions({ orgId: null, isSuperadmin: true });
+  const all = await store.listSessions({ orgId: null, userId: 'superadmin', isSuperadmin: true });
   assert.ok(all.some((s) => s.id === sA.id) && all.some((s) => s.id === sB.id));
-  assert.ok(await store.getSession(sB.id, { orgId: a.id, isSuperadmin: true }), 'super-admin bypasses org scope');
+  assert.ok(await store.getSession(sB.id, { orgId: a.id, userId: 'superadmin', isSuperadmin: true }), 'super-admin bypasses org scope');
+});
+
+test('project visibility: a private project is hidden from non-invited members', async () => {
+  const store = await import('../src/sessions/store');
+  const org = await orgs.createOrg('OrgVis');
+  const [owner, other, invited] = ['owner-1', 'other-1', 'invited-1'];
+  const sc = (u: string) => ({ orgId: org.id, userId: u, isSuperadmin: false });
+
+  const proj = await store.createProject({ name: 'Secret Plan', orgId: org.id, ownerUserId: owner });
+  await store.setProjectVisibility(proj.id, 'private');
+  assert.ok(await store.getProject(proj.id, sc(owner)), 'owner sees their private project');
+  assert.equal(await store.getProject(proj.id, sc(other)), null, 'non-invited member cannot see it');
+  assert.ok(!(await store.listProjects(sc(other))).some((p) => p.id === proj.id), 'private project not listed for others');
+
+  await store.addProjectMember(proj.id, invited);
+  assert.ok(await store.getProject(proj.id, sc(invited)), 'invited member sees it');
+  assert.ok((await store.listProjects(sc(invited))).some((p) => p.id === proj.id));
+  assert.ok(await store.getProject(proj.id, { orgId: org.id, userId: 'x', isSuperadmin: true }), 'super-admin always sees it');
+
+  // a default ('org') project is visible to any member of the org
+  const pub = await store.createProject({ name: 'Team Wiki', orgId: org.id, ownerUserId: owner });
+  assert.ok(await store.getProject(pub.id, sc(other)), 'org-wide project visible to all members');
 });
