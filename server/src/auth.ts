@@ -5,6 +5,7 @@ import {
   DEFAULT_ORG_ID,
   type Identity,
   createAuthSession,
+  getOrgProfile,
   getUser,
   getUserByEmail,
   listOrgs,
@@ -171,7 +172,16 @@ export function registerAuth(app: FastifyInstance) {
     }
     const user = await getUser(id.userId);
     const orgs = id.isSuperadmin ? await listOrgs() : await orgsForUser(id.userId);
-    return { user: user ? pubUser(user) : null, orgs, currentOrg: id.orgId, role: id.role, isSuperadmin: id.isSuperadmin };
+    // Onboarding status for the current org → the client gates the first-run wizard on it.
+    const prof = id.orgId ? await getOrgProfile(id.orgId).catch(() => null) : null;
+    return {
+      user: user ? pubUser(user) : null,
+      orgs,
+      currentOrg: id.orgId,
+      currentOrgOnboarded: prof ? prof.onboardingComplete : true,
+      role: id.role,
+      isSuperadmin: id.isSuperadmin,
+    };
   });
 
   app.post('/api/auth/logout', async (req, reply) => {

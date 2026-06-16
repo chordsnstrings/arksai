@@ -5,6 +5,7 @@ import type {
   Deployment,
   MemoryEntry,
   ModelInfo,
+  OrgProfile,
   PatchProjectRequest,
   PatchSessionRequest,
   ProcessInfo,
@@ -50,6 +51,8 @@ export interface MeResponse {
   user: { id: string; email: string; name: string | null; isSuperadmin: boolean } | null;
   orgs: Org[];
   currentOrg: string | null;
+  /** false → the current org hasn't completed the agent-driven onboarding yet. */
+  currentOrgOnboarded?: boolean;
   role: string | null;
   isSuperadmin: boolean;
 }
@@ -195,6 +198,13 @@ export const api = {
     }),
   switchOrg: (orgId: string) =>
     request<{ ok: true; currentOrg: string }>(`/api/orgs/${orgId}/switch`, { method: 'POST' }),
+  getOrgProfile: (orgId: string) =>
+    request<{ profile: OrgProfile }>(`/api/orgs/${orgId}/profile`).then((r) => r.profile),
+  patchOrgProfile: (orgId: string, patch: Partial<OrgProfile>) =>
+    request<{ ok: true; profile: OrgProfile }>(`/api/orgs/${orgId}/profile`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }).then((r) => r.profile),
   listMembers: (orgId: string) =>
     request<{ members: OrgMember[] }>(`/api/orgs/${orgId}/members`).then((r) => r.members),
   inviteMember: (orgId: string, email: string, role: 'admin' | 'member') =>

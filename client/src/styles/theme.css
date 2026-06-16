@@ -1341,3 +1341,15 @@ button { font-family: inherit; cursor: pointer; }
   .lnd-section { padding: 40px 22px; }
   .lnd-nav { padding: 16px 22px; }
 }
+
+/* org onboarding (first-run, agent-driven, full-visibility) */
+.onb { display: flex; flex-direction: column; height: 100vh; max-width: 920px; margin: 0 auto; padding: 0 18px; }
+.onb-head { display: flex; align-items: center; gap: 16px; padding: 18px 4px 10px; border-bottom: 1px solid var(--border); }
+.onb-head-mid { flex: 1; }
+.onb-kicker { font-family: var(--label); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.onb-title { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--text); }
+.onb-skip { background: none; border: 1px solid var(--border); border-radius: 9px; color: var(--text-muted); font-size: 13px; padding: 7px 13px; }
+.onb-skip:hover { border-color: var(--text-muted); color: var(--text); }
+.onb-sub { color: var(--text-muted); font-size: 14px; margin: 12px 4px 4px; }
+.onb-chat { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.onb-loading { color: var(--text-faint); font-size: 14px; padding: 40px 4px; }

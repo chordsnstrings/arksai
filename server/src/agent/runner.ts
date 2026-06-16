@@ -7,11 +7,13 @@ import { computeCost, KNOWN_MODELS, type SessionMeta, type SessionMode, type Tim
 import { config } from '../config';
 import { bus } from '../events/bus';
 import * as store from '../sessions/store';
+import { DEFAULT_ORG_ID, getOrgProfile, orgScope } from '../orgs/store';
 import { diffStat, repoDir } from '../sessions/workspace';
 import { scrubSecrets } from '../lib/exec';
 import { buildUploadNote } from '../lib/extract';
 import { buildSystemPrompt } from './prompts';
 import { getToolsForMode } from './tools';
+import { crawlSiteTool, saveOrgProfileTool } from './tools/onboarding';
 import { ToolError, type ToolCtx } from './tools/common';
 import { generateTitle } from './titleGen';
 import { makeThinkFilter } from './thinkFilter';
@@ -278,6 +280,7 @@ export class AgentRun {
     // Reassignable: the agent can switch_mode mid-run, which reloads the toolset,
     // system prompt, and engine for the new mode.
     let { schemas, map } = getToolsForMode(this.session.mode);
+    this.addOnboardingTools(schemas, map); // only when this is an org-onboarding session
     const liveItems: TimelineItem[] = [];
     let finalStatus: SessionMeta['status'] = 'done';
     const sysInfo = (text: string) => {
@@ -512,6 +515,7 @@ export class AgentRun {
           await store.updateSession(sessionId, { mode: newMode }).catch(() => {});
           this.taskProfile = classifyTask(userText, newMode); // re-classify for the new mode's floors
           ({ schemas, map } = getToolsForMode(newMode));
+          this.addOnboardingTools(schemas, map);
           memoryBlock = await this.loadMemoryBlock(dir);
           systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile);
           this.routeModel(userText, sysInfo);
@@ -625,6 +629,9 @@ export class AgentRun {
       }
       for (const item of liveItems) await store.appendTimeline(sessionId, item);
       await store.setContext(sessionId, context);
+      // Cross-chat recall: distill a compact note into THIS org's shared memory (its
+      // own org ONLY) so future sessions in the org can recall what was done here.
+      if (this.session.orgId && finalStatus === 'done') await this.recordOrgRecall(liveItems).catch(() => {});
       // Authoritative cost: the per-turn sum already accounts for whichever
       // model(s) the orchestrator used this run.
       await store.updateSession(sessionId, {
@@ -1141,15 +1148,32 @@ export class AgentRun {
     return 'ok';
   }
 
-  /** Build the persistent-context block: the Project (instructions + knowledge +
-   *  branding), then Memory (global + repo + project scope) + ARKS.md. */
+  /** Build the persistent-context block: the Organization (shared brain + brand),
+   *  the Project (instructions + knowledge + branding), then Memory + ARKS.md.
+   *  ORG ISOLATION: a tenant org loads ONLY its own org scope — never the
+   *  deployment-wide 'global', never another org. Repo memory is namespaced per
+   *  org so two orgs that share a repo name never share notes. */
   private async loadMemoryBlock(dir: string): Promise<string> {
-    const scopes = ['global'];
-    if (this.session.repoName) scopes.push(this.session.repoName);
+    const orgId = this.session.orgId;
+    const isTenant = !!orgId && orgId !== DEFAULT_ORG_ID;
+    const orgKey = orgId ? orgScope(orgId) : null;
+    // Repo memory is namespaced under the org for any org-stamped session.
+    const repoKey = this.session.repoName
+      ? orgId
+        ? `${orgScope(orgId)}:repo:${this.session.repoName}`
+        : this.session.repoName
+      : null;
+
+    const scopes: string[] = [];
+    if (!isTenant) scopes.push('global'); // operator's home keeps deployment-wide notes
+    if (orgKey) scopes.push(orgKey);
+    if (repoKey) scopes.push(repoKey);
     if (this.session.projectId) scopes.push(`project:${this.session.projectId}`);
+
     const entries = await store.listMemory(scopes).catch(() => []);
+    const orgEntries = orgKey ? entries.filter((e) => e.scope === orgKey).map((e) => `- ${e.text}`) : [];
     const global = entries.filter((e) => e.scope === 'global').map((e) => `- ${e.text}`);
-    const project = entries.filter((e) => e.scope !== 'global').map((e) => `- ${e.text}`);
+    const project = entries.filter((e) => e.scope !== 'global' && e.scope !== orgKey).map((e) => `- ${e.text}`);
 
     // Optional ARKS.md committed in the repo (Claude-Code-style project memory).
     try {
@@ -1160,6 +1184,29 @@ export class AgentRun {
     }
 
     const blocks: string[] = [];
+
+    // Organization block: the org's shared identity + brand + recalled team context.
+    // This is the org "brain" — present in EVERY session in the org, and ONLY this org.
+    if (orgId) {
+      const prof = await getOrgProfile(orgId).catch(() => null);
+      if (prof && (prof.about || prof.branding || orgEntries.length)) {
+        const lines = [
+          '## Organization — shared context for everyone in this workspace (keep it within this organization)',
+        ];
+        if (prof.about) lines.push(`\nAbout the organization:\n${prof.about}`);
+        if (prof.branding) {
+          const b = prof.branding;
+          const parts: string[] = [];
+          if (b.accent) parts.push(`accent ${b.accent}`);
+          if (b.palette?.length) parts.push(`palette ${b.palette.join(', ')}`);
+          if (b.logoName) parts.push(`logo ${b.logoName}`);
+          if (parts.length)
+            lines.push(`\nBrand — apply CONSISTENTLY to every report/deck/doc/app UNLESS the user overrides: ${parts.join('; ')}.`);
+        }
+        if (orgEntries.length) lines.push(`\nFrom the team's earlier work in this workspace:\n${orgEntries.join('\n')}`);
+        blocks.push(lines.join('\n'));
+      }
+    }
 
     // Project block: custom instructions + knowledge index + branding.
     if (this.session.projectId) {
@@ -1200,6 +1247,41 @@ export class AgentRun {
     }
 
     return blocks.join('\n\n');
+  }
+
+  /** Inject the onboarding-only tools when this is the org-onboarding session. They
+   *  are NOT in ALL_TOOLS, so they never appear in ordinary chats. */
+  private addOnboardingTools(
+    schemas: ReturnType<typeof getToolsForMode>['schemas'],
+    map: ReturnType<typeof getToolsForMode>['map'],
+  ): void {
+    if (this.session.task !== 'org.onboarding') return;
+    for (const t of [crawlSiteTool, saveOrgProfileTool]) {
+      schemas.push({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } });
+      map.set(t.name, t);
+    }
+  }
+
+  /** Append a short, deduped note about this session to the ORG's shared memory
+   *  (strictly this org's scope). Bounded so it stays a useful recent digest and
+   *  never grows without limit; onboarding-seeded org facts are left untouched. */
+  private async recordOrgRecall(items: TimelineItem[]): Promise<void> {
+    const orgId = this.session.orgId;
+    if (!orgId) return;
+    const last = [...items].reverse().find((i) => i.kind === 'assistant') as { text?: string } | undefined;
+    const gist = String(last?.text ?? '').replace(/\s+/g, ' ').trim();
+    if (gist.length < 40) return; // nothing substantive to recall
+    const title = this.session.title && this.session.title !== 'New session' ? this.session.title : 'Session';
+    const date = new Date().toISOString().slice(0, 10);
+    const scope = orgScope(orgId);
+    const existing = await store.listMemory([scope]).catch(() => []);
+    if (existing.some((e) => e.text.includes(`] ${title}:`) && Date.now() - e.createdAt < 6 * 3600_000)) return;
+    await store.addMemory(scope, `[${date}] ${title}: ${gist.slice(0, 240)}`);
+    // Cap the dated recall notes to the most recent 60; never touch the onboarding
+    // facts (which have no [date] prefix).
+    const after = await store.listMemory([scope]).catch(() => []);
+    const recalls = after.filter((e) => /^\[\d{4}-\d{2}-\d{2}\] /.test(e.text)).sort((a, b) => a.createdAt - b.createdAt);
+    for (const e of recalls.slice(0, Math.max(0, recalls.length - 60))) await store.deleteMemory(e.id).catch(() => {});
   }
 
   private async generateTitleAsync(userText: string) {

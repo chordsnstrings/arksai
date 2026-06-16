@@ -9,6 +9,8 @@ import {
   createInvite,
   createOrg,
   getOrg,
+  getOrgProfile,
+  setOrgProfile,
   listInvitesForOrg,
   listOrgs,
   membersOfOrg,
@@ -75,6 +77,29 @@ export function registerOrgRoutes(app: FastifyInstance) {
       if (u.valid && u.value) await setSessionOrg(u.value, orgId);
     }
     return { ok: true, currentOrg: orgId };
+  });
+
+  // Org profile (brand + about + onboarding status). Any member of the org may read
+  // it; only an admin may change it. The org id is the caller's own — cross-org → 403.
+  app.get('/api/orgs/:id/profile', async (req, reply) => {
+    const { id: orgId } = req.params as { id: string };
+    const id = req.identity;
+    if (!id) return reply.code(401).send({ error: 'Unauthorized' });
+    if (!id.isSuperadmin && id.orgId !== orgId) return reply.code(403).send({ error: 'Not your organization.' });
+    return { profile: await getOrgProfile(orgId) };
+  });
+
+  app.patch('/api/orgs/:id/profile', async (req, reply) => {
+    const { id: orgId } = req.params as { id: string };
+    if (!(await canAdminOrg(req, orgId))) return reply.code(403).send({ error: 'Admins only.' });
+    const b = (req.body ?? {}) as { branding?: any; about?: string; websiteUrl?: string; onboardingComplete?: boolean };
+    await setOrgProfile(orgId, {
+      ...(b.branding !== undefined ? { branding: b.branding } : {}),
+      ...(b.about !== undefined ? { about: String(b.about).slice(0, 4000) } : {}),
+      ...(b.websiteUrl !== undefined ? { websiteUrl: String(b.websiteUrl).slice(0, 400) } : {}),
+      ...(b.onboardingComplete !== undefined ? { onboardingComplete: !!b.onboardingComplete } : {}),
+    });
+    return { ok: true, profile: await getOrgProfile(orgId) };
   });
 
   // ---- per-org admin (admins of that org, or the super-admin) ----

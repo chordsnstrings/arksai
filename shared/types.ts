@@ -126,6 +126,8 @@ export function computeCost(model: string, t: CostTokens): number {
 export interface SessionMeta {
   id: string;
   title: string;
+  /** Owning organization (tenant). Drives org-scoped shared memory + branding. */
+  orgId: string | null;
   projectId: string | null;
   repoUrl: string | null;
   repoName: string | null;
@@ -250,6 +252,23 @@ export interface ProjectBranding {
   palette?: string[];
   /** logo file name stored in the project's knowledge dir, if uploaded */
   logoName?: string;
+}
+
+/**
+ * An organization's shared profile — its identity + "about us", seeded during the
+ * agent-driven onboarding and injected (read-only) into every session in the org.
+ * Branding reuses ProjectBranding. NEVER shared across orgs.
+ */
+export interface OrgProfile {
+  branding?: ProjectBranding;
+  /** A short description of the org — what it does, who it serves. */
+  about?: string;
+  /** The org's website, used to seed the brand + about during onboarding. */
+  websiteUrl?: string;
+  /** Free-form answers captured during onboarding (industry, tone, priorities…). */
+  answers?: Record<string, string>;
+  /** True once the agent-driven onboarding has run. */
+  onboardingComplete: boolean;
 }
 
 // ---- Scheduled / recurring tasks (durable server-side) ----

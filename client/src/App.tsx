@@ -13,6 +13,7 @@ import { Launchpad } from './components/Launchpad';
 import { LoginScreen } from './components/LoginScreen';
 import { InviteAccept } from './components/InviteAccept';
 import { OperatorLogin } from './components/OperatorLogin';
+import { OrgOnboarding } from './components/OrgOnboarding';
 import { AdminDialog } from './components/AdminDialog';
 import { NewSessionDialog } from './components/NewSessionDialog';
 import { ProgressBar } from './components/ProgressBar';
@@ -31,6 +32,7 @@ export default function App() {
   const setModels = useStore((s) => s.setModels);
   const setCommands = useStore((s) => s.setCommands);
   const setMe = useStore((s) => s.setMe);
+  const me = useStore((s) => s.me);
   const sessions = useStore((s) => s.sessions);
   const activeId = useStore((s) => s.activeId);
   const live = useStore((s) => (activeId ? s.live[activeId] : undefined));
@@ -85,6 +87,12 @@ export default function App() {
     ) : (
       <Landing onSignIn={() => setShowLogin(true)} />
     );
+  }
+
+  // First-run: an org admin whose org hasn't been onboarded gets the agent-driven,
+  // fully-visible setup before the studio. Members inherit the org brain silently.
+  if (me && me.currentOrg && me.role === 'admin' && me.currentOrgOnboarded === false) {
+    return <OrgOnboarding onDone={() => api.me().then(setMe).catch(() => {})} />;
   }
 
   const activeMeta = sessions.find((s) => s.id === activeId) ?? null;

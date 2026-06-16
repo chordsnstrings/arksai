@@ -91,6 +91,7 @@ interface StoreState {
     user: { id: string; email: string; name: string | null; isSuperadmin: boolean } | null;
     orgs: Org[];
     currentOrg: string | null;
+    currentOrgOnboarded?: boolean;
     role: string | null;
     isSuperadmin: boolean;
   } | null;

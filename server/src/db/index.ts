@@ -172,6 +172,15 @@ async function migrate() {
     slug TEXT NOT NULL UNIQUE,
     created_at ${INT} NOT NULL
   )`);
+  // Per-org shared profile (brand + "about" + onboarding answers), seeded by the
+  // agent-driven onboarding. One row per org; NEVER shared across orgs.
+  await q(`CREATE TABLE IF NOT EXISTS org_profiles(
+    org_id TEXT PRIMARY KEY,
+    profile TEXT,
+    onboarding_complete ${INT} NOT NULL DEFAULT 0,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
   await q(`CREATE TABLE IF NOT EXISTS users(
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,

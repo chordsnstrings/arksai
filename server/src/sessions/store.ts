@@ -26,6 +26,7 @@ function rowToMeta(row: any): SessionMeta {
   return {
     id: row.id,
     title: row.title,
+    orgId: row.org_id ?? null,
     projectId: row.project_id ?? null,
     repoUrl: row.repo_url,
     repoName: row.repo_name,

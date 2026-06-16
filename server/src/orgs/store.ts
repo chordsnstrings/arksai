@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+import type { OrgProfile } from '../../../shared/types';
 import { q, qOne } from '../db';
 
 /**
@@ -98,6 +99,60 @@ export async function listOrgs(): Promise<Org[]> {
 }
 export async function updateOrgName(id: string, name: string): Promise<void> {
   await q('UPDATE orgs SET name = $1 WHERE id = $2', [name, id]);
+}
+
+// ---- per-org shared profile + memory scope (strictly per-tenant) ----
+
+/**
+ * The shared-memory scope key for an org. The org id MUST come from the
+ * authenticated session/identity — NEVER from client input — so one org can never
+ * address another org's memory.
+ */
+export function orgScope(orgId: string): string {
+  return `org:${orgId}`;
+}
+
+export async function getOrgProfile(orgId: string): Promise<OrgProfile> {
+  const r = await qOne('SELECT profile, onboarding_complete FROM org_profiles WHERE org_id = $1', [orgId]);
+  if (!r) return { onboardingComplete: false };
+  let data: any = {};
+  try {
+    data = JSON.parse(r.profile || '{}');
+  } catch {
+    /* corrupt JSON → ignore */
+  }
+  return { ...data, onboardingComplete: !!Number(r.onboarding_complete) };
+}
+
+export async function setOrgProfile(orgId: string, patch: Partial<OrgProfile>): Promise<OrgProfile> {
+  const cur = await getOrgProfile(orgId);
+  const next: OrgProfile = {
+    branding: patch.branding ?? cur.branding,
+    about: patch.about ?? cur.about,
+    websiteUrl: patch.websiteUrl ?? cur.websiteUrl,
+    answers: patch.answers ?? cur.answers,
+    onboardingComplete: patch.onboardingComplete ?? cur.onboardingComplete,
+  };
+  const { onboardingComplete, ...data } = next;
+  const now = Date.now();
+  const exists = await qOne('SELECT org_id FROM org_profiles WHERE org_id = $1', [orgId]);
+  if (exists) {
+    await q('UPDATE org_profiles SET profile = $1, onboarding_complete = $2, updated_at = $3 WHERE org_id = $4', [
+      JSON.stringify(data),
+      onboardingComplete ? 1 : 0,
+      now,
+      orgId,
+    ]);
+  } else {
+    await q('INSERT INTO org_profiles(org_id, profile, onboarding_complete, created_at, updated_at) VALUES ($1,$2,$3,$4,$5)', [
+      orgId,
+      JSON.stringify(data),
+      onboardingComplete ? 1 : 0,
+      now,
+      now,
+    ]);
+  }
+  return next;
 }
 
 // ---- users ----
