@@ -12,6 +12,7 @@ import { Landing } from './components/Landing';
 import { Launchpad } from './components/Launchpad';
 import { LoginScreen } from './components/LoginScreen';
 import { InviteAccept } from './components/InviteAccept';
+import { OperatorLogin } from './components/OperatorLogin';
 import { AdminDialog } from './components/AdminDialog';
 import { NewSessionDialog } from './components/NewSessionDialog';
 import { ProgressBar } from './components/ProgressBar';
@@ -71,16 +72,20 @@ export default function App() {
   useSessionEvents(authed === true ? activeId : null);
   useAutomation(authed === true ? activeId : null);
 
-  const inviteMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/invite\/(.+)$/) : null;
+  const path = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const inviteMatch = path.match(/^\/invite\/(.+)$/);
   if (inviteMatch) return <InviteAccept token={decodeURIComponent(inviteMatch[1])} />;
+  const isOperatorPath = path === '/operator' || path === '/operator/';
 
   if (authed === null) return null;
-  if (!authed)
+  if (!authed) {
+    if (isOperatorPath) return <OperatorLogin />;
     return showLogin ? (
       <LoginScreen onBack={() => setShowLogin(false)} />
     ) : (
       <Landing onSignIn={() => setShowLogin(true)} />
     );
+  }
 
   const activeMeta = sessions.find((s) => s.id === activeId) ?? null;
 

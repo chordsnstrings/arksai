@@ -83,7 +83,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - **Roles**: super-admin (operator) → org **admin** → **member**; new sessions/projects are stamped with the creator's org.
 - **Project-level visibility** — each project is org-wide by default, or **private to its creator + invited members** (enforced in every list/get query; cross-visibility access → 404). The owner or an admin manages sharing.
 - **Invite-only, link-based onboarding** (no email infra): the super-admin creates an org + invites its admin; org admins invite their team — each invite is a one-time link to copy/share. Opening it sets a password and logs the member straight in; memberships revoke instantly (killing live sessions).
-- **In-app admin panel**: create orgs, review the waitlist (leads), manage members + invite links, plus an org switcher; two-mode login (Team member email / Operator password) and an `/invite/<token>` accept page.
+- **In-app admin panel**: create orgs, review the waitlist (leads), manage members + invite links, plus an org switcher; team-member email login (the platform operator signs in separately at the unlinked `/operator`) and an `/invite/<token>` accept page.
 - Shipped **non-breaking**: the existing operator login keeps full access via the super-admin role, and all prior data lives in a bootstrapped "Default" org.
 
 ---
