@@ -77,7 +77,9 @@ export const generateDocTool: ToolDef = {
     'reading measure. The output is re-opened + design-reviewed — a sloppy/blind document is sent back to fix. ' +
     'For a report/brief, pass a `cover` (masthead + accent title + thesis + a KPI band of headline numbers + ' +
     'a metadata footer) for a designed cover page, and use `chart` blocks ({type:"chart", chart:{…}}) for ' +
-    'publication-grade data-viz (dual_axis/heatmap/line/bar) instead of describing numbers in prose.',
+    'publication-grade data-viz (dual_axis/heatmap/line/bar) instead of describing numbers in prose. ' +
+    'BRAND: if the user provided a LOGO, run extract_palette on it to take the accent from the brand and place the logo on the ' +
+    'cover/header; otherwise pick ONE deliberately beautiful palette — consistent with their other deliverables.',
   parameters: {
     type: 'object',
     properties: {

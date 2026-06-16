@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SessionMeta, SessionMode } from '@shared/types';
 import { computeCost, expandTemplate, FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
 import { api } from '../api/client';
@@ -27,10 +27,14 @@ export function Composer({
   const [text, setText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [attached, setAttached] = useState<string[]>([]);
   const [menuIdx, setMenuIdx] = useState(0);
   const [menuOpen, setMenuOpen] = useState(true);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Pending attachments are per-session; drop the hint when the session changes.
+  useEffect(() => setAttached([]), [meta.id]);
 
   const upsertSession = useStore((s) => s.upsertSession);
   const addUserMessage = useStore((s) => s.addUserMessage);
@@ -254,6 +258,7 @@ export function Composer({
     }
     if (running) return;
     setText('');
+    setAttached([]);
     await sendToAgent(value);
   };
 
@@ -272,6 +277,10 @@ export function Composer({
         } catch {}
         throw new Error(message);
       }
+      // Seamless: surface what's attached and focus the box so the user just types
+      // the request — the agent is told about these files automatically on the next run.
+      setAttached((prev) => [...prev, ...list.map((f) => f.name)]);
+      taRef.current?.focus();
     } catch (err: any) {
       sys(err?.message ?? 'Upload failed', 'error');
     } finally {
@@ -362,12 +371,41 @@ export function Composer({
             autoGrow();
           }}
           onKeyDown={onKeyDown}
+          onPaste={(e) => {
+            const dt = e.clipboardData;
+            if (!dt) return;
+            // Files copied from the OS file manager arrive in .files; a pasted
+            // screenshot sometimes only shows up as a .items file blob.
+            let files: File[] = Array.from(dt.files);
+            if (files.length === 0) {
+              files = Array.from(dt.items)
+                .filter((it) => it.kind === 'file')
+                .map((it) => it.getAsFile())
+                .filter((f): f is File => !!f);
+            }
+            if (files.length > 0) {
+              e.preventDefault(); // don't also paste a path/blob URL as text
+              void uploadFiles(files);
+            }
+          }}
         />
+        {attached.length > 0 && (
+          <div className="composer-attached">
+            {attached.map((n, i) => (
+              <span key={`${n}-${i}`} className="att-chip" title={n}>
+                📎 {n}
+              </span>
+            ))}
+            <span className="att-hint">
+              attached — tell me what to do{attached.length > 1 ? ' with them' : ''}, or just say “go”.
+            </span>
+          </div>
+        )}
         <div className="composer-bar">
           <input ref={fileRef} type="file" multiple hidden onChange={(e) => e.target.files && uploadFiles(e.target.files)} />
           <button
             className="attach-btn"
-            title="Upload files to the workspace (or drag & drop)"
+            title="Attach files — click, drag & drop, or paste (⌘/Ctrl+V)"
             disabled={uploading}
             onClick={() => fileRef.current?.click()}
           >

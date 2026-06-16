@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { isFreeEmailDomain } from '../../../shared/types';
 import { config } from '../config';
 import { q } from '../db';
 import { SESS_COOKIE } from '../auth';
@@ -87,6 +88,8 @@ export function registerOrgRoutes(app: FastifyInstance) {
     const b = (req.body ?? {}) as { email?: string; role?: string };
     const email = String(b.email ?? '').trim();
     if (!EMAIL_RE.test(email)) return reply.code(400).send({ error: 'A valid email is required.' });
+    if (isFreeEmailDomain(email))
+      return reply.code(400).send({ error: 'Use a company email address — free/personal email domains (gmail, outlook, etc.) are not allowed.' });
     const role: Role = b.role === 'admin' ? 'admin' : 'member';
     const { invite, token } = await createInvite({ orgId, email, role, invitedBy: req.identity?.userId ?? null });
     return reply.code(201).send({ invite, link: inviteLink(req, token) });
@@ -128,6 +131,8 @@ export function registerOrgRoutes(app: FastifyInstance) {
     const org = await createOrg(name.slice(0, 80));
     let adminInviteLink: string | null = null;
     const adminEmail = String(b.adminEmail ?? '').trim();
+    if (adminEmail && isFreeEmailDomain(adminEmail))
+      return reply.code(400).send({ error: 'Use a company email for the org admin — free/personal email domains are not allowed.' });
     if (EMAIL_RE.test(adminEmail)) {
       const { token } = await createInvite({ orgId: org.id, email: adminEmail, role: 'admin', invitedBy: 'superadmin' });
       adminInviteLink = inviteLink(req, token);

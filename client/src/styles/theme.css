@@ -535,6 +535,33 @@ button { font-family: inherit; cursor: pointer; }
 .file-chip .size { color: var(--text-faint); font-size: 12px; }
 .file-chip .dl { color: var(--accent); }
 
+/* pending attachments in the composer (just uploaded, not yet sent) */
+
+.composer-attached {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 2px 2px 8px;
+}
+.composer-attached .att-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--text);
+}
+.composer-attached .att-hint { font-size: 12px; color: var(--text-muted); }
+
 /* status footer (live run) */
 
 .status-footer {

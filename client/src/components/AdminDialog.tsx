@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { emailDomain, isFreeEmailDomain } from '@shared/types';
 import { api, type Lead, type Org, type OrgMember } from '../api/client';
 import { useStore } from '../state/sessionStore';
 
@@ -22,6 +23,14 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
   const [orgName, setOrgName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
 
+  // The inviting admin's own domain — used to flag invites to someone OUTSIDE the
+  // org. Skipped for the super-admin (who onboards many orgs) and if their own
+  // address is somehow a free one.
+  const myDomain = isSuper || isFreeEmailDomain(me?.user?.email ?? '') ? '' : emailDomain(me?.user?.email ?? '');
+  const inviteeDomain = emailDomain(email);
+  const freeDomain = !!email.trim() && isFreeEmailDomain(email);
+  const domainMismatch = !!inviteeDomain && !!myDomain && inviteeDomain !== myDomain;
+
   const refreshMembers = (id: string) => {
     if (id) api.listMembers(id).then(setMembers).catch(() => setMembers([]));
   };
@@ -34,8 +43,19 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
   }, [isSuper]);
 
   const invite = async () => {
-    if (!email.trim() || !orgId) {
+    const addr = email.trim();
+    if (!addr || !orgId) {
       setError('Enter a valid email.');
+      return;
+    }
+    if (isFreeEmailDomain(addr)) {
+      setError('Use a company email — personal/free email domains (gmail, outlook, …) are not allowed.');
+      return;
+    }
+    if (
+      domainMismatch &&
+      !confirm(`${inviteeDomain} is outside your organization’s domain (${myDomain}). Invite this person anyway?`)
+    ) {
       return;
     }
     setBusy(true);
@@ -65,6 +85,10 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
   const createOrg = async () => {
     if (!orgName.trim()) {
       setError('An organization name is required.');
+      return;
+    }
+    if (adminEmail.trim() && isFreeEmailDomain(adminEmail)) {
+      setError('Use a company email for the org admin — personal/free email domains are not allowed.');
       return;
     }
     setBusy(true);
@@ -112,16 +136,40 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
         </select>
 
         <label style={{ marginTop: 14 }}>Invite a member</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input placeholder="work@email.com" value={email} onChange={(e) => setEmail(e.target.value)} style={{ flex: 1 }} />
-          <select value={role} onChange={(e) => setRole(e.target.value as 'member' | 'admin')}>
+        <input
+          type="email"
+          autoComplete="off"
+          placeholder="name@company.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !busy && invite()}
+          style={{ width: '100%', boxSizing: 'border-box' }}
+        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as 'member' | 'admin')}
+            style={{ flex: '0 0 auto', width: 130 }}
+            title="Role in the organization"
+          >
             <option value="member">Member</option>
             <option value="admin">Admin</option>
           </select>
-          <button className="send-btn" onClick={invite} disabled={busy}>
+          <span style={{ flex: 1 }} />
+          <button className="send-btn" onClick={invite} disabled={busy || !email.trim() || freeDomain}>
             Invite
           </button>
         </div>
+        {freeDomain ? (
+          <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>
+            Company email required — personal/free email domains (gmail, outlook, …) aren’t allowed.
+          </div>
+        ) : domainMismatch ? (
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 6 }}>
+            Heads up: <strong>{inviteeDomain}</strong> is outside your organization’s domain (<strong>{myDomain}</strong>) —
+            you’ll be asked to confirm.
+          </div>
+        ) : null}
         {link && (
           <div className="lnd-thanks" style={{ marginTop: 10 }}>
             <span className="cc-check">→</span>

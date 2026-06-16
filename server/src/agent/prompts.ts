@@ -116,10 +116,12 @@ SHOULD pause for input; skip anything already answered in the message/memory):
    internal)? This drives structure, tone, emphasis and the default theme —
    shareholder/board docs are restrained and serious; pitches are bolder.
 3. Branding & design direction — ALWAYS ask: do they have brand colours and an
-   accent? Prompt them to provide hex colours OR to UPLOAD a brand logo (it lands
-   in uploads/ — use it on the cover/headers and, if useful, derive the accent
-   from it). If they have no brand, propose 2–3 named palettes (hex swatches + a
-   one-line vibe) and let them pick. Always have a strong light default ready.
+   accent, and a LOGO? Prompt them to UPLOAD a brand logo (it lands in uploads/ and
+   you're told about it automatically) — EMBED it on the cover masthead + interior
+   mastheads as <img src="uploads/<file>">, and call extract_palette on it to take the
+   ACCENT + brand colours straight from the logo (nudge for AA contrast). Also accept
+   hex colours. If they have no brand, choose ONE deliberately beautiful palette (or
+   propose 2–3 named ones to pick from). Always have a strong default ready.
 4. Scope: title, the sections to include, length, must-have points.
 
 DATA RULES (critical):
@@ -231,45 +233,59 @@ HOW TO BUILD (the pipeline):
       .rule { border:0; border-top:1px solid var(--line); margin:8mm 0 6mm }   /* section divider */
       .cols { column-count:2; column-gap:9mm; column-rule:1px solid var(--line) }
       .masthead { display:flex; justify-content:space-between; font:.66em var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line); padding-bottom:1.5mm; margin-bottom:6mm }
-- COVER — design it; a great cover sets the whole impression. Keep it IMAGE-FREE
-  (type + rules only, unless a real logo was supplied) but COMPOSED to fill the
-  page top-to-bottom, not a title floating in emptiness. Build it from these
-  elements, top → bottom (adapt, don't pad):
-    1. MASTHEAD row at the very top — a text wordmark / report series label + a
-       thin full-width hairline (e.g. "ARKSAI · INTELLIGENCE BRIEF" — text only).
+- COVER — design a STRIKING cover; it sets the whole impression. The cover is a
+  FULL-BLEED canvas: a background FIELD that runs edge-to-edge to the paper (NO white
+  side gutters — a centred title inset in a narrow column is the wrong, weak look),
+  with a TYPOGRAPHY-LED foreground composed top→bottom to fill the page. No imagery is
+  needed — scale, weight, the accent and hairlines do the work. Build from these
+  elements (a flex COLUMN, justify-content:space-between, so it's balanced & full):
+    1. MASTHEAD row at the very top — the BRAND LOGO if one was supplied (the user
+       uploaded one to uploads/ and you're told about it on this run; place it as
+       <img src="uploads/<file>" style="height:11mm;width:auto"> at top-left or
+       centred, with a hairline under the row), OTHERWISE a clean text wordmark /
+       report-series label. NEVER fabricate a logo — no emoji, clip-art, or a
+       filled-accent badge standing in for one.
     2. A KICKER/eyebrow (small-caps, tracked) — the report category or client.
-    3. The TITLE, large Source Serif 4 display, with the ACCENT on ONE line or
-       one key word (not the whole title); a clear subtitle beneath.
-    4. A one-line THESIS / positioning statement (the report's argument in a
-       sentence) — this is what makes it read like a considered briefing.
-    5. A KPI BAND on the cover — 3–5 headline numbers in an EVEN row (big figure
-       + tiny label each), divided by thin vertical hairlines. This is the single
-       most important upgrade: it signals substance immediately. (Use real figures
-       from the data; never invent.)
+    3. The TITLE — large Source Serif 4 DISPLAY type (push the scale, ~40–64pt),
+       with the ACCENT on ONE line or one key word (not the whole title); a clear
+       subtitle beneath. This is the HERO — let it dominate the canvas.
+    4. A one-line THESIS / positioning statement (the report's argument in a sentence).
+    5. A KPI BAND — 3–5 headline numbers in an EVEN row (big figure + tiny label),
+       divided by thin vertical hairlines. Give EVERY cell the SAME internal padding
+       (incl. the first — never zero its left padding) so no number sits flush against
+       an edge or rule, and leave clear breathing room between the band and the footer.
+       Signals substance immediately. Use real figures from the data; never invent.
     6. A METADATA FOOTER pinned to the bottom — coverage window · data source ·
-       prepared-by/for · date, and a "CONFIDENTIAL" chip when apt — separated by
-       a hairline. Use justify-content:space-between so it spans the measure.
-  Use the FULL printable height: make .cover a column with the masthead/title block
-  at the top and the metadata footer at the bottom (space-between), KPI band above
-  the footer — so the page is balanced, not centre-on-emptiness.
-  DARK FULL-BLEED option (first-class — pick it when the brief/brand suits a bold,
-  data-confident feel, e.g. a finance/BI/markets brief or a dark accent): a deep
-  ink/near-black cover that bleeds to the page edge with light type and the accent
-  for the title line + KPI figures. To bleed past the @page margins, give the cover
-  a full-viewport box and negative margins equal to the page margins, e.g.
-    .cover.dark { background:#15140f; color:#f3efe6; margin:-20mm -26mm; padding:24mm 26mm;
-                  min-height:100vh; box-sizing:border-box }
-  Keep the rest of the document LIGHT (the dark is a cover statement, not the whole
-  report) and respect CONTRAST on the dark cover (light text, accent for emphasis).
-  Light editorial cover stays the DEFAULT when no strong reason to go dark.
+       prepared-by/for · date, + a "CONFIDENTIAL" chip when apt — over a hairline,
+       justify-content:space-between so it spans the measure.
+  BACKGROUND FIELD — pick one to fit the brand, ALWAYS full-bleed (the .cover CSS
+  below gives you the bleed mechanic; add the class):
+    • DARK ink — deep near-black (#15140f / #101216), light type, accent on the title
+      line + KPI figures. The default for finance/BI/markets and bold, data-confident
+      briefs (this is the "full-screen background" most briefs want).
+    • DEEP ACCENT — a saturated accent field with light type, for a brand-forward cover.
+    • LIGHT editorial — warm paper/ivory or a faint accent wash with ink type and
+      accent rules; still EDGE-TO-EDGE, just not dark. Use for a restrained, classic feel.
+  The interior text sits on the COVER'S OWN generous padding (~24–28mm), not the
+  @page gutters. Keep CONTRAST safe (light type on dark, ink on light) and keep the
+  REST of the document light/editorial — the cover field is a statement, not the
+  whole report.
 - PAGE MECHANICS — get these exactly right (margins must repeat on EVERY page and
   nothing may bleed across a page break). Put the MARGINS ON @page, never on a
   fixed-width padded container, and size the cover to the printable height:
     @page { size: A4; margin: 20mm 26mm }            /* GENEROUS newspaper-style side gutters; repeats every page */
-    .cover { min-height: calc(100vh - 40mm);         /* = page − top&bottom margin (2×20mm) */
-             display:flex; flex-direction:column; justify-content:center;
-             align-items:center; text-align:center;
+    @page cover { margin: 0 }                        /* the COVER page bleeds — ZERO margin = full canvas */
+    /* TRUE FULL-BLEED cover via a NAMED PAGE: the cover lives on its own zero-margin
+       page so its background field runs to the PAPER EDGE on all four sides (no white
+       frame), while every interior page keeps the @page margins above. The cover
+       supplies its OWN padding. (Do NOT use negative margins — that left a white frame.) */
+    html, body { background: var(--bg) }             /* interior pages stay light; the cover paints its own field */
+    .cover { page: cover; min-height: 100vh; padding: 26mm 28mm; box-sizing: border-box;
+             display:flex; flex-direction:column; justify-content:space-between;
              page-break-after: always }              /* COVER IS ITS OWN PAGE — nothing shares it */
+    .cover.dark   { background:#15140f; color:#f3efe6 }   /* light type; accent for the title line + KPIs */
+    .cover.accent { background:var(--accent); color:#fff }
+    .cover.light  { background:var(--surface) }           /* edge-to-edge light field, ink type */
     .toc { page-break-after: always }                /* a Contents page, if used, is its OWN page */
     .break { break-before: page }                    /* apply DELIBERATELY for a major division — NOT on every heading */
     thead { display: table-header-group }             /* repeat table headers */
@@ -295,8 +311,8 @@ HOW TO BUILD (the pipeline):
     tbody td+td, thead th+th { border-left:1px solid var(--surface) }/* column variation */
     tbody td { border-bottom:1px solid var(--line) }
   (Keep the side margins WIDE — 24–28mm — for the editorial/newspaper feel the
-  brand wants; keep .cover's calc = 2× the vertical margin. Render layout
-  "slides" → use a landscape page instead.)
+  brand wants on the INTERIOR pages; the COVER bleeds full because it sits on the
+  zero-margin @page cover. Render layout "slides" → use a landscape page instead.)
 - CONTENT FLOW: let sections FLOW and fill each page — do NOT force every section
   onto its own page (that leaves lonely, half-empty pages, e.g. a one-line
   "Verdict" alone). Only start a new page for a genuinely major division or when
@@ -326,10 +342,10 @@ HOW TO BUILD (the pipeline):
   (tinted surface + dark text + accent left-bar), not dark blocks, unless the
   user explicitly asks for dark.
 - ICONS & TYPOGRAPHY: use tasteful LINE icons (Lucide/Feather style) for section
-  markers, KPI tiles, and key bullets — never emoji or clip-art. The cover is
-  IMAGE-FREE (no decorative icon or filled-accent badge as a faux logo unless the
-  user supplied a real brand logo) but it must still be DESIGNED, not a lonely
-  centred title — see "COVER" below. CRITICAL: INLINE
+  markers, KPI tiles, and key bullets — never emoji or clip-art. The cover carries
+  the supplied brand LOGO when there is one (embed the uploaded image) and otherwise
+  NO faux logo — never a decorative icon, emoji, or filled-accent badge standing in
+  for one; it is carried by the full-bleed field + display type (see "COVER"). CRITICAL: INLINE
   the SVG markup directly (an external <use href="icons.svg#..."> does NOT render
   in the PDF). add_fonts installs icons.svg as a SOURCE — read it and copy the
   icon's inner <path>s into an inline element, e.g.:

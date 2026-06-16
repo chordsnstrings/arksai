@@ -40,3 +40,36 @@ export async function extractText(absPath: string): Promise<string | null> {
   }
   return null;
 }
+
+const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
+
+/**
+ * Build the per-run "the user just uploaded …" note injected for the (text-only)
+ * agent so it AUTOMATICALLY uses an uploaded file without the user re-instructing.
+ * Pure + testable. `files` are workspace-relative paths (e.g. "uploads/data.csv"),
+ * excluding the derived ".extracted.txt" sidecars. Returns null if there's nothing
+ * to note. Images route to see_image; office/data files route to their extracted
+ * sidecar; anything else is read directly with read_file.
+ */
+export function buildUploadNote(files: string[], minimaxAvailable: boolean): string | null {
+  if (!files.length) return null;
+  const images = files.filter((f) => IMAGE_RE.test(f));
+  const docs = files.filter((f) => !IMAGE_RE.test(f) && EXTRACTABLE.has(path.extname(f).toLowerCase()));
+  const others = files.filter((f) => !IMAGE_RE.test(f) && !EXTRACTABLE.has(path.extname(f).toLowerCase()));
+  const clauses: string[] = [];
+  if (docs.length)
+    clauses.push(
+      `document/data file(s): ${docs.map((f) => `${f} (read its extracted text at ${f}.extracted.txt)`).join('; ')}`,
+    );
+  if (others.length) clauses.push(`file(s): ${others.join(', ')} (read with read_file)`);
+  if (images.length)
+    clauses.push(
+      minimaxAvailable
+        ? `image(s): ${images.join(', ')} (you are text-only — call see_image on each before answering)`
+        : `image(s): ${images.join(', ')} (image viewing is unavailable — MINIMAX_API_KEY is not set — so tell the user you can't view them rather than guessing)`,
+    );
+  return (
+    `[System note: the user just uploaded ${clauses.join('; and ')}. ` +
+    `Use these to fulfil the request — open/read them now; do NOT ask the user to paste or re-upload, and do not guess their contents.]`
+  );
+}

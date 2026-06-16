@@ -9,6 +9,7 @@ import { bus } from '../events/bus';
 import * as store from '../sessions/store';
 import { diffStat, repoDir } from '../sessions/workspace';
 import { scrubSecrets } from '../lib/exec';
+import { buildUploadNote } from '../lib/extract';
 import { buildSystemPrompt } from './prompts';
 import { getToolsForMode } from './tools';
 import { ToolError, type ToolCtx } from './tools/common';
@@ -242,32 +243,30 @@ export class AgentRun {
     }
   }
 
-  /** Inject a note so the text-only agent knows an image was uploaded and (if
-   *  vision is on) to see_image it. Only recent uploads, so old ones don't nag. */
-  private noteUploadedImages(dir: string, context: any[]) {
+  /** Inject a note so the text-only agent AUTOMATICALLY knows the user uploaded
+   *  file(s) this turn and uses them — images via see_image, office/data files via
+   *  their extracted sidecar, anything else via read_file. Only recent uploads, so
+   *  old ones don't nag, and the derived ".extracted.txt" sidecars are skipped. */
+  private noteRecentUploads(dir: string, context: any[]) {
     try {
       const upDir = path.join(dir, 'uploads');
       if (!fs.existsSync(upDir)) return;
       const cutoff = Date.now() - 20 * 60_000;
-      const imgs = fs
+      const files = fs
         .readdirSync(upDir)
-        .filter((f) => /\.(png|jpe?g|webp|gif|bmp)$/i.test(f))
+        .filter((f) => !f.endsWith('.extracted.txt'))
         .filter((f) => {
           try {
-            return fs.statSync(path.join(upDir, f)).mtimeMs >= cutoff;
+            const st = fs.statSync(path.join(upDir, f));
+            return st.isFile() && st.mtimeMs >= cutoff;
           } catch {
             return false;
           }
         })
-        .slice(0, 8);
-      if (!imgs.length) return;
-      const paths = imgs.map((f) => `uploads/${f}`).join(', ');
-      context.push({
-        role: 'user',
-        content: this.minimaxAvailable
-          ? `[System note: the user uploaded image file(s): ${paths}. You are text-only — if the request relates to them, call see_image with the path to view each one before answering. Do not guess their contents.]`
-          : `[System note: image file(s) were uploaded (${paths}), but image viewing is unavailable (MINIMAX_API_KEY is not set). Tell the user you can't view images right now rather than guessing.]`,
-      });
+        .slice(0, 12)
+        .map((f) => `uploads/${f}`);
+      const note = buildUploadNote(files, this.minimaxAvailable);
+      if (note) context.push({ role: 'user', content: note });
     } catch {
       /* uploads scan is best-effort */
     }
@@ -299,10 +298,10 @@ export class AgentRun {
     const context = await store.getContext(sessionId);
     context.push({ role: 'user', content: userText });
 
-    // Make UPLOADED IMAGES visible to the text-only agent: it can't read an image,
-    // so tell it the file exists and (if vision is on) to see_image it. Without
-    // this the agent has no idea a photo was uploaded.
-    this.noteUploadedImages(dir, context);
+    // Make UPLOADED FILES visible to the text-only agent: it can't see an image and
+    // won't notice a freshly-dropped CSV/PDF/doc, so tell it exactly what was just
+    // uploaded and how to open each — so it acts WITHOUT the user re-instructing.
+    this.noteRecentUploads(dir, context);
 
     // Classify the task once → drives the design context, gating visual QC, and
     // the quality model floor.

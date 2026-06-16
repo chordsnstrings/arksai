@@ -34,6 +34,13 @@ Start from the bundled design system; do not hand-roll mediocre CSS.
 - COLOR: light, restrained, cohesive — a near-black ink, soft surfaces, and ONE
   accent used sparingly (~5–10%, for emphasis/primary actions), not on everything.
   Dark theme only if it fits the product. Always ensure strong contrast (WCAG AA).
+- BRAND & LOGO (do this for EVERY deliverable — web, deck, doc or report): if the
+  user uploaded a LOGO, build the identity FROM it — call extract_palette on the logo
+  to read its real colours, use the dominant brand colour as the accent (nudge it for
+  AA contrast), pair it with cohesive neutrals, and PLACE the logo (header/nav/cover/
+  masthead). If there's NO logo, choose ONE deliberately beautiful palette (a refined
+  accent + neutrals that go together) — never a random/default blue. Carry the SAME
+  identity — logo, accent, type — consistently across every surface you produce.
 - SPACE & COMPOSITION: align everything to a 4/8px spacing scale; generous, even
   whitespace; balanced layouts on a grid; thin rules over heavy boxes. Fill the
   viewport thoughtfully — no lonely elements, no cramped clutter.

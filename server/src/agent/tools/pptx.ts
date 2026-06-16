@@ -72,7 +72,9 @@ export const generatePptxTool: ToolDef = {
     '(coverage · source · preparedBy · date) with `confidential`. For real data-viz pass a `chart` spec ' +
     '(uses render_chart — dual_axis/heatmap/line/bar/etc., publication-grade) instead of the basic native ' +
     'chartType. Give the deck RHYTHM by alternating a few `theme:"dark"` slides (cover/section/closing) with ' +
-    'light content slides. One idea per slide, ≤6 bullets, big stat slides (put a line ICON on each via stats[].icon — never emoji), generous margins, accent only on the key series.',
+    'light content slides. One idea per slide, ≤6 bullets, big stat slides (put a line ICON on each via stats[].icon — never emoji), generous margins, accent only on the key series. ' +
+    'BRAND: if the user provided a LOGO, run extract_palette on it to take the accent straight from the brand and place the ' +
+    'logo on the cover; otherwise use ONE deliberately beautiful palette — the SAME identity (logo, accent, type) you use across their other deliverables.',
   parameters: {
     type: 'object',
     properties: {

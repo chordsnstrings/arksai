@@ -42,7 +42,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - **`generate_pptx`** — real, editable PowerPoint (PptxGenJS): editorial 16:9 decks with a **designed cover** (masthead · accent title + thesis · a **KPI band** of headline numbers · metadata footer · `CONFIDENTIAL`) and a **dark/light slide rhythm** (per-slide theme), **publication-grade charts** via `render_chart` (dual-axis/heatmap/… embedded as crisp images, beyond the basic native bar/line/pie), title/section/bullets/two-col/stat/quote/table/image layouts, one accent, and an embedded preview for the canvas + the visual gate.
 - Report mode — PDFs and 16:9 decks with a full editorial protocol (newspaper margins, anti-orphan `.lede`, kickers, rules, page mechanics); charts/figures are ATOMIC (`.keep`/`.fig`) so nothing splits across a page, and every page is auto design-reviewed before delivery.
 - **`render_chart`** — publication-grade charts as embeddable SVG (Vega-Lite → SVG, server-side, no browser/Python): line, multi-line, **dual-axis** (volume bars + a trend line), bar/bar-h, stacked, area, donut, and **heatmap** (e.g. month×year). Editorial defaults baked in — flat 2D, muted base + the report accent on the key series only, direct value labels, light gridlines — so charts are on-brand by default and inline straight into the report HTML, and also rasterize to a transparent PNG so the SAME editorial charts embed into `.pptx` decks and `.docx` documents.
-- **Designed cover** — the report cover is image-free but composed to fill the page: a text masthead, accent title line, one-line thesis, a **KPI band on the cover**, and a metadata footer (coverage · source · prepared-by · date · CONFIDENTIAL), with an optional dramatic dark full-bleed variant for finance/BI/markets briefs.
+- **Designed, full-bleed cover** — the report cover is a **true edge-to-edge canvas** (a named zero-margin `@page` so the background field reaches all four paper edges — interior pages keep their margins), with a typography-led foreground: the **brand logo** in the masthead, accent title line, one-line thesis, a **KPI band** (even cell padding, breathing room), and a metadata footer. Dark / deep-accent / light field options.
 - **Analysis & methodology rigor** — the report protocol now demands a systematic analysis pass first (profile columns, full cross-tabs, reconcile conflicting fields), an insight-led narrative (counter-intuitive reframe → evidence → ranked recs tied to specific data points), and a Methodology/Notes section (proxies + their limits, data gaps, source attribution).
 - In-app doc viewer (xlsx/csv/docx/pptx → styled HTML); Canvas preview (Preview/Files/Doc tabs, port auto-detect).
 
@@ -54,7 +54,8 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Delivery moment — "Booting your live app…" loading + retry, and a completion card ("✓ Your app is ready" → Open / Get a shareable link).
 
 ## Smart agent
-- Sees uploaded images — the agent is told an image was uploaded and uses `see_image` to read it (or says vision is unavailable if unkeyed).
+- Sees **every** upload, automatically — on each run the agent is told exactly what was just uploaded and how to open it (images → `see_image`, office/data files → their auto-extracted `.extracted.txt` sidecar, anything else → `read_file`), so it acts without the user re-instructing. Files attach via the `+` button, **drag-and-drop, or clipboard paste** (copy a file/screenshot → ⌘/Ctrl-V); a `📎` chip shows what's attached.
+- **Brand from the logo** — `extract_palette` reads the real colours out of an uploaded logo (deterministic, no vision model needed) so the accent is taken from the brand; the **same identity (logo, accent, type) is applied across every deliverable** — web apps, decks, docs, and reports — and a deliberately beautiful palette is chosen when there's no logo.
 - Auto mode/engine switching — `switch_mode` lets a chat become a build/report mid-conversation; the runner reloads the toolset, prompt, and engine on the fly with an inline note.
 
 ## B2B department platform
@@ -89,13 +90,13 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - **Roles**: super-admin (operator) → org **admin** → **member**; new sessions/projects are stamped with the creator's org.
 - **Project-level visibility** — each project is org-wide by default, or **private to its creator + invited members** (enforced in every list/get query; cross-visibility access → 404). The owner or an admin manages sharing.
 - **Invite-only, link-based onboarding** (no email infra): the super-admin creates an org + invites its admin; org admins invite their team — each invite is a one-time link to copy/share. Opening it sets a password and logs the member straight in; memberships revoke instantly (killing live sessions).
-- **In-app admin panel**: create orgs, review the waitlist (leads), manage members + invite links, plus an org switcher; team-member email login (the platform operator signs in separately at the unlinked `/operator`) and an `/invite/<token>` accept page.
+- **In-app admin panel**: create orgs, review the waitlist (leads), manage members + invite links, plus an org switcher; team-member email login (the platform operator signs in separately at the unlinked `/operator`) and an `/invite/<token>` accept page. The invite field is a prominent full-width email; **free/personal email domains are blocked** (server-authoritative, gmail/outlook/…) and an invite whose domain differs from the admin's own is **flagged as out-of-org** (confirm to proceed).
 - Shipped **non-breaking**: the existing operator login keeps full access via the super-admin role, and all prior data lives in a bootstrapped "Default" org.
 
 ---
 
 ## Status & honest caveats
-- **120 automated tests green**; typecheck + build clean.
+- **133 automated tests green**; typecheck + build clean.
 - Anything needing the **model key or open egress** (live builds, real vision calls, scheduled runs firing, external data/webhook delivery) is wired + unit/integration-tested but fully exercised only on the **Droplet**.
 - **Staged (needs Droplet credentials):** OAuth Google Sheets/Drive & CRM connectors, a Slack app, SMTP email.
 - **Multi-tenant org platform — core SHIPPED** (per-user accounts, roles/invites, org-scoped data, in-app admin panel). Remaining: the invite-only landing revamp, per-org department templates, and the AUDIT-P0 low-priv agent uid-drop before any untrusted/self-serve org. The live multi-user flow should be validated on the Droplet.

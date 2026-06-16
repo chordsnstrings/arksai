@@ -20,6 +20,7 @@ import { switchModeTool } from './mode';
 import { fetchDataTool } from './data';
 import { sendWebhookTool } from './outbound';
 import { generateComplianceFileTool } from './compliance';
+import { extractPaletteTool } from './palette';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -54,6 +55,7 @@ export const ALL_TOOLS: ToolDef[] = [
   fetchDataTool,
   sendWebhookTool,
   generateComplianceFileTool,
+  extractPaletteTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,
@@ -75,6 +77,7 @@ const REPORT_TOOLS = new Set([
   'generate_spreadsheet',
   'generate_doc',
   'generate_pptx',
+  'extract_palette',
   'switch_mode',
   'fetch_data',
   'send_webhook',

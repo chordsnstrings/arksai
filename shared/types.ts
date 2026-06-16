@@ -401,3 +401,30 @@ export interface SessionDetail {
   meta: SessionMeta;
   timeline: TimelineItem[];
 }
+
+/**
+ * Free / consumer email providers — invites to an organization should use a
+ * company address, so these are rejected (server-authoritative) and flagged in
+ * the UI. ("for now": we block personal email outright.)
+ */
+export const FREE_EMAIL_DOMAINS = new Set<string>([
+  'gmail.com', 'googlemail.com',
+  'yahoo.com', 'yahoo.co.uk', 'yahoo.co.in', 'ymail.com', 'rocketmail.com',
+  'hotmail.com', 'hotmail.co.uk', 'outlook.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'mac.com', 'aol.com',
+  'proton.me', 'protonmail.com', 'pm.me',
+  'gmx.com', 'gmx.net', 'mail.com', 'yandex.com', 'yandex.ru',
+  'zoho.com', 'tutanota.com', 'tuta.io', 'hey.com', 'fastmail.com',
+]);
+
+/** The lowercased domain part of an email, or '' if it isn't one. */
+export function emailDomain(email: string): string {
+  const e = String(email ?? '').trim().toLowerCase();
+  const at = e.lastIndexOf('@');
+  return at >= 0 ? e.slice(at + 1) : '';
+}
+
+/** True if the email is on a free/consumer provider (gmail, outlook, …). */
+export function isFreeEmailDomain(email: string): boolean {
+  return FREE_EMAIL_DOMAINS.has(emailDomain(email));
+}
