@@ -46,12 +46,14 @@ function rowToMeta(row: any): SessionMeta {
 }
 
 /**
- * Org scope for a request. `undefined` (internal callers) or `isSuperadmin`
- * means "no org filter" — so the runner/scheduler and the platform operator are
- * unaffected; only org members are constrained to their current org.
+ * Org scope for a request. `undefined` (internal callers: the runner, the scheduler
+ * tick, the public /apps serving path) means "no org filter". An identity bound to an
+ * org is ALWAYS filtered to that org — INCLUDING the platform operator, which sees only
+ * its OWN workspace, never a commingled cross-org list. Cross-org admin actions are
+ * gated on `isSuperadmin` at their own endpoints, never via passive data reads.
  */
 export type Scope = { orgId: string | null; userId: string; isSuperadmin: boolean } | undefined;
-const scoped = (scope: Scope) => !!scope && !scope.isSuperadmin;
+const scoped = (scope: Scope) => !!scope && scope.orgId != null;
 
 export async function createSession(opts: {
   repoUrl: string | null;
@@ -303,9 +305,11 @@ export async function getProject(id: string, scope?: Scope): Promise<Project | n
   const row = await qOne('SELECT * FROM projects WHERE id = $1', [id]);
   if (!row) return null;
   if (scoped(scope)) {
-    if (row.org_id !== scope!.orgId) return null; // cross-org → not found
+    if (row.org_id !== scope!.orgId) return null; // cross-org → not found (operator included)
     const vis = row.visibility ?? 'org';
-    if (vis !== 'org' && row.owner_user_id !== scope!.userId) {
+    // Per-user private-project visibility applies to members; the operator stays an
+    // admin WITHIN its own workspace (it just can't cross orgs, enforced above).
+    if (!scope!.isSuperadmin && vis !== 'org' && row.owner_user_id !== scope!.userId) {
       const m = await qOne('SELECT 1 AS x FROM project_members WHERE project_id = $1 AND user_id = $2', [id, scope!.userId]);
       if (!m) return null; // private project, not the owner and not invited
     }
@@ -316,15 +320,18 @@ export async function getProject(id: string, scope?: Scope): Promise<Project | n
 }
 
 export async function listProjects(scope?: Scope): Promise<Project[]> {
-  const rows = scoped(scope)
-    ? await q(
-        `SELECT * FROM projects WHERE org_id = $1
-           AND (visibility = 'org' OR visibility IS NULL OR owner_user_id = $2
-                OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = projects.id AND pm.user_id = $3))
-         ORDER BY updated_at DESC`,
-        [scope!.orgId, scope!.userId, scope!.userId],
-      )
-    : await q('SELECT * FROM projects ORDER BY updated_at DESC');
+  const rows = !scoped(scope)
+    ? await q('SELECT * FROM projects ORDER BY updated_at DESC')
+    : scope!.isSuperadmin
+      ? // operator: every project in ITS OWN org (admin within the workspace, no cross-org)
+        await q('SELECT * FROM projects WHERE org_id = $1 ORDER BY updated_at DESC', [scope!.orgId])
+      : await q(
+          `SELECT * FROM projects WHERE org_id = $1
+             AND (visibility = 'org' OR visibility IS NULL OR owner_user_id = $2
+                  OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = projects.id AND pm.user_id = $3))
+           ORDER BY updated_at DESC`,
+          [scope!.orgId, scope!.userId, scope!.userId],
+        );
   const out: Project[] = [];
   for (const r of rows) {
     const sc = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM sessions WHERE project_id = $1', [r.id]);

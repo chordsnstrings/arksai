@@ -78,7 +78,7 @@ test('auth sessions create → resolve → revoke; removing a membership kills t
   assert.equal(await orgs.resolveAuthSession(token2), null);
 });
 
-test('store scoping isolates orgs; super-admin/unscoped sees all', async () => {
+test('store scoping isolates orgs; only the unscoped/no-org path sees all', async () => {
   const store = await import('../src/sessions/store');
   const a = await orgs.createOrg('OrgA-scope');
   const b = await orgs.createOrg('OrgB-scope');
@@ -93,10 +93,17 @@ test('store scoping isolates orgs; super-admin/unscoped sees all', async () => {
   assert.equal(await store.getSession(sB.id, scopeA), null, 'cross-org get → not found');
   assert.ok(await store.getSession(sA.id, scopeA), 'same-org get works');
 
-  // super-admin (and the unscoped internal path) see everything
+  // The unscoped internal path (and a super-admin with NO current org) see everything…
   const all = await store.listSessions({ orgId: null, userId: 'superadmin', isSuperadmin: true });
   assert.ok(all.some((s) => s.id === sA.id) && all.some((s) => s.id === sB.id));
-  assert.ok(await store.getSession(sB.id, { orgId: a.id, userId: 'superadmin', isSuperadmin: true }), 'super-admin bypasses org scope');
+  assert.ok((await store.listSessions(undefined)).some((s) => s.id === sB.id), 'internal/unscoped sees all');
+  // …but the operator is scoped to its CURRENT workspace, like everyone else: bound to
+  // org A it can no longer reach org B (the cross-org operator leak, now closed).
+  const opOnA = { orgId: a.id, userId: 'superadmin', isSuperadmin: true };
+  assert.ok((await store.listSessions(opOnA)).some((s) => s.id === sA.id), 'operator on A sees A');
+  assert.ok(!(await store.listSessions(opOnA)).some((s) => s.id === sB.id), 'operator on A must NOT see B');
+  assert.equal(await store.getSession(sB.id, opOnA), null, 'operator bound to A cannot read B');
+  assert.ok(await store.getSession(sA.id, opOnA), 'operator bound to A reads A');
 });
 
 test('project visibility: a private project is hidden from non-invited members', async () => {

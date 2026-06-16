@@ -14,6 +14,7 @@ import { buildUploadNote } from '../lib/extract';
 import { buildSystemPrompt } from './prompts';
 import { getToolsForMode } from './tools';
 import { crawlSiteTool, saveOrgProfileTool } from './tools/onboarding';
+import { extractPaletteTool } from './tools/palette';
 import { ToolError, type ToolCtx } from './tools/common';
 import { generateTitle } from './titleGen';
 import { makeThinkFilter } from './thinkFilter';
@@ -249,7 +250,7 @@ export class AgentRun {
    *  file(s) this turn and uses them — images via see_image, office/data files via
    *  their extracted sidecar, anything else via read_file. Only recent uploads, so
    *  old ones don't nag, and the derived ".extracted.txt" sidecars are skipped. */
-  private noteRecentUploads(dir: string, context: any[]) {
+  private noteRecentUploads(dir: string, context: any[], paletteAvailable: boolean) {
     try {
       const upDir = path.join(dir, 'uploads');
       if (!fs.existsSync(upDir)) return;
@@ -267,7 +268,7 @@ export class AgentRun {
         })
         .slice(0, 12)
         .map((f) => `uploads/${f}`);
-      const note = buildUploadNote(files, this.minimaxAvailable);
+      const note = buildUploadNote(files, this.minimaxAvailable, paletteAvailable);
       if (note) context.push({ role: 'user', content: note });
     } catch {
       /* uploads scan is best-effort */
@@ -304,7 +305,7 @@ export class AgentRun {
     // Make UPLOADED FILES visible to the text-only agent: it can't see an image and
     // won't notice a freshly-dropped CSV/PDF/doc, so tell it exactly what was just
     // uploaded and how to open each — so it acts WITHOUT the user re-instructing.
-    this.noteRecentUploads(dir, context);
+    this.noteRecentUploads(dir, context, map.has('extract_palette'));
 
     // Classify the task once → drives the design context, gating visual QC, and
     // the quality model floor.
@@ -1256,7 +1257,9 @@ export class AgentRun {
     map: ReturnType<typeof getToolsForMode>['map'],
   ): void {
     if (this.session.task !== 'org.onboarding') return;
-    for (const t of [crawlSiteTool, saveOrgProfileTool]) {
+    // extract_palette lets onboarding read a LOGO's brand colours deterministically
+    // (exact hex, no vision model needed) when the admin uploads one instead of a site.
+    for (const t of [crawlSiteTool, saveOrgProfileTool, extractPaletteTool]) {
       schemas.push({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } });
       map.set(t.name, t);
     }

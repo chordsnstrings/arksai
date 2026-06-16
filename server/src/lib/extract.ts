@@ -51,7 +51,7 @@ const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
  * to note. Images route to see_image; office/data files route to their extracted
  * sidecar; anything else is read directly with read_file.
  */
-export function buildUploadNote(files: string[], minimaxAvailable: boolean): string | null {
+export function buildUploadNote(files: string[], minimaxAvailable: boolean, paletteAvailable = false): string | null {
   if (!files.length) return null;
   const images = files.filter((f) => IMAGE_RE.test(f));
   const docs = files.filter((f) => !IMAGE_RE.test(f) && EXTRACTABLE.has(path.extname(f).toLowerCase()));
@@ -62,12 +62,23 @@ export function buildUploadNote(files: string[], minimaxAvailable: boolean): str
       `document/data file(s): ${docs.map((f) => `${f} (read its extracted text at ${f}.extracted.txt)`).join('; ')}`,
     );
   if (others.length) clauses.push(`file(s): ${others.join(', ')} (read with read_file)`);
-  if (images.length)
-    clauses.push(
-      minimaxAvailable
-        ? `image(s): ${images.join(', ')} (you are text-only — call see_image on each before answering)`
-        : `image(s): ${images.join(', ')} (image viewing is unavailable — MINIMAX_API_KEY is not set — so tell the user you can't view them rather than guessing)`,
-    );
+  if (images.length) {
+    // When extract_palette is in the toolset (onboarding/code/report), a LOGO's brand
+    // colours can be read deterministically with NO vision model — so the agent should
+    // never claim it "can't view" an uploaded logo.
+    const list = images.join(', ');
+    let imgClause: string;
+    if (paletteAvailable) {
+      imgClause = minimaxAvailable
+        ? `image(s): ${list} (if it's a LOGO/brand mark, call extract_palette on it to read the brand colours as exact hex; to read what is IN an image, call see_image — treat the image as fully readable)`
+        : `image(s): ${list} (if it's a LOGO/brand mark, call extract_palette on it to read the brand colours as exact hex — works without a vision model, so treat the logo as fully readable)`;
+    } else {
+      imgClause = minimaxAvailable
+        ? `image(s): ${list} (you are text-only — call see_image on each before answering)`
+        : `image(s): ${list} (image viewing is unavailable — MINIMAX_API_KEY is not set — so tell the user you can't view them rather than guessing)`;
+    }
+    clauses.push(imgClause);
+  }
   return (
     `[System note: the user just uploaded ${clauses.join('; and ')}. ` +
     `Use these to fulfil the request — open/read them now; do NOT ask the user to paste or re-upload, and do not guess their contents.]`

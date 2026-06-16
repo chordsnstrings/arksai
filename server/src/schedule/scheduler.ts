@@ -5,8 +5,9 @@ import { q } from '../db';
 import * as store from '../sessions/store';
 import type { Scope } from '../sessions/store';
 
-/** A tenant (real org member, not the platform operator) is constrained to its org. */
-const isTenant = (s?: Scope): s is { orgId: string | null; userId: string; isSuperadmin: boolean } => !!s && !s.isSuperadmin;
+/** Any org-bound request (member OR the operator) is constrained to its current org;
+ *  only internal callers (the scheduler tick, undefined scope) span every org. */
+const isTenant = (s?: Scope): s is { orgId: string | null; userId: string; isSuperadmin: boolean } => !!s && s.orgId != null;
 import { setupWorkspace } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import * as manager from '../sessions/manager';

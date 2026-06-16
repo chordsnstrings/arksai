@@ -23,12 +23,13 @@ export function registerEventRoutes(app: FastifyInstance) {
     channel.onClose(unsubscribe);
   });
 
-  // Global stream for sidebar status dots / titles. ORG-SCOPED: a tenant only
-  // receives events for ITS OWN org's sessions (never another org's titles/status).
-  // The operator (super-admin / unscoped) still sees everything.
+  // Global stream for sidebar status dots / titles. ORG-SCOPED: a request only
+  // receives events for ITS OWN org's sessions (never another org's titles/status) —
+  // the operator is scoped to its own workspace too. Only internal/unscoped (no
+  // org-bound identity) sees all.
   app.get('/api/sessions-events', (req, reply) => {
     const scope = scopeOf(req);
-    const onlyOrg = scope && !scope.isSuperadmin ? scope.orgId : null; // null → see all (operator)
+    const onlyOrg = scope ? scope.orgId : null; // operator included; null only for unscoped/internal
     const channel = openSse(req, reply);
     const unsubscribe = bus.subscribeGlobal((e) => {
       if (onlyOrg !== null) {

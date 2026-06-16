@@ -21,12 +21,13 @@ function projectDir(id: string): string {
 }
 
 export function registerProjectRoutes(app: FastifyInstance) {
-  // Org-scope every /api/projects/:id access (cross-org → 404). Super-admin bypasses.
+  // Org-scope every /api/projects/:id access (cross-org → 404). Applies to the
+  // operator too — it sees only its own workspace's projects.
   app.addHook('preHandler', async (req, reply) => {
     const m = req.url.split('?')[0].match(/^\/api\/projects\/([^/]+)/);
     if (!m) return;
     const scope = scopeOf(req);
-    if (!scope || scope.isSuperadmin) return;
+    if (!scope) return;
     if (!(await store.getProject(m[1], scope))) return reply.code(404).send({ error: 'Not found' });
   });
 

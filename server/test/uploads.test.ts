@@ -34,6 +34,19 @@ test('buildUploadNote: an image says viewing is unavailable when vision is off',
   assert.doesNotMatch(note, /call see_image/);
 });
 
+test('buildUploadNote: a LOGO routes to extract_palette when palette extraction is available (onboarding/code/report) — even without vision', () => {
+  // vision OFF but palette available → must steer to extract_palette, NOT refuse.
+  const offline = buildUploadNote(['uploads/logo.png'], false, true)!;
+  assert.match(offline, /extract_palette/);
+  assert.match(offline, /exact hex/i);
+  assert.doesNotMatch(offline, /unavailable/i);
+  assert.doesNotMatch(offline, /can't view/i);
+  // vision ON and palette available → offer both extract_palette (colours) and see_image (content).
+  const online = buildUploadNote(['uploads/logo.png'], true, true)!;
+  assert.match(online, /extract_palette/);
+  assert.match(online, /see_image/);
+});
+
 test('buildUploadNote: a plain/unknown file is read directly with read_file', () => {
   const note = buildUploadNote(['uploads/notes.txt'], true)!;
   assert.match(note, /read with read_file/);

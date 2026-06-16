@@ -18,13 +18,14 @@ import { probeApp } from '../agent/runtimeCheck';
 import { scopeOf } from '../auth';
 
 export function registerSessionRoutes(app: FastifyInstance) {
-  // Org-scope every /api/sessions/:id access in one place: a member may only touch
-  // sessions in their current org (cross-org → 404). Super-admin / operator bypasses.
+  // Org-scope every /api/sessions/:id access in one place: a caller may only touch
+  // sessions in their current org (cross-org → 404). This now applies to the platform
+  // operator too — it sees only its own workspace, not every org's chats.
   app.addHook('preHandler', async (req, reply) => {
     const m = req.url.split('?')[0].match(/^\/api\/sessions\/([^/]+)/);
     if (!m) return;
     const scope = scopeOf(req);
-    if (!scope || scope.isSuperadmin) return;
+    if (!scope) return;
     if (!(await store.getSession(m[1], scope))) return reply.code(404).send({ error: 'Not found' });
   });
 

@@ -28,10 +28,12 @@ const items = (res: any): any[] => {
 
 let cookieA = '';
 let cookieB = '';
+let opCookie = '';
 let orgAId = '';
 let userAId = '';
 let sessA: any;
 let projA: any;
+let sessDefault: any;
 
 before(async () => {
   const db = await import('../src/db');
@@ -46,7 +48,7 @@ before(async () => {
 
   // Operator (super-admin) logs in.
   const op = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { password: 'test-operator' } });
-  const opCookie = cookieOf(op, 'arksai_auth');
+  opCookie = cookieOf(op, 'arksai_auth');
   assert.ok(opCookie, 'operator login set a cookie');
 
   // Operator provisions two orgs, each with an admin invite.
@@ -73,6 +75,10 @@ before(async () => {
   await sched.createSchedule({ label: 'A nightly report', prompt: 'secret prompt A', mode: 'code', model: 'arksai-auto', cadence: 'daily', at: '09:00' } as any, orgAId);
   await store.createDeployment({ id: 'dep-a', sessionId: sessA.id, projectId: null, slug: 'orga-secret-app', name: 'A App', kind: 'static', status: 'live', url: '/apps/orga-secret-app/', port: null, orgId: orgAId } as any);
   await store.addMemory(orgs.orgScope(orgAId), 'A confidential memory');
+
+  // The operator's OWN workspace = the Default org — its positive control.
+  sessDefault = await store.createSession({ repoUrl: null, repoName: null, branch: null, mode: 'chat', model: 'arksai-auto', projectId: null, orgId: orgs.DEFAULT_ORG_ID, createdBy: 'superadmin' } as any);
+  await store.updateSession(sessDefault.id, { title: 'Operator default chat' });
 });
 
 test('positive control: org A sees its OWN data', async () => {
@@ -83,6 +89,26 @@ test('positive control: org A sees its OWN data', async () => {
   assert.ok(items(await app.inject({ url: '/api/commands', headers: h })).some((c) => c.name === 'secret-cmd'));
   assert.ok(items(await app.inject({ url: '/api/schedules', headers: h })).some((s) => s.label === 'A nightly report'));
   assert.ok(items(await app.inject({ url: '/api/deployments', headers: h })).some((d) => d.slug === 'orga-secret-app'));
+});
+
+test('operator is scoped to its OWN workspace (Default), not a commingled all-orgs list', async () => {
+  const h = { cookie: opCookie };
+  // Positive control: the operator sees + can open its own Default-org chat.
+  assert.ok(items(await app.inject({ url: '/api/sessions', headers: h })).some((s) => s.id === sessDefault.id), 'operator cannot see its own chat');
+  assert.equal((await app.inject({ url: `/api/sessions/${sessDefault.id}`, headers: h })).statusCode, 200);
+
+  // It must NOT see another org's chat in its list, nor open it by id / its event stream.
+  assert.ok(!items(await app.inject({ url: '/api/sessions', headers: h })).some((s) => s.id === sessA.id), 'operator sees another org chat in its list');
+  assert.equal((await app.inject({ url: `/api/sessions/${sessA.id}`, headers: h })).statusCode, 404, 'operator opened another org chat by id');
+  assert.equal((await app.inject({ url: `/api/sessions/${sessA.id}/events`, headers: h })).statusCode, 404, 'operator opened another org event stream');
+
+  // …and not another org's projects / schedules / deployments either.
+  assert.ok(!items(await app.inject({ url: '/api/projects', headers: h })).some((p) => p.id === projA.id), 'operator sees another org project');
+  assert.ok(!items(await app.inject({ url: '/api/schedules', headers: h })).some((s) => s.label === 'A nightly report'), 'operator sees another org schedule');
+  assert.ok(!items(await app.inject({ url: '/api/deployments', headers: h })).some((d) => d.slug === 'orga-secret-app'), 'operator sees another org deployment');
+
+  // BUT it keeps platform-admin oversight: the provisioning surface still lists every org.
+  assert.ok((await app.inject({ url: '/api/admin/orgs', headers: h })).json().orgs.some((o: any) => o.id === orgAId), 'operator lost its admin org list');
 });
 
 test('RED TEAM: org B cannot reach org A data on any route', async () => {

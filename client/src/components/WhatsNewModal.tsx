@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-16.3';
+export const WHATS_NEW_VERSION = '2026-06-16.4';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Publish & share a 24-hour preview',
-    body: 'Ship a site or app to a public link anyone can open — no login needed to view. It stays live for 24 hours, then auto-deletes; re-publish any time to refresh the window.',
+    title: 'Onboarding reads your logo',
+    body: 'Drop your logo into setup and ArksAI now reads its exact brand colours automatically — no need to describe them — so everything it builds matches your brand from the first minute.',
+  },
+  {
+    title: 'Your workspace stays private to your team',
+    body: 'Tighter isolation across the whole platform: your chats, projects, schedules and published apps are visible only to your organization — never to another org, and not browsable by platform staff.',
   },
 ];
 
