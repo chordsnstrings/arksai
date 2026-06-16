@@ -902,6 +902,10 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 16px;
   padding: 26px;
   width: 460px;
+  max-width: calc(100vw - 28px);
+  max-height: calc(100vh - 28px);
+  max-height: calc(100dvh - 28px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 13px;
@@ -1355,10 +1359,10 @@ button { font-family: inherit; cursor: pointer; }
 .onb-loading { color: var(--text-faint); font-size: 14px; padding: 40px 4px; }
 
 /* one-time "what's new" modal */
-.dialog.wn { max-width: 540px; }
+.dialog.wn { max-width: min(540px, calc(100vw - 28px)); overflow: hidden; }
 .wn-kicker { font-family: var(--label); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
 .wn-title { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 4px 0 16px; }
-.wn-list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.wn-list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 14px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .wn-list li { display: flex; gap: 11px; }
 .wn-list .wn-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-top: 7px; }
 .wn-list strong { font-size: 14px; }
