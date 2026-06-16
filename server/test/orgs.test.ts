@@ -77,3 +77,24 @@ test('auth sessions create → resolve → revoke; removing a membership kills t
   await orgs.removeMembership(u.id, org.id);
   assert.equal(await orgs.resolveAuthSession(token2), null);
 });
+
+test('store scoping isolates orgs; super-admin/unscoped sees all', async () => {
+  const store = await import('../src/sessions/store');
+  const a = await orgs.createOrg('OrgA-scope');
+  const b = await orgs.createOrg('OrgB-scope');
+  const base = { repoUrl: null, repoName: null, branch: null, mode: 'code' as const, model: 'arksai-auto' as any };
+  const sA = await store.createSession({ ...base, orgId: a.id, createdBy: 'uA' });
+  const sB = await store.createSession({ ...base, orgId: b.id, createdBy: 'uB' });
+  const scopeA = { orgId: a.id, isSuperadmin: false };
+
+  const listA = await store.listSessions(scopeA);
+  assert.ok(listA.some((s) => s.id === sA.id), 'org A sees its own session');
+  assert.ok(!listA.some((s) => s.id === sB.id), 'org A does NOT see org B');
+  assert.equal(await store.getSession(sB.id, scopeA), null, 'cross-org get → not found');
+  assert.ok(await store.getSession(sA.id, scopeA), 'same-org get works');
+
+  // super-admin (and the unscoped internal path) see everything
+  const all = await store.listSessions({ orgId: null, isSuperadmin: true });
+  assert.ok(all.some((s) => s.id === sA.id) && all.some((s) => s.id === sB.id));
+  assert.ok(await store.getSession(sB.id, { orgId: a.id, isSuperadmin: true }), 'super-admin bypasses org scope');
+});

@@ -44,6 +44,14 @@ function rowToMeta(row: any): SessionMeta {
   };
 }
 
+/**
+ * Org scope for a request. `undefined` (internal callers) or `isSuperadmin`
+ * means "no org filter" — so the runner/scheduler and the platform operator are
+ * unaffected; only org members are constrained to their current org.
+ */
+export type Scope = { orgId: string | null; isSuperadmin: boolean } | undefined;
+const scoped = (scope: Scope) => !!scope && !scope.isSuperadmin;
+
 export async function createSession(opts: {
   repoUrl: string | null;
   repoName: string | null;
@@ -52,23 +60,30 @@ export async function createSession(opts: {
   model: ModelId;
   projectId?: string | null;
   task?: string | null;
+  orgId?: string | null;
+  createdBy?: string | null;
 }): Promise<SessionMeta> {
   const now = Date.now();
   const id = randomUUID();
   await q(
-    `INSERT INTO sessions(id, title, project_id, repo_url, repo_name, branch, mode, model, status, task, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'idle', $9, $10, $11)`,
-    [id, 'New session', opts.projectId ?? null, opts.repoUrl, opts.repoName, opts.branch, opts.mode, opts.model, opts.task ?? null, now, now],
+    `INSERT INTO sessions(id, title, project_id, org_id, created_by, repo_url, repo_name, branch, mode, model, status, task, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'idle', $11, $12, $13)`,
+    [id, 'New session', opts.projectId ?? null, opts.orgId ?? null, opts.createdBy ?? null, opts.repoUrl, opts.repoName, opts.branch, opts.mode, opts.model, opts.task ?? null, now, now],
   );
   return (await getSession(id))!;
 }
 
-export async function getSession(id: string): Promise<SessionMeta | null> {
+export async function getSession(id: string, scope?: Scope): Promise<SessionMeta | null> {
   const row = await qOne('SELECT * FROM sessions WHERE id = $1', [id]);
-  return row ? rowToMeta(row) : null;
+  if (!row) return null;
+  if (scoped(scope) && row.org_id !== scope!.orgId) return null; // cross-org → not found
+  return rowToMeta(row);
 }
 
-export async function listSessions(): Promise<SessionMeta[]> {
+export async function listSessions(scope?: Scope): Promise<SessionMeta[]> {
+  if (scoped(scope)) {
+    return (await q('SELECT * FROM sessions WHERE org_id = $1 ORDER BY updated_at DESC', [scope!.orgId])).map(rowToMeta);
+  }
   return (await q('SELECT * FROM sessions ORDER BY updated_at DESC')).map(rowToMeta);
 }
 
@@ -252,12 +267,14 @@ export async function createProject(opts: {
   defaultMode?: SessionMode | null;
   defaultModel?: ModelId | null;
   branding?: ProjectBranding | null;
+  orgId?: string | null;
+  ownerUserId?: string | null;
 }): Promise<Project> {
   const id = randomUUID();
   const now = Date.now();
   await q(
-    `INSERT INTO projects(id, name, instructions, default_repo_url, default_branch, default_mode, default_model, branding, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    `INSERT INTO projects(id, name, instructions, default_repo_url, default_branch, default_mode, default_model, branding, org_id, owner_user_id, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
     [
       id,
       opts.name,
@@ -267,6 +284,8 @@ export async function createProject(opts: {
       opts.defaultMode ?? null,
       opts.defaultModel ?? null,
       opts.branding ? JSON.stringify(opts.branding) : null,
+      opts.orgId ?? null,
+      opts.ownerUserId ?? null,
       now,
       now,
     ],
@@ -274,16 +293,19 @@ export async function createProject(opts: {
   return (await getProject(id))!;
 }
 
-export async function getProject(id: string): Promise<Project | null> {
+export async function getProject(id: string, scope?: Scope): Promise<Project | null> {
   const row = await qOne('SELECT * FROM projects WHERE id = $1', [id]);
   if (!row) return null;
+  if (scoped(scope) && row.org_id !== scope!.orgId) return null; // cross-org → not found
   const sc = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM sessions WHERE project_id = $1', [id]);
   const fc = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM project_files WHERE project_id = $1', [id]);
   return rowToProject(row, Number(sc?.n ?? 0), Number(fc?.n ?? 0));
 }
 
-export async function listProjects(): Promise<Project[]> {
-  const rows = await q('SELECT * FROM projects ORDER BY updated_at DESC');
+export async function listProjects(scope?: Scope): Promise<Project[]> {
+  const rows = scoped(scope)
+    ? await q('SELECT * FROM projects WHERE org_id = $1 ORDER BY updated_at DESC', [scope!.orgId])
+    : await q('SELECT * FROM projects ORDER BY updated_at DESC');
   const out: Project[] = [];
   for (const r of rows) {
     const sc = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM sessions WHERE project_id = $1', [r.id]);
@@ -403,10 +425,11 @@ export async function getDeploymentBySlug(slug: string): Promise<Deployment | nu
   return row ? rowToDeployment(row) : null;
 }
 
-export async function listDeployments(sessionId?: string): Promise<Deployment[]> {
-  const rows = sessionId
-    ? await q('SELECT * FROM deployments WHERE session_id = $1 ORDER BY updated_at DESC', [sessionId])
-    : await q('SELECT * FROM deployments ORDER BY updated_at DESC');
+export async function listDeployments(sessionId?: string, scope?: Scope): Promise<Deployment[]> {
+  let rows: any[];
+  if (sessionId) rows = await q('SELECT * FROM deployments WHERE session_id = $1 ORDER BY updated_at DESC', [sessionId]);
+  else if (scoped(scope)) rows = await q('SELECT * FROM deployments WHERE org_id = $1 ORDER BY updated_at DESC', [scope!.orgId]);
+  else rows = await q('SELECT * FROM deployments ORDER BY updated_at DESC');
   return rows.map(rowToDeployment);
 }
 

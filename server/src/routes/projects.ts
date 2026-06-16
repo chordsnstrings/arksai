@@ -8,6 +8,7 @@ import * as store from '../sessions/store';
 import { isValidModel } from '../agent/models';
 import { parseRepoUrl, projectKnowledgeDir } from '../sessions/workspace';
 import { config } from '../config';
+import { scopeOf } from '../auth';
 
 function sanitizeFilename(name: string): string {
   const base = path.basename(name || 'file').replace(/[^\w.\- ()]/g, '_');
@@ -19,7 +20,16 @@ function projectDir(id: string): string {
 }
 
 export function registerProjectRoutes(app: FastifyInstance) {
-  app.get('/api/projects', async () => ({ projects: await store.listProjects() }));
+  // Org-scope every /api/projects/:id access (cross-org → 404). Super-admin bypasses.
+  app.addHook('preHandler', async (req, reply) => {
+    const m = req.url.split('?')[0].match(/^\/api\/projects\/([^/]+)/);
+    if (!m) return;
+    const scope = scopeOf(req);
+    if (!scope || scope.isSuperadmin) return;
+    if (!(await store.getProject(m[1], scope))) return reply.code(404).send({ error: 'Not found' });
+  });
+
+  app.get('/api/projects', async (req) => ({ projects: await store.listProjects(scopeOf(req)) }));
 
   app.post('/api/projects', async (req, reply) => {
     const body = (req.body ?? {}) as CreateProjectRequest;
@@ -42,6 +52,8 @@ export function registerProjectRoutes(app: FastifyInstance) {
       defaultMode: mode,
       defaultModel: model,
       branding: body.branding ?? null,
+      orgId: req.identity?.orgId ?? null,
+      ownerUserId: req.identity?.userId ?? null,
     });
     return reply.code(201).send(project);
   });

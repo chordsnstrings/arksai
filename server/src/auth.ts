@@ -95,6 +95,12 @@ export async function resolveIdentity(req: FastifyRequest): Promise<Identity | n
   return null;
 }
 
+/** Convert the resolved identity into a store scope (undefined / super-admin = no org filter). */
+export function scopeOf(req: FastifyRequest): { orgId: string | null; isSuperadmin: boolean } | undefined {
+  const id = req.identity;
+  return id ? { orgId: id.orgId, isSuperadmin: id.isSuperadmin } : undefined;
+}
+
 const pubUser = (u: { id: string; email: string; name: string | null; isSuperadmin: boolean }) => ({
   id: u.id,
   email: u.email,

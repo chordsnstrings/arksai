@@ -15,15 +15,26 @@ import { bus } from '../events/bus';
 import { processRegistry } from '../agent/processes';
 import { detectStartCommand, verifyProject } from '../agent/verify';
 import { probeApp } from '../agent/runtimeCheck';
+import { scopeOf } from '../auth';
 
 export function registerSessionRoutes(app: FastifyInstance) {
-  app.get('/api/sessions', async () => store.listSessions());
+  // Org-scope every /api/sessions/:id access in one place: a member may only touch
+  // sessions in their current org (cross-org → 404). Super-admin / operator bypasses.
+  app.addHook('preHandler', async (req, reply) => {
+    const m = req.url.split('?')[0].match(/^\/api\/sessions\/([^/]+)/);
+    if (!m) return;
+    const scope = scopeOf(req);
+    if (!scope || scope.isSuperadmin) return;
+    if (!(await store.getSession(m[1], scope))) return reply.code(404).send({ error: 'Not found' });
+  });
+
+  app.get('/api/sessions', async (req) => store.listSessions(scopeOf(req)));
 
   app.post('/api/sessions', async (req, reply) => {
     const body = (req.body ?? {}) as CreateSessionRequest;
     // A session created inside a project inherits the project's defaults
     // (repo/branch/mode/model) unless the request overrides them.
-    const project = body.projectId ? await store.getProject(body.projectId) : null;
+    const project = body.projectId ? await store.getProject(body.projectId, scopeOf(req)) : null;
     let repoUrl: string | null = null;
     let repoName: string | null = null;
     const repoInput = body.repoUrl?.trim() || project?.defaultRepoUrl || '';
@@ -47,6 +58,8 @@ export function registerSessionRoutes(app: FastifyInstance) {
       model,
       projectId: project?.id ?? null,
       task: typeof body.task === 'string' ? body.task.slice(0, 60) : null,
+      orgId: req.identity?.orgId ?? null,
+      createdBy: req.identity?.userId ?? null,
     });
     bus.emitGlobal({ type: 'session_status', session });
     void setupWorkspace(session).catch((err) => console.error('[workspace]', err));
