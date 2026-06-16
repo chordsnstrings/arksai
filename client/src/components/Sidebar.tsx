@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Project, SessionMeta, SessionStatus } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
+import { confirmDialog } from '../state/confirmStore';
 import { isDark, toggleTheme } from '../lib/theme';
 
 function StatusDot({ status }: { status: SessionStatus }) {
@@ -85,7 +86,7 @@ export function Sidebar({
   };
   const handleDelete = async (e: React.MouseEvent, session: SessionMeta) => {
     e.stopPropagation();
-    if (!confirm(`Delete session "${session.title}" and its workspace?`)) return;
+    if (!(await confirmDialog({ title: 'Delete this session?', body: `“${session.title}” and its workspace will be removed.`, confirmLabel: 'Delete', danger: true }))) return;
     try {
       await api.deleteSession(session.id);
     } catch {}
@@ -122,6 +123,14 @@ export function Sidebar({
       ) : (
         <span className="title" onDoubleClick={(e) => startRename(e, s)}>
           {s.title}
+        </span>
+      )}
+      {s.task === 'scheduled' && (
+        <span
+          className={`sched-badge ${s.status === 'done' ? 'done' : ''}`}
+          title={s.status === 'done' ? 'Scheduled delivery — ready to view' : 'Scheduled delivery'}
+        >
+          {s.status === 'done' ? '✓' : '⏱'}
         </span>
       )}
       <button className="rename" title="Rename" onClick={(e) => startRename(e, s)}>

@@ -128,6 +128,7 @@ async function fire(s: Schedule, orgId: string | null) {
     model: s.model,
     projectId: null,
     orgId,
+    task: 'scheduled', // marks it as an automated delivery → the sidebar surfaces it
   });
   const dateLabel = new Date().toISOString().slice(0, 10);
   await store.updateSession(session.id, { title: `${s.label} · ${dateLabel}`.slice(0, 80) });

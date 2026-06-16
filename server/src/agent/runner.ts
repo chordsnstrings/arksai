@@ -88,6 +88,27 @@ async function findDeliverables(repoDirPath: string, sinceTs: number): Promise<T
   }
 }
 
+/** Friendly "what I'm doing now" beats for the long build/report wait — emitted on
+ *  each tool call while authoring so the progress label keeps moving (the bar nudges
+ *  via emitProgress) instead of sitting on one line for minutes. */
+const TOOL_BEAT: Record<string, string> = {
+  render_chart: 'Drawing your charts…',
+  add_fonts: 'Setting the typography…',
+  render_report: 'Composing the pages…',
+  generate_image: 'Designing an image…',
+  see_image: 'Reviewing the visuals…',
+  generate_spreadsheet: 'Building the spreadsheet…',
+  generate_doc: 'Writing the document…',
+  generate_pptx: 'Building the deck…',
+  add_ui_kit: 'Setting up the design system…',
+  extract_palette: 'Reading your brand colours…',
+  write_file: 'Writing the code…',
+  edit_file: 'Refining the build…',
+  web_search: 'Researching…',
+  web_fetch: 'Reading the sources…',
+  fetch_data: 'Pulling your data…',
+};
+
 /** Pick the best freshly-produced document to auto-open in the canvas. */
 function pickPreviewDoc(items: TimelineItem[]): { path: string; kind: 'pdf' | 'sheet' | 'doc' } | null {
   const files = items.filter((i): i is Extract<TimelineItem, { kind: 'file' }> => i.kind === 'file');
@@ -843,6 +864,8 @@ export class AgentRun {
     )
       this.mutated = true;
     if (call.name === 'publish_app') this.emitProgress('publishing', 'Putting it online & checking the live URL…');
+    // Finer beats while authoring so the long build/report wait visibly moves.
+    else if (this.progressPhase === 'building' && TOOL_BEAT[call.name]) this.emitProgress('building', TOOL_BEAT[call.name]);
     if (call.name === 'bash' && typeof args?.command === 'string') {
       const cmd = args.command as string;
       if (/(curl|wget|http)\b/i.test(cmd) && /(localhost|127\.0\.0\.1|0\.0\.0\.0|:\d{4})/.test(cmd)) {

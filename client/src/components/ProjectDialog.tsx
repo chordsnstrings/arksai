@@ -3,6 +3,7 @@ import type { ModelId, Project, ProjectFile, SessionMode } from '@shared/types';
 import { FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
+import { confirmDialog } from '../state/confirmStore';
 
 export function ProjectDialog({ project, onClose }: { project: Project | null; onClose: () => void }) {
   const models = useStore((s) => s.models);
@@ -109,7 +110,7 @@ export function ProjectDialog({ project, onClose }: { project: Project | null; o
 
   const remove = async () => {
     if (!project) return;
-    if (!confirm(`Delete project "${project.name}"? Its sessions are kept (detached).`)) return;
+    if (!(await confirmDialog({ title: 'Delete this project?', body: `“${project.name}” will be removed. Its sessions are kept (detached).`, confirmLabel: 'Delete', danger: true }))) return;
     setBusy(true);
     try {
       await api.deleteProject(project.id);

@@ -22,6 +22,8 @@ import { SchedulesDialog } from './components/SchedulesDialog';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
+import { ConfirmModal } from './components/ConfirmModal';
+import { useConfirm } from './state/confirmStore';
 import { useStore, emptyLive } from './state/sessionStore';
 import type { Project } from '@shared/types';
 
@@ -81,6 +83,7 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      if (useConfirm.getState().opts) return; // a confirm is open — let it handle Esc
       setShowNew(null);
       setProjectDialog(null);
       setShowCommands(false);
@@ -162,6 +165,7 @@ export default function App() {
       {showSchedules && <SchedulesDialog onClose={() => setShowSchedules(false)} />}
       {showAdmin && <AdminDialog onClose={() => setShowAdmin(false)} />}
       {showWhatsNew && <WhatsNewModal onClose={() => setShowWhatsNew(false)} />}
+      <ConfirmModal />
     </div>
   );
 }

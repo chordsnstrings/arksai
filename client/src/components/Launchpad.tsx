@@ -38,7 +38,11 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   const [error, setError] = useState('');
   const upsertSession = useStore((s) => s.upsertSession);
   const setActive = useStore((s) => s.setActive);
+  const sessions = useStore((s) => s.sessions);
   const dept = departmentById(deptId);
+
+  // Returning users resume, not restart: a quick row of their most recent work.
+  const recents = sessions.filter((s) => s.task !== 'org.onboarding').slice(0, 4);
 
   const pickDept = (id: string) => {
     setDeptId(id);
@@ -92,6 +96,18 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
             Pick your function and we’ll show the work it ships — decks, dashboards, sites, reports, and
             spreadsheets — built, verified, and ready to use.
           </p>
+          {recents.length > 0 && (
+            <div className="lp-recents">
+              <span className="lp-recents-label">Jump back in</span>
+              <div className="lp-recents-row">
+                {recents.map((s) => (
+                  <button key={s.id} className="lp-recent" onClick={() => setActive(s.id)} disabled={busy} title={s.title}>
+                    {s.title.length > 32 ? s.title.slice(0, 30) + '…' : s.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="lp-depts">
             {DEPARTMENTS.map((d, i) => (
               <button

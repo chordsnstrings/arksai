@@ -19,7 +19,19 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
   const [error, setError] = useState('');
   const [latest, setLatest] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [phase, setPhase] = useState(0);
   useEscClose(onClose);
+
+  const PUB_PHASES = ['Snapshotting your app…', 'Installing what it needs…', 'Booting it up…', 'Checking the live URL…'];
+  useEffect(() => {
+    if (!busy) {
+      setPhase(0);
+      return;
+    }
+    const t = setInterval(() => setPhase((p) => Math.min(p + 1, PUB_PHASES.length - 1)), 2600);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy]);
 
   const refresh = () => api.listDeployments(meta.id).then(setDeps).catch(() => {});
   useEffect(() => {
@@ -74,7 +86,7 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
         </p>
 
         <button className="send-btn" onClick={publish} disabled={busy} style={{ alignSelf: 'flex-start' }}>
-          {busy ? 'Publishing…' : '🚀 Publish 24-hour preview'}
+          {busy ? PUB_PHASES[phase] : '🚀 Publish 24-hour preview'}
         </button>
 
         {latest && (

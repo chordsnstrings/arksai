@@ -46,6 +46,43 @@ const FAQ = [
   },
 ];
 
+/** A looping "watch it build" mock in the hero — a brief becomes a finished, live
+ *  result, so a first-time visitor SEES the product work before giving an email.
+ *  Pure CSS (one synced 11s timeline); collapses to the finished card if the user
+ *  prefers reduced motion. */
+function LandingDemo() {
+  return (
+    <div className="lnd-demo" aria-hidden="true">
+      <div className="lnd-demo-bar">
+        <span className="d-dot" />
+        <span className="d-dot" />
+        <span className="d-dot" />
+        <span className="lnd-demo-title">ArksAI · Studio</span>
+      </div>
+      <div className="lnd-demo-body">
+        <div className="lnd-demo-prompt">
+          “Build a booking page for our limo service”<span className="d-caret" />
+        </div>
+        <div className="lnd-demo-work">
+          <span className="d-line"><span className="d-spin" /> Reading your brand colours…</span>
+          <span className="d-line"><span className="d-spin" /> Designing the hero…</span>
+          <span className="d-line"><span className="d-spin" /> Testing the booking form…</span>
+        </div>
+        <div className="lnd-demo-result">
+          <div className="d-card">
+            <div className="d-card-kicker">Dubai · Electric Chauffeur</div>
+            <div className="d-card-hero">
+              Silent arrivals, <em>measured in moments.</em>
+            </div>
+            <div className="d-card-cta">Book a transfer →</div>
+          </div>
+          <div className="d-ready">✓ Built, verified &amp; live</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Landing({ onSignIn }: { onSignIn: () => void }) {
   const [form, setForm] = useState({ email: '', company: '', role: '', team: '', note: '' });
   const [busy, setBusy] = useState(false);
@@ -114,6 +151,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
           <strong>Currently in alpha — invitation-only.</strong> We’re onboarding a small set of UAE teams and
           review every request personally.
         </p>
+        <LandingDemo />
       </section>
 
       <section className="lnd-adopters">

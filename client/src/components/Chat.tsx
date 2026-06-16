@@ -179,7 +179,20 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [err, setErr] = useState('');
+  const [phase, setPhase] = useState(0);
   const noun = DELIVERABLE_NOUN[completion.kind] ?? 'result';
+
+  // Walk the real publish phases so the 30-60s wait shows visible motion, not a freeze.
+  const PUB_PHASES = ['Snapshotting your app…', 'Installing what it needs…', 'Booting it up…', 'Checking the live URL…'];
+  useEffect(() => {
+    if (!busy) {
+      setPhase(0);
+      return;
+    }
+    const t = setInterval(() => setPhase((p) => Math.min(p + 1, PUB_PHASES.length - 1)), 2600);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy]);
 
   // A live thumbnail of the finished thing — the reveal — using whatever the canvas
   // auto-loaded (a running app's preview, or the produced document).
@@ -241,7 +254,7 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
         </button>
         {completion.kind === 'app' && !link && (
           <button className="cc-link" onClick={publish} disabled={busy}>
-            {busy ? 'Putting it online…' : '🔗 Share it'}
+            {busy ? PUB_PHASES[phase] : '🔗 Share it'}
           </button>
         )}
       </div>

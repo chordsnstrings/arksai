@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { emailDomain, isFreeEmailDomain } from '@shared/types';
 import { api, type Lead, type Org, type OrgMember } from '../api/client';
 import { useStore } from '../state/sessionStore';
+import { confirmDialog } from '../state/confirmStore';
 
 /**
  * Admin panel. Org admins manage their members (invite via a link, change/remove);
@@ -54,7 +55,11 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
     }
     if (
       domainMismatch &&
-      !confirm(`${inviteeDomain} is outside your organization’s domain (${myDomain}). Invite this person anyway?`)
+      !(await confirmDialog({
+        title: 'Invite someone outside your domain?',
+        body: `${inviteeDomain} is outside your organization’s domain (${myDomain}).`,
+        confirmLabel: 'Invite anyway',
+      }))
     ) {
       return;
     }
@@ -73,7 +78,7 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
   };
 
   const remove = async (m: OrgMember) => {
-    if (!confirm(`Remove ${m.email} from this organization?`)) return;
+    if (!(await confirmDialog({ title: 'Remove this member?', body: `${m.email} will lose access to this organization.`, confirmLabel: 'Remove', danger: true }))) return;
     try {
       await api.removeMember(orgId, m.userId);
       refreshMembers(orgId);

@@ -10,7 +10,8 @@ type Tab = 'preview' | 'files' | 'doc';
 // sandbox-noise ports (e.g. 2024) that just happen to be the lowest number.
 const DEV_PORTS = [4000, 5173, 5174, 3000, 3001, 4200, 8080, 8000, 5000, 4173, 8888, 9000];
 
-function pickPreviewPort(ports: number[]): number | undefined {
+function pickPreviewPort(ports: number[], prefer?: number | null): number | undefined {
+  if (prefer && ports.includes(prefer)) return prefer; // the exact open_canvas port wins
   for (const p of DEV_PORTS) if (ports.includes(p)) return p;
   // No well-known dev port: only auto-pick if there's a single plausible
   // app-range port. Otherwise let the user choose to avoid loading noise.
@@ -52,6 +53,10 @@ export function Canvas({ sessionId }: { sessionId: string }) {
   // Mirror previewSrc in a ref so the poll loop sees the latest value (and a
   // manual port pick) without re-subscribing the effect.
   const previewSrcRef = useRef('');
+  // The exact port the open_canvas event handed us — it always wins over detected
+  // "noise" ports, and the dead-port check never drops it (the proxy reaches it even
+  // if /proc parsing momentarily misses the freshly-bound server).
+  const targetPortRef = useRef<number | null>(null);
   useEffect(() => {
     previewSrcRef.current = previewSrc;
   }, [previewSrc]);
@@ -90,11 +95,11 @@ export function Canvas({ sessionId }: { sessionId: string }) {
       // e.g. 4200 → 4000, or was restarted), drop the dead iframe and re-pick
       // instead of leaving the user staring at a broken page.
       const cur = currentPort();
-      if (cur && !ports.includes(cur)) {
+      if (cur && cur !== targetPortRef.current && !ports.includes(cur)) {
         previewSrcRef.current = '';
         setPreviewSrc('');
       }
-      const pick = pickPreviewPort(ports);
+      const pick = pickPreviewPort(ports, targetPortRef.current);
       if (pick && !previewSrcRef.current) loadPreview(String(pick));
       return !!previewSrcRef.current;
     } catch {
@@ -165,6 +170,7 @@ export function Canvas({ sessionId }: { sessionId: string }) {
     if (canvasTarget.kind === 'app' || canvasTarget.port) {
       setDocSrc('');
       setTab('preview');
+      targetPortRef.current = canvasTarget.port ?? null; // lock onto the exact port
       // We're expecting a freshly-built app — show the "Booting…" state until the
       // preview iframe actually loads, rather than a bare blank.
       setBooting(true);

@@ -316,6 +316,8 @@ button { font-family: inherit; cursor: pointer; }
 .session-item:hover { background: var(--bg-hover); color: var(--text); }
 .session-item.active { background: var(--bg-active); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
 .session-item .title { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.sched-badge { flex: none; font-size: 10px; color: var(--text-faint); border: 1px solid var(--border); border-radius: 5px; padding: 0 4px; line-height: 15px; }
+.sched-badge.done { color: var(--green); border-color: var(--green); }
 .session-item .delete,
 .session-item .rename {
   visibility: hidden;
@@ -1167,6 +1169,12 @@ button { font-family: inherit; cursor: pointer; }
 .lp-sub { color: var(--text-muted); font-size: 15.5px; line-height: 1.55; margin: 14px 0 26px; max-width: 56ch; }
 
 /* STEP A — department tiles */
+.lp-recents { margin: -10px 0 24px; }
+.lp-recents-label { font-family: var(--label); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint); }
+.lp-recents-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.lp-recent { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--text-muted); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+.lp-recent:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+.lp-recent:disabled { opacity: 0.5; }
 .lp-depts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 4px; }
 .dept-tile {
   position: relative; display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 14px;
@@ -1264,6 +1272,11 @@ button { font-family: inherit; cursor: pointer; }
   .sidebar { transition: none; }
   .canvas, .completion-card, .cc-thumb, .cc-check, .onb-accent, .onb-swatch { animation: none; }
   .progress-fill.running::after { animation: none; }
+  /* the looping hero demo collapses to its finished card (no motion) */
+  .lnd-demo-prompt, .lnd-demo-work, .d-caret { display: none; }
+  .lnd-demo-result { position: static; opacity: 1; animation: none; transform: none; }
+  .lnd-demo-body { height: auto; }
+  .d-spin { animation: none; }
 }
 
 .sched-form { display: flex; flex-direction: column; gap: 10px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
@@ -1302,6 +1315,30 @@ button { font-family: inherit; cursor: pointer; }
 .lnd-alpha-pill { font-family: var(--label); font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--accent); background: var(--accent-dim); border: 1px solid var(--accent); border-radius: 999px; padding: 4px 11px; white-space: nowrap; }
 .lnd-alpha-note { font-size: 13.5px; line-height: 1.55; color: var(--text-muted); margin: 18px 0 0; max-width: 56ch; }
 .lnd-alpha-note strong { color: var(--text); }
+
+/* hero "watch it build" demo loop — one synced 11s timeline */
+.lnd-demo { margin: 36px 0 0; max-width: 460px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-elev); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.10); overflow: hidden; }
+.lnd-demo-bar { display: flex; align-items: center; gap: 6px; padding: 9px 13px; border-bottom: 1px solid var(--border); }
+.lnd-demo-bar .d-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.lnd-demo-title { margin-left: 8px; font-family: var(--label); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint); }
+.lnd-demo-body { position: relative; height: 196px; }
+.lnd-demo-body > div { position: absolute; inset: 0; padding: 18px; display: flex; flex-direction: column; justify-content: center; }
+.lnd-demo-prompt { font-family: var(--serif); font-size: 19px; color: var(--text); animation: dPrompt 11s infinite; }
+.d-caret { display: inline-block; width: 2px; height: 18px; background: var(--accent); margin-left: 2px; vertical-align: middle; animation: dBlink 0.9s steps(1) infinite; }
+.lnd-demo-work { gap: 12px; animation: dWork 11s infinite; }
+.lnd-demo-work .d-line { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--text-muted); font-family: var(--label); }
+.d-spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+.lnd-demo-result { animation: dResult 11s infinite; gap: 10px; }
+.d-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: var(--bg); }
+.d-card-kicker { font-family: var(--label); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.d-card-hero { font-family: var(--serif); font-size: 18px; color: var(--text); margin: 5px 0 10px; line-height: 1.2; }
+.d-card-hero em { color: var(--accent); font-style: italic; }
+.d-card-cta { display: inline-block; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 7px; }
+.d-ready { font-size: 12.5px; color: var(--green); font-weight: 600; }
+@keyframes dPrompt { 0% { opacity: 0; transform: translateY(6px); } 4%, 26% { opacity: 1; transform: none; } 31%, 100% { opacity: 0; } }
+@keyframes dWork { 0%, 31% { opacity: 0; } 35%, 58% { opacity: 1; } 63%, 100% { opacity: 0; } }
+@keyframes dResult { 0%, 63% { opacity: 0; transform: scale(0.96); } 69%, 97% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes dBlink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
 
 /* early-adopter strip (ARKS group of companies) */
 .lnd-adopters { padding: 26px 28px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 13px; align-items: center; text-align: center; }
