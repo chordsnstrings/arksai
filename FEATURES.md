@@ -52,6 +52,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Live "smart-work" progress bar — named phases with an anticipation creep so it never looks frozen; technical work stays visible (visible competence = trust).
 - Self-healing reframed as confident "hardening it (pass N)" forward progress, not failure.
 - Delivery moment — "Booting your live app…" loading + retry, and a completion card ("✓ Your app is ready" → Open / Get a shareable link).
+- One-time "what's new" modal — shown once per user per version (remembered locally) right after sign-in, to keep people in the loop on recent updates.
 
 ## Smart agent
 - Sees **every** upload, automatically — on each run the agent is told exactly what was just uploaded and how to open it (images → `see_image`, office/data files → their auto-extracted `.extracted.txt` sidecar, anything else → `read_file`), so it acts without the user re-instructing. Files attach via the `+` button, **drag-and-drop, or clipboard paste** (copy a file/screenshot → ⌘/Ctrl-V); a `📎` chip shows what's attached.

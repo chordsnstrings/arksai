@@ -21,6 +21,7 @@ import { ProjectDialog } from './components/ProjectDialog';
 import { SchedulesDialog } from './components/SchedulesDialog';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
+import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
 import { useStore } from './state/sessionStore';
 import type { Project } from '@shared/types';
 
@@ -46,6 +47,7 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSchedules, setShowSchedules] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   useEffect(() => {
     if (authed !== true) {
@@ -67,6 +69,7 @@ export default function App() {
       api.listCommands().then(setCommands).catch(() => {});
       api.listProjects().then(setProjects).catch(() => {});
       api.me().then(setMe).catch(() => {});
+      if (shouldShowWhatsNew()) setShowWhatsNew(true);
     }
   }, [authed, setModels, setCommands, setProjects, setMe]);
 
@@ -140,6 +143,7 @@ export default function App() {
       {showMemory && <MemoryDialog meta={activeMeta} onClose={() => setShowMemory(false)} />}
       {showSchedules && <SchedulesDialog onClose={() => setShowSchedules(false)} />}
       {showAdmin && <AdminDialog onClose={() => setShowAdmin(false)} />}
+      {showWhatsNew && <WhatsNewModal onClose={() => setShowWhatsNew(false)} />}
     </div>
   );
 }

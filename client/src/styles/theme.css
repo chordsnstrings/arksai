@@ -1353,3 +1353,13 @@ button { font-family: inherit; cursor: pointer; }
 .onb-sub { color: var(--text-muted); font-size: 14px; margin: 12px 4px 4px; }
 .onb-chat { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .onb-loading { color: var(--text-faint); font-size: 14px; padding: 40px 4px; }
+
+/* one-time "what's new" modal */
+.dialog.wn { max-width: 540px; }
+.wn-kicker { font-family: var(--label); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.wn-title { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 4px 0 16px; }
+.wn-list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.wn-list li { display: flex; gap: 11px; }
+.wn-list .wn-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-top: 7px; }
+.wn-list strong { font-size: 14px; }
+.wn-list p { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
