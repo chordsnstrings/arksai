@@ -297,6 +297,8 @@ export interface Project {
   defaultMode: SessionMode | null;
   defaultModel: ModelId | null;
   branding: ProjectBranding | null;
+  /** 'org' = visible to the whole org (default); 'private' = owner + invited members only */
+  visibility?: 'org' | 'private';
   /** computed */
   sessionCount: number;
   fileCount: number;

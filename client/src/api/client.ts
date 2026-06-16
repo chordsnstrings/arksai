@@ -148,6 +148,17 @@ export const api = {
   },
   deleteProjectFile: (id: string, fileId: string) =>
     request<{ ok: true }>(`/api/projects/${id}/files/${fileId}`, { method: 'DELETE' }),
+  setProjectVisibility: (id: string, visibility: 'org' | 'private') =>
+    request<{ ok: true; visibility: string }>(`/api/projects/${id}/visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ visibility }),
+    }),
+  listProjectMembers: (id: string) =>
+    request<{ members: { userId: string; email: string }[] }>(`/api/projects/${id}/members`).then((r) => r.members),
+  addProjectMember: (id: string, email: string) =>
+    request<{ ok: true }>(`/api/projects/${id}/members`, { method: 'POST', body: JSON.stringify({ email }) }),
+  removeProjectMember: (id: string, userId: string) =>
+    request<{ ok: true }>(`/api/projects/${id}/members/${userId}`, { method: 'DELETE' }),
 
   // ---- deployments ----
   listDeployments: (sessionId?: string) =>

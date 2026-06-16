@@ -21,10 +21,42 @@ export function ProjectDialog({ project, onClose }: { project: Project | null; o
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [visibility, setVisibility] = useState<'org' | 'private'>(project?.visibility ?? 'org');
+  const [members, setMembers] = useState<{ userId: string; email: string }[]>([]);
+  const [shareEmail, setShareEmail] = useState('');
 
   useEffect(() => {
-    if (project) api.listProjectFiles(project.id).then(setFiles).catch(() => {});
+    if (project) {
+      api.listProjectFiles(project.id).then(setFiles).catch(() => {});
+      api.listProjectMembers(project.id).then(setMembers).catch(() => {});
+    }
   }, [project]);
+
+  const changeVisibility = async (v: 'org' | 'private') => {
+    setVisibility(v);
+    if (!project) return;
+    try {
+      await api.setProjectVisibility(project.id, v);
+      upsertProject({ ...project, visibility: v });
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not change visibility.');
+    }
+  };
+  const addShare = async () => {
+    if (!project || !shareEmail.trim()) return;
+    try {
+      await api.addProjectMember(project.id, shareEmail.trim());
+      setShareEmail('');
+      setMembers(await api.listProjectMembers(project.id));
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not add that person.');
+    }
+  };
+  const removeShare = async (uid: string) => {
+    if (!project) return;
+    await api.removeProjectMember(project.id, uid).catch(() => {});
+    setMembers((c) => c.filter((m) => m.userId !== uid));
+  };
 
   const branding = () => ({
     accent: accent || undefined,
@@ -189,6 +221,44 @@ export function ProjectDialog({ project, onClose }: { project: Project | null; o
             </select>
           </div>
         </div>
+
+        {project && (
+          <div>
+            <label>Who can see this project</label>
+            <select value={visibility} onChange={(e) => changeVisibility(e.target.value as 'org' | 'private')}>
+              <option value="org">Everyone in the organization</option>
+              <option value="private">Private — only me + people I add</option>
+            </select>
+            {visibility === 'private' && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    placeholder="Share with a member's email"
+                    value={shareEmail}
+                    onChange={(e) => setShareEmail(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <button className="canvas-btn" onClick={addShare}>
+                    Add
+                  </button>
+                </div>
+                <div className="kb-list" style={{ marginTop: 6 }}>
+                  {members.map((m) => (
+                    <div key={m.userId} className="kb-row">
+                      <span className="kb-name">{m.email}</span>
+                      <button className="kb-del" title="Remove" onClick={() => removeShare(m.userId)}>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  {members.length === 0 && (
+                    <div style={{ color: 'var(--text-faint)', fontSize: 12, padding: 4 }}>Only you can see this project.</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <label>Knowledge files — available to every session in this project</label>

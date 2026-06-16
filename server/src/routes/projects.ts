@@ -83,7 +83,7 @@ export function registerProjectRoutes(app: FastifyInstance) {
   app.get('/api/projects/:id/members', async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!(await canManageProject(req, id))) return reply.code(403).send({ error: 'Not allowed.' });
-    return { userIds: await store.listProjectMemberIds(id) };
+    return { members: await store.listProjectMembers(id) };
   });
 
   app.post('/api/projects/:id/members', async (req, reply) => {

@@ -252,6 +252,7 @@ function rowToProject(r: any, sessionCount = 0, fileCount = 0): Project {
     defaultMode: (r.default_mode as SessionMode) ?? null,
     defaultModel: (r.default_model as ModelId) ?? null,
     branding: parseBranding(r.branding),
+    visibility: (r.visibility as 'org' | 'private') ?? 'org',
     sessionCount,
     fileCount,
     createdAt: Number(r.created_at),
@@ -429,6 +430,13 @@ export async function listProjectMemberIds(projectId: string): Promise<string[]>
   return (await q<{ user_id: string }>('SELECT user_id FROM project_members WHERE project_id = $1', [projectId])).map(
     (r) => r.user_id,
   );
+}
+export async function listProjectMembers(projectId: string): Promise<{ userId: string; email: string }[]> {
+  const rows = await q<any>(
+    'SELECT pm.user_id AS user_id, u.email AS email FROM project_members pm JOIN users u ON u.id = pm.user_id WHERE pm.project_id = $1 ORDER BY pm.created_at ASC',
+    [projectId],
+  );
+  return rows.map((r) => ({ userId: r.user_id, email: r.email }));
 }
 
 // ---- deployments (published apps on a durable URL) ----
