@@ -59,13 +59,15 @@ export function registerOrgRoutes(app: FastifyInstance) {
     return { ok: true, user: { id: res.user.id, email: res.user.email, name: res.user.name }, currentOrg: res.orgId };
   });
 
-  // Switch the current org for this session.
+  // Switch the current org for this session. A company's workspace is its OWN and is
+  // NOT swappable — ONLY the platform operator (super-admin), who provisions/supports
+  // every org, may switch. Regular members/admins are fixed to their organization.
   app.post('/api/orgs/:id/switch', async (req, reply) => {
     const id = req.identity;
     const { id: orgId } = req.params as { id: string };
     if (!id) return reply.code(401).send({ error: 'Unauthorized' });
-    if (!id.isSuperadmin && !(await roleInOrg(id.userId, orgId))) {
-      return reply.code(403).send({ error: 'You are not a member of that organization.' });
+    if (!id.isSuperadmin) {
+      return reply.code(403).send({ error: 'Your workspace is fixed to your organization and cannot be switched.' });
     }
     const sraw = req.cookies?.[SESS_COOKIE];
     if (sraw) {
