@@ -73,9 +73,8 @@ export function buildUploadNote(files: string[], minimaxAvailable: boolean, pale
         ? `image(s): ${list} (if it's a LOGO/brand mark, call extract_palette on it to read the brand colours as exact hex; to read what is IN an image, call see_image — treat the image as fully readable)`
         : `image(s): ${list} (if it's a LOGO/brand mark, call extract_palette on it to read the brand colours as exact hex — works without a vision model, so treat the logo as fully readable)`;
     } else {
-      imgClause = minimaxAvailable
-        ? `image(s): ${list} (you are text-only — call see_image on each before answering)`
-        : `image(s): ${list} (image viewing is unavailable — MINIMAX_API_KEY is not set — so tell the user you can't view them rather than guessing)`;
+      // Vision is available in every mode — always look; treat images as fully readable.
+      imgClause = `image(s): ${list} (call see_image with the path to LOOK at each before answering — treat every image as fully readable)`;
     }
     clauses.push(imgClause);
   }

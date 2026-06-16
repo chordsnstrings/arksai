@@ -27,11 +27,11 @@ test('buildUploadNote: an image routes to see_image when vision is available', (
   assert.match(note, /uploads\/photo\.png/);
 });
 
-test('buildUploadNote: an image says viewing is unavailable when vision is off', () => {
+test('buildUploadNote: an image always steers to see_image — never claims it is unavailable', () => {
   const note = buildUploadNote(['uploads/photo.jpg'], false)!;
-  assert.match(note, /unavailable/i);
-  assert.match(note, /MINIMAX_API_KEY/);
-  assert.doesNotMatch(note, /call see_image/);
+  assert.match(note, /see_image/);
+  assert.doesNotMatch(note, /unavailable/i);
+  assert.doesNotMatch(note, /can't view/i);
 });
 
 test('buildUploadNote: a LOGO routes to extract_palette when palette extraction is available (onboarding/code/report) — even without vision', () => {

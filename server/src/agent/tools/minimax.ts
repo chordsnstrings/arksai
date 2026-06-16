@@ -20,7 +20,7 @@ export const seeImageTool: ToolDef = {
     },
     required: ['path', 'question'],
   },
-  modes: ['chat', 'code'],
+  modes: ['chat', 'plan', 'code'],
   available: minimaxOn,
   summarize: (a) => `see ${String(a.path ?? '')}`,
   async run(args, ctx) {

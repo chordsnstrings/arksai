@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { OrgProfile } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { Chat } from './Chat';
@@ -7,11 +8,13 @@ import { Composer } from './Composer';
 const SEED = "Let's set up our organization's workspace.";
 
 /**
- * Agent-driven, fully-visible organization onboarding. A new org admin lands here:
- * ArksAI runs a short, visible setup conversation (crawl the website → confirm the
- * brand + "about" → a few questions → save), which seeds the org's shared memory.
- * Reuses the normal Chat + Composer so the user watches every step. When the agent
- * finishes (org marked onboarded), `onDone` releases the gate into the studio.
+ * Agent-driven organization onboarding, designed to be FINISHED — built on how
+ * anticipation works: dopamine is a "seeking" signal driven by the expectation of a
+ * reward that beats prediction. So we open a loop the user wants to close (a vivid
+ * promise + one tiny ask), then deliver a visible payoff that over-delivers — their
+ * real brand revealed live in the side panel as the agent reads it — while an endowed
+ * 3-step tracker shows them already moving. The whole thing stays smooth and is fully
+ * visible (the agent chat is right there), so trust and momentum build together.
  */
 export function OrgOnboarding({ onDone }: { onDone: () => void }) {
   const me = useStore((s) => s.me);
@@ -24,9 +27,15 @@ export function OrgOnboarding({ onDone }: { onDone: () => void }) {
   const addUserMessage = useStore((s) => s.addUserMessage);
   const started = useRef(false);
   const wasRunning = useRef(false);
+  const [profile, setProfile] = useState<OrgProfile | null>(null);
 
   const orgId = me?.currentOrg ?? null;
   const orgName = me?.orgs.find((o) => o.id === me?.currentOrg)?.name ?? 'your organization';
+
+  const refreshProfile = useCallback(() => {
+    if (!orgId) return;
+    api.getOrgProfile(orgId).then(setProfile).catch(() => {});
+  }, [orgId]);
 
   // On mount: find or create the onboarding session, make it active, and (if new) kick it off.
   useEffect(() => {
@@ -51,13 +60,15 @@ export function OrgOnboarding({ onDone }: { onDone: () => void }) {
           await api.sendMessage(id, SEED).catch(() => {});
         }
       }
+      refreshProfile();
     })();
-  }, [sessions, setActive, upsertSession, loadDetail, addUserMessage]);
+  }, [sessions, setActive, upsertSession, loadDetail, addUserMessage, refreshProfile]);
 
-  // When a run finishes, re-check onboarding status — the agent flips it via save_org_profile.
+  // After each agent turn, pull the latest brand (the reveal) and onboarding status.
   useEffect(() => {
     const running = !!live?.running;
     if (wasRunning.current && !running) {
+      refreshProfile();
       api
         .me()
         .then((m) => {
@@ -66,7 +77,7 @@ export function OrgOnboarding({ onDone }: { onDone: () => void }) {
         .catch(() => {});
     }
     wasRunning.current = running;
-  }, [live?.running, onDone]);
+  }, [live?.running, onDone, refreshProfile]);
 
   const skip = async () => {
     if (!orgId) return onDone();
@@ -76,6 +87,15 @@ export function OrgOnboarding({ onDone }: { onDone: () => void }) {
 
   const meta = sessions.find((s) => s.id === activeId) ?? null;
 
+  const brand = profile?.branding;
+  const palette = (brand?.palette ?? []).filter(Boolean).slice(0, 6);
+  const hasBrand = !!(brand?.accent || palette.length);
+  const hasAbout = !!profile?.about;
+  const complete = !!profile?.onboardingComplete;
+  // Endowed progress: step 1 is "in progress" from the very first second.
+  const step = complete ? 3 : hasBrand ? (hasAbout ? 3 : 2) : 1;
+  const STEPS = ['Your brand', 'Your profile', 'First build'];
+
   return (
     <div className="onb">
       <header className="onb-head">
@@ -83,25 +103,79 @@ export function OrgOnboarding({ onDone }: { onDone: () => void }) {
           <span className="logo-mark sm" /> ARKSAI · STUDIO
         </span>
         <div className="onb-head-mid">
-          <div className="onb-kicker">Welcome</div>
-          <div className="onb-title">Let’s set up {orgName}</div>
+          <div className="onb-kicker">Welcome — let’s make it yours</div>
+          <div className="onb-title">Set up {orgName}</div>
         </div>
         <button className="onb-skip" onClick={skip} title="Skip and set this up later">
           Skip for now
         </button>
       </header>
+
+      <ol className="onb-steps" aria-label="Setup progress">
+        {STEPS.map((label, i) => {
+          const n = i + 1;
+          const state = n < step ? 'done' : n === step ? 'active' : 'todo';
+          return (
+            <li key={label} className={`onb-step ${state}`}>
+              <span className="onb-step-dot">{state === 'done' ? '✓' : n}</span>
+              <span className="onb-step-label">{label}</span>
+            </li>
+          );
+        })}
+      </ol>
+
       <p className="onb-sub">
-        ArksAI will learn your brand and what you do, then tailor itself to your team — you’ll see every step.
+        Share your website or drop your logo right in the chat — watch the studio turn into your brand in
+        seconds, then I’ll build you something on the spot.
       </p>
-      <div className="onb-chat">
-        {meta && live ? (
-          <>
-            <Chat live={live} sessionId={meta.id} />
-            <Composer meta={meta} running={live.running} onOpenCommands={() => {}} onOpenMemory={() => {}} />
-          </>
-        ) : (
-          <div className="onb-loading">Starting your setup…</div>
-        )}
+
+      <div className="onb-stage">
+        <div className="onb-chat">
+          {meta && live ? (
+            <>
+              <Chat live={live} sessionId={meta.id} />
+              <Composer meta={meta} running={live.running} onOpenCommands={() => {}} onOpenMemory={() => {}} />
+            </>
+          ) : (
+            <div className="onb-loading">Starting your setup…</div>
+          )}
+        </div>
+
+        <aside className={`onb-reveal ${hasBrand ? 'lit' : ''}`} aria-live="polite">
+          <div className="onb-reveal-kicker">{hasBrand ? '✓ Your brand' : 'Your brand'}</div>
+          {hasBrand ? (
+            <>
+              {brand?.accent && (
+                <div className="onb-accent" style={{ background: brand.accent }}>
+                  <span>{brand.accent.toUpperCase()}</span>
+                </div>
+              )}
+              {palette.length > 0 && (
+                <div className="onb-swatches">
+                  {palette.map((c, i) => (
+                    <span
+                      key={`${c}-${i}`}
+                      className="onb-swatch"
+                      style={{ background: c, animationDelay: `${i * 70}ms` }}
+                      title={c}
+                    />
+                  ))}
+                </div>
+              )}
+              {hasAbout && <p className="onb-about">“{profile!.about}”</p>}
+              <div className="onb-reveal-foot">{complete ? 'Ready — let’s build.' : 'Coming together…'}</div>
+            </>
+          ) : (
+            <div className="onb-reveal-empty">
+              <div className="onb-swatches">
+                {[0, 1, 2, 3].map((i) => (
+                  <span key={i} className="onb-swatch ghost" style={{ animationDelay: `${i * 180}ms` }} />
+                ))}
+              </div>
+              <p>Your colours appear here the moment I read your site or logo.</p>
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   );
