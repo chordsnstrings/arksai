@@ -228,28 +228,10 @@ export function Sidebar({
       </div>
 
       <div className="sidebar-footer">
-        {/* A company's workspace is its OWN and is NOT swappable. Only the platform
-            operator (super-admin), who provisions/supports every org, can switch
-            workspaces; everyone else sees their single org as static text. */}
-        {me && me.isSuperadmin && me.orgs.length > 1 ? (
-          <select
-            className="org-switcher"
-            title="Operator: switch workspace"
-            value={me.currentOrg ?? ''}
-            onChange={async (e) => {
-              await api.switchOrg(e.target.value).catch(() => {});
-              window.location.reload();
-            }}
-          >
-            {me.orgs.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span>{me?.orgs.find((o) => o.id === me?.currentOrg)?.name ?? 'arksai'} · self-hosted</span>
-        )}
+        {/* A company's workspace is its OWN and is NOT swappable — there is NO
+            workspace switcher anywhere, not even for the operator. The footer simply
+            names the current workspace as static text. */}
+        <span>{me?.orgs.find((o) => o.id === me?.currentOrg)?.name ?? 'arksai'} · self-hosted</span>
         <button
           onClick={async () => {
             await api.logout();
