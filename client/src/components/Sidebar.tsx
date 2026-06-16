@@ -37,11 +37,13 @@ export function Sidebar({
   onNewProject,
   onEditProject,
   onSchedules,
+  onAdmin,
 }: {
   onNewSession: (projectId?: string) => void;
   onNewProject: () => void;
   onEditProject: (p: Project) => void;
   onSchedules: () => void;
+  onAdmin: () => void;
 }) {
   const sessions = useStore((s) => s.sessions);
   const projects = useStore((s) => s.projects);
@@ -51,6 +53,7 @@ export function Sidebar({
   const upsertSession = useStore((s) => s.upsertSession);
   const setAuthed = useStore((s) => s.setAuthed);
   const toggleNav = useStore((s) => s.toggleNav);
+  const me = useStore((s) => s.me);
 
   const pickSession = (id: string) => {
     setActive(id);
@@ -157,6 +160,11 @@ export function Sidebar({
       <button className="nav-btn subtle" onClick={onSchedules}>
         <span className="plus">⏱</span> Scheduled
       </button>
+      {(me?.isSuperadmin || me?.role === 'admin') && (
+        <button className="nav-btn subtle" onClick={onAdmin}>
+          <span className="plus">▦</span> {me?.isSuperadmin ? 'Admin' : 'Members'}
+        </button>
+      )}
 
       <input
         className="search-box"
@@ -220,7 +228,24 @@ export function Sidebar({
       </div>
 
       <div className="sidebar-footer">
-        <span>arksai · self-hosted</span>
+        {me && me.orgs.length > 1 ? (
+          <select
+            className="org-switcher"
+            value={me.currentOrg ?? ''}
+            onChange={async (e) => {
+              await api.switchOrg(e.target.value).catch(() => {});
+              window.location.reload();
+            }}
+          >
+            {me.orgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span>{me?.orgs.find((o) => o.id === me?.currentOrg)?.name ?? 'arksai'} · self-hosted</span>
+        )}
         <button
           onClick={async () => {
             await api.logout();

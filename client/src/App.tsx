@@ -11,6 +11,8 @@ import { CostBar } from './components/CostBar';
 import { Landing } from './components/Landing';
 import { Launchpad } from './components/Launchpad';
 import { LoginScreen } from './components/LoginScreen';
+import { InviteAccept } from './components/InviteAccept';
+import { AdminDialog } from './components/AdminDialog';
 import { NewSessionDialog } from './components/NewSessionDialog';
 import { ProgressBar } from './components/ProgressBar';
 import { ProjectDialog } from './components/ProjectDialog';
@@ -27,6 +29,7 @@ export default function App() {
   const setProjects = useStore((s) => s.setProjects);
   const setModels = useStore((s) => s.setModels);
   const setCommands = useStore((s) => s.setCommands);
+  const setMe = useStore((s) => s.setMe);
   const sessions = useStore((s) => s.sessions);
   const activeId = useStore((s) => s.activeId);
   const live = useStore((s) => (activeId ? s.live[activeId] : undefined));
@@ -39,6 +42,7 @@ export default function App() {
   const [showMemory, setShowMemory] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showSchedules, setShowSchedules] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
     if (authed !== true) {
@@ -59,12 +63,16 @@ export default function App() {
       api.listModels().then(setModels).catch(() => {});
       api.listCommands().then(setCommands).catch(() => {});
       api.listProjects().then(setProjects).catch(() => {});
+      api.me().then(setMe).catch(() => {});
     }
-  }, [authed, setModels, setCommands, setProjects]);
+  }, [authed, setModels, setCommands, setProjects, setMe]);
 
   useGlobalEvents(authed === true);
   useSessionEvents(authed === true ? activeId : null);
   useAutomation(authed === true ? activeId : null);
+
+  const inviteMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/invite\/(.+)$/) : null;
+  if (inviteMatch) return <InviteAccept token={decodeURIComponent(inviteMatch[1])} />;
 
   if (authed === null) return null;
   if (!authed)
@@ -83,6 +91,7 @@ export default function App() {
         onNewProject={() => setProjectDialog('new')}
         onEditProject={(p) => setProjectDialog(p)}
         onSchedules={() => setShowSchedules(true)}
+        onAdmin={() => setShowAdmin(true)}
       />
       <div className="nav-backdrop" onClick={() => toggleNav(false)} />
       <div className="main">
@@ -117,6 +126,7 @@ export default function App() {
       {showCommands && <CommandsDialog onClose={() => setShowCommands(false)} />}
       {showMemory && <MemoryDialog meta={activeMeta} onClose={() => setShowMemory(false)} />}
       {showSchedules && <SchedulesDialog onClose={() => setShowSchedules(false)} />}
+      {showAdmin && <AdminDialog onClose={() => setShowAdmin(false)} />}
     </div>
   );
 }

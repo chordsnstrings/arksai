@@ -16,6 +16,44 @@ import type {
   SessionMeta,
 } from '@shared/types';
 
+export interface PubUser {
+  id: string;
+  email: string;
+  name: string | null;
+  isSuperadmin: boolean;
+}
+export interface Org {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: number;
+}
+export interface OrgMember {
+  id: string;
+  userId: string;
+  orgId: string;
+  role: 'admin' | 'member';
+  email: string;
+  name: string | null;
+  createdAt: number;
+}
+export interface Lead {
+  id: string;
+  email: string;
+  company?: string;
+  role?: string;
+  team?: string;
+  note?: string;
+  created_at: number;
+}
+export interface MeResponse {
+  user: { id: string; email: string; name: string | null; isSuperadmin: boolean } | null;
+  orgs: Org[];
+  currentOrg: string | null;
+  role: string | null;
+  isSuperadmin: boolean;
+}
+
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -131,6 +169,37 @@ export const api = {
   toggleSchedule: (id: string, enabled: boolean) =>
     request<{ ok: true }>(`/api/schedules/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   deleteSchedule: (id: string) => request<{ ok: true }>(`/api/schedules/${id}`, { method: 'DELETE' }),
+
+  // ---- auth / organizations ----
+  me: () => request<MeResponse>('/api/auth/me'),
+  loginUser: (email: string, password: string) =>
+    request<{ ok: true; user: PubUser; orgs: Org[]; currentOrg: string | null; role: string | null }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+  acceptInvite: (token: string, password: string, name?: string) =>
+    request<{ ok: true; user: PubUser; currentOrg: string }>('/api/invites/accept', {
+      method: 'POST',
+      body: JSON.stringify({ token, password, name }),
+    }),
+  switchOrg: (orgId: string) =>
+    request<{ ok: true; currentOrg: string }>(`/api/orgs/${orgId}/switch`, { method: 'POST' }),
+  listMembers: (orgId: string) =>
+    request<{ members: OrgMember[] }>(`/api/orgs/${orgId}/members`).then((r) => r.members),
+  inviteMember: (orgId: string, email: string, role: 'admin' | 'member') =>
+    request<{ invite: unknown; link: string }>(`/api/orgs/${orgId}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    }),
+  removeMember: (orgId: string, userId: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/members/${userId}`, { method: 'DELETE' }),
+  adminListOrgs: () => request<{ orgs: Org[] }>('/api/admin/orgs').then((r) => r.orgs),
+  adminCreateOrg: (name: string, adminEmail?: string) =>
+    request<{ org: Org; adminInviteLink: string | null }>('/api/admin/orgs', {
+      method: 'POST',
+      body: JSON.stringify({ name, adminEmail }),
+    }),
+  adminListLeads: () => request<{ leads: Lead[] }>('/api/admin/leads').then((r) => r.leads),
 };
 
 export { ApiError };

@@ -11,6 +11,7 @@ import type {
   TimelineItem,
   ToolCallRecord,
 } from '@shared/types';
+import type { Org } from '../api/client';
 
 export interface ProgressState {
   phase: ProgressPhase;
@@ -85,11 +86,20 @@ interface StoreState {
   canvasTarget: { port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc'; at: number } | null;
   navOpen: boolean;
   automation: Record<string, Automation>;
+  /** current user + org context from /api/auth/me (null until fetched / for the legacy operator before fetch) */
+  me: {
+    user: { id: string; email: string; name: string | null; isSuperadmin: boolean } | null;
+    orgs: Org[];
+    currentOrg: string | null;
+    role: string | null;
+    isSuperadmin: boolean;
+  } | null;
 
   setProjects(list: Project[]): void;
   upsertProject(p: Project): void;
   removeProject(id: string): void;
   setAuthed(v: boolean): void;
+  setMe(me: StoreState['me']): void;
   toggleNav(open?: boolean): void;
   setModels(models: ModelInfo[]): void;
   setCommands(commands: CustomCommand[]): void;
@@ -120,6 +130,7 @@ export const useStore = create<StoreState>((set, get) => ({
   // Open by default on wide screens, collapsed on phones.
   navOpen: typeof window === 'undefined' ? true : window.innerWidth > 860,
   automation: {},
+  me: null,
 
   setProjects: (list) => set({ projects: list }),
   upsertProject: (p) =>
@@ -136,6 +147,7 @@ export const useStore = create<StoreState>((set, get) => ({
       sessions: s.sessions.map((x) => (x.projectId === id ? { ...x, projectId: null } : x)),
     })),
   setAuthed: (v) => set({ authed: v }),
+  setMe: (me) => set({ me }),
   toggleNav: (open) => set((s) => ({ navOpen: open ?? !s.navOpen })),
   setModels: (models) => set({ models }),
   setCommands: (commands) => set({ commands }),
