@@ -10,6 +10,8 @@
  * client/src/lib/departments.ts.
  */
 
+import { TAX_PERSONA, TAX_TASKS } from './compliance/uae';
+
 // ---- Department persona / cross-cutting rigor ----
 const DEPARTMENT: Record<string, string> = {
   marketing:
@@ -24,6 +26,7 @@ const DEPARTMENT: Record<string, string> = {
     'Work as a senior engineer / PM. Be precise and pragmatic: start from the problem and the outcome, make it testable and unambiguous, and keep tools and docs clean and maintainable.',
   bi:
     'Work as a senior BI / analytics lead (analytics engineer + analyst). Lead with the DECISION the work serves; define every metric precisely and consistently (one agreed definition, with grain/units/period); surface the "so what", not just charts; cite data sources and NEVER fabricate or plug a number — mark anything missing as "data not provided". Insight-first, trustworthy, scannable.',
+  tax: TAX_PERSONA,
 };
 
 // ---- Reusable archetype standards (research-backed) ----
@@ -136,6 +139,9 @@ const TASK: Record<string, string> = {
   'bi.scorecard': `${DASHBOARD} KPI scorecard: each KPI with current value, target, period-over-period delta, and an explicit on/off-track status; grouped by objective/OKR; readable in ~5 seconds; consistent definitions.`,
   'bi.digest': `${REPORT} Recurring digest: tight and scannable, built to be sent on a schedule — headline number(s), the key movers vs last period, ONE chart, and the single thing to act on; identical structure each run so it’s comparable across periods.`,
   'bi.alert': `KPI monitor/alert: pull the latest data, evaluate the threshold/condition, and signal ONLY when it’s actionable — a clear message with the metric, value, threshold, and the change/direction; route to the Slack/webhook provided. Avoid alert fatigue: no noise, no alert on normal variation; say plainly when nothing breached.`,
+
+  // Tax & Compliance (UAE) — researched per-obligation specs live in compliance/uae.ts
+  ...TAX_TASKS,
 };
 
 /** The expert-standards block for a task key, or null if unknown / no task. */

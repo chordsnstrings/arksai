@@ -58,9 +58,15 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Auto mode/engine switching — `switch_mode` lets a chat become a build/report mid-conversation; the runner reloads the toolset, prompt, and engine on the fly with an inline note.
 
 ## B2B department platform
-- Department-aware studio — Marketing, Sales, Finance/Strategy, HR·People & Ops, Engineering, BI & Analytics; pick your function → that team's curated tasks.
-- ~60-task catalog grouped **Create / Analyze / Operate**, each a ready-to-run brief in the right mode.
-- Per-task expert standards (server-side) — a department persona (FP&A rigor, inclusive HR, RevOps, brand-growth, senior-eng, BI/analytics) + research-backed standards injected per task.
+- Department-aware studio — Marketing, Sales, Finance/Strategy, HR·People & Ops, Engineering, BI & Analytics, and Tax & Compliance (UAE); pick your function → that team's curated tasks.
+- ~70-task catalog grouped **Create / Analyze / Operate**, each a ready-to-run brief in the right mode.
+- Per-task expert standards (server-side) — a department persona (FP&A rigor, inclusive HR, RevOps, brand-growth, senior-eng, BI/analytics, UAE tax manager) + research-backed standards injected per task.
+
+## UAE Tax & Compliance
+- A dedicated **Tax & Compliance (UAE)** department that produces the format-strict filing documents a UAE finance team needs — **e-invoicing (PINT AE)**, **VAT (VAT 201 + FAF)**, **Corporate Tax (the 9% CT 300 computation)**, **Excise**, and monthly **WPS** salary disbursement — each built to the researched FTA / MoF / MOHRE / Peppol spec and self-validated.
+- **`generate_compliance_file`** — a self-validating generator for the three strict machine formats (like `generate_spreadsheet`, it returns errors instead of a bad file): the **WPS `.sif`** (builds the SCR header + EDR rows, computes the control total = Σ EDR to the fils, validates the 13-digit employer ID / 14-digit labour IDs / 9-digit routing / 23-char "AE" IBANs / no-comma AED amounts, and names the file `[employerID][YYMMDD][HHMMSS].sif`), the **FAF** VAT-audit CSV (company + supplies + purchases + totals, reconciled to the VAT 201 output/input VAT), and the **PINT AE e-invoice** UBL 2.1 XML (parties with 15-digit TRNs + scheme `0235`, a tax subtotal per VAT category code S/Z/E/AE/O/G, well-formed, totals reconcile; tax invoice + credit/debit notes). The VAT 201 / CT / Excise working papers and the readable invoice reuse `generate_spreadsheet` (formula-driven) / `generate_doc` / `render_report`.
+- **Guided filing wizard** (`tax.guided`) — walks a non-expert finance user through one obligation step by step: entity profile → tax period + deadline → import & validate the data (never fabricated, gaps flagged) → build and validate each document → a review checklist + the assembled filing pack and exactly where to submit.
+- **Honest framing on every output**: these are draft working papers for professional review — ArksAI does not file or pay; the org submits via **EmaraTax / its accredited ASP / its WPS agent bank**, and every file carries a "validate against the official schema / your agent bank before live submission" note (the PINT AE spec is partly draft; the WPS SIF layout varies by bank; DIFC/ADGM use their own systems).
 - B2B acquisition landing (pre-login) — "Give every team a builder," by-department value grid, FAQ, and lead capture (`POST /api/leads` + admin list).
 
 ## Day-to-day capabilities
@@ -89,7 +95,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 ---
 
 ## Status & honest caveats
-- **106 automated tests green**; typecheck + build clean.
+- **120 automated tests green**; typecheck + build clean.
 - Anything needing the **model key or open egress** (live builds, real vision calls, scheduled runs firing, external data/webhook delivery) is wired + unit/integration-tested but fully exercised only on the **Droplet**.
 - **Staged (needs Droplet credentials):** OAuth Google Sheets/Drive & CRM connectors, a Slack app, SMTP email.
 - **Multi-tenant org platform — core SHIPPED** (per-user accounts, roles/invites, org-scoped data, in-app admin panel). Remaining: the invite-only landing revamp, per-org department templates, and the AUDIT-P0 low-priv agent uid-drop before any untrusted/self-serve org. The live multi-user flow should be validated on the Droplet.

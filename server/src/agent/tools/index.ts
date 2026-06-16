@@ -19,6 +19,7 @@ import { generatePptxTool } from './pptx';
 import { switchModeTool } from './mode';
 import { fetchDataTool } from './data';
 import { sendWebhookTool } from './outbound';
+import { generateComplianceFileTool } from './compliance';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -52,6 +53,7 @@ export const ALL_TOOLS: ToolDef[] = [
   switchModeTool,
   fetchDataTool,
   sendWebhookTool,
+  generateComplianceFileTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,

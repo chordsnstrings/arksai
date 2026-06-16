@@ -66,7 +66,8 @@ export type IconName =
   | 'mail'
   | 'clipboard'
   | 'search'
-  | 'image';
+  | 'image'
+  | 'landmark';
 
 /** Inner SVG markup for each line icon (Lucide-style, matches our report icon set). */
 export const ICONS: Record<IconName, string> = {
@@ -104,6 +105,8 @@ export const ICONS: Record<IconName, string> = {
   search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
   image:
     '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  landmark:
+    '<path d="M10 18v-7"/><path d="M11.12 2.198a2 2 0 0 1 1.76.006l7.866 3.847c.476.233.31.949-.22.949H3.474c-.53 0-.695-.716-.22-.949z"/><path d="M14 18v-7"/><path d="M18 18v-7"/><path d="M3 22h18"/><path d="M6 18v-7"/>',
 };
 
 const A = AUTO_MODEL;
@@ -287,6 +290,33 @@ export const DEPARTMENTS: Department[] = [
         prompt: 'Create a recurring metrics digest (PDF) built to be sent on a schedule: the headline numbers, the key movers vs last period, one clear chart, and the one thing to act on — the same tight structure each run so it’s comparable. I’ll give you the data source. Set it up so it can run on the Scheduled feature.' },
       { key: 'bi.alert', title: 'KPI alert / monitor', blurb: 'Flag what matters.', mode: 'code', model: A, category: 'operate', icon: 'circle-check',
         prompt: 'Set up a KPI monitor: pull the latest data, check the threshold/condition I set, and raise a clear signal only when it matters — post to a Slack/webhook URL I provide (or surface it) with the metric, the value, the threshold, and the change. Ask me the metric, the source, and the threshold, then build it (schedulable for recurring checks). Avoid noise — alert only on what’s actionable.' },
+    ],
+  },
+  {
+    id: 'tax',
+    name: 'Tax & Compliance (UAE)',
+    blurb: 'VAT, e-invoicing, Corporate Tax, Excise & WPS — done right.',
+    accent: '#9a6a24',
+    icon: 'landmark',
+    plays: [
+      { key: 'tax.guided', title: 'Guided filing (step by step)', blurb: 'Walk me through a filing.', mode: 'code', model: A, category: 'operate', icon: 'circle-check',
+        prompt: 'Walk me through a UAE filing step by step. Ask me which one — VAT 201, an e-invoice (PINT AE), Corporate Tax, Excise, or a WPS salary file — then take it one step at a time: my entity details (legal name, 15-digit TRN, mainland or free zone), the tax period and its deadline, then collect and validate my data (I’ll paste it, upload it, or give a link — never invent a number, flag anything missing), build each required document and validate it, and finish with a review checklist and the filing pack plus exactly where to submit it. This is a draft for professional review — I’ll submit via EmaraTax / my accredited service provider / my WPS agent bank.' },
+      { key: 'tax.tax_invoice', title: 'Tax invoice', blurb: 'A compliant FTA invoice.', mode: 'code', model: A, category: 'create', icon: 'file-text',
+        prompt: 'Create a UAE-compliant tax invoice (an editable document I can reuse): the words “Tax Invoice”, a unique number and date, my company name/address/15-digit TRN, the customer’s name/address/TRN, line items with unit price, quantity, VAT rate and VAT amount, and the net / VAT / gross totals in AED. Ask me the details — never invent figures. Offer to also produce the structured PINT AE e-invoice XML.' },
+      { key: 'tax.einvoice', title: 'E-invoice (PINT AE)', blurb: 'UBL XML + a readable copy.', mode: 'code', model: A, category: 'create', icon: 'code',
+        prompt: 'Create a UAE e-invoice in the PINT AE format: the structured UBL 2.1 XML (seller and buyer with 15-digit TRNs, lines, VAT category codes, and totals that reconcile — validated for me) PLUS a human-readable copy of the same invoice. Ask me for the invoice details; never fabricate. Remind me this is validated by my accredited service provider (ASP) before live submission.' },
+      { key: 'tax.vat_return', title: 'VAT return (VAT 201)', blurb: 'Working papers + FAF.', mode: 'code', model: A, category: 'analyze', icon: 'clipboard',
+        prompt: 'Build my UAE VAT 201 return as a formula-driven spreadsheet that mirrors the official boxes exactly (standard-rated supplies split by Emirate, zero-rated, exempt, imports, the output and input totals, and the net VAT payable), and offer to also produce the FAF audit file. I’ll give you the figures or a data link — reconcile the totals and flag any gaps; never plug a number.' },
+      { key: 'tax.ct_return', title: 'Corporate Tax (CT)', blurb: 'The 9% computation.', mode: 'code', model: A, category: 'analyze', icon: 'chart-pie',
+        prompt: 'Build my UAE Corporate Tax computation as a formula-driven spreadsheet: accounting profit → add-backs and exempt-income adjustments → taxable income → 0% on the first AED 375,000 and 9% above, with Small Business Relief and the free-zone (QFZP) 0% shown as switchable lines, plus a related-party / transfer-pricing disclosure if my related-party transactions exceed the threshold. I’ll provide the financials — never fabricate adjustments.' },
+      { key: 'tax.readiness', title: 'Compliance readiness', blurb: 'Obligations, gaps, deadlines.', mode: 'report', category: 'analyze', icon: 'search',
+        prompt: 'Assess my UAE tax & compliance readiness (a clean PDF): profile my entity (legal form, mainland vs free zone, TRNs held, revenue tier, headcount), map every obligation and its deadline — VAT, e-invoicing (which PINT AE phase + the ASP-onboarding steps), Corporate Tax, Excise, WPS — and give me a gap analysis and a dated action plan. Tell me about the company; cite the obligation, never guess.' },
+      { key: 'tax.wps', title: 'WPS salary file', blurb: 'A validated .sif + recon.', mode: 'code', model: A, category: 'operate', icon: 'users',
+        prompt: 'Create my MOHRE WPS salary file (.sif): build the header and one record per employee, compute and reconcile the control total to the fils, and validate the employer ID, routing codes, 23-char IBANs and amounts for me — then pair it with a payroll reconciliation spreadsheet. I’ll give you the payroll (paste, upload, or a link); never invent an amount. (DIFC/ADGM use their own systems — I’ll flag that.)' },
+      { key: 'tax.excise_return', title: 'Excise tax return', blurb: 'Quantities × price × rate.', mode: 'code', model: A, category: 'operate', icon: 'wallet',
+        prompt: 'Build my UAE Excise tax return working paper as a formula-driven spreadsheet: one row per excise good with quantity, the excise price and the rate (50% on carbonated/sweetened drinks, 100% on tobacco, energy drinks and e-cigarettes), the per-category subtotals and the total excise payable. I’ll give you the figures — never invent quantities or prices.' },
+      { key: 'tax.faf', title: 'FAF audit file', blurb: 'The FTA VAT audit file.', mode: 'code', model: A, category: 'operate', icon: 'file-text',
+        prompt: 'Create my FTA VAT Audit File (FAF): the company block, my supplies and purchases, and the totals — reconciled to my VAT 201 output and input VAT and validated for me. I’ll paste the transactions or give a data link; never fabricate a row. I’ll validate it against the current FTA FAF spec before submitting.' },
     ],
   },
 ];
