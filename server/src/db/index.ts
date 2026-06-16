@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { config } from '../config';
 
 /**
@@ -267,4 +268,36 @@ async function migrate() {
   for (const table of ['sessions', 'projects', 'deployments', 'schedules']) {
     await q(`CREATE INDEX IF NOT EXISTS idx_${table}_org ON ${table}(org_id)`).catch(() => {});
   }
+
+  // custom_commands → ORG-SCOPED. The single-tenant schema keyed commands by `name`
+  // (deployment-wide, so every org saw/edited/overwrote each other's). Rebuild it
+  // per-org with a surrogate id + UNIQUE(org_id,name), stamping any existing rows to
+  // the Default org. One-time + idempotent (subsequent boots see org_id and skip).
+  let cmdScoped = true;
+  try {
+    await q('SELECT org_id FROM custom_commands LIMIT 1');
+  } catch {
+    cmdScoped = false;
+  }
+  if (!cmdScoped) {
+    await q(`CREATE TABLE custom_commands_v2(
+      id TEXT PRIMARY KEY,
+      org_id TEXT,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      template TEXT NOT NULL,
+      created_at ${INT} NOT NULL,
+      updated_at ${INT} NOT NULL
+    )`);
+    const old = await q('SELECT * FROM custom_commands').catch(() => []);
+    for (const r of old as any[]) {
+      await q(
+        `INSERT INTO custom_commands_v2(id,org_id,name,description,template,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7)`,
+        [randomUUID(), 'default', r.name, r.description ?? '', r.template, Number(r.created_at) || Date.now(), Number(r.updated_at) || Date.now()],
+      ).catch(() => {});
+    }
+    await q('DROP TABLE custom_commands');
+    await q('ALTER TABLE custom_commands_v2 RENAME TO custom_commands');
+  }
+  await q('CREATE UNIQUE INDEX IF NOT EXISTS idx_cmd_org_name ON custom_commands(org_id, name)').catch(() => {});
 }

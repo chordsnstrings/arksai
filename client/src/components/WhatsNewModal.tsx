@@ -3,7 +3,7 @@ import { useState } from 'react';
 // Bump this string whenever there's a new update to announce — each user sees the
 // modal once per version (remembered in localStorage), so we keep people in the loop
 // without nagging.
-export const WHATS_NEW_VERSION = '2026-06-16';
+export const WHATS_NEW_VERSION = '2026-06-16.2';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -30,7 +30,11 @@ const ITEMS: { title: string; body: string }[] = [
   },
   {
     title: 'Organization spaces with a shared brain',
-    body: 'Your company gets a private workspace. A quick, guided onboarding learns your brand and what you do, and that context — plus what your team builds here — is shared across the org (and never with anyone else).',
+    body: 'Your company gets a private workspace. A quick, agent-guided onboarding learns your brand and what you do, and that context — plus what your team builds here — is shared across your org (and never with anyone else).',
+  },
+  {
+    title: 'Your data stays yours',
+    body: 'Every workspace is strictly isolated — chats, projects, schedules, published apps, commands and memory are scoped to your organization and never visible to another. Workspaces aren’t swappable.',
   },
 ];
 

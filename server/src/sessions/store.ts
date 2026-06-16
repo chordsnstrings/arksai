@@ -175,37 +175,41 @@ export async function getTimeline(sessionId: string): Promise<TimelineItem[]> {
   return rows.map((r) => JSON.parse(r.payload));
 }
 
-// ---- custom commands (deployment-wide prompt templates) ----
+// ---- custom commands (ORG-SCOPED prompt templates: keyed by (org_id, name)) ----
 
-export async function listCommands(): Promise<CustomCommand[]> {
-  const rows = await q('SELECT * FROM custom_commands ORDER BY name ASC');
-  return rows.map((r: any) => ({
-    name: r.name,
-    description: r.description,
-    template: r.template,
-    createdAt: Number(r.created_at),
-    updatedAt: Number(r.updated_at),
-  }));
+const rowToCommand = (r: any): CustomCommand => ({
+  name: r.name,
+  description: r.description,
+  template: r.template,
+  createdAt: Number(r.created_at),
+  updatedAt: Number(r.updated_at),
+});
+
+export async function listCommands(orgId: string | null): Promise<CustomCommand[]> {
+  const rows = await q('SELECT * FROM custom_commands WHERE org_id = $1 ORDER BY name ASC', [orgId]);
+  return rows.map(rowToCommand);
 }
 
 export async function upsertCommand(
+  orgId: string | null,
   name: string,
   description: string,
   template: string,
 ): Promise<CustomCommand> {
   const now = Date.now();
   await q(
-    `INSERT INTO custom_commands(name, description, template, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT(name) DO UPDATE SET description = excluded.description,
+    `INSERT INTO custom_commands(id, org_id, name, description, template, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT(org_id, name) DO UPDATE SET description = excluded.description,
        template = excluded.template, updated_at = excluded.updated_at`,
-    [name, description, template, now, now],
+    [randomUUID(), orgId, name, description, template, now, now],
   );
-  return (await listCommands()).find((c) => c.name === name)!;
+  const r = await qOne('SELECT * FROM custom_commands WHERE org_id = $1 AND name = $2', [orgId, name]);
+  return rowToCommand(r);
 }
 
-export async function deleteCommand(name: string) {
-  await q('DELETE FROM custom_commands WHERE name = $1', [name]);
+export async function deleteCommand(orgId: string | null, name: string) {
+  await q('DELETE FROM custom_commands WHERE org_id = $1 AND name = $2', [orgId, name]);
 }
 
 // ---- memory (global + per-repo, injected into every session's prompt) ----
