@@ -10,13 +10,26 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-MODE="${1:-http}"
+MODE="${1:-auto}"
 PLAIN="docker-compose.yml"
 TLS="docker-compose.tls.yml"
 
 echo "==> Fetching latest main..."
 git fetch origin main
 git reset --hard origin/main
+
+# With no explicit mode (e.g. the systemd auto-deploy timer runs `./deploy.sh`),
+# auto-pick TLS when a real domain is configured in .env (SITE_ADDRESS=a-domain)
+# so HTTPS PERSISTS across auto-deploys instead of reverting to plain HTTP.
+# SITE_ADDRESS=:443 (self-signed-on-IP) or unset → stays plain HTTP.
+if [ "$MODE" = "auto" ]; then
+  if grep -qE '^SITE_ADDRESS=[^[:space:]:]' .env 2>/dev/null; then
+    MODE="tls"
+    echo "==> Auto-detected SITE_ADDRESS in .env → TLS mode."
+  else
+    MODE="http"
+  fi
+fi
 
 # Stop BOTH stacks so there's never a port 80/443 conflict between them.
 echo "==> Stopping any running stack..."

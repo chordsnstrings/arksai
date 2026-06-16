@@ -1,14 +1,16 @@
 {
-  "name": "ArksAI",
+  "id": "/",
+  "name": "ArksAI Studio",
   "short_name": "ArksAI",
-  "description": "Self-hosted AI coding agent",
+  "description": "Describe it once → a finished, verified thing: a live app, a board deck, a dashboard, or a report. One studio for every team.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0b0d",
-  "theme_color": "#0a0b0d",
+  "background_color": "#f4f1ea",
+  "theme_color": "#f4f1ea",
   "orientation": "any",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }

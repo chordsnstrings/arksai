@@ -76,7 +76,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Projects — persistent workspaces (instructions, defaults, branding, knowledge base) that sessions inherit.
 - Memory (global/repo/project scopes + ARKS.md); custom slash commands.
 - Dual-driver storage (Postgres or SQLite); durable timeline; cost/token accounting.
-- Auth: per-user accounts (email + scrypt password) + DB-backed, instantly-revocable sessions, OR the single operator password (now a platform **super-admin**); public lead endpoint allowlisted; PWA scaffolding.
+- Auth: per-user accounts (email + scrypt password) + DB-backed, instantly-revocable sessions, OR the single operator password (now a platform **super-admin**); public lead endpoint allowlisted; PWA (installable: light manifest, service worker, offline shell; HTTPS via Caddy + Let's Encrypt once on a domain).
 
 ## Organizations (multi-tenant "spaces")
 - **Isolated org spaces** — every session/project/deployment is scoped to an org; members only see their own org's data (cross-org access → 404). The platform **super-admin** (the operator) provisions and sees everything.
