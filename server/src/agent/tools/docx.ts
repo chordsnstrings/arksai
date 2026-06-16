@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { repoRoot } from '../../config';
 import { resolveInWorkspace, type ToolDef } from './common';
+import { renderChartPng, chartSize, type ChartArgs } from './chart';
 
 // Editorial identity (same typefaces as the reports): Source Serif 4 for the
 // display/headings, Inter for body. Embedded into the .docx so it renders that
@@ -26,13 +27,29 @@ function loadEmbedFonts(): { fonts: Array<{ name: string; data: Buffer }>; displ
   }
 }
 
-type BlockType = 'heading' | 'subheading' | 'paragraph' | 'bullets' | 'numbered' | 'table' | 'quote' | 'spacer';
+type BlockType = 'heading' | 'subheading' | 'paragraph' | 'bullets' | 'numbered' | 'table' | 'quote' | 'chart' | 'spacer';
 interface Block {
   type: BlockType;
   text?: string;
   items?: string[];
   header?: string[];
   rows?: string[][];
+  chart?: ChartArgs;
+  caption?: string;
+}
+interface Kpi {
+  value: string;
+  label: string;
+}
+interface Cover {
+  masthead?: string;
+  eyebrow?: string;
+  title: string;
+  accentLine?: string;
+  thesis?: string;
+  kpis?: Kpi[];
+  meta?: { coverage?: string; source?: string; preparedBy?: string; date?: string };
+  confidential?: boolean;
 }
 
 /** Normalise "#4f46e5"/"4f46e5" to a 6-hex docx colour (no leading #). */
@@ -57,7 +74,10 @@ export const generateDocTool: ToolDef = {
     'DESIGN STANDARDS (editorial, not "office default"): the editorial typefaces are embedded for you ' +
     '(Source Serif 4 display + Inter body) — lean on a clear hierarchy (kicker/subheading → heading → body), ' +
     'accent on headings ONLY, generous spacing, real structured tables (not walls of text), and a comfortable ' +
-    'reading measure. The output is re-opened + design-reviewed — a sloppy/blind document is sent back to fix.',
+    'reading measure. The output is re-opened + design-reviewed — a sloppy/blind document is sent back to fix. ' +
+    'For a report/brief, pass a `cover` (masthead + accent title + thesis + a KPI band of headline numbers + ' +
+    'a metadata footer) for a designed cover page, and use `chart` blocks ({type:"chart", chart:{…}}) for ' +
+    'publication-grade data-viz (dual_axis/heatmap/line/bar) instead of describing numbers in prose.',
   parameters: {
     type: 'object',
     properties: {
@@ -65,6 +85,20 @@ export const generateDocTool: ToolDef = {
       title: { type: 'string', description: 'Document title (rendered as the cover heading).' },
       subtitle: { type: 'string', description: 'Optional subtitle / byline under the title.' },
       accent: { type: 'string', description: 'Accent colour as hex (e.g. "#4f46e5"); used on headings.' },
+      cover: {
+        type: 'object',
+        description: 'Optional DESIGNED COVER PAGE (recommended for reports/briefs): masthead, accent title line, one-line thesis, a KPI band of headline numbers, and a metadata footer — then a page break before the body.',
+        properties: {
+          masthead: { type: 'string', description: 'A text wordmark / publication line, e.g. "ACME · STRATEGY".' },
+          eyebrow: { type: 'string', description: 'Small kicker/eyebrow above the title.' },
+          title: { type: 'string', description: 'Cover title.' },
+          accentLine: { type: 'string', description: 'Optional second title line, rendered in the accent.' },
+          thesis: { type: 'string', description: 'A one-line thesis/positioning statement.' },
+          kpis: { type: 'array', items: { type: 'object', properties: { value: { type: 'string' }, label: { type: 'string' } } }, description: '3–5 headline numbers ({value,label}).' },
+          meta: { type: 'object', properties: { coverage: { type: 'string' }, source: { type: 'string' }, preparedBy: { type: 'string' }, date: { type: 'string' } }, description: 'Metadata footer fields.' },
+          confidential: { type: 'boolean', description: 'Show a CONFIDENTIAL marker.' },
+        },
+      },
       blocks: {
         type: 'array',
         description: 'Ordered content blocks.',
@@ -73,7 +107,7 @@ export const generateDocTool: ToolDef = {
           properties: {
             type: {
               type: 'string',
-              enum: ['heading', 'subheading', 'paragraph', 'bullets', 'numbered', 'table', 'quote', 'spacer'],
+              enum: ['heading', 'subheading', 'paragraph', 'bullets', 'numbered', 'table', 'quote', 'chart', 'spacer'],
             },
             text: { type: 'string', description: 'Text for heading/subheading/paragraph/quote.' },
             items: { type: 'array', items: { type: 'string' }, description: 'Items for bullets/numbered.' },
@@ -83,6 +117,8 @@ export const generateDocTool: ToolDef = {
               items: { type: 'array', items: { type: 'string' } },
               description: 'Table body rows (each an array of cell strings).',
             },
+            chart: { type: 'object', description: 'For a "chart" block: a render_chart spec — { type:"dual_axis"|"heatmap"|"line"|"bar"|… , data:[…], x, y, y2, series, value, value_labels, title }. Embedded as a publication-grade image.' },
+            caption: { type: 'string', description: 'Optional caption shown under a chart block.' },
           },
           required: ['type'],
         },
@@ -124,13 +160,78 @@ export const generateDocTool: ToolDef = {
       WidthType,
       BorderStyle,
       ShadingType,
+      ImageRun,
+      PageBreak,
     } = docx;
 
     const accent = hex6(args.accent, '4F46E5');
     const { fonts: embedFonts, display: DISPLAY, body: BODY } = loadEmbedFonts();
     const children: any[] = [];
 
-    if (args.title) {
+    if (args.cover) {
+      const cov = args.cover as Cover;
+      const COVER_INK = '16181D';
+      const noB = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+      if (cov.masthead) {
+        children.push(
+          new Paragraph({
+            spacing: { after: 40 },
+            border: { bottom: { style: BorderStyle.SINGLE, size: 6, space: 6, color: accent } },
+            children: [new TextRun({ text: String(cov.masthead).toUpperCase(), font: BODY, size: 18, bold: true, color: accent, characterSpacing: 30 })],
+          }),
+        );
+      }
+      children.push(new Paragraph({ spacing: { after: 520 }, children: [] }));
+      if (cov.eyebrow)
+        children.push(new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: String(cov.eyebrow).toUpperCase(), font: BODY, size: 20, bold: true, color: accent, characterSpacing: 24 })] }));
+      children.push(new Paragraph({ spacing: { after: cov.accentLine ? 20 : 160 }, children: [new TextRun({ text: String(cov.title || ''), font: DISPLAY, size: 60, bold: true, color: COVER_INK })] }));
+      if (cov.accentLine)
+        children.push(new Paragraph({ spacing: { after: 160 }, children: [new TextRun({ text: String(cov.accentLine), font: DISPLAY, size: 60, bold: true, color: accent })] }));
+      if (cov.thesis) children.push(new Paragraph({ spacing: { after: 340 }, children: [new TextRun({ text: String(cov.thesis), font: BODY, size: 26, color: '4B5563' })] }));
+      if (cov.kpis?.length) {
+        const ks = cov.kpis.slice(0, 5);
+        const cells = ks.map(
+          (k) =>
+            new TableCell({
+              width: { size: Math.floor(100 / ks.length), type: WidthType.PERCENTAGE },
+              margins: { top: 80, bottom: 40, left: 0, right: 140 },
+              borders: { top: { style: BorderStyle.SINGLE, size: 12, color: accent }, bottom: noB, left: noB, right: noB },
+              children: [
+                new Paragraph({ spacing: { after: 20 }, children: [new TextRun({ text: String(k.value), font: DISPLAY, size: 40, bold: true, color: COVER_INK })] }),
+                new Paragraph({ children: [new TextRun({ text: String(k.label).toUpperCase(), font: BODY, size: 16, color: '6B7280', characterSpacing: 16 })] }),
+              ],
+            }),
+        );
+        children.push(
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: { top: noB, bottom: noB, left: noB, right: noB, insideHorizontal: noB, insideVertical: noB },
+            rows: [new TableRow({ children: cells })],
+          }),
+        );
+      }
+      children.push(new Paragraph({ spacing: { after: 1400 }, children: [] }));
+      const metaParts = cov.meta
+        ? [cov.meta.coverage ? `Coverage ${cov.meta.coverage}` : '', cov.meta.source ? `Source: ${cov.meta.source}` : '', cov.meta.preparedBy ? `Prepared by ${cov.meta.preparedBy}` : '', cov.meta.date || '']
+            .filter(Boolean)
+            .join('   ·   ')
+        : '';
+      if (metaParts || cov.confidential) {
+        children.push(
+          new Paragraph({
+            spacing: { before: 80 },
+            border: { top: { style: BorderStyle.SINGLE, size: 4, space: 6, color: 'E7E6E2' } },
+            children: [
+              ...(cov.confidential ? [new TextRun({ text: 'CONFIDENTIAL    ', font: BODY, size: 16, bold: true, color: accent, characterSpacing: 20 })] : []),
+              new TextRun({ text: metaParts, font: BODY, size: 16, color: '6B7280' }),
+            ],
+          }),
+        );
+      }
+      children.push(new Paragraph({ children: [new PageBreak()] }));
+    }
+
+    if (!args.cover && args.title) {
       children.push(
         new Paragraph({
           spacing: { after: args.subtitle ? 60 : 240 },
@@ -247,6 +348,34 @@ export const generateDocTool: ToolDef = {
             }),
           );
           children.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
+          break;
+        }
+        case 'chart': {
+          if (!b.chart) break;
+          const png = await renderChartPng({ ...b.chart, accent: `#${accent}` } as ChartArgs);
+          if (png) {
+            const { width, height } = chartSize(b.chart as ChartArgs);
+            const dispW = Math.min(width, 600);
+            const dispH = Math.max(1, Math.round(dispW * (height / Math.max(1, width))));
+            children.push(
+              new Paragraph({
+                spacing: { before: 120, after: b.caption ? 40 : 160 },
+                alignment: AlignmentType.CENTER,
+                children: [new ImageRun({ type: 'png', data: png.png, transformation: { width: dispW, height: dispH } })],
+              }),
+            );
+            if (b.caption) {
+              children.push(
+                new Paragraph({
+                  spacing: { after: 180 },
+                  alignment: AlignmentType.CENTER,
+                  children: [new TextRun({ text: String(b.caption), font: BODY, size: 18, italics: true, color: '6B7280' })],
+                }),
+              );
+            }
+          } else if (b.caption) {
+            children.push(para(`[chart unavailable: ${String(b.caption)}]`, { italics: true, color: '6B7280' }));
+          }
           break;
         }
         case 'spacer':

@@ -1,5 +1,7 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { resolveInWorkspace, type ToolDef } from './common';
+import { renderChartPng, renderChartSvg, chartSize, type ChartArgs } from './chart';
 
 /** Normalise "#4f46e5"/"4f46e5" → 6-hex (no #), PptxGenJS colour form. */
 function hex6(c: string | undefined, fallback: string): string {
@@ -27,8 +29,21 @@ interface Slide {
   chartType?: 'bar' | 'line' | 'pie';
   categories?: string[];
   series?: { name: string; values: number[] }[];
+  chart?: ChartArgs;
   image?: string;
   notes?: string;
+  // Designed-cover fields (used by the `title` layout) + a per-slide theme override
+  // so a deck can alternate dark/light slides (the "sandwich" rhythm).
+  masthead?: string;
+  thesis?: string;
+  accentTitle?: string;
+  kpis?: { value: string; label: string }[];
+  meta?: { coverage?: string; source?: string; preparedBy?: string; date?: string };
+  confidential?: boolean;
+  theme?: 'light' | 'dark';
+  // internal: pre-rendered chart artifacts (PNG path for the deck, SVG for the preview)
+  _chartImg?: string;
+  _chartSvg?: string;
 }
 
 const DISPLAY = 'Source Serif 4'; // editorial display (same identity as reports/docx)
@@ -47,10 +62,16 @@ export const generatePptxTool: ToolDef = {
   description:
     'Create a polished, EDITABLE PowerPoint (.pptx) 16:9 deck from a high-level slide spec — ' +
     'title, section, bullets, two-col, stat, quote, table, chart, and image layouts — with an ' +
-    'editorial typography-first design (Source Serif 4 + Inter, one restrained accent, flat charts). ' +
+    'editorial typography-first design (Source Serif 4 + Inter, one restrained accent). ' +
     'Use for an editable deck; use render_report layout:slides for a print-locked PDF deck. The file ' +
-    'is offered as a download and previewable in the canvas. Design: one idea per slide, ≤6 bullets, ' +
-    'strong title hierarchy, big stat slides, generous margins, the accent only on the key series.',
+    'is offered as a download and previewable in the canvas. The deck is rendered + design-reviewed; a ' +
+    'generic/sparse deck is sent back. DESIGN STANDARDS (match a senior consultant deck, not a template): ' +
+    'the `title` slide is a DESIGNED COVER — pass `masthead` (a text wordmark), `kicker`, `title` (+ optional ' +
+    '`accentTitle` line), a one-line `thesis`, a `kpis` band of 3–5 headline numbers, and a `meta` footer ' +
+    '(coverage · source · preparedBy · date) with `confidential`. For real data-viz pass a `chart` spec ' +
+    '(uses render_chart — dual_axis/heatmap/line/bar/etc., publication-grade) instead of the basic native ' +
+    'chartType. Give the deck RHYTHM by alternating a few `theme:"dark"` slides (cover/section/closing) with ' +
+    'light content slides. One idea per slide, ≤6 bullets, big stat slides, generous margins, accent only on the key series.',
   parameters: {
     type: 'object',
     properties: {
@@ -78,11 +99,19 @@ export const generatePptxTool: ToolDef = {
             attribution: { type: 'string' },
             header: { type: 'array', items: { type: 'string' }, description: 'Table header cells.' },
             rows: { type: 'array', items: { type: 'array', items: { type: 'string' } }, description: 'Table body rows.' },
-            chartType: { type: 'string', enum: ['bar', 'line', 'pie'] },
-            categories: { type: 'array', items: { type: 'string' }, description: 'Chart x-axis categories.' },
+            chartType: { type: 'string', enum: ['bar', 'line', 'pie'], description: 'Basic NATIVE editable chart (simple bar/line/pie). For richer/publication-grade charts use `chart` instead.' },
+            categories: { type: 'array', items: { type: 'string' }, description: 'Native-chart x-axis categories.' },
             series: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, values: { type: 'array', items: { type: 'number' } } } } },
+            chart: { type: 'object', description: 'A render_chart spec for a publication-grade chart on a chart slide: { type:"dual_axis"|"heatmap"|"line"|"bar"|… , data:[…], x, y, y2, series, value, value_labels }. Embedded as a crisp image; supersedes chartType.' },
             image: { type: 'string', description: 'Workspace path to an image for an image slide.' },
             notes: { type: 'string', description: 'Speaker notes.' },
+            masthead: { type: 'string', description: 'COVER (title slide): a text wordmark / publication line, e.g. "ACME · MARKET INTELLIGENCE".' },
+            thesis: { type: 'string', description: 'COVER: a one-line thesis/positioning statement under the title.' },
+            accentTitle: { type: 'string', description: 'COVER: an optional second title line rendered in the accent colour.' },
+            kpis: { type: 'array', items: { type: 'object', properties: { value: { type: 'string' }, label: { type: 'string' } } }, description: 'COVER: a band of 3–5 headline numbers ({value,label}).' },
+            meta: { type: 'object', properties: { coverage: { type: 'string' }, source: { type: 'string' }, preparedBy: { type: 'string' }, date: { type: 'string' } }, description: 'COVER: a metadata footer (coverage window · source · prepared-by · date).' },
+            confidential: { type: 'boolean', description: 'COVER: show a CONFIDENTIAL marker.' },
+            theme: { type: 'string', enum: ['light', 'dark'], description: 'Per-slide override of the deck theme (for a dark/light rhythm).' },
           },
           required: ['layout'],
         },
@@ -113,11 +142,7 @@ export const generatePptxTool: ToolDef = {
     }
 
     const accent = hex6(args.accent, '4F46E5');
-    const dark = args.theme === 'dark';
-    const bg = dark ? '14161B' : 'FFFFFF';
-    const ink = dark ? 'ECEEF2' : INK;
-    const muted = dark ? '9AA1AD' : MUTED;
-    const surface = dark ? '1C1F25' : 'F7F7F5';
+    const deckDark = args.theme === 'dark';
 
     const pptx = new PptxGenJS();
     pptx.defineLayout({ name: 'ARKS_WIDE', width: 13.333, height: 7.5 });
@@ -131,16 +156,75 @@ export const generatePptxTool: ToolDef = {
       s.addText(String(text).toUpperCase(), { x: M, y, w: CW, h: 0.3, fontFace: BODY, fontSize: 11, bold: true, color: accent, charSpacing: 2 });
 
     for (const sl of slides) {
+      const dark = sl.theme ? sl.theme === 'dark' : deckDark;
+      const bg = dark ? '14161B' : 'FFFFFF';
+      const ink = dark ? 'ECEEF2' : INK;
+      const muted = dark ? '9AA1AD' : MUTED;
+      const surface = dark ? '1C1F25' : 'F7F7F5';
+      const border = dark ? '2C313A' : 'E7E6E2';
+
+      // Pre-render a publication-grade chart (render_chart → crisp PNG for the deck +
+      // SVG for the preview). Graceful: if it can't render (no Chromium / bad data) the
+      // chart slide falls back to the basic native chartType path below.
+      if (sl.layout === 'chart' && sl.chart && !sl._chartImg) {
+        try {
+          const spec = { ...sl.chart, accent: `#${accent}` } as ChartArgs;
+          const png = await renderChartPng(spec);
+          if (png) {
+            const cAbs = resolveInWorkspace(ctx.repoDir, path.join('charts', `slide-chart-${slides.indexOf(sl) + 1}.png`));
+            fs.mkdirSync(path.dirname(cAbs), { recursive: true });
+            fs.writeFileSync(cAbs, png.png);
+            sl._chartImg = cAbs;
+          }
+          sl._chartSvg = await renderChartSvg(spec).catch(() => undefined as any);
+        } catch {
+          /* fall back to native chart */
+        }
+      }
+
       const s = pptx.addSlide();
       s.background = { color: bg };
       if (sl.notes) s.addNotes(String(sl.notes));
 
       switch (sl.layout) {
         case 'title': {
-          if (sl.kicker) s.addText(String(sl.kicker).toUpperCase(), { x: M, y: 2.7, w: CW, h: 0.4, align: 'center', fontFace: BODY, fontSize: 13, bold: true, color: accent, charSpacing: 2 });
-          s.addText(String(sl.title || ''), { x: M, y: 3.1, w: CW, h: 1.6, align: 'center', fontFace: DISPLAY, fontSize: 44, bold: true, color: ink });
-          s.addShape(pptx.ShapeType.line, { x: 13.333 / 2 - 0.5, y: 4.85, w: 1, h: 0, line: { color: accent, width: 2.5 } });
-          if (sl.subtitle) s.addText(String(sl.subtitle), { x: M + 1.5, y: 5.0, w: CW - 3, h: 1, align: 'center', fontFace: BODY, fontSize: 16, color: muted, lineSpacingMultiple: 1.3 });
+          const designed = !!(sl.masthead || sl.kpis?.length || sl.meta || sl.thesis || sl.accentTitle || sl.confidential);
+          if (!designed) {
+            // simple centered title (back-compatible)
+            if (sl.kicker) s.addText(String(sl.kicker).toUpperCase(), { x: M, y: 2.7, w: CW, h: 0.4, align: 'center', fontFace: BODY, fontSize: 13, bold: true, color: accent, charSpacing: 2 });
+            s.addText(String(sl.title || ''), { x: M, y: 3.1, w: CW, h: 1.6, align: 'center', fontFace: DISPLAY, fontSize: 44, bold: true, color: ink });
+            s.addShape(pptx.ShapeType.line, { x: 13.333 / 2 - 0.5, y: 4.85, w: 1, h: 0, line: { color: accent, width: 2.5 } });
+            if (sl.subtitle) s.addText(String(sl.subtitle), { x: M + 1.5, y: 5.0, w: CW - 3, h: 1, align: 'center', fontFace: BODY, fontSize: 16, color: muted, lineSpacingMultiple: 1.3 });
+            break;
+          }
+          // DESIGNED COVER — masthead · accent title · thesis · KPI band · metadata footer (fills the page, editorial)
+          if (sl.masthead) s.addText(String(sl.masthead).toUpperCase(), { x: M, y: 0.5, w: CW - 2.6, h: 0.3, fontFace: BODY, fontSize: 12, bold: true, color: accent, charSpacing: 2 });
+          if (sl.confidential) s.addText('CONFIDENTIAL', { x: 13.333 - M - 2.6, y: 0.5, w: 2.6, h: 0.3, align: 'right', fontFace: BODY, fontSize: 10, bold: true, color: muted, charSpacing: 2 });
+          s.addShape(pptx.ShapeType.line, { x: M, y: 0.86, w: CW, h: 0, line: { color: border, width: 1 } });
+          if (sl.kicker) s.addText(String(sl.kicker).toUpperCase(), { x: M, y: 2.15, w: CW, h: 0.35, fontFace: BODY, fontSize: 13, bold: true, color: accent, charSpacing: 2 });
+          s.addText(String(sl.title || ''), { x: M, y: 2.5, w: CW, h: 0.95, fontFace: DISPLAY, fontSize: 40, bold: true, color: ink });
+          if (sl.accentTitle) s.addText(String(sl.accentTitle), { x: M, y: 3.35, w: CW, h: 0.95, fontFace: DISPLAY, fontSize: 40, bold: true, color: accent });
+          if (sl.thesis) s.addText(String(sl.thesis), { x: M, y: sl.accentTitle ? 4.35 : 3.55, w: CW * 0.84, h: 1.0, fontFace: BODY, fontSize: 15, color: muted, lineSpacingMultiple: 1.3 });
+          const cov = (sl.kpis || []).slice(0, 5);
+          if (cov.length) {
+            const gap = 0.3;
+            const tw = (CW - gap * (cov.length - 1)) / cov.length;
+            cov.forEach((k, i) => {
+              const x = M + i * (tw + gap);
+              s.addShape(pptx.ShapeType.line, { x, y: 5.5, w: Math.min(tw * 0.5, 1.1), h: 0, line: { color: accent, width: 2 } });
+              s.addText(String(k.value), { x, y: 5.58, w: tw, h: 0.7, fontFace: DISPLAY, fontSize: 30, bold: true, color: ink });
+              s.addText(String(k.label).toUpperCase(), { x, y: 6.28, w: tw, h: 0.4, fontFace: BODY, fontSize: 10, color: muted, charSpacing: 1 });
+            });
+          }
+          if (sl.meta) {
+            const parts = [
+              sl.meta.coverage ? `Coverage ${sl.meta.coverage}` : '',
+              sl.meta.source ? `Source: ${sl.meta.source}` : '',
+              sl.meta.preparedBy ? `Prepared by ${sl.meta.preparedBy}` : '',
+              sl.meta.date || '',
+            ].filter(Boolean).join('   ·   ');
+            if (parts) s.addText(parts, { x: M, y: 7.0, w: CW, h: 0.35, fontFace: BODY, fontSize: 10, color: muted });
+          }
           break;
         }
         case 'section': {
@@ -204,19 +288,29 @@ export const generatePptxTool: ToolDef = {
         case 'chart': {
           if (sl.kicker) kicker(s, sl.kicker);
           if (sl.title) s.addText(String(sl.title), { x: M, y: 1.0, w: CW, h: 0.9, fontFace: DISPLAY, fontSize: 28, bold: true, color: ink });
-          const cats = sl.categories || [];
-          const series = (sl.series || []).map((se, i) => ({ name: String(se.name), labels: cats, values: se.values || [] }));
-          const colors = [accent, '9AA1AD', 'C9CDD4'];
-          const type = sl.chartType === 'line' ? pptx.ChartType.line : sl.chartType === 'pie' ? pptx.ChartType.pie : pptx.ChartType.bar;
-          if (series.length) {
-            s.addChart(type, series as any, {
-              x: M, y: 2.1, w: CW, h: 4.6,
-              chartColors: colors, showLegend: series.length > 1, legendPos: 'b', legendFontFace: BODY, legendFontSize: 11,
-              showValue: sl.chartType !== 'line', dataLabelFontFace: BODY, dataLabelFontSize: 10, dataLabelColor: ink,
-              catAxisLabelFontFace: BODY, catAxisLabelFontSize: 11, catAxisLabelColor: muted,
-              valAxisHidden: true, valGridLine: { style: 'none' }, catAxisLineShow: false,
-              showTitle: false, chartColorsOpacity: 100,
-            });
+          const boxY = 2.1, boxH = 4.6;
+          if (sl._chartImg && fs.existsSync(sl._chartImg)) {
+            // publication-grade render_chart image — contained + aspect-preserved
+            const { width: cw, height: ch } = chartSize(sl.chart as ChartArgs);
+            const ar = cw / Math.max(1, ch);
+            let w = CW, h = w / ar;
+            if (h > boxH) { h = boxH; w = h * ar; }
+            s.addImage({ path: sl._chartImg, x: M + (CW - w) / 2, y: boxY + (boxH - h) / 2, w, h });
+          } else {
+            const cats = sl.categories || [];
+            const series = (sl.series || []).map((se) => ({ name: String(se.name), labels: cats, values: se.values || [] }));
+            const colors = [accent, '9AA1AD', 'C9CDD4'];
+            const type = sl.chartType === 'line' ? pptx.ChartType.line : sl.chartType === 'pie' ? pptx.ChartType.pie : pptx.ChartType.bar;
+            if (series.length) {
+              s.addChart(type, series as any, {
+                x: M, y: boxY, w: CW, h: boxH,
+                chartColors: colors, showLegend: series.length > 1, legendPos: 'b', legendFontFace: BODY, legendFontSize: 11,
+                showValue: sl.chartType !== 'line', dataLabelFontFace: BODY, dataLabelFontSize: 10, dataLabelColor: ink,
+                catAxisLabelFontFace: BODY, catAxisLabelFontSize: 11, catAxisLabelColor: muted,
+                valAxisHidden: true, valGridLine: { style: 'none' }, catAxisLineShow: false,
+                showTitle: false, chartColorsOpacity: 100,
+              });
+            }
           }
           break;
         }
@@ -257,7 +351,15 @@ export const generatePptxTool: ToolDef = {
     // Emit a faithful HTML preview sibling so the canvas + the visual-QC gate always have
     // something to render (esp. when LibreOffice isn't available for true rendering).
     try {
-      writePreviewHtml(absOut.replace(/\.pptx$/i, '.preview.html'), slides, { accent, ink, muted, surface, bg, dark, title: String(args.title || finalName) });
+      writePreviewHtml(absOut.replace(/\.pptx$/i, '.preview.html'), slides, {
+        accent,
+        ink: deckDark ? 'ECEEF2' : INK,
+        muted: deckDark ? '9AA1AD' : MUTED,
+        surface: deckDark ? '1C1F25' : 'F7F7F5',
+        bg: deckDark ? '14161B' : 'FFFFFF',
+        dark: deckDark,
+        title: String(args.title || finalName),
+      });
     } catch {
       /* preview is best-effort */
     }
@@ -278,7 +380,16 @@ function writePreviewHtml(
       let inner = '';
       if (sl.kicker) inner += `<div class="kick">${esc(sl.kicker)}</div>`;
       if (sl.layout === 'title') {
-        inner = `<div class="center"><div class="kick" style="text-align:center">${esc(sl.kicker || '')}</div><h1 class="disp" style="font-size:34px">${esc(sl.title)}</h1><div class="rule"></div>${sl.subtitle ? `<p class="muted" style="max-width:60%;margin:14px auto">${esc(sl.subtitle)}</p>` : ''}</div>`;
+        const designed = !!(sl.masthead || sl.kpis?.length || sl.meta || sl.thesis || sl.accentTitle);
+        if (designed) {
+          const kpis = (sl.kpis || []).slice(0, 5).map((k) => `<div class="cv-kpi"><div class="cv-kpi-v">${esc(k.value)}</div><div class="cv-kpi-l">${esc(k.label)}</div></div>`).join('');
+          const meta = sl.meta
+            ? [sl.meta.coverage ? `Coverage ${esc(sl.meta.coverage)}` : '', sl.meta.source ? `Source: ${esc(sl.meta.source)}` : '', sl.meta.preparedBy ? `Prepared by ${esc(sl.meta.preparedBy)}` : '', esc(sl.meta.date || '')].filter(Boolean).join('  ·  ')
+            : '';
+          inner = `<div class="cover"><div class="cv-top"><span class="kick">${esc(sl.masthead || '')}</span>${sl.confidential ? '<span class="cv-conf">CONFIDENTIAL</span>' : ''}</div><div class="cv-mid">${sl.kicker ? `<div class="kick">${esc(sl.kicker)}</div>` : ''}<h1 class="disp" style="font-size:38px;margin:6px 0">${esc(sl.title)}${sl.accentTitle ? `<br><span style="color:var(--accent)">${esc(sl.accentTitle)}</span>` : ''}</h1>${sl.thesis ? `<p class="muted" style="max-width:78%;font-size:15px">${esc(sl.thesis)}</p>` : ''}</div>${kpis ? `<div class="cv-kpis">${kpis}</div>` : ''}${meta ? `<div class="cv-meta">${meta}</div>` : ''}</div>`;
+        } else {
+          inner = `<div class="center"><div class="kick" style="text-align:center">${esc(sl.kicker || '')}</div><h1 class="disp" style="font-size:34px">${esc(sl.title)}</h1><div class="rule"></div>${sl.subtitle ? `<p class="muted" style="max-width:60%;margin:14px auto">${esc(sl.subtitle)}</p>` : ''}</div>`;
+        }
       } else if (sl.layout === 'quote') {
         inner += `<div class="q">“</div><p class="disp" style="font-size:24px;font-style:italic">${esc(sl.quote)}</p>${sl.attribution ? `<p class="muted">— ${esc(sl.attribution)}</p>` : ''}`;
       } else {
@@ -291,7 +402,9 @@ function writePreviewHtml(
           const rows = (sl.rows || []).map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('');
           inner += `<table>${head}${rows}</table>`;
         }
-        if (sl.layout === 'chart' && sl.series?.length && sl.categories?.length) {
+        if (sl.layout === 'chart' && sl._chartSvg) {
+          inner += `<div class="figsvg">${sl._chartSvg}</div>`;
+        } else if (sl.layout === 'chart' && sl.series?.length && sl.categories?.length) {
           const vals = sl.series[0]?.values || [];
           const max = Math.max(1, ...sl.series.flatMap((se) => se.values || []));
           const cols = sl.categories
@@ -329,6 +442,14 @@ function writePreviewHtml(
     .blabel{font-size:13px;color:var(--muted);margin-top:10px} .bval{font-size:14px;font-weight:700;margin-bottom:6px}
     .q{font-family:'Source Serif 4',serif;font-size:70px;color:var(--accent);line-height:.6}
     .ft{position:absolute;left:64px;bottom:20px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .cover{height:100%;display:flex;flex-direction:column}
+    .cv-top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--surface);padding-bottom:8px}
+    .cv-conf{font-size:10px;letter-spacing:.12em;color:var(--muted);font-weight:700}
+    .cv-mid{flex:1;display:flex;flex-direction:column;justify-content:center}
+    .cv-kpis{display:flex;gap:26px;margin:8px 0 14px} .cv-kpi{border-top:2px solid var(--accent);padding-top:6px;min-width:84px}
+    .cv-kpi-v{font-family:'Source Serif 4',serif;font-weight:700;font-size:26px} .cv-kpi-l{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+    .cv-meta{font-size:10px;color:var(--muted);border-top:1px solid var(--surface);padding-top:8px}
+    .figsvg{margin-top:14px} .figsvg svg{max-width:100%;height:auto;display:block}
   </style></head><body>${tiles}</body></html>`;
   fs.writeFileSync(abs, html);
 }

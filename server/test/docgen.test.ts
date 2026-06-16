@@ -6,6 +6,7 @@ import path from 'node:path';
 import type { ToolCtx } from '../src/agent/tools/common';
 import { generateSpreadsheetTool } from '../src/agent/tools/excel';
 import { generateDocTool } from '../src/agent/tools/docx';
+import { generatePptxTool } from '../src/agent/tools/pptx';
 import { auditFormulaModel, detectEmptyPages } from '../src/agent/deliverableCheck';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-docgen-'));
@@ -157,4 +158,70 @@ test('generate_doc writes a valid docx (zip/OOXML)', async () => {
   assert.equal(buf[0], 0x50);
   assert.equal(buf[1], 0x4b);
   assert.ok(buf.length > 1000);
+});
+
+test('generate_doc: a designed cover + a chart block produce a valid docx', async () => {
+  const res = await generateDocTool.run(
+    {
+      output: 'report.docx',
+      accent: '#c8962a',
+      cover: {
+        masthead: 'ACME · INTELLIGENCE',
+        title: 'Market Brief',
+        accentLine: '2026 Outlook',
+        thesis: 'Demand is shifting from X to Y.',
+        kpis: [{ value: '73,091', label: 'Leads' }, { value: '7.3%', label: 'Conversion' }],
+        meta: { coverage: '2024–2026', source: 'CRM', preparedBy: 'BI', date: 'Jun 2026' },
+        confidential: true,
+      },
+      blocks: [
+        { type: 'heading', text: 'Trend' },
+        { type: 'chart', chart: { type: 'line', data: [{ x: 'Jan', y: 10 }, { x: 'Feb', y: 14 }, { x: 'Mar', y: 12 }], x: 'x', y: 'y' }, caption: 'Monthly volume' },
+        { type: 'paragraph', text: 'Volume rose then dipped.' },
+      ],
+    },
+    ctx(),
+  );
+  assert.match(res, /Generated report\.docx/);
+  const buf = fs.readFileSync(path.join(ws, 'report.docx'));
+  assert.equal(buf[0], 0x50); // PK zip (valid even if the chart image was skipped without Chromium)
+  assert.equal(buf[1], 0x4b);
+  assert.ok(buf.length > 1000);
+});
+
+test('generate_pptx: a designed cover + a render_chart slide produce a valid deck', async () => {
+  const res = await generatePptxTool.run(
+    {
+      output: 'deck.pptx',
+      title: 'Q2 Review',
+      accent: '#c8962a',
+      slides: [
+        {
+          layout: 'title',
+          masthead: 'ACME · BI',
+          kicker: 'Quarterly',
+          title: 'Q2 Review',
+          accentTitle: 'The fuel line',
+          thesis: 'Conversion holds; volume fell.',
+          kpis: [{ value: '73k', label: 'Leads' }, { value: '7.3%', label: 'Conversion' }],
+          meta: { coverage: '2024–2026', preparedBy: 'BI' },
+          confidential: true,
+          theme: 'dark',
+        },
+        { layout: 'chart', title: 'Volume vs rate', chart: { type: 'dual_axis', data: [{ m: 'Jan', v: 100, r: 3 }, { m: 'Feb', v: 120, r: 3.2 }], x: 'm', y: 'v', y2: 'r' } },
+        { layout: 'bullets', title: 'Moves', bullets: ['Reopen dormant leads', 'Double down on referrals'] },
+      ],
+    },
+    ctx(),
+  );
+  assert.match(res, /Generated deck\.pptx/);
+  const buf = fs.readFileSync(path.join(ws, 'deck.pptx'));
+  const JSZip: any = (await import('jszip')).default ?? (await import('jszip'));
+  const zip = await JSZip.loadAsync(buf);
+  const slideCount = Object.keys(zip.files).filter((n: string) => /^ppt\/slides\/slide\d+\.xml$/.test(n)).length;
+  assert.equal(slideCount, 3);
+  // the designed cover composed its KPI band + masthead text into slide 1
+  const s1 = await zip.file('ppt/slides/slide1.xml')!.async('string');
+  assert.match(s1, /CONFIDENTIAL/); // cover metadata marker
+  assert.match(s1, /73k/); // a KPI-band figure landed on the cover
 });

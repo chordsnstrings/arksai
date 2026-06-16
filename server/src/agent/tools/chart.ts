@@ -277,6 +277,63 @@ export async function renderChartSvg(args: ChartArgs): Promise<string> {
   return svg;
 }
 
+export function chartSize(args: ChartArgs): { width: number; height: number } {
+  return {
+    width: Math.max(160, Math.min(1400, Number(args.width) || 560)),
+    height: Math.max(120, Math.min(1000, Number(args.height) || 300)),
+  };
+}
+
+/**
+ * Rasterize a chart to a TRANSPARENT PNG (2× for crispness) via headless Chromium —
+ * .docx and .pptx both need a raster image (SVG is unreliable in Word/PowerPoint),
+ * so this lets the office generators embed the exact same editorial Vega charts the
+ * reports use. Mirrors the Playwright/Chromium pattern in deliverableCheck.ts and
+ * degrades gracefully (returns null) when the SVG fails to render or Chromium is
+ * unavailable, so doc/deck generation never breaks on a chart.
+ */
+export async function renderChartPng(
+  args: ChartArgs,
+  scale = 2,
+): Promise<{ png: Buffer; width: number; height: number } | null> {
+  let svg: string;
+  try {
+    svg = await renderChartSvg(args);
+  } catch {
+    return null;
+  }
+  if (!svg || !svg.includes('<svg')) return null;
+  const { width, height } = chartSize(args);
+
+  let pw: any;
+  try {
+    pw = await import('playwright');
+  } catch {
+    return null;
+  }
+  let browser: any;
+  try {
+    browser = await pw.chromium.launch({ headless: true, timeout: 15_000, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+    const page = await browser.newPage({ deviceScaleFactor: scale });
+    await page.setViewportSize({ width: Math.ceil(width), height: Math.ceil(height) });
+    await page.setContent(
+      `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:transparent}svg{display:block}</style>${svg}`,
+      { waitUntil: 'load', timeout: 20_000 },
+    );
+    const el = await page.$('svg');
+    const png = (await (el ?? page).screenshot({ type: 'png', omitBackground: true })) as Buffer;
+    return png && png.length ? { png, width, height } : null;
+  } catch {
+    return null;
+  } finally {
+    try {
+      await browser?.close();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 export const renderChartTool: ToolDef = {
   name: 'render_chart',
   description:
