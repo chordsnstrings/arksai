@@ -7,6 +7,7 @@ import type { ToolCtx } from '../src/agent/tools/common';
 import { generateSpreadsheetTool } from '../src/agent/tools/excel';
 import { generateDocTool } from '../src/agent/tools/docx';
 import { generatePptxTool } from '../src/agent/tools/pptx';
+import { iconSvg, hasIcon, ICON_NAMES } from '../src/agent/tools/icons';
 import { auditFormulaModel, detectEmptyPages } from '../src/agent/deliverableCheck';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-docgen-'));
@@ -224,4 +225,19 @@ test('generate_pptx: a designed cover + a render_chart slide produce a valid dec
   const s1 = await zip.file('ppt/slides/slide1.xml')!.async('string');
   assert.match(s1, /CONFIDENTIAL/); // cover metadata marker
   assert.match(s1, /73k/); // a KPI-band figure landed on the cover
+});
+
+test('iconSvg renders a recolourable line icon and falls back gracefully', () => {
+  assert.ok(ICON_NAMES.length >= 16);
+  const s = iconSvg('trending-up', '#c8962a', 40, 2);
+  assert.match(s, /^<svg/);
+  assert.match(s, /<\/svg>$/);
+  assert.match(s, /stroke="#c8962a"/);
+  assert.match(s, /width="40"/);
+  assert.ok(hasIcon('target'));
+  assert.equal(hasIcon('not-an-icon'), false);
+  // an unknown name still yields a valid svg (circle fallback)
+  assert.match(iconSvg('nope'), /<svg[\s\S]*<\/svg>/);
+  // a bare hex (no #) is normalised
+  assert.match(iconSvg('users', 'ff0000'), /stroke="#ff0000"/);
 });

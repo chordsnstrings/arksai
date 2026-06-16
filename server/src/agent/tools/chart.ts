@@ -292,19 +292,9 @@ export function chartSize(args: ChartArgs): { width: number; height: number } {
  * degrades gracefully (returns null) when the SVG fails to render or Chromium is
  * unavailable, so doc/deck generation never breaks on a chart.
  */
-export async function renderChartPng(
-  args: ChartArgs,
-  scale = 2,
-): Promise<{ png: Buffer; width: number; height: number } | null> {
-  let svg: string;
-  try {
-    svg = await renderChartSvg(args);
-  } catch {
-    return null;
-  }
+/** Rasterize ANY SVG string to a TRANSPARENT PNG (scale× crisp) via headless Chromium. Null if unavailable. */
+export async function svgToPng(svg: string, width: number, height: number, scale = 2): Promise<Buffer | null> {
   if (!svg || !svg.includes('<svg')) return null;
-  const { width, height } = chartSize(args);
-
   let pw: any;
   try {
     pw = await import('playwright');
@@ -315,14 +305,14 @@ export async function renderChartPng(
   try {
     browser = await pw.chromium.launch({ headless: true, timeout: 15_000, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
     const page = await browser.newPage({ deviceScaleFactor: scale });
-    await page.setViewportSize({ width: Math.ceil(width), height: Math.ceil(height) });
+    await page.setViewportSize({ width: Math.max(1, Math.ceil(width)), height: Math.max(1, Math.ceil(height)) });
     await page.setContent(
       `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:transparent}svg{display:block}</style>${svg}`,
       { waitUntil: 'load', timeout: 20_000 },
     );
     const el = await page.$('svg');
     const png = (await (el ?? page).screenshot({ type: 'png', omitBackground: true })) as Buffer;
-    return png && png.length ? { png, width, height } : null;
+    return png && png.length ? png : null;
   } catch {
     return null;
   } finally {
@@ -332,6 +322,21 @@ export async function renderChartPng(
       /* ignore */
     }
   }
+}
+
+export async function renderChartPng(
+  args: ChartArgs,
+  scale = 2,
+): Promise<{ png: Buffer; width: number; height: number } | null> {
+  let svg: string;
+  try {
+    svg = await renderChartSvg(args);
+  } catch {
+    return null;
+  }
+  const { width, height } = chartSize(args);
+  const png = await svgToPng(svg, width, height, scale);
+  return png ? { png, width, height } : null;
 }
 
 export const renderChartTool: ToolDef = {

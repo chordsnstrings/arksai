@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveInWorkspace, type ToolDef } from './common';
-import { renderChartPng, renderChartSvg, chartSize, type ChartArgs } from './chart';
+import { renderChartPng, renderChartSvg, chartSize, svgToPng, type ChartArgs } from './chart';
+import { iconSvg, hasIcon } from './icons';
 
 /** Normalise "#4f46e5"/"4f46e5" → 6-hex (no #), PptxGenJS colour form. */
 function hex6(c: string | undefined, fallback: string): string {
@@ -21,7 +22,7 @@ interface Slide {
   right?: string[];
   leftTitle?: string;
   rightTitle?: string;
-  stats?: { value: string; label: string }[];
+  stats?: { value: string; label: string; icon?: string }[];
   quote?: string;
   attribution?: string;
   header?: string[];
@@ -71,7 +72,7 @@ export const generatePptxTool: ToolDef = {
     '(coverage · source · preparedBy · date) with `confidential`. For real data-viz pass a `chart` spec ' +
     '(uses render_chart — dual_axis/heatmap/line/bar/etc., publication-grade) instead of the basic native ' +
     'chartType. Give the deck RHYTHM by alternating a few `theme:"dark"` slides (cover/section/closing) with ' +
-    'light content slides. One idea per slide, ≤6 bullets, big stat slides, generous margins, accent only on the key series.',
+    'light content slides. One idea per slide, ≤6 bullets, big stat slides (put a line ICON on each via stats[].icon — never emoji), generous margins, accent only on the key series.',
   parameters: {
     type: 'object',
     properties: {
@@ -94,7 +95,7 @@ export const generatePptxTool: ToolDef = {
             right: { type: 'array', items: { type: 'string' }, description: 'Right column lines (two-col).' },
             leftTitle: { type: 'string' },
             rightTitle: { type: 'string' },
-            stats: { type: 'array', items: { type: 'object', properties: { value: { type: 'string' }, label: { type: 'string' } } }, description: 'Big stat tiles.' },
+            stats: { type: 'array', items: { type: 'object', properties: { value: { type: 'string' }, label: { type: 'string' }, icon: { type: 'string' } } }, description: 'Big stat tiles, each {value,label,icon?}. icon = a line-icon name: trending-up, trending-down, target, users, dollar-sign, percent, zap, flag, lightbulb, alert-triangle, check-circle, clock, globe, shield, layers, rocket, bar-chart, pie-chart, activity, calendar, map-pin, star, arrow-up-right.' },
             quote: { type: 'string' },
             attribution: { type: 'string' },
             header: { type: 'array', items: { type: 'string' }, description: 'Table header cells.' },
@@ -182,6 +183,22 @@ export const generatePptxTool: ToolDef = {
         }
       }
 
+      // Pre-render KPI-tile icons (line-icon SVG → crisp PNG; graceful without Chromium).
+      if (sl.layout === 'stat' && sl.stats?.length) {
+        for (let i = 0; i < sl.stats.length; i++) {
+          const st: any = sl.stats[i];
+          if (hasIcon(st.icon) && !st._iconImg) {
+            const png = await svgToPng(iconSvg(st.icon, `#${accent}`, 48, 2), 48, 48);
+            if (png) {
+              const iAbs = resolveInWorkspace(ctx.repoDir, path.join('charts', `icon-${slides.indexOf(sl) + 1}-${i}.png`));
+              fs.mkdirSync(path.dirname(iAbs), { recursive: true });
+              fs.writeFileSync(iAbs, png);
+              st._iconImg = iAbs;
+            }
+          }
+        }
+      }
+
       const s = pptx.addSlide();
       s.background = { color: bg };
       if (sl.notes) s.addNotes(String(sl.notes));
@@ -263,8 +280,11 @@ export const generatePptxTool: ToolDef = {
           stats.forEach((st, i) => {
             const x = M + i * (tileW + gap);
             s.addShape(pptx.ShapeType.rect, { x, y: 2.6, w: tileW, h: 2.4, fill: { color: surface }, line: { color: surface } });
-            s.addText(String(st.value), { x, y: 2.9, w: tileW, h: 1.1, align: 'center', fontFace: DISPLAY, fontSize: 40, bold: true, color: ink });
-            s.addText(String(st.label).toUpperCase(), { x: x + 0.1, y: 4.0, w: tileW - 0.2, h: 0.8, align: 'center', fontFace: BODY, fontSize: 11, color: muted, charSpacing: 1 });
+            const ico = (st as any)._iconImg as string | undefined;
+            const hasIco = !!ico && fs.existsSync(ico);
+            if (hasIco) s.addImage({ path: ico!, x: x + tileW / 2 - 0.22, y: 2.82, w: 0.44, h: 0.44 });
+            s.addText(String(st.value), { x, y: hasIco ? 3.32 : 2.9, w: tileW, h: 1.0, align: 'center', fontFace: DISPLAY, fontSize: hasIco ? 34 : 40, bold: true, color: ink });
+            s.addText(String(st.label).toUpperCase(), { x: x + 0.1, y: hasIco ? 4.35 : 4.0, w: tileW - 0.2, h: 0.7, align: 'center', fontFace: BODY, fontSize: 11, color: muted, charSpacing: 1 });
           });
           break;
         }
@@ -396,7 +416,7 @@ function writePreviewHtml(
         if (sl.title) inner += `<h2 class="disp">${esc(sl.title)}</h2>`;
         if (sl.bullets?.length) inner += `<ul>${sl.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>`;
         if (sl.layout === 'two-col') inner += `<div class="cols"><div>${sl.leftTitle ? `<div class="ct">${esc(sl.leftTitle)}</div>` : ''}<ul>${(sl.left || []).map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div><div>${sl.rightTitle ? `<div class="ct">${esc(sl.rightTitle)}</div>` : ''}<ul>${(sl.right || []).map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div></div>`;
-        if (sl.stats?.length) inner += `<div class="stats">${sl.stats.map((st) => `<div class="tile"><div class="v">${esc(st.value)}</div><div class="l">${esc(st.label)}</div></div>`).join('')}</div>`;
+        if (sl.stats?.length) inner += `<div class="stats">${sl.stats.map((st) => `<div class="tile">${hasIcon(st.icon) ? `<div class="tico">${iconSvg(st.icon!, '#' + t.accent, 30, 2)}</div>` : ''}<div class="v">${esc(st.value)}</div><div class="l">${esc(st.label)}</div></div>`).join('')}</div>`;
         if (sl.header?.length || sl.rows?.length) {
           const head = sl.header?.length ? `<tr>${sl.header.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>` : '';
           const rows = (sl.rows || []).map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('');
@@ -433,6 +453,7 @@ function writePreviewHtml(
     .muted{color:var(--muted)} ul{margin:8px 0;padding-left:22px} li{font-size:18px;margin:0 0 10px;line-height:1.35}
     .cols{display:grid;grid-template-columns:1fr 1fr;gap:36px} .ct{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:6px}
     .stats{display:flex;gap:18px;margin-top:26px} .tile{flex:1;background:var(--surface);border-radius:8px;padding:22px;text-align:center}
+    .tico{margin:0 auto 8px} .tico svg{display:block;margin:0 auto}
     .tile .v{font-family:'Source Serif 4',serif;font-weight:700;font-size:38px} .tile .l{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:6px}
     table{border-collapse:collapse;width:100%;margin-top:16px;font-size:14px} th{background:var(--accent);color:#fff;text-align:left;padding:8px 12px}
     td{padding:7px 12px;border-bottom:1px solid var(--surface)} tr:nth-child(even) td{background:var(--surface)}
