@@ -29,11 +29,18 @@ test('expertiseFor: sales battlecard + marketing landing carry their craft', () 
 });
 
 test('expertiseFor: every department persona resolves', () => {
-  for (const d of ['marketing', 'sales', 'finance', 'people', 'engineering']) {
+  for (const d of ['marketing', 'sales', 'finance', 'people', 'engineering', 'bi']) {
     assert.ok(expertiseFor(`${d}.kpidashboard`) || expertiseFor(`${d}.unknown`) === null);
     // a known key per dept returns a block
   }
   assert.ok(expertiseFor('engineering.designdoc'));
+});
+
+test('expertiseFor: BI & Analytics tasks carry analytics rigor', () => {
+  assert.match(expertiseFor('bi.dashboard')!, /F-pattern|KPI/i);
+  assert.match(expertiseFor('bi.datadict')!, /definition|metric/i);
+  assert.match(expertiseFor('bi.forecast')!, /formula|assumption/i);
+  assert.ok(expertiseFor('bi.alert'));
 });
 
 test('buildSystemPrompt: injects the expert standards when the session has a task', () => {

@@ -22,6 +22,8 @@ const DEPARTMENT: Record<string, string> = {
     'Work as an experienced People/HR partner. Write in plain, inclusive, legally-careful language; be specific; mark placeholders for company specifics; and flag where professional/legal review is advisable — you do not give legal advice.',
   engineering:
     'Work as a senior engineer / PM. Be precise and pragmatic: start from the problem and the outcome, make it testable and unambiguous, and keep tools and docs clean and maintainable.',
+  bi:
+    'Work as a senior BI / analytics lead (analytics engineer + analyst). Lead with the DECISION the work serves; define every metric precisely and consistently (one agreed definition, with grain/units/period); surface the "so what", not just charts; cite data sources and NEVER fabricate or plug a number — mark anything missing as "data not provided". Insight-first, trustworthy, scannable.',
 };
 
 // ---- Reusable archetype standards (research-backed) ----
@@ -121,6 +123,19 @@ const TASK: Record<string, string> = {
   'engineering.runbook': `${REPORT} Ops runbook: purpose, preconditions, numbered unambiguous steps, verification after each major step, rollback, and owners/escalation.`,
   'engineering.designdoc': `${TECH_DOC} Design doc / PRD: open with the user problem + business outcome; then goals AND non-goals, the approach, alternatives, risks, and a rollout plan — not UI/DB details first.`,
   'engineering.statusreport': `${REPORT} Status report: what shipped, what’s in progress, risks/blockers, and what’s next — with a chart or two; honest, not rosy.`,
+
+  // BI & Analytics
+  'bi.dashboard': `${DASHBOARD} BI specifics: a clear title + as-of date, a period-over-period delta on each KPI, consistent colour semantics (a colour means the same thing everywhere), and a one-line headline takeaway; wire to the data provided and verify the live app.`,
+  'bi.explorer': `${DASHBOARD} Self-serve explorer: usable by a non-analyst — filters for date/segment/region update BOTH a chart and a data table, sensible defaults, clear empty states, and an export; fast and obvious.`,
+  'bi.reviewdeck': `${DECK} Business review (MBR/QBR): a curated point-in-time STORY (not an explorable dashboard) — performance vs plan, the KPIs, what moved and why, risks, and the asks/next steps; data appendix behind.`,
+  'bi.datadict': `Metric dictionary: one entry per metric — name, plain definition, the EXACT formula/logic (numerator, denominator, filters, time grain), source system, owner, and refresh cadence; call out where conflicting definitions exist and propose the single agreed one. The goal is to end "whose number is right". Clear headings; mark placeholders for company specifics.`,
+  'bi.adhoc': `${REPORT} Ad-hoc analysis: lead with the question, the method, and the answer; show only the cuts that matter (funnel/segment/cohort) with clean charts; separate correlation from causation; end with the recommended action. Use the data given; flag gaps, never plug.`,
+  'bi.cohort': `${REPORT} Cohort/retention: define the cohort and the event precisely; group by start period; show retention/behaviour over time (curve or triangle); call out WHERE and WHY it drops and the implication.`,
+  'bi.insight': `${REPORT} Insight narrative (data storytelling): auto-surface what CHANGED — biggest movers, trends, outliers, likely drivers — each explained in plain language with the number and the "so what", ranked by impact; no chart without a sentence; never assert beyond the data.`,
+  'bi.forecast': `${FIN_SHEET} Forecast / what-if: a driver-based projection of the metric — assumptions block → monthly projection → outputs, with a high/base/low view; state the method and assumptions; fully formula-driven so a driver change flows through (hard-coded projections are rejected).`,
+  'bi.scorecard': `${DASHBOARD} KPI scorecard: each KPI with current value, target, period-over-period delta, and an explicit on/off-track status; grouped by objective/OKR; readable in ~5 seconds; consistent definitions.`,
+  'bi.digest': `${REPORT} Recurring digest: tight and scannable, built to be sent on a schedule — headline number(s), the key movers vs last period, ONE chart, and the single thing to act on; identical structure each run so it’s comparable across periods.`,
+  'bi.alert': `KPI monitor/alert: pull the latest data, evaluate the threshold/condition, and signal ONLY when it’s actionable — a clear message with the metric, value, threshold, and the change/direction; route to the Slack/webhook provided. Avoid alert fatigue: no noise, no alert on normal variation; say plainly when nothing breached.`,
 };
 
 /** The expert-standards block for a task key, or null if unknown / no task. */

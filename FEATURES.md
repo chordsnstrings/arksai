@@ -6,7 +6,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 
 > **Maintenance:** keep this file current — every shipped change that adds, removes, or
 > meaningfully alters a feature should update this list in the same commit.
-> _Last updated: 2026-06-14._
+> _Last updated: 2026-06-16._
 
 ---
 
@@ -55,9 +55,9 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Auto mode/engine switching — `switch_mode` lets a chat become a build/report mid-conversation; the runner reloads the toolset, prompt, and engine on the fly with an inline note.
 
 ## B2B department platform
-- Department-aware studio — Marketing, Sales, Finance/Strategy, HR·People & Ops, Engineering; pick your function → that team's curated tasks.
-- ~50-task catalog grouped **Create / Analyze / Operate**, each a ready-to-run brief in the right mode.
-- Per-task expert standards (server-side) — a department persona (FP&A rigor, inclusive HR, RevOps, brand-growth, senior-eng) + research-backed standards injected per task.
+- Department-aware studio — Marketing, Sales, Finance/Strategy, HR·People & Ops, Engineering, BI & Analytics; pick your function → that team's curated tasks.
+- ~60-task catalog grouped **Create / Analyze / Operate**, each a ready-to-run brief in the right mode.
+- Per-task expert standards (server-side) — a department persona (FP&A rigor, inclusive HR, RevOps, brand-growth, senior-eng, BI/analytics) + research-backed standards injected per task.
 - B2B acquisition landing (pre-login) — "Give every team a builder," by-department value grid, FAQ, and lead capture (`POST /api/leads` + admin list).
 
 ## Day-to-day capabilities
@@ -78,7 +78,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 ---
 
 ## Status & honest caveats
-- **65 automated tests green**; typecheck + build clean.
+- **85 automated tests green**; typecheck + build clean.
 - Anything needing the **model key or open egress** (live builds, real vision calls, scheduled runs firing, external data/webhook delivery) is wired + unit/integration-tested but fully exercised only on the **Droplet**.
 - **Staged (needs Droplet credentials):** OAuth Google Sheets/Drive & CRM connectors, a Slack app, SMTP email.
 - **Next big arc (not yet built):** org/team multi-seat platform — per-user accounts, roles/invites, org-scoped data, departments → per-org templates.
