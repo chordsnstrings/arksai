@@ -9,6 +9,7 @@ import { verifyTool } from './verify';
 import { generateMusicTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
 import { renderReportTool } from './report';
+import { renderChartTool } from './chart';
 import { addFontsTool } from './fonts';
 import { addUiKitTool } from './ui-kit';
 import { publishAppTool } from './publish';
@@ -41,6 +42,7 @@ export const ALL_TOOLS: ToolDef[] = [
   gitCommitTool,
   gitPushTool,
   renderReportTool,
+  renderChartTool,
   addFontsTool,
   addUiKitTool,
   publishAppTool,
@@ -67,6 +69,7 @@ const REPORT_TOOLS = new Set([
   'generate_image',
   'add_fonts',
   'render_report',
+  'render_chart',
   'generate_spreadsheet',
   'generate_doc',
   'generate_pptx',

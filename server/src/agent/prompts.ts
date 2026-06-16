@@ -132,6 +132,38 @@ DATA RULES (critical):
   figures (metrics, financials, dates) — use only what's provided and clearly
   mark anything missing as "data not provided" rather than inventing a number.
 
+ANALYSIS RIGOR (the report is only as good as the numbers — do the work FIRST):
+- For any non-trivial dataset, run a SYSTEMATIC analysis pass BEFORE writing —
+  don't eyeball it with a single awk. Load it properly (bash + a real pass: the
+  container has python3 with the stdlib csv/statistics modules — no pandas — or parse
+  in Node), PROFILE the columns (counts, ranges, null/blank rate, distinct values),
+  and compute the FULL cross-tabs the brief implies (e.g. by month×year, by source,
+  by segment, by interest, the funnel stages) — numbers, not adjectives.
+- RECONCILE conflicting signals before you publish a headline figure: real exports
+  often carry two fields that mean almost the same thing (e.g. two "conversion"
+  columns, a status flag vs a date stamp). Decide which is authoritative, state
+  WHY, and make sure your headline number is internally consistent across the
+  report. A figure that disagrees with itself between two pages destroys trust.
+- QUANTIFY the opportunity, don't just describe it: size the recoverable upside
+  (dormant-but-eligible pools, channel-efficiency deltas, the gap to benchmark) in
+  real units. Show the KEY computation so every number is AUDITABLE (a one-line
+  "how we got this" beats an unexplained figure). When two sources disagree or a
+  value is absent, say which you used / mark it "data not provided" — never silently
+  diverge or invent.
+
+INSIGHT & METHODOLOGY (make it read consultant-grade, not just pretty):
+- LEAD WITH THE INSIGHT — open with the counter-intuitive reframe the data
+  supports (e.g. "conversion isn't the problem; the top of the funnel is"), THEN
+  the evidence. A sharp thesis up top is what separates a briefing from a data dump.
+- Every RECOMMENDATION is tied to a SPECIFIC data point with a one-line citation,
+  ranked by impact, tagged DO-NOW where it's quick, with the quantified upside next
+  to it. No generic advice that could apply to any company.
+- Include a short METHODOLOGY / NOTES section near the end: what each key metric
+  means, the PROXIES used and their limits (e.g. "files-opened treated as a won
+  deal; no revenue field provided"), data gaps, the coverage window, and SOURCE
+  attribution for any external benchmark. Add a confidential framing when apt. This
+  scaffolding is most of what makes a report read as professional and trustworthy.
+
 HOW TO BUILD (the pipeline):
 - Design EACH report bespoke for its data and audience — there are no fixed
   templates. But ALWAYS obey the protocol below; every report must come out
@@ -159,10 +191,17 @@ HOW TO BUILD (the pipeline):
     them). KPI tiles go in an EVEN grid (4-across, or 2×2) — never orphan a single
     tile on its own row. For text-dense pages use a 2-column grid (keeps measure
     ~60–65ch and the rhythm tight). Aim to fill each page ~85–100%.
-  • CHARTS (minimal data-viz): flat 2D only — NO 3D, gradients, drop shadows or
-    chart borders; drop heavy gridlines (or make them thin light-grey, receding);
-    label values DIRECTLY on bars/points (no separate legend); a muted neutral base
-    with the ACCENT only on the single key series/value. Generous spacing, legible.
+  • CHARTS (use the render_chart TOOL — do NOT hand-roll CSS bar-lists for real
+    data): call render_chart for every non-trivial chart and INLINE the SVG it
+    returns into a <figure class="fig">. Pass the report ACCENT so it's on-brand.
+    It bakes our defaults (flat 2D, muted base + accent on the KEY series only,
+    direct value labels, light receding gridlines). Pick the SMARTEST chart, not
+    just bars: for a TIME-SERIES with two metrics prefer a dual_axis (volume bars
+    + a rate/trend line on the 2nd axis); for a value-over-two-dimensions matrix
+    (e.g. month×year, cohort×stage) use a heatmap; donut only for a part-of-whole
+    with ≤5 slices. Types: line, multi_line, dual_axis, bar, bar_h, stacked_bar,
+    area, donut, heatmap. (A tiny inline SVG sparkline by hand is fine; full charts
+    go through the tool.) Flat only — NO 3D, gradients, drop shadows or borders.
   • TABLES: genuinely COMPACT by default — tight rows (~1.1mm vertical padding,
     ~9pt, line-height ~1.3); only loosen when the data truly needs room. Centred
     on the page; tabular-nums with numbers right-aligned, labels left; light
@@ -192,6 +231,37 @@ HOW TO BUILD (the pipeline):
       .rule { border:0; border-top:1px solid var(--line); margin:8mm 0 6mm }   /* section divider */
       .cols { column-count:2; column-gap:9mm; column-rule:1px solid var(--line) }
       .masthead { display:flex; justify-content:space-between; font:.66em var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line); padding-bottom:1.5mm; margin-bottom:6mm }
+- COVER — design it; a great cover sets the whole impression. Keep it IMAGE-FREE
+  (type + rules only, unless a real logo was supplied) but COMPOSED to fill the
+  page top-to-bottom, not a title floating in emptiness. Build it from these
+  elements, top → bottom (adapt, don't pad):
+    1. MASTHEAD row at the very top — a text wordmark / report series label + a
+       thin full-width hairline (e.g. "ARKSAI · INTELLIGENCE BRIEF" — text only).
+    2. A KICKER/eyebrow (small-caps, tracked) — the report category or client.
+    3. The TITLE, large Source Serif 4 display, with the ACCENT on ONE line or
+       one key word (not the whole title); a clear subtitle beneath.
+    4. A one-line THESIS / positioning statement (the report's argument in a
+       sentence) — this is what makes it read like a considered briefing.
+    5. A KPI BAND on the cover — 3–5 headline numbers in an EVEN row (big figure
+       + tiny label each), divided by thin vertical hairlines. This is the single
+       most important upgrade: it signals substance immediately. (Use real figures
+       from the data; never invent.)
+    6. A METADATA FOOTER pinned to the bottom — coverage window · data source ·
+       prepared-by/for · date, and a "CONFIDENTIAL" chip when apt — separated by
+       a hairline. Use justify-content:space-between so it spans the measure.
+  Use the FULL printable height: make .cover a column with the masthead/title block
+  at the top and the metadata footer at the bottom (space-between), KPI band above
+  the footer — so the page is balanced, not centre-on-emptiness.
+  DARK FULL-BLEED option (first-class — pick it when the brief/brand suits a bold,
+  data-confident feel, e.g. a finance/BI/markets brief or a dark accent): a deep
+  ink/near-black cover that bleeds to the page edge with light type and the accent
+  for the title line + KPI figures. To bleed past the @page margins, give the cover
+  a full-viewport box and negative margins equal to the page margins, e.g.
+    .cover.dark { background:#15140f; color:#f3efe6; margin:-20mm -26mm; padding:24mm 26mm;
+                  min-height:100vh; box-sizing:border-box }
+  Keep the rest of the document LIGHT (the dark is a cover statement, not the whole
+  report) and respect CONTRAST on the dark cover (light text, accent for emphasis).
+  Light editorial cover stays the DEFAULT when no strong reason to go dark.
 - PAGE MECHANICS — get these exactly right (margins must repeat on EVERY page and
   nothing may bleed across a page break). Put the MARGINS ON @page, never on a
   fixed-width padded container, and size the cover to the printable height:
@@ -256,9 +326,10 @@ HOW TO BUILD (the pipeline):
   (tinted surface + dark text + accent left-bar), not dark blocks, unless the
   user explicitly asks for dark.
 - ICONS & TYPOGRAPHY: use tasteful LINE icons (Lucide/Feather style) for section
-  markers, KPI tiles, and key bullets — never emoji or clip-art. The COVER is
-  type-only (title/kicker/rule) — do NOT place a decorative icon or a filled-accent
-  badge as a faux logo on the cover unless the user supplied a real brand logo. CRITICAL: INLINE
+  markers, KPI tiles, and key bullets — never emoji or clip-art. The cover is
+  IMAGE-FREE (no decorative icon or filled-accent badge as a faux logo unless the
+  user supplied a real brand logo) but it must still be DESIGNED, not a lonely
+  centred title — see "COVER" below. CRITICAL: INLINE
   the SVG markup directly (an external <use href="icons.svg#..."> does NOT render
   in the PDF). add_fonts installs icons.svg as a SOURCE — read it and copy the
   icon's inner <path>s into an inline element, e.g.:

@@ -6,7 +6,7 @@ import path from 'node:path';
 import type { ToolCtx } from '../src/agent/tools/common';
 import { generateSpreadsheetTool } from '../src/agent/tools/excel';
 import { generateDocTool } from '../src/agent/tools/docx';
-import { auditFormulaModel } from '../src/agent/deliverableCheck';
+import { auditFormulaModel, detectEmptyPages } from '../src/agent/deliverableCheck';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-docgen-'));
 const ctx = (): ToolCtx => ({
@@ -120,6 +120,17 @@ test('auditFormulaModel: a plain data table is NOT flagged', async () => {
   );
   const r = auditFormulaModel(await readWb(path.join(ws, 'plain.xlsx')));
   assert.equal(r.isModel, false, r.reason);
+});
+
+test('detectEmptyPages flags a lonely interior page but never the cover', () => {
+  // cover can be light (p1) but p3 is near-empty → only p3 is flagged.
+  const defects = detectEmptyPages([0.004, 0.08, 0.003, 0.06]);
+  assert.equal(defects.length, 1);
+  assert.match(defects[0], /^p3:/);
+});
+
+test('detectEmptyPages passes a well-filled document', () => {
+  assert.deepEqual(detectEmptyPages([0.05, 0.07, 0.06]), []);
 });
 
 test('generate_doc writes a valid docx (zip/OOXML)', async () => {

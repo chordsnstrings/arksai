@@ -27,6 +27,7 @@ import { isAutoModel, MAX_MODEL, phaseFloor, phaseCeiling, type ProgressPhase } 
 const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
 const PREVIEW_CHARS = 700;
 const MAX_DESIGN_ROUNDS = 2; // bounded internal design-critique iterations
+const REPORT_MAX_DESIGN_ROUNDS = 2; // report mode: quality-first revise cap (deterministic pre-check keeps rounds cheap)
 // Tools that emit ONE large structured output (the whole spreadsheet/deck/doc as tool-call
 // args). M3 reliably over-buffers these server-side → it would burn the full 150s patience
 // before falling back. When one of these starts on the PRIMARY model we shorten the deadline
@@ -1121,10 +1122,11 @@ export class AgentRun {
     this.emitProgress('verifying', 'Reviewing the rendered pages…');
     const { fail, defects } = await this.reviewDeliverables(dir);
 
-    // ONE bounded revise for documents: unlike a web app (cheap incremental edit), a revise
-    // round here can re-author a whole multi-page report, so a 2nd round doubles the time for
-    // diminishing returns. Cap at 1 and demand MINIMAL TARGETED edits (not a full rebuild).
-    if ((fail || defects.length) && this.designRounds < 1) {
+    // Bounded revise for documents. Reports are quality-first (the user accepts a slightly
+    // slower report for Claude-grade polish), and the deterministic structural pre-check now
+    // finds the cheap defects with NO model call — so each round is targeted. Allow up to 2
+    // rounds gated on REAL defects, demanding MINIMAL TARGETED edits (not a full rebuild).
+    if ((fail || defects.length) && this.designRounds < REPORT_MAX_DESIGN_ROUNDS) {
       this.designRounds++;
       this.emitProgress('polishing', 'Design review — refining the output…');
       sys('info', '↻ Design review flagged refinements — applying them.');

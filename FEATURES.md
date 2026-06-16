@@ -24,7 +24,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 ## One-shot quality system
 - Task classification (`taskProfile`) → deliverable type + isVisual + tier.
 - Opinionated design system + a bundled UI kit (tokens/components/themes, `add_ui_kit`) injected for visual tasks; per-type design standards (web/app, report, docx, xlsx, pptx).
-- **Universal visual-quality gate** (`deliverableCheck`) — EVERY deliverable is rendered to image(s) and design-reviewed by a senior-design-director rubric (M3 vision), then bounded-revised: web apps (live Chromium), PDF reports/decks (mupdf raster, per page), .xlsx/.docx (HTML render), and .pptx (LibreOffice or a faithful preview). The same "looks perfect, works perfectly" guarantee across all types, not just web apps.
+- **Universal visual-quality gate** (`deliverableCheck`) — EVERY deliverable is rendered to image(s) and design-reviewed by a senior-design-director rubric (M3 vision), then bounded-revised: web apps (live Chromium), PDF reports/decks (mupdf raster, per page), .xlsx/.docx (HTML render), and .pptx (LibreOffice or a faithful preview). The same "looks perfect, works perfectly" guarantee across all types, not just web apps. A **deterministic, model-free structural pre-check** (per-page ink coverage) catches lonely near-empty pages instantly — even when no vision model is available — so each revise round is cheap and targeted (reports now allow up to 2 quality-first revise rounds).
 - Per-type functional check ("it actually works"): xlsx re-open + no #REF/error cells **+ calculation models must be formula-driven** (a finance/cash-flow/budget/forecast sheet built with hard-coded totals/balances/growth is auto-flagged and sent back to add live `=SUM(...)`/cross-sheet formulas — the vision gate can't catch this since it renders computed values, so this reads the cells' formulas directly); docx re-open + embedded fonts; pptx valid slides; pdf page/blank/bleed; apps boot + routes + interaction.
 - Vision runs on M3's Anthropic endpoint (thinking off → fast, decisive; bounded by a timeout so it degrades, never hangs).
 - Visual model floor — non-trivial visual/report work never runs on the cheapest model.
@@ -41,6 +41,9 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Styled office docs: `generate_spreadsheet` (exceljs, formula-driven, validated) and `generate_doc` (docx) — documents embed the editorial typefaces (Source Serif 4 display + Inter body, the same as the reports/app), so they render designed everywhere instead of as office default.
 - **`generate_pptx`** — real, editable PowerPoint (PptxGenJS): editorial 16:9 decks (title/section/bullets/two-col/stat/quote/table/chart/image), one accent, flat on-palette charts, embedded preview for the canvas + the visual gate.
 - Report mode — PDFs and 16:9 decks with a full editorial protocol (newspaper margins, anti-orphan `.lede`, kickers, rules, page mechanics); charts/figures are ATOMIC (`.keep`/`.fig`) so nothing splits across a page, and every page is auto design-reviewed before delivery.
+- **`render_chart`** — publication-grade charts as embeddable SVG (Vega-Lite → SVG, server-side, no browser/Python): line, multi-line, **dual-axis** (volume bars + a trend line), bar/bar-h, stacked, area, donut, and **heatmap** (e.g. month×year). Editorial defaults baked in — flat 2D, muted base + the report accent on the key series only, direct value labels, light gridlines — so charts are on-brand by default and inline straight into the report HTML.
+- **Designed cover** — the report cover is image-free but composed to fill the page: a text masthead, accent title line, one-line thesis, a **KPI band on the cover**, and a metadata footer (coverage · source · prepared-by · date · CONFIDENTIAL), with an optional dramatic dark full-bleed variant for finance/BI/markets briefs.
+- **Analysis & methodology rigor** — the report protocol now demands a systematic analysis pass first (profile columns, full cross-tabs, reconcile conflicting fields), an insight-led narrative (counter-intuitive reframe → evidence → ranked recs tied to specific data points), and a Methodology/Notes section (proxies + their limits, data gaps, source attribution).
 - In-app doc viewer (xlsx/csv/docx/pptx → styled HTML); Canvas preview (Preview/Files/Doc tabs, port auto-detect).
 
 ## The flow (effortless AND expert)
@@ -78,7 +81,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 ---
 
 ## Status & honest caveats
-- **85 automated tests green**; typecheck + build clean.
+- **96 automated tests green**; typecheck + build clean.
 - Anything needing the **model key or open egress** (live builds, real vision calls, scheduled runs firing, external data/webhook delivery) is wired + unit/integration-tested but fully exercised only on the **Droplet**.
 - **Staged (needs Droplet credentials):** OAuth Google Sheets/Drive & CRM connectors, a Slack app, SMTP email.
 - **Next big arc (not yet built):** org/team multi-seat platform — per-user accounts, roles/invites, org-scoped data, departments → per-org templates.

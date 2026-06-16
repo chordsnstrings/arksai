@@ -51,7 +51,29 @@ const KIND_PREAMBLE: Record<DeliverableKind, string> = {
 
 // ---------------------------------------------------------------- renderers
 
-async function rasterizePdf(abs: string): Promise<{ pngs: Buffer[]; pages: number }> {
+/** Fraction of "content ink" pixels (luminance < 200) on a rasterized pixmap. Cheap
+ *  sampling. Paper/ivory backgrounds (~234+) and faint gridlines don't count, so a
+ *  near-empty page reads near 0 while a full page is materially higher. */
+function inkCoverage(pix: any): number {
+  try {
+    const px: Uint8Array = pix.getPixels();
+    const comps: number = pix.getNumberOfComponents(); // e.g. 4 = RGBA
+    if (!px?.length || comps < 3) return 1;
+    let ink = 0;
+    let seen = 0;
+    // sample every 4th pixel for speed
+    for (let i = 0; i + comps <= px.length; i += comps * 4) {
+      const lum = (px[i] + px[i + 1] + px[i + 2]) / 3;
+      if (lum < 200) ink++;
+      seen++;
+    }
+    return seen ? ink / seen : 1;
+  } catch {
+    return 1; // never block on a measurement failure
+  }
+}
+
+async function rasterizePdf(abs: string): Promise<{ pngs: Buffer[]; pages: number; coverage: number[] }> {
   // mupdf is ESM with top-level await. Our server is CommonJS, so a normal `import()` gets
   // transpiled to require() and fails ("require() cannot be used on an ESM graph with
   // top-level await"). A Function-constructed import() stays a TRUE dynamic import that
@@ -61,12 +83,35 @@ async function rasterizePdf(abs: string): Promise<{ pngs: Buffer[]; pages: numbe
   const doc = mupdf.Document.openDocument(fs.readFileSync(abs), 'application/pdf');
   const pages = doc.countPages();
   const pngs: Buffer[] = [];
+  const coverage: number[] = [];
   for (let i = 0; i < Math.min(pages, MAX_PAGES); i++) {
     const page = doc.loadPage(i);
     const pix = page.toPixmap(mupdf.Matrix.scale(1.6, 1.6), mupdf.ColorSpace.DeviceRGB, false, true);
+    coverage.push(inkCoverage(pix));
     pngs.push(Buffer.from(pix.asPNG()));
   }
-  return { pngs, pages };
+  return { pngs, pages, coverage };
+}
+
+/**
+ * Deterministic, model-free structural pre-check from per-page ink coverage: flag a
+ * near-empty interior page (a lonely "Verdict" / one-line page — the recurring report
+ * bug) so the revise round can fix it instantly without spending a vision call. Pure +
+ * exported for unit tests. Conservative threshold so intentionally-sparse pages and the
+ * cover (page 1, which can be light by design) are never falsely flagged.
+ */
+export function detectEmptyPages(coverage: number[], threshold = 0.006): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < coverage.length; i++) {
+    if (i === 0) continue; // never flag the cover
+    if (coverage[i] < threshold) {
+      out.push(
+        `p${i + 1}: near-empty page (almost no content) — don't strand a lonely heading/line on its own ` +
+          `page; let the surrounding sections FLOW to fill it or merge it into the previous page.`,
+      );
+    }
+  }
+  return out;
 }
 
 /** Screenshot an HTML string (full page) in headless Chromium. */
@@ -294,6 +339,15 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
       const r = await rasterizePdf(abs);
       pngs = r.pngs;
       base.pages = r.pages;
+      // Deterministic, model-free structural pre-check: flag lonely near-empty
+      // interior pages instantly (no vision call) so they're caught even when the
+      // vision model is unavailable and so a revise round can fix them cheaply.
+      const empties = detectEmptyPages(r.coverage);
+      if (empties.length) {
+        seedDefects.push(...empties);
+        base.designVerdict = 'revise';
+        base.designDefects = [...seedDefects];
+      }
     } else if (kind === 'html') {
       const shot = await screenshotHtml(`file://${abs}`, true);
       if (shot) pngs = [shot];
@@ -325,18 +379,24 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
   }
 
   if (!pngs.length) {
-    const formulaNote = seedDefects.length ? ' ⚠ formula model flagged for revise.' : '';
+    const seedNote = seedDefects.length ? ' ⚠ issues flagged for revise.' : '';
     return {
       ...base,
       ran: false,
-      detail: `✓ ${kind} valid (${fn.detail}) — but could not render it for a visual review${renderNote}; shipped without the design gate.${formulaNote}`,
+      detail: `✓ ${kind} valid (${fn.detail}) — but could not render it for a visual review${renderNote}; shipped without the design gate.${seedNote}`,
     };
   }
 
-  // 3) Vision design rubric per page; aggregate.
+  // 3) Vision design rubric per page; aggregate. Even with no vision model, the
+  // deterministic seedDefects (formula audit + structural near-empty pages) still gate.
   if (!config.minimaxApiKey || signal.aborted) {
-    const formulaNote = seedDefects.length ? ' ⚠ formula model flagged for revise.' : '';
-    return { ...base, ran: false, detail: `✓ ${kind} valid (${fn.detail}); visual gate skipped (no vision model).${formulaNote}` };
+    const seedNote = seedDefects.length ? ' ⚠ issues flagged for revise.' : '';
+    return {
+      ...base,
+      ran: false,
+      designDefects: seedDefects.length ? [...seedDefects].slice(0, 5) : base.designDefects,
+      detail: `✓ ${kind} valid (${fn.detail}); visual gate skipped (no vision model).${seedNote}`,
+    };
   }
   const prompt = (KIND_PREAMBLE[kind] || '') + DESIGN_RUBRIC_PROMPT;
   // Seed with the spreadsheet formula finding (if any) so vision defects APPEND rather than
