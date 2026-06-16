@@ -81,7 +81,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 ---
 
 ## Status & honest caveats
-- **98 automated tests green**; typecheck + build clean.
+- **104 automated tests green**; typecheck + build clean.
 - Anything needing the **model key or open egress** (live builds, real vision calls, scheduled runs firing, external data/webhook delivery) is wired + unit/integration-tested but fully exercised only on the **Droplet**.
 - **Staged (needs Droplet credentials):** OAuth Google Sheets/Drive & CRM connectors, a Slack app, SMTP email.
 - **Next big arc (not yet built):** org/team multi-seat platform — per-user accounts, roles/invites, org-scoped data, departments → per-org templates.

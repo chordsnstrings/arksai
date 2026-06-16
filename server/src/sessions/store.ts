@@ -15,9 +15,11 @@ import type {
   TimelineItem,
 } from '../../../shared/types';
 import { initDb, q, qOne } from '../db';
+import { bootstrapOrgs } from '../orgs/store';
 
 export async function initStore() {
   await initDb();
+  await bootstrapOrgs();
 }
 
 function rowToMeta(row: any): SessionMeta {

@@ -165,6 +165,61 @@ async function migrate() {
     updated_at ${INT} NOT NULL
   )`);
 
+  // ---- Multi-org: organizations, users, memberships, invite links, auth sessions, project visibility ----
+  await q(`CREATE TABLE IF NOT EXISTS orgs(
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE TABLE IF NOT EXISTS users(
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT,
+    name TEXT,
+    is_superadmin ${INT} NOT NULL DEFAULT 0,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE TABLE IF NOT EXISTS memberships(
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    created_at ${INT} NOT NULL,
+    UNIQUE(user_id, org_id)
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_memberships_org ON memberships(org_id)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id)`);
+  await q(`CREATE TABLE IF NOT EXISTS invites(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    token_hash TEXT NOT NULL,
+    invited_by TEXT,
+    expires_at ${INT} NOT NULL,
+    accepted_at ${INT},
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_invites_token ON invites(token_hash)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_invites_org ON invites(org_id)`);
+  await q(`CREATE TABLE IF NOT EXISTS auth_sessions(
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    token_hash TEXT NOT NULL,
+    current_org_id TEXT,
+    created_at ${INT} NOT NULL,
+    expires_at ${INT} NOT NULL,
+    last_seen_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(token_hash)`);
+  await q(`CREATE TABLE IF NOT EXISTS project_members(
+    project_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    created_at ${INT} NOT NULL,
+    PRIMARY KEY(project_id, user_id)
+  )`);
+
   // Best-effort migrations for older DBs.
   for (const col of [
     `prompt_tokens ${INT} NOT NULL DEFAULT 0`,
@@ -180,4 +235,27 @@ async function migrate() {
     }
   }
   await q(`CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id)`).catch(() => {});
+
+  // Multi-org scoping columns on existing tables (additive; backfilled by bootstrapOrgs()).
+  for (const spec of [
+    'sessions:org_id TEXT',
+    'sessions:created_by TEXT',
+    'projects:org_id TEXT',
+    'projects:owner_user_id TEXT',
+    "projects:visibility TEXT NOT NULL DEFAULT 'org'",
+    'deployments:org_id TEXT',
+    'schedules:org_id TEXT',
+  ]) {
+    const cut = spec.indexOf(':');
+    const table = spec.slice(0, cut);
+    const col = spec.slice(cut + 1);
+    try {
+      await q(`ALTER TABLE ${table} ADD COLUMN ${col}`);
+    } catch {
+      /* already exists */
+    }
+  }
+  for (const table of ['sessions', 'projects', 'deployments', 'schedules']) {
+    await q(`CREATE INDEX IF NOT EXISTS idx_${table}_org ON ${table}(org_id)`).catch(() => {});
+  }
 }
