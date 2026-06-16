@@ -63,9 +63,13 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Auto mode/engine switching — `switch_mode` lets a chat become a build/report mid-conversation; the runner reloads the toolset, prompt, and engine on the fly with an inline note.
 
 ## B2B department platform
-- Department-aware studio — Marketing, Sales, Finance/Strategy, HR·People & Ops, Engineering, BI & Analytics, and Tax & Compliance (UAE); pick your function → that team's curated tasks.
+- Department-aware studio — Marketing, Sales, Finance/Strategy, HR·People & Ops, Engineering, BI & Analytics, Tax & Compliance (UAE), and Legal (UAE); pick your function → that team's curated tasks.
 - ~70-task catalog grouped **Create / Analyze / Operate**, each a ready-to-run brief in the right mode.
 - Per-task expert standards (server-side) — a department persona (FP&A rigor, inclusive HR, RevOps, brand-growth, senior-eng, BI/analytics, UAE tax manager) + research-backed standards injected per task.
+
+## UAE Legal
+- A dedicated **Legal (UAE)** department that drafts **execution-ready** legal work — commercial contracts, NDAs, employment contracts, POAs, MOA + shareholders' agreements, board resolutions, **legal notices / letters before action**, **police reports / criminal complaints**, **legal opinions**, **legal forensic audits**, contract-review risk reports, compliance audits, dispute briefs, licensing/jurisdiction advice, and a legal calendar/filing tracker (15 plays).
+- **Bilingual by default** — formal British English + eloquent, posh **Modern Standard Arabic that is not a literal translation** (native legal idiom), grounded in current UAE **federal + emirate + DIFC/ADGM** law (jurisdiction-resolved first), citing the specific law and article, with full clauses/boilerplate and bracketed placeholders so **counsel reviews and signs rather than rewrites**. Every output carries a mandatory "have a licensed UAE lawyer review and sign — not legal advice" notice. Defaults to the **MiniMax M3** model (chosen via a live legal-drafting bake-off).
 
 ## UAE Tax & Compliance
 - A dedicated **Tax & Compliance (UAE)** department that produces the format-strict filing documents a UAE finance team needs — **e-invoicing (PINT AE)**, **VAT (VAT 201 + FAF)**, **Corporate Tax (the 9% CT 300 computation)**, **Excise**, and monthly **WPS** salary disbursement — each built to the researched FTA / MoF / MOHRE / Peppol spec and self-validated.

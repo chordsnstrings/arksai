@@ -67,7 +67,8 @@ export type IconName =
   | 'clipboard'
   | 'search'
   | 'image'
-  | 'landmark';
+  | 'landmark'
+  | 'scale';
 
 /** Inner SVG markup for each line icon (Lucide-style, matches our report icon set). */
 export const ICONS: Record<IconName, string> = {
@@ -107,9 +108,12 @@ export const ICONS: Record<IconName, string> = {
     '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
   landmark:
     '<path d="M10 18v-7"/><path d="M11.12 2.198a2 2 0 0 1 1.76.006l7.866 3.847c.476.233.31.949-.22.949H3.474c-.53 0-.695-.716-.22-.949z"/><path d="M14 18v-7"/><path d="M18 18v-7"/><path d="M3 22h18"/><path d="M6 18v-7"/>',
+  scale:
+    '<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>',
 };
 
 const A = AUTO_MODEL;
+const M3 = 'arksai-max'; // Legal defaults to MiniMax M3 — bake-off winner on legal register + posh Arabic
 
 export const DEPARTMENTS: Department[] = [
   {
@@ -317,6 +321,45 @@ export const DEPARTMENTS: Department[] = [
         prompt: 'Build my UAE Excise tax return working paper as a formula-driven spreadsheet: one row per excise good with quantity, the excise price and the rate (50% on carbonated/sweetened drinks, 100% on tobacco, energy drinks and e-cigarettes), the per-category subtotals and the total excise payable. I’ll give you the figures — never invent quantities or prices.' },
       { key: 'tax.faf', title: 'FAF audit file', blurb: 'The FTA VAT audit file.', mode: 'code', model: A, category: 'operate', icon: 'file-text',
         prompt: 'Create my FTA VAT Audit File (FAF): the company block, my supplies and purchases, and the totals — reconciled to my VAT 201 output and input VAT and validated for me. I’ll paste the transactions or give a data link; never fabricate a row. I’ll validate it against the current FTA FAF spec before submitting.' },
+    ],
+  },
+  {
+    id: 'legal',
+    name: 'Legal (UAE)',
+    blurb: 'Contracts, notices, opinions & filings — drafted to sign.',
+    accent: '#7a2e3b',
+    icon: 'scale',
+    plays: [
+      { key: 'legal.contract', title: 'Commercial contract', blurb: 'Execution-ready, bilingual.', mode: 'code', model: M3, category: 'create', icon: 'file-text',
+        prompt: 'Draft a UAE commercial contract — bilingual (formal British English + eloquent, non-literal formal Arabic). Ask me the essentials first: the parties, the jurisdiction (mainland, a free zone, DIFC or ADGM), the subject and scope, the consideration and payment terms, and how disputes should be resolved — then give me an execution-ready agreement with full clauses, boilerplate, schedules and signature blocks, and bracketed placeholders for anything I haven’t provided. Cite the governing law; never invent facts or figures; a licensed UAE lawyer must review and sign.' },
+      { key: 'legal.nda', title: 'NDA / confidentiality', blurb: 'Mutual or one-way.', mode: 'code', model: M3, category: 'create', icon: 'file-text',
+        prompt: 'Draft a UAE non-disclosure agreement (bilingual). Ask whether it is mutual or one-way, the parties and the jurisdiction, then produce an execution-ready NDA — definition of Confidential Information, permitted use, exclusions, term and survival, return/destruction, and remedies including injunctive relief. Bracketed placeholders for specifics; a licensed UAE lawyer must review and sign.' },
+      { key: 'legal.employment', title: 'Employment contract', blurb: 'MOHRE / DIFC / ADGM / free zone.', mode: 'code', model: M3, category: 'create', icon: 'users',
+        prompt: 'Draft a UAE employment contract and offer letter (bilingual). Ask the regime (MOHRE onshore / DIFC / ADGM / free zone), the role, salary, probation, notice and any non-compete, then produce an execution-ready contract compliant with the governing employment law (cite it), with end-of-service gratuity and a non-compete within the legal limits. Placeholders for specifics; a licensed UAE lawyer must review and sign.' },
+      { key: 'legal.poa', title: 'Power of Attorney', blurb: 'Notary-ready, bilingual.', mode: 'code', model: M3, category: 'create', icon: 'file-text',
+        prompt: 'Draft a Power of Attorney (bilingual, notary-ready). Ask the type (corporate / litigation / property / banking), the grantor and attorney, and the powers to be granted — then produce a scoped POA with clearly enumerated powers, duration and revocation, formatted for notarisation. Flag that it must be notarised (Notary Public / UAE Pass) and attested via MOFAIC if used abroad; a licensed UAE lawyer must review and sign.' },
+      { key: 'legal.corporate', title: 'MOA + Shareholders’ Agreement', blurb: 'Per the 2025 amendments.', mode: 'code', model: M3, category: 'create', icon: 'landmark',
+        prompt: 'Draft an LLC Memorandum & Articles of Association plus a Shareholders’ Agreement (bilingual), reflecting the 2025 Companies-Law amendments (Federal Decree-Law 32/2021 as amended by 20/2025): multiple share classes, drag-along/tag-along, pre-emption, reserved matters, deadlock and exit. Ask me the shareholders, the shareholding and the key terms; placeholders for the rest. Flag the MOA notarisation requirement; a licensed UAE lawyer must review and sign.' },
+      { key: 'legal.resolution', title: 'Resolutions & minutes', blurb: 'Board / shareholder.', mode: 'code', model: M3, category: 'create', icon: 'clipboard',
+        prompt: 'Draft board / shareholder resolutions and minutes (bilingual). Ask what is being resolved (appointments, banking mandate, approvals, capital, dividends) and the company details, then produce a clean resolution and minutes record with quorum and signature blocks. A licensed UAE lawyer must review and sign.' },
+      { key: 'legal.notice', title: 'Legal notice / demand', blurb: 'Letter before action.', mode: 'report', model: M3, category: 'create', icon: 'scale',
+        prompt: 'Draft a formal legal notice — a letter before action / demand / cease-and-desist (a designed, bilingual document). Ask me the parties, the facts, the grounds and the demand and deadline, then produce an authoritative notice citing the contractual or statutory basis (by article), with a reservation of rights ("without prejudice") and a notary-ready format. Never invent facts or figures; a licensed UAE lawyer must review and sign before service.' },
+      { key: 'legal.policereport', title: 'Police report / complaint', blurb: 'Criminal complaint, bilingual.', mode: 'report', model: M3, category: 'create', icon: 'file-text',
+        prompt: 'Help me draft a police report / criminal complaint for filing in the UAE (a designed, bilingual document). Ask me the complainant and respondent, what happened (with dates), and the evidence — then produce a precise, chronological statement of facts, identify the offence and its legal basis (the Penal Code, Federal Decree-Law 31/2021, or the Cybercrime Law 34/2021, by article), and state the relief sought. Note it is lodged via the police (station / smart-police app / the relevant Public Prosecution) and should be settled with a lawyer; never invent facts.' },
+      { key: 'legal.opinion', title: 'Legal opinion / memo', blurb: 'Advice with conviction.', mode: 'report', model: M3, category: 'create', icon: 'scale',
+        prompt: 'Write a formal legal opinion / memorandum of advice on a UAE-law question (a designed, bilingual document). Ask me the question and the material facts, then give the applicable law (cited by article), a reasoned analysis weighing it both ways, a clear conclusion stated with appropriate conviction, and the caveats and assumptions. Authoritative, but a draft for the supervising lawyer; never fabricate law or facts.' },
+      { key: 'legal.review', title: 'Contract review & risk', blurb: 'Clause-by-clause redlines.', mode: 'report', model: M3, category: 'analyze', icon: 'clipboard',
+        prompt: 'Review a contract against UAE law and give me a risk report (a designed, bilingual document). I’ll paste or upload the contract — analyse it clause by clause: missing protections, one-sided or unenforceable terms, the governing-law/forum clause, and a ranked risk register with concrete redline wording for each issue (the problem and the suggested fix). Cite the law; flag where a lawyer must decide.' },
+      { key: 'legal.forensic', title: 'Legal forensic audit', blurb: 'Findings, evidence, exposure.', mode: 'report', model: M3, category: 'analyze', icon: 'search',
+        prompt: 'Produce a legal forensic audit report (a designed, exhibit-referenced PDF). Tell me the matter (suspected fraud, financial irregularity, breach, compliance failure) and give me the documents or data — I’ll set out the scope and methodology, a documented chronology and the evidence, the legal analysis against UAE law (by article), findings stated with conviction, quantified exposure, and prioritised recommendations (remediation, recovery, referral). Never invent evidence or figures; a licensed UAE lawyer must review.' },
+      { key: 'legal.compliance', title: 'Compliance audit', blurb: 'UBO, AML, data, licensing.', mode: 'report', model: M3, category: 'analyze', icon: 'search',
+        prompt: 'Run a corporate legal compliance audit (a designed PDF). Tell me about the entity — I’ll assess UBO (Federal Decree-Law 10/2025 + Cabinet Resolution 134/2025), AML/goAML (if a DNFBP), data protection (PDPL / DIFC / ADGM), licensing and ESR-legacy, then give a gap analysis and a dated remediation plan, cross-referring Tax for Corporate Tax/VAT. Cite each obligation; never guess.' },
+      { key: 'legal.dispute', title: 'Dispute position brief', blurb: 'Merits, limitation, forum.', mode: 'report', model: M3, category: 'analyze', icon: 'scale',
+        prompt: 'Give me a dispute position brief (a designed document). Tell me the dispute — I’ll lay out the merits, the limitation position (15 years onshore vs 6 years in the DIFC), the forum options (onshore courts / DIFC / ADGM / DIAC arbitration), and an indicative cost/time view — clearly framed as information to brief a lawyer, not as advice.' },
+      { key: 'legal.licensing', title: 'Licensing & jurisdiction', blurb: 'Mainland vs free zone vs DIFC/ADGM.', mode: 'report', model: M3, category: 'analyze', icon: 'landmark',
+        prompt: 'Advise on licensing and the right jurisdiction (a designed document). Tell me the activity — I’ll map the required licences and approvals and recommend mainland vs free zone vs DIFC/ADGM with the trade-offs (ownership, tax, courts, cost, substance), citing the regulator for each step.' },
+      { key: 'legal.calendar', title: 'Legal calendar & tracker', blurb: 'Renewals, UBO, AGM, filings.', mode: 'code', model: M3, category: 'operate', icon: 'calendar',
+        prompt: 'Build me a corporate legal calendar and filing tracker (a formula-driven spreadsheet): licence renewals, UBO updates (within 15 days of any change), AGM/board cadence, trademark renewals, and contract expiry/notice windows — with owner, due date, status and lead time per item. I’ll give you the dates; never invent one, and mark anything missing.' },
     ],
   },
 ];

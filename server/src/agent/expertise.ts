@@ -11,6 +11,7 @@
  */
 
 import { TAX_PERSONA, TAX_TASKS } from './compliance/uae';
+import { LEGAL_PERSONA, LEGAL_TASKS } from './legal/uae';
 
 // ---- Department persona / cross-cutting rigor ----
 const DEPARTMENT: Record<string, string> = {
@@ -27,6 +28,7 @@ const DEPARTMENT: Record<string, string> = {
   bi:
     'Work as a senior BI / analytics lead (analytics engineer + analyst). Lead with the DECISION the work serves; define every metric precisely and consistently (one agreed definition, with grain/units/period); surface the "so what", not just charts; cite data sources and NEVER fabricate or plug a number — mark anything missing as "data not provided". Insight-first, trustworthy, scannable.',
   tax: TAX_PERSONA,
+  legal: LEGAL_PERSONA,
 };
 
 // ---- Reusable archetype standards (research-backed) ----
@@ -142,6 +144,8 @@ const TASK: Record<string, string> = {
 
   // Tax & Compliance (UAE) — researched per-obligation specs live in compliance/uae.ts
   ...TAX_TASKS,
+  // Legal (UAE) — persona + per-play standards live in legal/uae.ts
+  ...LEGAL_TASKS,
 };
 
 /** The expert-standards block for a task key, or null if unknown / no task. */
