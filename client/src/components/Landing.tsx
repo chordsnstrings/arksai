@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api/client';
-import { DEPARTMENTS, ICONS, type IconName } from '../lib/departments';
+import { DEPARTMENTS, ICONS, departmentById, type IconName } from '../lib/departments';
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return (
@@ -18,30 +18,31 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   );
 }
 
-const STEPS = [
-  { no: '01', title: 'Describe it', body: 'A teammate says what they need in plain language — a deck, a dashboard, a report.' },
-  { no: '02', title: 'It builds & verifies', body: 'ArksAI designs it, runs the checks, and exercises it like a real user — so it actually works.' },
-  { no: '03', title: 'Ship it', body: 'A finished artifact: a live URL, a polished PDF, a validated spreadsheet — ready to use.' },
-];
+// Real ARKS group companies — early adopters, named (no logos: arks.ae assets aren't public-fetchable).
+const ADOPTERS = ['ARKS Groups Investments', 'Ecosine', 'Powerdrive', 'EGari'];
 
-const FORMATS = ['Web apps & internal tools', 'Pitch & board decks', 'Dashboards', 'Designed PDF reports', 'Spreadsheets', 'Word documents'];
+const STEPS = [
+  { no: '01', title: 'Ask in plain words', body: 'Someone on the team describes the task — a VAT return, a board deck, a dashboard, an outreach kit.' },
+  { no: '02', title: 'ArksAI does the work', body: 'It builds, runs the checks, and validates the output against what actually matters — so it’s right, not just done.' },
+  { no: '03', title: 'Use it the same day', body: 'A finished result: a filing-ready document, a live tool, a polished report — no back-and-forth.' },
+];
 
 const FAQ = [
   {
+    q: 'Is this a no-code builder?',
+    a: 'No — it’s an enabler. ArksAI puts AI into your team’s everyday work so each function gets more done. People describe what they need in plain language; ArksAI does the work and hands back something finished and correct.',
+  },
+  {
+    q: 'Why UAE-specific?',
+    a: 'Because the hard part of running a UAE business is the detail — VAT 201 + FAF, PINT AE e-invoicing, Corporate Tax, WPS payroll files, Excise. ArksAI generates the exact, validated documents the FTA and MOHRE expect, then you submit them through your own channels.',
+  },
+  {
     q: 'Who is it for?',
-    a: 'Every team in your company — Marketing, Sales, Finance, HR & Ops — not just engineers. Each function gets a starting point in its own language.',
+    a: 'Every function — Finance & Tax, Marketing, Sales, HR & Ops, Engineering, and BI. Each team gets a starting point in its own language; no technical people required.',
   },
   {
-    q: 'Do we need technical people?',
-    a: 'No. People describe what they need; ArksAI builds, verifies, and ships it. The work stays visible so you can see the craft, but no one has to write code.',
-  },
-  {
-    q: 'What can it actually produce?',
-    a: 'Real, finished artifacts: live web apps and internal tools, presentation-grade decks and PDF reports, dashboards, formatted spreadsheets, and editable documents.',
-  },
-  {
-    q: 'How do we get started?',
-    a: 'Leave your details below and we’ll get your company set up. We’re onboarding teams now.',
+    q: 'How do we get in?',
+    a: 'ArksAI Studio is in alpha and currently invite-only. Leave your work email below — we review every request personally and send an invite link when there’s a fit.',
   },
 ];
 
@@ -50,6 +51,9 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+
+  const tax = departmentById('tax');
+  const otherDepts = DEPARTMENTS.filter((d) => d.id !== 'tax');
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -78,8 +82,9 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
           <span className="logo-mark sm" /> ARKSAI · STUDIO
         </span>
         <div className="lnd-nav-actions">
+          <span className="lnd-alpha-pill">Alpha · invite-only</span>
           <button className="lnd-link" onClick={toForm}>
-            Get access
+            Request access
           </button>
           <button className="lnd-signin" onClick={onSignIn}>
             Sign in
@@ -88,29 +93,72 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
       </header>
 
       <section className="lnd-hero">
-        <div className="lp-kicker">For every team in your company</div>
+        <div className="lp-kicker">AI for UAE businesses</div>
         <h1 className="lnd-h1">
-          Give every team <em>a builder.</em>
+          Put AI to work <em>across your business.</em>
         </h1>
         <p className="lnd-lede">
-          ArksAI turns a sentence into a finished thing — a live app, a board deck, a dashboard, a report —
-          built and verified for you. One studio, organized around the way your company actually works.
+          ArksAI helps UAE companies run more efficiently by bringing AI into everyday work — so Finance, Sales,
+          HR, and Ops each get more done, faster. Not a tool to learn; a teammate that does the task and hands
+          back something finished and correct.
         </p>
         <div className="lnd-cta">
           <button className="lnd-primary" onClick={toForm}>
-            Bring it to your team →
+            Request an invite →
           </button>
           <button className="lnd-secondary" onClick={onSignIn}>
             Sign in
           </button>
         </div>
+        <p className="lnd-alpha-note">
+          <strong>Currently in alpha — invitation-only.</strong> We’re onboarding a small set of UAE teams and
+          review every request personally.
+        </p>
       </section>
 
+      <section className="lnd-adopters">
+        <span className="lnd-adopters-label">Already in use across the ARKS group of companies</span>
+        <div className="lnd-adopters-row">
+          {ADOPTERS.map((name) => (
+            <span key={name} className="lnd-adopter">
+              {name}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {tax && (
+        <section className="lnd-section lnd-uae" style={{ ['--dept' as any]: tax.accent }}>
+          <div className="lp-kicker">Built for the UAE</div>
+          <h2 className="lnd-h2">Compliance the FTA &amp; MOHRE actually accept.</h2>
+          <p className="lnd-lede">
+            The hard part of a UAE business is the detail. ArksAI generates the exact, validated filing
+            documents each obligation requires — you submit them through EmaraTax, your accredited e-invoicing
+            provider, or your WPS agent bank.
+          </p>
+          <div className="lnd-uae-grid">
+            {tax.plays.map((p) => (
+              <div key={p.key} className="lnd-uae-card">
+                <span className="lnd-uae-ico">
+                  <Icon name={p.icon} size={18} />
+                </span>
+                <span className="lnd-uae-title">{p.title}</span>
+                <span className="lnd-uae-blurb">{p.blurb}</span>
+              </div>
+            ))}
+          </div>
+          <p className="lnd-fineprint">
+            Working papers for professional review — ArksAI doesn’t file or pay on your behalf. Validate against
+            the official schema before submission.
+          </p>
+        </section>
+      )}
+
       <section className="lnd-section">
-        <div className="lp-kicker">What each team ships</div>
-        <h2 className="lnd-h2">A studio that speaks your function’s language.</h2>
+        <div className="lp-kicker">Every team, every day</div>
+        <h2 className="lnd-h2">One studio that speaks each function’s language.</h2>
         <div className="lnd-depts">
-          {DEPARTMENTS.map((d) => (
+          {otherDepts.map((d) => (
             <div key={d.id} className="lnd-dept" style={{ ['--dept' as any]: d.accent }}>
               <div className="lnd-dept-head">
                 <span className="lnd-dept-ico">
@@ -133,7 +181,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
 
       <section className="lnd-section">
         <div className="lp-kicker">How it works</div>
-        <h2 className="lnd-h2">Describe it once. Get one finished thing.</h2>
+        <h2 className="lnd-h2">Ask once. Get it done.</h2>
         <div className="lnd-steps">
           {STEPS.map((s) => (
             <div key={s.no} className="lnd-step">
@@ -143,29 +191,24 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
             </div>
           ))}
         </div>
-        <div className="lnd-formats">
-          <span className="lnd-formats-label">One studio, every format —</span>
-          {FORMATS.map((f) => (
-            <span key={f} className="lnd-chip">
-              {f}
-            </span>
-          ))}
-        </div>
       </section>
 
       <section className="lnd-section lnd-getaccess" id="get-access">
         <div className="lnd-form-wrap">
           <div className="lnd-form-copy">
-            <div className="lp-kicker">Get started</div>
-            <h2 className="lnd-h2">Bring ArksAI to your company.</h2>
-            <p className="lnd-lede">We’re onboarding teams now. Tell us a little about you and we’ll set you up.</p>
+            <div className="lp-kicker">Request access</div>
+            <h2 className="lnd-h2">Get an invite to the alpha.</h2>
+            <p className="lnd-lede">
+              Invitation-only while we’re in alpha. Tell us about your team — we review every request and send a
+              link when there’s a fit.
+            </p>
           </div>
           {done ? (
             <div className="lnd-thanks">
               <span className="cc-check">✓</span>
               <div>
-                <strong>Thanks — you’re on the list.</strong>
-                <p>We’ll be in touch shortly to get your team set up.</p>
+                <strong>Thanks — your request is in.</strong>
+                <p>We review every request personally. If it’s a fit, you’ll get an invite link by email — open it, set a password, and you’re in.</p>
               </div>
             </div>
           ) : (
@@ -184,10 +227,10 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
                 ))}
                 <option value="Multiple / Other">Multiple / Other</option>
               </select>
-              <textarea placeholder="What would your team build first? (optional)" value={form.note} onChange={set('note')} />
+              <textarea placeholder="What would your team use it for first? (optional)" value={form.note} onChange={set('note')} />
               {error && <div className="lnd-error">{error}</div>}
               <button className="lnd-primary" type="submit" disabled={busy || !form.email}>
-                {busy ? 'Sending…' : 'Request access →'}
+                {busy ? 'Sending…' : 'Request an invite →'}
               </button>
             </form>
           )}
@@ -210,7 +253,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
         <span className="lp-mark">
           <span className="logo-mark sm" /> ARKSAI · STUDIO
         </span>
-        <span className="lnd-foot-tag">A builder for every team.</span>
+        <span className="lnd-foot-tag">AI, working across your business.</span>
         <button className="lnd-link" onClick={onSignIn}>
           Sign in
         </button>

@@ -1265,6 +1265,27 @@ button { font-family: inherit; cursor: pointer; }
 .lnd-secondary { background: none; color: var(--text); border: 1px solid var(--border); border-radius: 11px; font-size: 15px; font-weight: 500; padding: 12px 22px; }
 .lnd-secondary:hover { border-color: var(--text-muted); }
 
+/* alpha / invite-only status */
+.lnd-alpha-pill { font-family: var(--label); font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--accent); background: var(--accent-dim); border: 1px solid var(--accent); border-radius: 999px; padding: 4px 11px; white-space: nowrap; }
+.lnd-alpha-note { font-size: 13.5px; line-height: 1.55; color: var(--text-muted); margin: 18px 0 0; max-width: 56ch; }
+.lnd-alpha-note strong { color: var(--text); }
+
+/* early-adopter strip (ARKS group of companies) */
+.lnd-adopters { padding: 26px 28px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 13px; align-items: center; text-align: center; }
+.lnd-adopters-label { font-family: var(--label); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
+.lnd-adopters-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 28px; }
+.lnd-adopter { font-family: var(--serif); font-size: 18px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.01em; }
+
+/* UAE compliance feature block */
+.lnd-uae { background: var(--bg-sidebar); }
+.lnd-uae .lp-kicker { color: var(--dept, var(--accent)); }
+.lnd-uae-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 8px; }
+.lnd-uae-card { display: flex; flex-direction: column; gap: 5px; background: var(--bg-elev); border: 1px solid var(--border); border-left: 2px solid var(--dept, var(--accent)); border-radius: 12px; padding: 15px 17px; }
+.lnd-uae-ico { display: inline-flex; color: var(--dept, var(--accent)); }
+.lnd-uae-title { font-family: var(--serif); font-size: 16px; font-weight: 600; color: var(--text); }
+.lnd-uae-blurb { font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+.lnd-fineprint { font-size: 12.5px; line-height: 1.5; color: var(--text-faint); margin: 18px 0 0; max-width: 70ch; }
+
 .lnd-section { padding: 52px 28px; border-top: 1px solid var(--border); }
 .lnd-h2 { font-family: var(--serif); font-size: 32px; line-height: 1.12; font-weight: 600; letter-spacing: -0.01em; color: var(--text); margin: 10px 0 28px; max-width: 22ch; }
 
@@ -1315,7 +1336,7 @@ button { font-family: inherit; cursor: pointer; }
 
 @media (max-width: 760px) {
   .lnd-h1 { font-size: 40px; }
-  .lnd-depts, .lnd-steps, .lnd-form-wrap, .lnd-faq { grid-template-columns: 1fr; }
+  .lnd-depts, .lnd-steps, .lnd-form-wrap, .lnd-faq, .lnd-uae-grid { grid-template-columns: 1fr; }
   .lnd-hero { padding: 48px 22px 40px; }
   .lnd-section { padding: 40px 22px; }
   .lnd-nav { padding: 16px 22px; }
