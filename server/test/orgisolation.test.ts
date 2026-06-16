@@ -68,4 +68,13 @@ test('deployments are isolated per org; public (unscoped) lookup still resolves'
 
   // the PUBLIC /apps/<slug>/ serving path passes no scope → still resolves (intended)
   assert.ok(await store.getDeploymentBySlug('app-b'));
+
+  // createDeployment stamps the org → the owner can see + manage its OWN app
+  await store.createDeployment({
+    id: 'd-c', sessionId: null, projectId: null, slug: 'app-c', name: 'App C',
+    kind: 'static', status: 'live', url: '/apps/app-c/', port: null, orgId: 'orgA',
+  } as any);
+  assert.ok((await store.listDeployments(undefined, scopeFor('orgA'))).some((d) => d.slug === 'app-c'), 'org A sees its own published app');
+  assert.ok(await store.getDeploymentBySlug('app-c', scopeFor('orgA')), 'org A can manage its own app');
+  assert.equal(await store.getDeploymentBySlug('app-c', scopeFor('orgB')), null, 'org B cannot reach org A app');
 });

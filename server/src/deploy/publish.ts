@@ -107,6 +107,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     status,
     url: `/apps/${slug}/`,
     port,
+    orgId: session.orgId, // inherit the publishing session's org → scoped, manageable
   });
 
   // POST-PUBLISH verification — smoke-test the REAL public URL the user will

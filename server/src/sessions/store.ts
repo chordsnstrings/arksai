@@ -458,12 +458,16 @@ function rowToDeployment(r: any): Deployment {
   };
 }
 
-export async function createDeployment(d: Omit<Deployment, 'createdAt' | 'updatedAt'>): Promise<Deployment> {
+export async function createDeployment(
+  d: Omit<Deployment, 'createdAt' | 'updatedAt'> & { orgId?: string | null },
+): Promise<Deployment> {
   const now = Date.now();
+  // Stamp the owning org (from the publishing session) so org-scoped reads/ops work —
+  // without this a tenant couldn't see or manage even its OWN published apps.
   await q(
-    `INSERT INTO deployments(id, session_id, project_id, slug, name, kind, status, url, port, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-    [d.id, d.sessionId, d.projectId, d.slug, d.name, d.kind, d.status, d.url, d.port, now, now],
+    `INSERT INTO deployments(id, session_id, project_id, slug, name, kind, status, url, port, org_id, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    [d.id, d.sessionId, d.projectId, d.slug, d.name, d.kind, d.status, d.url, d.port, d.orgId ?? null, now, now],
   );
   return { ...d, createdAt: now, updatedAt: now };
 }
