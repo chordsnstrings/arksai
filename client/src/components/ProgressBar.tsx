@@ -37,11 +37,18 @@ export function ProgressBar({ live }: { live: LiveState }) {
       if (cancelled) return;
       const floorTarget = live.progress?.pct ?? 0;
       const goal = Math.max(floorTarget, live.progress ? phaseCeiling(live.progress.phase) : 90);
+      let reached = false;
       setDisplay((d) => {
         const base = Math.max(d, floorTarget); // snap up to confirmed progress at once
-        return base >= goal ? base : base + (goal - base) * 0.02; // gentle ease toward the ceiling
+        if (base >= goal) {
+          reached = true;
+          return base;
+        }
+        return base + (goal - base) * 0.02; // gentle ease toward the ceiling
       });
-      raf.current = requestAnimationFrame(tick);
+      // Stop the rAF loop once we've eased to the ceiling; the effect re-runs (and
+      // resumes the creep) on the next real progress beat. Avoids constant repaints.
+      if (!reached) raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
     return () => {

@@ -29,15 +29,21 @@ export function Composer({
   const [dragOver, setDragOver] = useState(false);
   const [attached, setAttached] = useState<string[]>([]);
   const [menuIdx, setMenuIdx] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Pending attachments are per-session; drop the hint when the session changes.
-  useEffect(() => setAttached([]), [meta.id]);
+  // Pending attachments are per-session; drop the hint when the session changes,
+  // and focus the box so the user can just type the moment a session opens.
+  useEffect(() => {
+    setAttached([]);
+    taRef.current?.focus();
+  }, [meta.id]);
 
   const upsertSession = useStore((s) => s.upsertSession);
   const addUserMessage = useStore((s) => s.addUserMessage);
+  const beginRun = useStore((s) => s.beginRun);
+  const forceStop = useStore((s) => s.forceStop);
   const addLocalSystem = useStore((s) => s.addLocalSystem);
   const loadDetail = useStore((s) => s.loadDetail);
   const setActive = useStore((s) => s.setActive);
@@ -72,10 +78,13 @@ export function Composer({
 
   const sendToAgent = async (value: string) => {
     addUserMessage(meta.id, value);
+    beginRun(meta.id); // optimistic: the progress bar + footer appear instantly
     try {
       await api.sendMessage(meta.id, value);
     } catch (err: any) {
-      sys(err?.message ?? 'Failed to send', 'error');
+      forceStop(meta.id); // roll back the optimistic running state
+      setText(value); // don't lose what they typed
+      sys(err?.message ?? 'Couldn’t send that — try again', 'error');
     }
   };
 
@@ -366,7 +375,7 @@ export function Composer({
           value={text}
           onChange={(e) => {
             setText(e.target.value);
-            setMenuOpen(true);
+            setMenuOpen(e.target.value.startsWith('/')); // command menu only for slash-commands
             setMenuIdx(0);
             autoGrow();
           }}

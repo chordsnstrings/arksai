@@ -34,6 +34,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   });
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [startingId, setStartingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const upsertSession = useStore((s) => s.upsertSession);
   const setActive = useStore((s) => s.setActive);
@@ -52,10 +53,11 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
 
   // One-step: create a session in the right mode and send the brief immediately
   // (send BEFORE activating so the loaded timeline already has the first message).
-  const run = async (prompt: string, mode: SessionMode, model: string = AUTO_MODEL, task?: string) => {
+  const run = async (prompt: string, mode: SessionMode, model: string = AUTO_MODEL, task?: string, id?: string) => {
     const brief = prompt.trim();
     if (!brief || busy) return;
     setBusy(true);
+    setStartingId(id ?? '__free__');
     setError('');
     try {
       const session = await api.createSession({ mode, model, task });
@@ -63,8 +65,9 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
       upsertSession(session);
       setActive(session.id);
     } catch (e: any) {
-      setError(e?.message ?? 'Could not start — please try again.');
+      setError(e?.message ?? 'Hit a snag starting that — give it another tap.');
       setBusy(false);
+      setStartingId(null);
     }
   };
 
@@ -155,16 +158,16 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
                   {plays.map((p) => (
                     <button
                       key={p.title}
-                      className="play-card"
-                      onClick={() => run(p.prompt, p.mode, p.model, p.key)}
+                      className={`play-card${startingId === p.title ? ' starting' : ''}${busy && startingId !== p.title ? ' dimmed' : ''}`}
+                      onClick={() => run(p.prompt, p.mode, p.model, p.key, p.title)}
                       disabled={busy}
                     >
                       <span className="play-ico">
-                        <Icon name={p.icon} size={18} />
+                        {startingId === p.title ? <span className="spinner sm" /> : <Icon name={p.icon} size={18} />}
                       </span>
                       <span className="play-body">
                         <span className="play-title">{p.title}</span>
-                        <span className="play-blurb">{p.blurb}</span>
+                        <span className="play-blurb">{startingId === p.title ? 'Starting your workspace…' : p.blurb}</span>
                       </span>
                     </button>
                   ))}

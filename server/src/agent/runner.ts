@@ -472,7 +472,7 @@ export class AgentRun {
           if (!text.trim() && finishReason === 'length' && !this.abort.signal.aborted) {
             finalStatus = 'error';
             const msg =
-              'The model kept running out of its output budget before completing a step — nothing was produced. Try narrowing the request or splitting it up.';
+              'That one turned out a bit too big to finish in a single pass, so nothing got built yet. Try again with a smaller, more specific ask — or split it into a couple of pieces — and I’ll take it from there.';
             this.emit({ type: 'run_error', runId: this.runId, message: msg });
             liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
             stopReason = 'natural';
@@ -558,7 +558,7 @@ export class AgentRun {
         });
       } else if (stopReason === 'stall') {
         finalStatus = 'error';
-        const msg = `Stopped: repeated the same action ${STALL_LIMIT}× with no progress — it likely needs your input.`;
+        const msg = `I got stuck repeating the same step and want to avoid spinning — could you give me a steer on what to do next? Tell me a bit more and I’ll pick it right back up.`;
         this.emit({ type: 'run_error', runId: this.runId, message: msg });
         liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
       }
@@ -848,6 +848,12 @@ export class AgentRun {
       if (/(curl|wget|http)\b/i.test(cmd) && /(localhost|127\.0\.0\.1|0\.0\.0\.0|:\d{4})/.test(cmd)) {
         this.didRuntimeTest = true;
       }
+      // A bash command that WRITES files (heredoc, redirect, tee, cp/mv/touch/mkdir,
+      // sed -i, npm/npx scaffolds) must flag the run as mutated — otherwise a build
+      // that creates index.html via bash gets no auto-canvas + no completion card.
+      if (/(>>?|<<|\btee\b|\bcp\b|\bmv\b|\btouch\b|\bmkdir\b|sed\s+-i|\bnpm\b|\bnpx\b|\bpip\b|\bgit\b)/.test(cmd)) {
+        this.mutated = true;
+      }
     }
 
     this.emit({
@@ -950,8 +956,9 @@ export class AgentRun {
     // ever sees it. Red/error styling is reserved for a genuinely terminal stop.
     const failFix = (label: string, detail: string, phase: ProgressPhase = 'verifying'): 'retry' | 'failed' => {
       if (this.verifyRounds >= MAX_VERIFY) {
-        sys('error', `✗ Couldn't get past: ${label}.`);
-        this.emit({ type: 'run_error', runId: this.runId, message: `Verification still failing (${label}).` });
+        const calm = `I couldn’t fully get ${label} to pass after a few tries — your work is saved. Tell me to try a different approach and I’ll keep going.`;
+        sys('error', calm);
+        this.emit({ type: 'run_error', runId: this.runId, message: calm });
         return 'failed';
       }
       const pass = this.verifyRounds + 1;

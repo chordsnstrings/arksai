@@ -35,6 +35,7 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
           <span className="name">ArksAI</span>
           <span className="badge">studio</span>
         </h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 8px' }}>Welcome back — your studio’s ready.</p>
         <input type="email" placeholder="Work email" value={email} autoFocus onChange={(e) => setEmail(e.target.value)} />
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
         {error && <div className="error">{error}</div>}

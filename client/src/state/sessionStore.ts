@@ -55,7 +55,7 @@ export interface LiveState {
 /** Sessions deleted this client session — never re-add them from late events. */
 const deletedIds = new Set<string>();
 
-const emptyLive = (): LiveState => ({
+export const emptyLive = (): LiveState => ({
   items: [],
   pendingAssistant: null,
   pendingTools: null,
@@ -113,6 +113,7 @@ interface StoreState {
   loadDetail(detail: SessionDetail): void;
   addUserMessage(sessionId: string, text: string): void;
   addLocalSystem(sessionId: string, text: string, level?: 'info' | 'error'): void;
+  beginRun(sessionId: string): void;
   forceStop(sessionId: string): void;
   applyEvent(sessionId: string, ev: AgentEvent): void;
   applyGlobalEvent(ev: GlobalEvent): void;
@@ -205,6 +206,16 @@ export const useStore = create<StoreState>((set, get) => ({
     mutateLive(set, sessionId, (live) => ({
       ...live,
       items: [...live.items, { kind: 'system', id: `cmd-${Date.now()}-${Math.random()}`, level, text, ts: Date.now() }],
+    })),
+
+  // Optimistic: the instant the user sends, show the run as live so the progress
+  // bar + footer appear with zero perceptible gap (the real run_started reconciles).
+  beginRun: (sessionId) =>
+    mutateLive(set, sessionId, (live) => ({
+      ...live,
+      running: true,
+      completion: null,
+      progress: live.progress ?? { phase: 'understanding', label: 'Getting started…', pct: 4, at: Date.now() },
     })),
 
   forceStop: (sessionId) =>

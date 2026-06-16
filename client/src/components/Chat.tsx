@@ -7,20 +7,38 @@ import { useStore } from '../state/sessionStore';
 import { api } from '../api/client';
 
 const TOOL_LABEL: Record<string, string> = {
-  web_search: 'Search',
-  web_fetch: 'Fetch',
-  bash: 'Bash',
-  bash_background: 'Bash (bg)',
-  bash_output: 'Logs',
-  kill_process: 'Kill',
-  read_file: 'Read',
-  write_file: 'Write',
-  edit_file: 'Edit',
-  glob: 'Glob',
-  grep: 'Grep',
-  git_diff_stat: 'Diff',
-  git_commit: 'Commit',
-  git_push: 'Push',
+  web_search: 'Searching',
+  web_fetch: 'Reading the web',
+  bash: 'Working',
+  bash_background: 'Running a server',
+  bash_output: 'Checking logs',
+  kill_process: 'Stopping a process',
+  read_file: 'Reading',
+  write_file: 'Writing',
+  edit_file: 'Editing',
+  glob: 'Finding files',
+  grep: 'Searching the code',
+  git_diff_stat: 'Reviewing changes',
+  git_commit: 'Saving a version',
+  git_push: 'Pushing',
+  // High-signal "magic" moments — warm, human labels (the user is watching).
+  see_image: 'Looking at your image',
+  extract_palette: 'Reading your brand colours',
+  add_fonts: 'Setting the typography',
+  generate_image: 'Designing an image',
+  generate_spreadsheet: 'Building the spreadsheet',
+  generate_doc: 'Writing the document',
+  generate_pptx: 'Building the deck',
+  render_report: 'Designing the PDF',
+  render_chart: 'Drawing the charts',
+  add_ui_kit: 'Adding the design kit',
+  publish_app: 'Publishing it live',
+  fetch_data: 'Pulling your data',
+  send_webhook: 'Sending it out',
+  text_to_speech: 'Recording the voiceover',
+  generate_video: 'Filming the clip',
+  generate_music: 'Composing the track',
+  switch_mode: 'Switching gears',
 };
 
 function ToolRow({ call }: { call: ToolCallRecord }) {
@@ -46,19 +64,33 @@ function ToolRow({ call }: { call: ToolCallRecord }) {
 }
 
 function ToolActivity({ calls, running }: { calls: ToolCallRecord[]; running: boolean }) {
-  const [open, setOpen] = useState(false);
+  // Auto-expand while working so the "expert at work" is VISIBLE (visible competence
+  // builds trust); collapse the finished record so the transcript stays tidy.
+  const [open, setOpen] = useState(running);
   const byTool = new Map<string, number>();
   for (const c of calls) {
     const label = TOOL_LABEL[c.tool] ?? c.tool;
     byTool.set(label, (byTool.get(label) ?? 0) + 1);
   }
   const counts = [...byTool.entries()].map(([t, n]) => `${t} · ${n}`).join('  ');
+  // While running, lead with a live one-line ticker of the CURRENT action.
+  const current = running ? calls[calls.length - 1] : null;
+  const ticker = current ? TOOL_LABEL[current.tool] ?? current.tool : null;
   return (
     <div className="tool-group">
       <button className="tool-group-header" onClick={() => setOpen((v) => !v)}>
         <span className={`chev ${open ? 'open' : ''}`}>▶</span>
-        <span>{running ? 'Running agent' : 'Ran tools'}</span>
-        <span className="counts">{counts}</span>
+        {running && ticker ? (
+          <span className="tool-ticker">
+            <span className="spinner sm" /> {ticker}
+            {current?.argsSummary ? <span className="tk-arg"> · {current.argsSummary}</span> : null}
+          </span>
+        ) : (
+          <>
+            <span>{running ? 'Working…' : 'Ran tools'}</span>
+            <span className="counts">{counts}</span>
+          </>
+        )}
       </button>
       {open && (
         <div className="tool-rows">
@@ -139,47 +171,100 @@ const DELIVERABLE_NOUN: Record<string, string> = { app: 'app', pdf: 'report', sh
  *  in-flow (open it, or — for apps — put it online and get a shareable link). */
 function CompletionCard({ completion, sessionId }: { completion: CompletionState; sessionId: string }) {
   const toggleCanvas = useStore((s) => s.toggleCanvas);
+  const canvasTarget = useStore((s) => s.canvasTarget);
+  const beginRun = useStore((s) => s.beginRun);
+  const addUserMessage = useStore((s) => s.addUserMessage);
   const [link, setLink] = useState('');
+  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [err, setErr] = useState('');
   const noun = DELIVERABLE_NOUN[completion.kind] ?? 'result';
+
+  // A live thumbnail of the finished thing — the reveal — using whatever the canvas
+  // auto-loaded (a running app's preview, or the produced document).
+  let thumbSrc: string | null = null;
+  if (canvasTarget?.port) thumbSrc = `/api/sessions/${sessionId}/preview/${canvasTarget.port}/`;
+  else if (canvasTarget?.file)
+    thumbSrc = `/api/sessions/${sessionId}/docview/${canvasTarget.file.split('/').map(encodeURIComponent).join('/')}`;
 
   const publish = async () => {
     setBusy(true);
     setErr('');
+    setFailed(false);
     try {
       const dep = await api.publish(sessionId);
       if (dep.status === 'running') setLink(`${window.location.origin}${dep.url}`);
-      else setErr("Putting it online hit a snag — ask in the chat and the system will fix it and republish.");
+      else setFailed(true);
     } catch (e: any) {
       setErr(e?.message ?? 'Could not publish');
+      setFailed(true);
     } finally {
       setBusy(false);
     }
   };
 
+  // Recovery is one tap: send the defect back to the agent to fix + republish.
+  const fixAndRepublish = async () => {
+    const msg = 'The shared preview didn’t pass its check — please fix what’s broken and publish it again.';
+    setFailed(false);
+    addUserMessage(sessionId, msg);
+    beginRun(sessionId);
+    try {
+      await api.sendMessage(sessionId, msg);
+    } catch {
+      /* the optimistic state will clear on the next event */
+    }
+  };
+
+  const copy = () => {
+    navigator.clipboard?.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
   return (
-    <div className="completion-card">
+    <div className="completion-card reveal">
+      {thumbSrc && (
+        <button className="cc-thumb" onClick={() => toggleCanvas(true)} title="Open">
+          <iframe src={thumbSrc} title="Your result" tabIndex={-1} scrolling="no" />
+          <span className="cc-thumb-open">Open ↗</span>
+        </button>
+      )}
       <div className="cc-head">
         <span className="cc-check">✓</span> Your {noun} is ready
       </div>
       {completion.name && <div className="cc-name">{completion.name}</div>}
       <div className="cc-actions">
         <button className="cc-open" onClick={() => toggleCanvas(true)}>
-          Open
+          Open {noun}
         </button>
         {completion.kind === 'app' && !link && (
           <button className="cc-link" onClick={publish} disabled={busy}>
-            {busy ? 'Putting it online…' : '🔗 Get a shareable link'}
+            {busy ? 'Putting it online…' : '🔗 Share it'}
           </button>
         )}
       </div>
       {link && (
         <div className="cc-live">
-          ✓ Live at{' '}
-          <a href={link} target="_blank" rel="noreferrer">
-            {link}
-          </a>
+          <strong>✓ Live — share with anyone, no login needed.</strong>
+          <div className="cc-link-row">
+            <a href={link} target="_blank" rel="noreferrer">
+              {link}
+            </a>
+            <button className="cc-copy" onClick={copy}>
+              {copied ? 'Copied ✓' : 'Copy'}
+            </button>
+          </div>
+          <span className="cc-note">Stays live for 24 hours — re-publish any time to refresh it.</span>
+        </div>
+      )}
+      {failed && (
+        <div className="cc-recover">
+          <span>Putting it online hit a snag.</span>
+          <button className="cc-fix" onClick={fixAndRepublish}>
+            Fix &amp; republish
+          </button>
         </div>
       )}
       {err && <div className="cc-err">{err}</div>}
@@ -189,18 +274,23 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
 
 export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const itemCount =
     live.items.length +
     (live.pendingAssistant ? 1 : 0) +
     (live.pendingTools?.calls.length ?? 0) +
     (live.pendingAssistant?.text.length ?? 0);
 
+  // Only autoscroll when the user is already near the bottom — never yank them down
+  // while they've scrolled up to read earlier output during a long run.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    const el = scrollRef.current;
+    const nearBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [itemCount, live.running]);
 
   return (
-    <div className="chat">
+    <div className="chat" ref={scrollRef}>
       <div className="chat-inner">
         {live.items.map((item) => (
           <TimelineRow key={item.id} item={item} sessionId={sessionId} />

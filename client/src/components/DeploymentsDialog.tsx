@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Deployment, SessionMeta } from '@shared/types';
 import { api } from '../api/client';
+import { useEscClose } from '../hooks/useEscClose';
 
 /** "expires in 23h 12m" countdown for the 24h-preview window. */
 function expiresLabel(ms?: number | null): string {
@@ -17,6 +18,8 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [latest, setLatest] = useState<string>('');
+  const [copied, setCopied] = useState(false);
+  useEscClose(onClose);
 
   const refresh = () => api.listDeployments(meta.id).then(setDeps).catch(() => {});
   useEffect(() => {
@@ -91,8 +94,15 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
               <a className="canvas-btn" href={fullUrl(latest)} target="_blank" rel="noreferrer">
                 Open
               </a>
-              <button className="canvas-btn" onClick={() => navigator.clipboard?.writeText(fullUrl(latest))}>
-                Copy
+              <button
+                className="canvas-btn"
+                onClick={() => {
+                  navigator.clipboard?.writeText(fullUrl(latest));
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1800);
+                }}
+              >
+                {copied ? 'Copied ✓' : 'Copy'}
               </button>
             </div>
           </div>

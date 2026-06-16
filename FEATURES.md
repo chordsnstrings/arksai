@@ -50,6 +50,8 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Smart intake — a short, type-aware brief (one round), then fully autonomous.
 - Launchpad — one-step "describe → Make it" onboarding.
 - Live "smart-work" progress bar — named phases with an anticipation creep so it never looks frozen; technical work stays visible (visible competence = trust).
+- **Build you can watch (engagement-tuned)** — the moment you hit go the bar + footer appear (optimistic, zero gap); a live **play-by-play ticker** names the current action in human terms ("Looking at your image", "Setting the typography", "Designing the PDF", "Publishing it live") and auto-expands while working; switching chats never flashes; if a step needs retrying the studio says so kindly (plain language, never a scary error).
+- **A real "it's ready" moment** — a successful build ends on a staged completion card with a **live thumbnail** of the finished app/document, one-tap **Open** and **Share** (✓ Live · Copied ✓), and a one-tap **"Fix & republish"** if a publish check fails — fires for every build, including static single-file sites.
 - Self-healing reframed as confident "hardening it (pass N)" forward progress, not failure.
 - Delivery moment — "Booting your live app…" loading + retry, and a completion card ("✓ Your app is ready" → Open / Get a shareable link).
 - One-time "what's new" modal — shown once per user per version (remembered locally) right after sign-in, to keep people in the loop on recent updates.

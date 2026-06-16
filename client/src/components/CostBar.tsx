@@ -44,7 +44,7 @@ export function CostBar({ meta, live }: { meta: SessionMeta; live: LiveState }) 
         <span className="lbl">tokens</span> {fmtTokens(total)}
       </span>
       <span className="spacer" />
-      <span className="seg cost" title="Estimated cost for this session (DeepSeek pricing)">
+      <span className="seg cost" title="Estimated cost for this session">
         {fmtCost(cost)}
         {running && <span className="live-dot" />}
       </span>

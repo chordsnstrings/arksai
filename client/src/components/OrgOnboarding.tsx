@@ -79,6 +79,14 @@ export function OrgOnboarding({ onDone }: { onDone: () => void }) {
     wasRunning.current = running;
   }, [live?.running, onDone, refreshProfile]);
 
+  // Poll the brand WHILE the agent works, so the reveal panel lights up the instant
+  // it saves the palette mid-turn — peaking the surprise at the moment of discovery.
+  useEffect(() => {
+    if (!live?.running) return;
+    const t = setInterval(refreshProfile, 1800);
+    return () => clearInterval(t);
+  }, [live?.running, refreshProfile]);
+
   const skip = async () => {
     if (!orgId) return onDone();
     await api.patchOrgProfile(orgId, { onboardingComplete: true } as any).catch(() => {});

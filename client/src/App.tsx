@@ -22,7 +22,7 @@ import { SchedulesDialog } from './components/SchedulesDialog';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
-import { useStore } from './state/sessionStore';
+import { useStore, emptyLive } from './state/sessionStore';
 import type { Project } from '@shared/types';
 
 export default function App() {
@@ -77,6 +77,21 @@ export default function App() {
   useSessionEvents(authed === true ? activeId : null);
   useAutomation(authed === true ? activeId : null);
 
+  // Escape closes any open dialog — the standard keyboard expectation, in one place.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setShowNew(null);
+      setProjectDialog(null);
+      setShowCommands(false);
+      setShowMemory(false);
+      setShowSchedules(false);
+      setShowAdmin(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   const path = typeof window !== 'undefined' ? window.location.pathname : '/';
   const inviteMatch = path.match(/^\/invite\/(.+)$/);
   if (inviteMatch) return <InviteAccept token={decodeURIComponent(inviteMatch[1])} />;
@@ -99,6 +114,9 @@ export default function App() {
   }
 
   const activeMeta = sessions.find((s) => s.id === activeId) ?? null;
+  // Render the chat shell the instant a session is active — even before its detail
+  // has loaded — so switching sessions never flashes the Launchpad/department picker.
+  const liveOrEmpty = live ?? emptyLive();
 
   return (
     <div className={`app ${navOpen ? 'nav-open' : 'nav-closed'}`}>
@@ -114,18 +132,18 @@ export default function App() {
         <button className="nav-open-btn" title="Menu" onClick={() => toggleNav(true)}>
           ☰
         </button>
-        {activeMeta && live ? (
+        {activeMeta ? (
           <>
             <TopBar meta={activeMeta} />
-            <ProgressBar live={live} />
-            <Chat live={live} sessionId={activeMeta.id} />
+            <ProgressBar live={liveOrEmpty} />
+            <Chat live={liveOrEmpty} sessionId={activeMeta.id} />
             <Composer
               meta={activeMeta}
-              running={live.running}
+              running={liveOrEmpty.running}
               onOpenCommands={() => setShowCommands(true)}
               onOpenMemory={() => setShowMemory(true)}
             />
-            <CostBar meta={activeMeta} live={live} />
+            <CostBar meta={activeMeta} live={liveOrEmpty} />
           </>
         ) : (
           <Launchpad onAdvanced={() => setShowNew({ projectId: null })} />

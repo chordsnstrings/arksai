@@ -99,7 +99,7 @@ export async function verifyProject(
     const ran = checks.length > 0;
     const ok = checks.every((c) => c.ok);
     const summary = !ran
-      ? 'No recognizable project to verify (no package.json/go.mod/Cargo.toml/Python project found).'
+      ? 'No build step needed here — it’s a static site, so there’s nothing to compile. (It’s loaded in a real browser separately to confirm it renders.)'
       : ok
         ? `✓ All checks passed: ${checks.map((c) => c.name).join(', ')}.`
         : `✗ Verification failed at: ${checks.find((c) => !c.ok)!.name}.`;

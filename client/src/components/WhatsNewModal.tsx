@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-16.5';
+export const WHATS_NEW_VERSION = '2026-06-16.6';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'ArksAI can see your images — in every mode',
-    body: 'Drop a screenshot, photo, or logo into the chat in any mode and ArksAI actually looks at it. Hand it your logo and it reads your exact brand colours automatically.',
+    title: 'A build you can watch',
+    body: 'The studio now shows a live play-by-play of the work — “Setting the typography”, “Designing an image”, “Testing it” — and responds the instant you hit go, so you always know it’s on it.',
   },
   {
-    title: 'A faster, more delightful welcome',
-    body: 'Setting up a new workspace is now a 60-second, watch-it-become-yours experience: share your site or logo and your brand reveals live — colours, palette and all — then ArksAI offers to build you something on the spot.',
+    title: 'A real “it’s ready” moment',
+    body: 'When your app or document is done, you get a preview of the finished thing right in the chat, with one-tap Open and Share — no hunting required.',
+  },
+  {
+    title: 'Smoother all around',
+    body: 'Switching between chats never flashes, the box is ready for you to type the moment a session opens, and if something needs another go the studio tells you kindly with a one-tap retry.',
   },
 ];
 
