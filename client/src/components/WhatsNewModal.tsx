@@ -3,7 +3,7 @@ import { useState } from 'react';
 // Bump this string whenever there's a new update to announce — each user sees the
 // modal once per version (remembered in localStorage), so we keep people in the loop
 // without nagging.
-export const WHATS_NEW_VERSION = '2026-06-16.2';
+export const WHATS_NEW_VERSION = '2026-06-16.3';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -27,6 +27,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Effortless file uploads',
     body: 'Drag, click, or just paste a file (or a screenshot) into the chat — the agent now notices it and reads it automatically, no extra instruction needed.',
+  },
+  {
+    title: 'Publish & share a 24-hour preview',
+    body: 'Ship a site or app to a public link anyone can open — no login needed to view. It stays live for 24 hours, then auto-deletes; re-publish any time to refresh the window.',
   },
   {
     title: 'Organization spaces with a shared brain',

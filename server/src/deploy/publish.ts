@@ -14,6 +14,11 @@ import type { Deployment, DeploymentKind } from '../../../shared/types';
 /** A published deployment plus the result of smoke-testing its live public URL. */
 export type PublishResult = Deployment & { verifyDetail?: string; verifyOk?: boolean };
 
+// 24-HOUR PREVIEW MODEL: every publish is an ephemeral preview that auto-deletes
+// after 24h (the single-Droplet constraint; lifted later on a bigger server).
+export const PREVIEW_TTL_MS = 24 * 60 * 60 * 1000;
+const JANITOR_MS = 5 * 60 * 1000; // sweep cadence
+
 function slugify(name: string): string {
   return (
     (name || 'app')
@@ -108,6 +113,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     url: `/apps/${slug}/`,
     port,
     orgId: session.orgId, // inherit the publishing session's org → scoped, manageable
+    expiresAt: Date.now() + PREVIEW_TTL_MS, // 24h preview — the janitor deletes it after
   });
 
   // POST-PUBLISH verification — smoke-test the REAL public URL the user will
@@ -161,4 +167,30 @@ export async function removeDeployment(slug: string) {
   try {
     fs.rmSync(deploymentDir(slug), { recursive: true, force: true });
   } catch {}
+}
+
+// ---- 24h-preview auto-cleanup (the janitor) ----
+
+/** Hard-delete every preview whose 24h window has closed (process + files + row). */
+export async function sweepExpiredDeployments(now = Date.now()): Promise<number> {
+  const deps = await store.listDeployments().catch(() => []);
+  let n = 0;
+  for (const d of deps) {
+    if (d.expiresAt != null && d.expiresAt <= now) {
+      await removeDeployment(d.slug).catch(() => {});
+      n++;
+    }
+  }
+  if (n) console.log(`[deploy] swept ${n} expired preview(s)`);
+  return n;
+}
+
+let janitorTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Start the durable preview janitor (call once at boot). */
+export function startDeploymentJanitor() {
+  if (janitorTimer) return;
+  janitorTimer = setInterval(() => void sweepExpiredDeployments(), JANITOR_MS);
+  setTimeout(() => void sweepExpiredDeployments(), 10_000); // once shortly after boot
+  console.log('[deploy] preview janitor started (24h TTL)');
 }

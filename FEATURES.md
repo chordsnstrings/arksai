@@ -36,7 +36,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Post-publish smoke test of the real `/apps/<slug>/` URL — a broken deploy is caught and handed back to the agent, never the user.
 
 ## Deliverables & deployment
-- Live publishing (`publish_app` + TopBar) — durable public URL at `/apps/<slug>/`; static or node/python apps via a process registry that survives restarts (boot recovery).
+- **Publish & share a 24-hour preview** (`publish_app` + the TopBar "Publish & share") — ship a site/app (static or node/python) to a **public URL anyone can open, no login** at `/apps/<slug>/`, served via a process registry that survives restarts (boot recovery). Every publish is a **24-hour preview**: a boot-started janitor auto-deletes it (process + files + record) 24h after publishing; re-publish to refresh. The dialog shows a live "expires in …" countdown. (Single-Droplet constraint for now — a permanent tier comes with a bigger server; pre-existing deployments without an expiry are left running.)
 - Auto-export (zip download chip) + auto-canvas — the canvas auto-opens and loads the result (web app, PDF, spreadsheet, or doc).
 - Styled office docs: `generate_spreadsheet` (exceljs, formula-driven, validated) and `generate_doc` (docx) — documents embed the editorial typefaces (Source Serif 4 display + Inter body, the same as the reports/app), so they render designed everywhere instead of as office default. `generate_doc` also takes a **designed cover page** (masthead · accent title · one-line thesis · a **KPI band** of headline numbers · metadata footer) and `chart` blocks that embed **publication-grade `render_chart` images** — so a brief/report reads designed end-to-end, not as a wall of text.
 - **`generate_pptx`** — real, editable PowerPoint (PptxGenJS): editorial 16:9 decks with a **designed cover** (masthead · accent title + thesis · a **KPI band** of headline numbers · metadata footer · `CONFIDENTIAL`) and a **dark/light slide rhythm** (per-slide theme), **publication-grade charts** via `render_chart` (dual-axis/heatmap/… embedded as crisp images, beyond the basic native bar/line/pie), title/section/bullets/two-col/stat/quote/table/image layouts, one accent, and an embedded preview for the canvas + the visual gate.
@@ -100,7 +100,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 ---
 
 ## Status & honest caveats
-- **140 automated tests green**; typecheck + build clean.
+- **142 automated tests green**; typecheck + build clean.
 - Anything needing the **model key or open egress** (live builds, real vision calls, scheduled runs firing, external data/webhook delivery) is wired + unit/integration-tested but fully exercised only on the **Droplet**.
 - **Staged (needs Droplet credentials):** OAuth Google Sheets/Drive & CRM connectors, a Slack app, SMTP email.
 - **Multi-tenant org platform — core SHIPPED** (per-user accounts, roles/invites, org-scoped data, in-app admin panel). Remaining: the invite-only landing revamp, per-org department templates, and the AUDIT-P0 low-priv agent uid-drop before any untrusted/self-serve org. The live multi-user flow should be validated on the Droplet.

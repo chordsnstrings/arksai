@@ -78,6 +78,9 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
     const { slug } = req.params as { slug: string; '*'?: string };
     const dep = await store.getDeploymentBySlug(slug);
     if (!dep) return reply.code(404).type('text/html').send('<h1>404 — no such app</h1>');
+    // 24h preview expired → treat as gone (the janitor hard-deletes it shortly).
+    if (dep.expiresAt != null && dep.expiresAt <= Date.now())
+      return reply.code(404).type('text/html').send('<h1>404 — no such app</h1>');
     const rest = (req.params as Record<string, string>)['*'] ?? '';
     const prefix = `/apps/${slug}/`;
 

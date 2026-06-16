@@ -89,6 +89,7 @@ export const deploymentRegistry = new DeploymentRegistry();
 export async function recoverDeployments(): Promise<void> {
   const deps = await store.listDeployments().catch(() => []);
   for (const d of deps) {
+    if (d.expiresAt != null && d.expiresAt <= Date.now()) continue; // expired preview — the janitor removes it
     if (d.kind === 'static' || d.status !== 'running' || d.port == null) continue;
     const dir = deploymentDir(d.slug);
     if (!fs.existsSync(dir)) {

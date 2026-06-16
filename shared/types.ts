@@ -352,6 +352,8 @@ export interface Deployment {
   port: number | null;
   createdAt: number;
   updatedAt: number;
+  /** When this preview auto-expires (ms epoch). null = no expiry (legacy/permanent). */
+  expiresAt?: number | null;
   /** Result of the post-publish smoke test (present on the publish response only). */
   verifyDetail?: string;
 }

@@ -2,6 +2,16 @@ import { useEffect, useState } from 'react';
 import type { Deployment, SessionMeta } from '@shared/types';
 import { api } from '../api/client';
 
+/** "expires in 23h 12m" countdown for the 24h-preview window. */
+function expiresLabel(ms?: number | null): string {
+  if (ms == null) return '';
+  const left = ms - Date.now();
+  if (left <= 0) return 'expired';
+  const h = Math.floor(left / 3_600_000);
+  const m = Math.floor((left % 3_600_000) / 60_000);
+  return h > 0 ? `expires in ${h}h ${m}m` : `expires in ${m}m`;
+}
+
 export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClose: () => void }) {
   const [deps, setDeps] = useState<Deployment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -54,19 +64,23 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog wide" onClick={(e) => e.stopPropagation()}>
-        <h2>Publish & deployments</h2>
+        <h2>Publish & share</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 0 }}>
-          Put this app live at a durable URL anyone can open. It survives the session and server restarts.
+          Publish a <strong>24-hour preview link</strong> anyone can open and share — no login needed to view. It
+          auto-deletes after 24 hours; re-publish any time to refresh the window.
         </p>
 
         <button className="send-btn" onClick={publish} disabled={busy} style={{ alignSelf: 'flex-start' }}>
-          {busy ? 'Publishing…' : '🚀 Publish this app'}
+          {busy ? 'Publishing…' : '🚀 Publish 24-hour preview'}
         </button>
 
         {latest && (
           <div style={{ marginTop: 8 }}>
             <div style={{ color: 'var(--green, #16a34a)', fontSize: 12, marginBottom: 4 }}>
               ✓ Verified live — the public URL renders cleanly.
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>
+              Live for 24 hours · share with anyone · re-publish to refresh.
             </div>
             <div className="kb-row">
               <span className="kb-name">
@@ -100,7 +114,10 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
                   <a href={fullUrl(d.url)} target="_blank" rel="noreferrer">
                     {d.slug}
                   </a>{' '}
-                  <span style={{ color: 'var(--text-faint)' }}>· {d.kind} · {d.status}</span>
+                  <span style={{ color: 'var(--text-faint)' }}>
+                    · {d.kind} · {d.status}
+                    {d.expiresAt ? ` · ${expiresLabel(d.expiresAt)}` : ''}
+                  </span>
                 </span>
                 {d.kind !== 'static' &&
                   (d.status === 'running' ? (

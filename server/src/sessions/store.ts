@@ -459,6 +459,7 @@ function rowToDeployment(r: any): Deployment {
     port: r.port != null ? Number(r.port) : null,
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
+    expiresAt: r.expires_at != null ? Number(r.expires_at) : null,
   };
 }
 
@@ -467,13 +468,14 @@ export async function createDeployment(
 ): Promise<Deployment> {
   const now = Date.now();
   // Stamp the owning org (from the publishing session) so org-scoped reads/ops work —
-  // without this a tenant couldn't see or manage even its OWN published apps.
+  // without this a tenant couldn't see or manage even its OWN published apps. expires_at
+  // drives the 24h-preview auto-cleanup (null = no expiry).
   await q(
-    `INSERT INTO deployments(id, session_id, project_id, slug, name, kind, status, url, port, org_id, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-    [d.id, d.sessionId, d.projectId, d.slug, d.name, d.kind, d.status, d.url, d.port, d.orgId ?? null, now, now],
+    `INSERT INTO deployments(id, session_id, project_id, slug, name, kind, status, url, port, org_id, expires_at, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+    [d.id, d.sessionId, d.projectId, d.slug, d.name, d.kind, d.status, d.url, d.port, d.orgId ?? null, d.expiresAt ?? null, now, now],
   );
-  return { ...d, createdAt: now, updatedAt: now };
+  return { ...d, expiresAt: d.expiresAt ?? null, createdAt: now, updatedAt: now };
 }
 
 export async function getDeploymentBySlug(slug: string, scope?: Scope): Promise<Deployment | null> {

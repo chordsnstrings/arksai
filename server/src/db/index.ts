@@ -255,6 +255,7 @@ async function migrate() {
     "projects:visibility TEXT NOT NULL DEFAULT 'org'",
     'deployments:org_id TEXT',
     'schedules:org_id TEXT',
+    `deployments:expires_at ${INT}`,
   ]) {
     const cut = spec.indexOf(':');
     const table = spec.slice(0, cut);

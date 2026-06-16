@@ -8,9 +8,10 @@ import type { ToolDef } from './common';
 export const publishAppTool: ToolDef = {
   name: 'publish_app',
   description:
-    'Publish the current app to a durable public URL the user can open and use. It survives the session ' +
-    'and server restarts. Works for static sites/SPAs and node/python server apps. Use it once the app is ' +
-    'built and verified — this is how the user gets a finished, live result without doing anything technical.',
+    'Publish the current app to a public URL the user can open AND SHARE with anyone (no login needed to view). ' +
+    'This is a 24-HOUR PREVIEW: the link auto-deletes 24h after publishing (re-publish to refresh it). Works for ' +
+    'static sites/SPAs and node/python server apps. Use it once the app is built and verified — this is how the ' +
+    'user gets a finished, live, shareable result without doing anything technical. Tell them it stays live for 24 hours.',
   parameters: {
     type: 'object',
     properties: {
@@ -30,7 +31,7 @@ export const publishAppTool: ToolDef = {
         );
       }
       const verified = dep.verifyDetail ? ` ${dep.verifyDetail}` : '';
-      return `Published live at ${dep.url} (${dep.kind}).${verified} The user can open it now; it stays up across sessions and server restarts.`;
+      return `Published live at ${dep.url} (${dep.kind}).${verified} Share this link with anyone — no login needed to view. It's a 24-HOUR PREVIEW that auto-deletes after 24h; re-publish to refresh it. Give the user the URL and mention the 24-hour window.`;
     } catch (e: any) {
       return `Error: publish failed — ${e?.message ?? e}`;
     }
