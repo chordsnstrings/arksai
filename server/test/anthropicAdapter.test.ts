@@ -127,6 +127,42 @@ test('anthropicSseToOpenAI: heavy generator on the FAST model does NOT shorten t
   assert.equal(ctrl.signal.aborted, false);
 });
 
+// A read that emits one frame then NEVER settles and IGNORES abort — the real "hung socket"
+// undici can leave pending after a mid-stream abort. This is the operator's 9-min hang.
+function deadStream(): any {
+  const enc = new TextEncoder();
+  let i = 0;
+  return {
+    getReader() {
+      return {
+        read() {
+          if (i++ === 0) return Promise.resolve({ done: false, value: enc.encode('data: {"type":"message_start","message":{"usage":{"input_tokens":10}}}\n\n') });
+          return new Promise(() => {}); // never settles; ignores abort entirely
+        },
+      };
+    },
+  };
+}
+
+test('anthropicSseToOpenAI: a hung read that ignores abort still stalls out via the race', async () => {
+  const ctrl = new AbortController();
+  let threw: any;
+  try {
+    for await (const _ of anthropicSseToOpenAI(deadStream(), {
+      controller: ctrl,
+      idleMs: 30, // tiny idle backstop → trips quickly once the read hangs
+      stall: { tripped: false },
+      isPrimary: true,
+    })) {
+      /* consume */
+    }
+  } catch (e) {
+    threw = e;
+  }
+  assert.ok(threw, 'expected a stall throw even though the read never rejected on abort');
+  assert.equal(threw.minimaxStall, true);
+});
+
 test('anthropicSseToOpenAI: text + tool_use + usage translate to OpenAI chunks', async () => {
   const frames = [
     'data: {"type":"message_start","message":{"usage":{"input_tokens":100,"cache_read_input_tokens":20}}}\n\n',

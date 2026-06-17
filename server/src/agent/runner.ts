@@ -233,6 +233,14 @@ export class AgentRun {
     this.activeClient = this.clientFor(r.provider);
   }
 
+  /** When falling back M3 → DeepSeek mid-conversation, drop M3's reasoning_content from the
+   *  history: it's M3/Anthropic-specific and DeepSeek's thinking mode 400s on it ("reasoning_content
+   *  must be passed back"). The objects are shared with `context` (same refs), so this cleans both.
+   *  DeepSeek then thinks fresh going forward (its own reasoning_content accumulates validly). */
+  private dropM3Reasoning(msgs: any[]) {
+    for (const m of msgs ?? []) if (m && m.role === 'assistant' && 'reasoning_content' in m) delete m.reasoning_content;
+  }
+
   interrupt() {
     this.abort.abort();
   }
@@ -464,11 +472,20 @@ export class AgentRun {
           }
         }
         } catch (err: any) {
-          // M3 over-buffered/stalled this turn → switch to the faster MiniMax model and
-          // redo the turn (the user's "M3, but fall back if slow" choice). Once only.
+          // M3 over-buffered/stalled this turn → fall back to the RELIABLE DeepSeek workhorse
+          // and redo the turn (once). NOT to another MiniMax model: M2.7-highspeed always-thinks
+          // and stalls AGAIN on tool-use turns, so the run would hang then die with nothing built
+          // (the operator's 9-min code-build hang). deepseek-v4-pro finishes; the verify/report
+          // gates guard quality. Mirrors the fetch-time hard-failure fallback (createCompletionWithRetry).
           if (err?.minimaxStall && !this.minimaxFellBack && resolveProvider(this.activeModel).provider === 'minimax') {
             this.minimaxFellBack = true;
-            sysInfo(`↳ ArksAI Max was slow — switching to a faster model for the rest of this build.`);
+            // Fall back to the NON-THINKING DeepSeek model: a thinking model (v4-pro) 400s when
+            // continuing M3's history ("reasoning_content … must be passed back"), but the
+            // non-thinking model imposes no such rule and reliably finishes. Strip M3's
+            // reasoning_content too so the history is a clean, standard tool-use transcript.
+            this.setActiveModel('deepseek-chat');
+            this.dropM3Reasoning(context);
+            sysInfo(`↳ ArksAI Max was slow — switching to ArksAI Flash to finish reliably.`);
             continue;
           }
           throw err;
@@ -779,12 +796,15 @@ export class AgentRun {
         // Hard failure on MiniMax → fall back to DeepSeek Pro and retry once.
         if (!isTransientApiError(err) && this.activeModel === MAX_MODEL && !triedFallback) {
           triedFallback = true;
-          this.setActiveModel('deepseek-v4-pro');
+          // Non-thinking DeepSeek finishes reliably when inheriting M3's history (a thinking
+          // model 400s on it). params.messages share object refs with context → also cleans it.
+          this.setActiveModel('deepseek-chat');
+          this.dropM3Reasoning(params.messages);
           const note: TimelineItem = {
             kind: 'system',
             id: randomUUID(),
             level: 'info',
-            text: '↳ MiniMax was unavailable — falling back to ArksAI Pro.',
+            text: '↳ MiniMax was unavailable — falling back to ArksAI Flash.',
             ts: Date.now(),
           };
           this.emit({ type: 'timeline_item', item: note });
@@ -846,12 +866,17 @@ export class AgentRun {
     const PRIMARY_MS = Number(process.env.MINIMAX_TURN_DEADLINE_MS || '150000') || 150_000;
     const totalMs = useFast ? 240_000 : PRIMARY_MS;
     const ac = new AbortController();
-    const stall = { tripped: false }; // shared with the stream adapter (idle stalls trip it too)
+    // `trip` is set by the stream adapter once streaming starts; it REJECTS the in-flight
+    // read so a stall unblocks the loop even if ac.abort() doesn't propagate to a hung socket
+    // read (a real undici behavior — a mid-stream abort can leave read() pending forever,
+    // which is exactly the operator's "code build hangs 9 min, no fallback" symptom).
+    const stall: { tripped: boolean; trip?: () => void } = { tripped: false };
     if (this.abort.signal.aborted) ac.abort();
     else this.abort.signal.addEventListener('abort', () => ac.abort(), { once: true });
     const totalTimer = setTimeout(() => {
       stall.tripped = true;
       ac.abort();
+      stall.trip?.();
     }, totalMs);
     let resp: Response;
     try {
@@ -1522,7 +1547,7 @@ export async function* anthropicSseToOpenAI(
     controller?: AbortController;
     idleMs?: number;
     totalTimer?: ReturnType<typeof setTimeout>;
-    stall?: { tripped: boolean };
+    stall?: { tripped: boolean; trip?: () => void };
     isPrimary?: boolean;
     heavyNames?: Set<string>;
     heavyMs?: number;
@@ -1542,17 +1567,36 @@ export async function* anthropicSseToOpenAI(
   // `stall` makes the read throw `.minimaxStall` so the loop falls back to the faster model.
   const idleMs = opts?.idleMs ?? 0;
   const ctrl = opts?.controller;
-  const stall = opts?.stall ?? { tripped: false };
+  const stall: { tripped: boolean; trip?: () => void } = opts?.stall ?? { tripped: false };
   const totalTimer = opts?.totalTimer;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   let heavyTimer: ReturnType<typeof setTimeout> | undefined;
+  // A stall must unblock the loop even when ac.abort() fails to reject a hung socket read
+  // (undici can leave a pending read() hanging after a mid-stream abort). So every read is
+  // raced against this promise, which the timers REJECT — guaranteeing minimaxStall is thrown
+  // and the loop falls back, instead of hanging forever with 0 tokens.
+  let rejectStall: ((e: any) => void) | null = null;
+  const stallPromise = new Promise<never>((_, rej) => {
+    rejectStall = rej;
+  });
+  stallPromise.catch(() => {}); // never surfaces as an unhandled rejection
+  const tripStall = () => {
+    if (stall.tripped) return;
+    stall.tripped = true;
+    try {
+      ctrl?.abort();
+    } catch {
+      /* abort is best-effort */
+    }
+    const e: any = new Error('MiniMax (M3) stalled / over-buffered the turn.');
+    e.minimaxStall = true;
+    rejectStall?.(e);
+  };
+  stall.trip = tripStall; // the caller's TOTAL-turn timer trips us through this too
   const arm = () => {
-    if (!idleMs || !ctrl) return;
+    if (!idleMs) return;
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-      stall.tripped = true;
-      ctrl.abort();
-    }, idleMs);
+    idleTimer = setTimeout(tripStall, idleMs);
   };
   const usageChunk = () => ({
     prompt_tokens: inTok + cacheRead + cacheCreate,
@@ -1563,11 +1607,20 @@ export async function* anthropicSseToOpenAI(
   try {
     arm();
     for (;;) {
+    if (stall.tripped) {
+      const err: any = new Error('MiniMax (M3) stalled / over-buffered the turn.');
+      err.minimaxStall = true;
+      throw err;
+    }
     let read;
     try {
-      read = await reader.read();
-    } catch (e) {
-      if (stall.tripped) {
+      // Race the read against the stall promise so a hung socket can't block us even if the
+      // abort didn't propagate. Swallow a late read() rejection if the stall wins the race.
+      const readP = reader.read();
+      void readP.catch(() => {});
+      read = await Promise.race([readP, stallPromise]);
+    } catch (e: any) {
+      if (stall.tripped || e?.minimaxStall) {
         const err: any = new Error('MiniMax (M3) stalled / over-buffered the turn.');
         err.minimaxStall = true; // the loop uses this to fall back to the faster model
         throw err;
@@ -1609,10 +1662,7 @@ export async function* anthropicSseToOpenAI(
             if (opts?.isPrimary && opts?.heavyMs && ctrl && opts.heavyNames?.has(cb.name)) {
               clearTimeout(totalTimer);
               clearTimeout(heavyTimer);
-              heavyTimer = setTimeout(() => {
-                stall.tripped = true;
-                ctrl.abort();
-              }, opts.heavyMs);
+              heavyTimer = setTimeout(tripStall, opts.heavyMs);
             }
             yield {
               choices: [
