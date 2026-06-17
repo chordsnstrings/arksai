@@ -135,6 +135,9 @@ export function buildVlSpec(args: ChartArgs): any {
   const titleObj = args.title ? { text: args.title } : undefined;
   const common: any = { $schema: 'https://vega.github.io/schema/vega-lite/v6.json', width, height, config, data: { values: data } };
   if (titleObj) common.title = titleObj;
+  // An unrecognized chart type still produces a (bar) chart rather than failing the request.
+  const VALID_CHART = new Set(['bar', 'bar_h', 'stacked_bar', 'area', 'line', 'multi_line', 'dual_axis', 'donut', 'heatmap']);
+  const t: any = VALID_CHART.has(args.type as any) ? args.type : 'bar';
 
   const xEnc = (type: 'nominal' | 'temporal' | 'ordinal' = 'nominal') => ({
     field: x,
@@ -144,7 +147,7 @@ export function buildVlSpec(args: ChartArgs): any {
   });
   const yEnc = () => ({ field: y, type: 'quantitative', axis: { title: args.y_title ?? null } });
 
-  switch (args.type) {
+  switch (t) {
     case 'bar':
     case 'bar_h': {
       const horizontal = args.type === 'bar_h';
@@ -260,7 +263,8 @@ export function buildVlSpec(args: ChartArgs): any {
       return { ...common, layer: layers, config: { ...config, view: { stroke: null }, axis: { ...config.axis, grid: false, ticks: false, domain: false } } };
     }
     default:
-      throw new Error(`unknown chart type "${args.type}"`);
+      // unreachable (t is normalized to a known type) — a plain bar fallback, never a throw.
+      return { ...common, mark: { type: 'bar', color: accent }, encoding: { x: xEnc('nominal'), y: yEnc() } };
   }
 }
 

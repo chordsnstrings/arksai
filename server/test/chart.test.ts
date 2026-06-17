@@ -45,8 +45,11 @@ test('heatmap maps value to a colour ramp ending at the accent', () => {
   assert.equal(spec.layer.length, 2); // value_labels adds a text layer
 });
 
-test('buildVlSpec throws on an unknown chart type', () => {
-  assert.throws(() => buildVlSpec({ type: 'pie' as any, data: [{ a: 1 }] }));
+test('buildVlSpec falls back to a (bar) chart on an unknown type — never throws', () => {
+  const spec = buildVlSpec({ type: 'pie' as any, data: [{ a: 1, b: 2 }], x: 'a', y: 'b' });
+  assert.equal(typeof spec, 'object');
+  // produces a usable bar-style spec rather than failing the chart request
+  assert.ok(JSON.stringify(spec).includes('"bar"'));
 });
 
 // Real Vega render (no browser / canvas). Covers the types Claude used + more.
