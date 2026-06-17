@@ -64,22 +64,32 @@ export async function fetchPublic(
   signal: AbortSignal,
   init: RequestInit = {},
 ): Promise<{ status: number; contentType: string; body: string }> {
-  const url = await assertPublicUrl(rawUrl);
+  let url = await assertPublicUrl(rawUrl);
   const ctrl = new AbortController();
   const onAbort = () => ctrl.abort();
   signal.addEventListener('abort', onAbort, { once: true });
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
-      ...init,
-      signal: ctrl.signal,
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'ArksAI/1.0 (+research agent)',
-        Accept: 'text/html,application/xhtml+xml,application/json,text/plain;q=0.9,*/*;q=0.8',
-        ...(init.headers ?? {}),
-      },
-    });
+    // SSRF-safe redirects: redirect:'follow' would let a public URL bounce us to a
+    // private/loopback/metadata address (e.g. 169.254.169.254), bypassing the guard
+    // that only checked the FIRST url. So follow manually and re-validate EVERY hop.
+    let res: Response;
+    for (let hop = 0; ; hop++) {
+      res = await fetch(url, {
+        ...init,
+        signal: ctrl.signal,
+        redirect: 'manual',
+        headers: {
+          'User-Agent': 'ArksAI/1.0 (+research agent)',
+          Accept: 'text/html,application/xhtml+xml,application/json,text/plain;q=0.9,*/*;q=0.8',
+          ...(init.headers ?? {}),
+        },
+      });
+      const loc = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
+      if (!loc) break;
+      if (hop >= 5) throw new Error('Too many redirects');
+      url = await assertPublicUrl(new URL(loc, url).toString()); // re-check → throws on a private hop
+    }
     const contentType = res.headers.get('content-type') ?? '';
     const reader = res.body?.getReader();
     let received = 0;
