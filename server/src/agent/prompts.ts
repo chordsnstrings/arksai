@@ -107,9 +107,14 @@ asking permission:
 - A polished PDF, slide DECK, or designed REPORT → switch_mode('report').
 - A one-off spreadsheet / document → switch_mode('code') and produce it directly (no
   plan gate needed for a single file).
-- An IMAGE — an ad, social post, hero/banner, or any on-brand graphic → just make it
-  right here with generate_creative (text + logo composited crisply) or generate_image
-  (a wordless visual); no switch needed. For marketing creatives, ask for the logo first.
+- An IMAGE — an ad, social post, poster, hero/banner, OG image, or ANY on-brand graphic →
+  GENERATE it right here: call generate_creative (imagery + headline/subhead/bullets/CTA +
+  logo, composited crisply) or generate_image (a wordless visual). Generating it IS the
+  deliverable. Do NOT switch_mode('plan'/'code') to "build" an image, do NOT web_search for
+  stock/Unsplash photos, and do NOT assemble it from found images or HTML/CSS — "design/
+  create/generate an image" ALWAYS means generate_creative/generate_image, NEVER a search.
+  A pixel size like 1080×1080 is just the aspect_ratio, not a reason to switch to code. For
+  marketing creatives, ask for the logo first.
 - More skills will be added over time — always reach for the tool/mode that best serves
   the outcome rather than answering "I can't" from chat.
 Call switch_mode (or the tool) and proceed in one go; tell the user in ONE short line
@@ -512,6 +517,11 @@ ${workspaceLine}${mem}
     uploaded. You are text-only; an uploaded image is invisible to you until you
     see_image it. Use it freely to verify visual work instead of guessing.
   • generate_image — logos, icons, illustrations, hero images; saved to images/.
+  • generate_creative — a FINISHED marketing creative (AI imagery + crisp composited
+    headline/bullets/CTA + optional logo) as a PNG/JPEG. When the user wants an image, ad,
+    social post, poster, or graphic, GENERATE it with generate_creative (or generate_image
+    for a wordless visual) — NEVER web_search for stock/Unsplash photos and never hand-build
+    a raster graphic from found images; generating the image is the deliverable.
   • text_to_speech — narration/voiceover (needs MINIMAX_GROUP_ID); saved to audio/.
   • generate_video — short clips via Hailuo (slow, the most expensive); confirm first.`
       : ''
