@@ -43,6 +43,10 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const upsertSession = useStore((s) => s.upsertSession);
   const setActive = useStore((s) => s.setActive);
+  const addUserMessage = useStore((s) => s.addUserMessage);
+  const beginRun = useStore((s) => s.beginRun);
+  const forceStop = useStore((s) => s.forceStop);
+  const addLocalSystem = useStore((s) => s.addLocalSystem);
   const sessions = useStore((s) => s.sessions);
   const me = useStore((s) => s.me);
   const dept = departmentById(deptId);
@@ -126,8 +130,9 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
     if ((!brief && !(attach && attach.length)) || busy) return;
     setBusy(true);
     setError('');
+    let session;
     try {
-      const session = await api.createSession({ mode, model, task });
+      session = await api.createSession({ mode, model, task });
       if (attach && attach.length) {
         const form = new FormData();
         for (const f of attach) form.append('files', f, f.name);
@@ -140,12 +145,24 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
           throw new Error(message);
         }
       }
-      await api.sendMessage(session.id, brief || 'I’ve attached some files — take a look and let’s get started.');
-      upsertSession(session);
-      setActive(session.id);
     } catch (e: any) {
+      // Failed before we opened the chat — stay on the Launchpad and surface it.
       setError(e?.message ?? 'Hit a snag starting that — give it another tap.');
       setBusy(false);
+      return;
+    }
+    const msg = brief || 'I’ve attached some files — take a look and let’s get started.';
+    // Optimistic: show the message + running state the instant the chat opens, so it
+    // never flashes "Ready when you are" while the run spins up (matches the Composer).
+    addUserMessage(session.id, msg);
+    beginRun(session.id);
+    upsertSession(session);
+    setActive(session.id);
+    try {
+      await api.sendMessage(session.id, msg);
+    } catch (e: any) {
+      forceStop(session.id); // roll back the optimistic running state
+      addLocalSystem(session.id, e?.message ?? 'Couldn’t start that run — try again.', 'error');
     }
   };
 
