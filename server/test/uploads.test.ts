@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildUploadNote } from '../src/lib/extract';
 import { sanitizeFilename } from '../src/routes/upload';
+import { contentDisposition } from '../src/routes/files';
 
 test('buildUploadNote: null when nothing was uploaded', () => {
   assert.equal(buildUploadNote([], true), null);
@@ -29,6 +30,31 @@ test('sanitizeFilename: empty / undefined / oversized names degrade safely', () 
   assert.ok(sanitizeFilename('x'.repeat(500)).length <= 100);
   // a name that's all-separators still yields a usable, contained segment
   assert.ok(sanitizeFilename('/////').length >= 1);
+});
+
+// A downloaded deliverable can be named in Arabic (legal dept) or carry odd chars —
+// the Content-Disposition header must stay valid AND preserve the real UTF-8 name.
+test('contentDisposition: ASCII name → simple, valid header', () => {
+  const h = contentDisposition('Q3 Report.pdf', false);
+  assert.match(h, /^attachment; filename="Q3 Report\.pdf"/);
+  assert.match(h, /filename\*=UTF-8''Q3%20Report\.pdf/);
+});
+
+test('contentDisposition: a non-ASCII (Arabic) name keeps an ASCII fallback + a UTF-8 form', () => {
+  const h = contentDisposition('عقد-إيجار.docx', false); // "lease contract" .docx
+  // fallback must be pure printable ASCII (no raw non-ASCII bytes in filename="…")
+  const fallback = h.match(/filename="([^"]*)"/)![1];
+  assert.doesNotMatch(fallback, /[^\x20-\x7e]/);
+  // the real name survives, percent-encoded, in filename*=
+  assert.ok(h.includes("filename*=UTF-8''"));
+  assert.match(h, /%D8/); // Arabic bytes are UTF-8 percent-encoded
+});
+
+test('contentDisposition: CR/LF and quotes in a filename cannot inject a header', () => {
+  const h = contentDisposition('evil"\r\nSet-Cookie: x=1.png', true);
+  assert.doesNotMatch(h, /[\r\n]/); // no CRLF → no header injection
+  assert.match(h, /^inline; /);
+  assert.doesNotMatch(h.match(/filename="([^"]*)"/)![1], /["]/); // quote neutralized
 });
 
 test('buildUploadNote: a data file points the agent at its extracted sidecar', () => {

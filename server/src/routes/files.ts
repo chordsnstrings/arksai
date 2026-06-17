@@ -22,6 +22,20 @@ const MIME: Record<string, string> = {
   '.json': 'application/json',
 };
 
+/**
+ * RFC 6266 Content-Disposition. A filename can contain non-ASCII (an Arabic legal
+ * deliverable) or even CR/LF — putting it raw into `filename="…"` mangles the name in
+ * browsers and a CR/LF would make Node throw on the header (a 500 on download). So we
+ * emit an ASCII-safe `filename="…"` fallback AND a `filename*=UTF-8''…` with the real
+ * UTF-8 name percent-encoded, which modern browsers prefer.
+ */
+export function contentDisposition(name: string, inline: boolean): string {
+  const clean = name.replace(/[\r\n"\\]/g, '_');
+  const ascii = clean.replace(/[^\x20-\x7e]/g, '_') || 'download';
+  const utf8 = encodeURIComponent(clean).replace(/['()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  return `${inline ? 'inline' : 'attachment'}; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
 /** Authenticated download of any file inside a session's workspace. */
 export function registerFileRoutes(app: FastifyInstance) {
   app.get('/api/sessions/:id/files/*', async (req, reply) => {
@@ -44,7 +58,7 @@ export function registerFileRoutes(app: FastifyInstance) {
     const inline = (req.query as any)?.inline === '1';
     reply
       .header('Content-Type', MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream')
-      .header('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${name.replace(/"/g, '')}"`)
+      .header('Content-Disposition', contentDisposition(name, inline))
       .header('Content-Length', fs.statSync(abs).size);
     return reply.send(fs.createReadStream(abs));
   });
