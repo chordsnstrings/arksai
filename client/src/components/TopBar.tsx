@@ -11,6 +11,16 @@ export function TopBar({ meta }: { meta: SessionMeta }) {
   const toggleCanvas = useStore((s) => s.toggleCanvas);
   const canvasOpen = useStore((s) => s.canvasOpen);
   const [showDeploy, setShowDeploy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyLink = () => {
+    try {
+      navigator.clipboard?.writeText(`${window.location.origin}/s/${meta.id}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard blocked — the URL bar still shows /s/<id> */
+    }
+  };
   return (
     <header className="topbar">
       {meta.repoName ? (
@@ -32,6 +42,9 @@ export function TopBar({ meta }: { meta: SessionMeta }) {
           <span className="del">{meta.diffStat.split(' ')[1]}</span>
         </span>
       )}
+      <button className="canvas-toggle" onClick={copyLink} title="Copy a shareable link to this chat">
+        {copied ? '✓ Copied' : '🔗 Link'}
+      </button>
       <button className="canvas-toggle" onClick={() => setShowDeploy(true)} title="Publish this app to a live URL">
         🚀 Publish
       </button>

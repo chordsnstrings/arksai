@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-17.6';
+export const WHATS_NEW_VERSION = '2026-06-17.7';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -25,6 +25,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Input first, everything else below',
     body: 'The start screen is reflowed so the chat box sits right up top under your greeting, with the team’s examples denser below — there to pick when you want them.',
+  },
+  {
+    title: 'Every chat has a shareable link',
+    body: 'Each session now has its own URL (/s/…) in the address bar, plus a “🔗 Link” button up top to copy it — bookmark a chat or send it to a teammate, and it reopens where it left off.',
   },
 ];
 

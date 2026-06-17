@@ -39,6 +39,7 @@ export default function App() {
   const me = useStore((s) => s.me);
   const sessions = useStore((s) => s.sessions);
   const activeId = useStore((s) => s.activeId);
+  const setActive = useStore((s) => s.setActive);
   const live = useStore((s) => (activeId ? s.live[activeId] : undefined));
   const canvasOpen = useStore((s) => s.canvasOpen);
   const navOpen = useStore((s) => s.navOpen);
@@ -76,6 +77,36 @@ export default function App() {
       if (shouldShowWhatsNew()) setShowWhatsNew(true);
     }
   }, [authed, setModels, setCommands, setProjects, setMe]);
+
+  // Deep-linkable chats: keep the URL in sync with the active session as /s/<id>, so every
+  // chat has a real shareable/bookmarkable link (and reload/back-forward reopen it).
+  // NOTE: deliberately NOT depending on activeId — this effect reacts only to load,
+  // sessions arriving, and back/forward (popstate); the state→URL effect below owns the
+  // activeId→URL direction. (Depending on activeId here ping-pongs the two into a loop.)
+  useEffect(() => {
+    if (authed !== true) return;
+    const open = () => {
+      const m = window.location.pathname.match(/^\/s\/([^/]+)$/);
+      const id = m ? m[1] : null;
+      const cur = useStore.getState().activeId;
+      if (id) {
+        if (sessions.some((s) => s.id === id) && cur !== id) setActive(id);
+      } else if (cur) {
+        setActive(null); // back to the launchpad when the URL has no session
+      }
+    };
+    open();
+    window.addEventListener('popstate', open);
+    return () => window.removeEventListener('popstate', open);
+  }, [authed, sessions, setActive]);
+
+  useEffect(() => {
+    if (authed !== true) return;
+    const p = window.location.pathname;
+    if (p.startsWith('/invite/') || p === '/operator' || p === '/operator/') return;
+    const target = activeId ? `/s/${activeId}` : '/';
+    if (p !== target) window.history.pushState({}, '', target); // guard prevents popstate loops
+  }, [activeId, authed]);
 
   useGlobalEvents(authed === true);
   useSessionEvents(authed === true ? activeId : null);
