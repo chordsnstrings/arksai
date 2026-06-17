@@ -882,26 +882,42 @@ export class AgentRun {
     const stall: { tripped: boolean; trip?: () => void } = { tripped: false };
     if (this.abort.signal.aborted) ac.abort();
     else this.abort.signal.addEventListener('abort', () => ac.abort(), { once: true });
+    // The HEADERS wait must be raced against the deadline too, not just aborted: M3 can buffer
+    // server-side for minutes before sending ANY response byte on a big prompt, and ac.abort()
+    // does NOT reliably reject a pending undici fetch that's still awaiting headers — so relying
+    // on the abort alone leaves the turn hung at 0 tokens forever (observed on genuine M3 use:
+    // legal code-mode drafting). Mirror the read-race: reject the await when the timer fires.
+    let rejectHeaders: ((e: any) => void) | null = null;
+    const headersDeadline = new Promise<never>((_, rej) => {
+      rejectHeaders = rej;
+    });
+    headersDeadline.catch(() => {}); // never an unhandled rejection
     const totalTimer = setTimeout(() => {
       stall.tripped = true;
       ac.abort();
-      stall.trip?.();
+      stall.trip?.(); // unblocks a hung stream read (once streaming has begun)
+      const e: any = new Error(`MiniMax (${model}) stalled — no response headers within ${totalMs / 1000}s.`);
+      e.minimaxStall = true;
+      rejectHeaders?.(e); // unblocks a hung HEADERS await (before streaming begins)
     }, totalMs);
     let resp: Response;
     try {
-      resp = await fetch(`${this.minimaxAnthropicBase}/v1/messages`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${config.minimaxApiKey}`,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-        signal: ac.signal,
-      });
+      resp = await Promise.race([
+        fetch(`${this.minimaxAnthropicBase}/v1/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${config.minimaxApiKey}`,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(body),
+          signal: ac.signal,
+        }),
+        headersDeadline,
+      ]);
     } catch (e: any) {
       clearTimeout(totalTimer);
-      if (stall.tripped) {
+      if (stall.tripped || e?.minimaxStall) {
         const err: any = new Error(`MiniMax (${model}) stalled — no response within ${totalMs / 1000}s.`);
         err.minimaxStall = true; // → the loop falls back to the faster model
         throw err;
