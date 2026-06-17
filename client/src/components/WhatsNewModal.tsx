@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-17.9';
+export const WHATS_NEW_VERSION = '2026-06-17.10';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Image generation, rock-solid',
-    body: 'Ask for an ad, social post, or any graphic and ArksAI now reliably GENERATES it — a real on-brand creative with crisp text and your logo. It never web-searches a stock photo, never falls back to a plain HTML box, and always produces an image even from a loose brief.',
+    title: 'Snappier, especially with lots of work',
+    body: 'Your sidebar and chats load faster — even with hundreds of sessions — because we stopped shuttling each conversation’s full history around just to draw the list.',
   },
   {
-    title: 'Builds never hang',
-    body: 'If the top model is slow on a build, ArksAI now switches to a fast, reliable one and finishes — instead of stalling. Your work always completes.',
+    title: 'Accessible to everyone',
+    body: 'Every form across the app now reads correctly to screen readers, so teammates who rely on assistive technology can use ArksAI fully.',
   },
   {
-    title: 'Filings actually delivered + tighter quality checks',
-    body: 'Generated compliance files (WPS SIF, e-invoice XML) now show up as downloads, financial models are double-checked to be truly formula-driven (not hard-coded), and every produced document is design-reviewed before you see it.',
+    title: 'Handles anything you throw at it',
+    body: 'Unusual input no longer trips the app up — odd characters, malformed requests, and tricky uploads all fail gracefully with a clear message, and documents named in Arabic now download with their proper name.',
   },
 ];
 
