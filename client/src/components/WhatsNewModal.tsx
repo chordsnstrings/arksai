@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-17.8';
+export const WHATS_NEW_VERSION = '2026-06-17.9';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Approve the plan, then it builds',
-    body: 'When ArksAI plans something to build, it shows you the plan with a clear “✓ Approve & build” or “Revise” — approve and it runs the whole thing autonomously; revise to tweak it first.',
+    title: 'Image generation, rock-solid',
+    body: 'Ask for an ad, social post, or any graphic and ArksAI now reliably GENERATES it — a real on-brand creative with crisp text and your logo. It never web-searches a stock photo, never falls back to a plain HTML box, and always produces an image even from a loose brief.',
   },
   {
-    title: 'Always an obvious next step',
-    body: 'Finished results now show a “What’s next?” row (add a feature, tweak the design, turn a report into a deck…), and shared links never dead-end — a deleted or private chat shows a clear message instead of dumping you home.',
+    title: 'Builds never hang',
+    body: 'If the top model is slow on a build, ArksAI now switches to a fast, reliable one and finishes — instead of stalling. Your work always completes.',
   },
   {
-    title: 'Snappier and more seamless',
-    body: 'Starting a build shows progress instantly (no blank pause), the assistant routes itself to the right skill for each new request, and it stops re-asking things it already knows.',
+    title: 'Filings actually delivered + tighter quality checks',
+    body: 'Generated compliance files (WPS SIF, e-invoice XML) now show up as downloads, financial models are double-checked to be truly formula-driven (not hard-coded), and every produced document is design-reviewed before you see it.',
   },
 ];
 
