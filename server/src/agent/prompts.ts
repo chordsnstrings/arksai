@@ -561,7 +561,22 @@ ${workspaceLine}${mem}
   messages. Then verify with bash (curl), inspect logs with bash_output, and
   stop it with kill_process when you are done.
 
-${modeBlock}${exp}
+${modeBlock}${exp}${
+    session.mode === 'code' || session.mode === 'report'
+      ? `
+
+## You're not locked into this mode
+Keep using the current mode for any FOLLOW-UP on this same task — tweaks, fixes, more
+pages, another file for the same project: just continue, no re-confirmation. But if the
+user's NEXT message is a genuinely DIFFERENT kind of request, route to what serves it,
+exactly as you would from chat — don't force an unrelated ask through this mode:
+- a plain question, explanation, or discussion → switch_mode('chat')
+- a polished PDF, slide DECK, or designed REPORT → switch_mode('report')
+- a brand-new app/site/tool to BUILD → switch_mode('plan') (plan first, build on approval)
+- an IMAGE / ad / on-brand graphic → use generate_creative or generate_image right here
+Say in one short line that you're switching, then proceed.`
+      : ''
+  }
 
 ## Style
 - Be concise. Write short prose between tool calls explaining what you're doing.
