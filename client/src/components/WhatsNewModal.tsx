@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-16.7';
+export const WHATS_NEW_VERSION = '2026-06-17.1';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'New: a Legal team (UAE)',
-    body: 'Draft commercial contracts, legal notices, police reports, legal opinions and forensic audits — bilingual (formal British English + eloquent Arabic, not a literal translation), grounded in current UAE federal & emirate law, and execution-ready for your lawyer to review and sign.',
+    title: 'New: usage & engagement analytics',
+    body: 'Admins get a new dashboard to see how their team uses ArksAI — active members, what they build, success rate, retention, and cost — right inside the admin panel under “Usage & engagement”. The platform operator also gets a full cross-org console.',
   },
   {
-    title: 'Built to sign, not rewrite',
-    body: 'Every legal document comes with the full clauses, citations to the relevant law, and clearly-marked blanks — so your counsel reviews and signs rather than starting from scratch. Always have a licensed UAE lawyer sign off.',
+    title: 'Aggregate numbers only — never your content',
+    body: 'Analytics show counts, trends and metadata only. They never read your chats or documents — that boundary is enforced in the code and covered by tests.',
   },
 ];
 

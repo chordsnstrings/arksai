@@ -221,6 +221,24 @@ export const api = {
       body: JSON.stringify({ name, adminEmail }),
     }),
   adminListLeads: () => request<{ leads: Lead[] }>('/api/admin/leads').then((r) => r.leads),
+
+  // ---- Analytics (operator cross-org; pass orgId for the per-org view) ----
+  analyticsOverview: (orgId?: string) =>
+    request<{ analytics: any }>(orgId ? `/api/orgs/${orgId}/analytics/overview` : '/api/admin/analytics/overview').then((r) => r.analytics),
+  analyticsTimeseries: (days = 30, orgId?: string) =>
+    request<{ timeseries: any }>(`${orgId ? `/api/orgs/${orgId}` : '/api/admin'}/analytics/timeseries?days=${days}`).then((r) => r.timeseries),
+  analyticsUsage: (days = 30, orgId?: string) =>
+    request<{ usage: any }>(`${orgId ? `/api/orgs/${orgId}` : '/api/admin'}/analytics/usage?days=${days}`).then((r) => r.usage),
+  analyticsQuality: (days = 30, orgId?: string) =>
+    request<{ quality: { status: string; count: number }[] }>(`${orgId ? `/api/orgs/${orgId}` : '/api/admin'}/analytics/quality?days=${days}`).then((r) => r.quality),
+  analyticsCost: (days = 30) => request<{ cost: any }>(`/api/admin/analytics/cost?days=${days}`).then((r) => r.cost),
+  analyticsRetention: (orgId?: string) =>
+    request<{ retention: any[] }>(`${orgId ? `/api/orgs/${orgId}` : '/api/admin'}/analytics/retention`).then((r) => r.retention),
+  analyticsFunnel: (orgId?: string) =>
+    request<{ funnel: { stage: string; count: number; pct: number }[] }>(`${orgId ? `/api/orgs/${orgId}` : '/api/admin'}/analytics/funnel`).then((r) => r.funnel),
+  analyticsOrgs: () => request<{ orgs: any[] }>('/api/admin/analytics/orgs').then((r) => r.orgs),
+  analyticsMembers: (orgId: string) => request<{ members: any[] }>(`/api/orgs/${orgId}/analytics/members`).then((r) => r.members),
+  analyticsUsers: () => request<{ users: any[] }>('/api/admin/analytics/users').then((r) => r.users),
 };
 
 export { ApiError };

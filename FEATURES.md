@@ -6,7 +6,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 
 > **Maintenance:** keep this file current — every shipped change that adds, removes, or
 > meaningfully alters a feature should update this list in the same commit.
-> _Last updated: 2026-06-16._
+> _Last updated: 2026-06-17._
 
 ---
 
@@ -104,10 +104,16 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - **Per-org shared brain + an onboarding designed to be FINISHED** — a new org admin gets a fully-visible, agent-led first run built on how anticipation works (dopamine = a seeking signal driven by a reward that beats expectation): a vivid promise + one tiny ask opens a loop they want to close, an **endowed 3-step tracker** (Brand → Profile → First build) shows them already moving, and a **live brand-reveal panel** beside the chat lights up with their real accent, palette and "about" the moment ArksAI reads their site or logo — the studio visibly becomes theirs. ArksAI **crawls the org's website** **or reads an uploaded logo's colours** (`extract_palette`, deterministic — and vision works in every mode, so it never claims it can't see the image), saves the brand early so the panel pops, asks a couple of quick questions, then `save_org_profile` (complete) and tees up an exciting first build. That brand + "about" + a recalled digest of the org's own past chats are injected into **every** session in the org (brand applied consistently unless the user overrides). Members joining later inherit it silently; the admin can re-run/skip/edit.
 - **Strict per-org memory isolation** — org memory lives under an `org:<id>` scope derived only from the authenticated identity (never client input). A tenant org reads/writes **only its own** scope — never the deployment-`global` notes, never another org — enforced in the runner's context builder *and* the memory API (read/write/delete), with repo memory namespaced per org. Cross-org isolation is unit-tested.
 
+## Analytics & insight (admin)
+- **Operator analytics console** (super-admin, full-screen from the sidebar) — understand how the whole platform is used at a glance: headline KPIs (active users 7d/30d, **stickiness = DAU/MAU**, sessions, success rate, cost, orgs/users, live apps, waitlist), active-users/day and sessions/day trends, the **acquisition funnel** (lead → signup → onboarded → built → published), **feature adoption** by play, splits by mode and model, quality (done vs error), cost by model, a **signup-cohort retention** grid, and a named **per-org drill-down** table (members, sessions, cost, last-active, onboarded).
+- **Per-org dashboards** — an org admin (or the operator drilling in) gets the focused subset inside the admin panel's **Usage & engagement** tab: engagement KPIs, active-members/sessions trends, the activation funnel, what the team builds (plays/modes/models), retention cohorts, and a per-member activity table — scoped strictly to that org.
+- **Lightweight event-tracking layer** — a non-blocking `track()` writes usage events (`app_open`, `run_finished`, …) to an `analytics_events` table with a precomputed epoch-day bucket (zero date-SQL, SQLite+Postgres portable); metrics also derive from existing tables so they work from day one and get richer as events accrue.
+- **Privacy is absolute — metadata only.** Analytics read only counts, timestamps, status, mode/model, the play key, tokens and cost; they **never** touch the `timeline` table or any message/document content. Enforced at both boundaries (a write-side scalar-only `props` allowlist + a grep-able test that the analytics modules contain no content reads) and gated end-to-end: operator routes are super-admin-only, per-org routes require that org's admin — covered by an HTTP red-team test (a non-operator gets 403 on platform analytics; an org admin cannot read another org's).
+
 ---
 
 ## Status & honest caveats
-- **142 automated tests green**; typecheck + build clean.
+- **157 automated tests green**; typecheck + build clean.
 - Anything needing the **model key or open egress** (live builds, real vision calls, scheduled runs firing, external data/webhook delivery) is wired + unit/integration-tested but fully exercised only on the **Droplet**.
 - **Staged (needs Droplet credentials):** OAuth Google Sheets/Drive & CRM connectors, a Slack app, SMTP email.
 - **Multi-tenant org platform — core SHIPPED** (per-user accounts, roles/invites, org-scoped data, in-app admin panel). Remaining: the invite-only landing revamp, per-org department templates, and the AUDIT-P0 low-priv agent uid-drop before any untrusted/self-serve org. The live multi-user flow should be validated on the Droplet.

@@ -15,6 +15,7 @@ import { buildSystemPrompt } from './prompts';
 import { getToolsForMode } from './tools';
 import { crawlSiteTool, saveOrgProfileTool } from './tools/onboarding';
 import { extractPaletteTool } from './tools/palette';
+import { track } from '../analytics/track';
 import { ToolError, type ToolCtx } from './tools/common';
 import { generateTitle } from './titleGen';
 import { makeThinkFilter } from './thinkFilter';
@@ -682,6 +683,22 @@ export class AgentRun {
         totalTokens: this.usage.totalTokens,
         diffStat: stat,
         ...(deliverable ? { deliverable } : {}),
+      });
+      // Analytics (metadata only, fire-and-forget): the richest usage/quality/cost signal.
+      track('run_finished', {
+        orgId: this.session.orgId,
+        userId: (this.session as any).createdBy ?? null,
+        sessionId,
+        props: {
+          status: finalStatus,
+          mode: this.session.mode,
+          model: this.activeModel,
+          task: this.session.task ?? undefined,
+          deliverable: deliverable?.kind,
+          durationMs: Date.now() - this.usage.startedAt,
+          totalTokens: this.usage.totalTokens,
+          costUsd: Math.round((this.accruedCostUsd + this.engineCostUsd) * 1e6) / 1e6,
+        },
       });
       if (openCanvasEvent) {
         this.emit({ type: 'open_canvas', ...openCanvasEvent });

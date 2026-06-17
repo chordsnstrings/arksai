@@ -30,6 +30,7 @@ let cookieA = '';
 let cookieB = '';
 let opCookie = '';
 let orgAId = '';
+let orgBId = '';
 let userAId = '';
 let sessA: any;
 let projA: any;
@@ -62,6 +63,7 @@ before(async () => {
   const a = await mkOrg('Org A', 'admin@orga.com');
   const b = await mkOrg('Org B', 'admin@orgb.com');
   orgAId = a.orgId;
+  orgBId = b.orgId;
   userAId = a.userId;
   cookieA = a.cookie;
   cookieB = b.cookie;
@@ -140,4 +142,36 @@ test('RED TEAM: org B cannot reach org A data on any route', async () => {
   await app.inject({ method: 'DELETE', url: `/api/schedules/${aSched.id}`, headers: h });
   const stillThere = items(await app.inject({ url: '/api/schedules', headers: { cookie: cookieA } })).find((s) => s.id === aSched.id);
   assert.ok(stillThere && stillThere.enabled === true, 'B disabled/deleted A schedule');
+});
+
+test('RED TEAM: analytics are operator-gated and per-org isolated (metadata only)', async () => {
+  const opEndpoints = ['overview', 'timeseries', 'usage', 'quality', 'cost', 'retention', 'funnel', 'orgs', 'users'];
+  // A non-superadmin org admin is forbidden from EVERY operator (cross-org) analytics route.
+  for (const ep of opEndpoints) {
+    assert.equal(
+      (await app.inject({ url: `/api/admin/analytics/${ep}`, headers: { cookie: cookieA } })).statusCode,
+      403,
+      `org admin reached operator analytics /${ep}`,
+    );
+  }
+  // The operator can read the platform analytics.
+  assert.equal((await app.inject({ url: '/api/admin/analytics/overview', headers: { cookie: opCookie } })).statusCode, 200, 'operator blocked from its own analytics');
+
+  // An org admin reads its OWN org analytics …
+  for (const ep of ['overview', 'timeseries', 'usage', 'quality', 'retention', 'funnel', 'members']) {
+    assert.equal(
+      (await app.inject({ url: `/api/orgs/${orgAId}/analytics/${ep}`, headers: { cookie: cookieA } })).statusCode,
+      200,
+      `org admin blocked from its own analytics /${ep}`,
+    );
+    // … but NEVER another org's.
+    assert.equal(
+      (await app.inject({ url: `/api/orgs/${orgBId}/analytics/${ep}`, headers: { cookie: cookieA } })).statusCode,
+      403,
+      `org A admin read org B analytics /${ep}`,
+    );
+  }
+
+  // The operator can drill into any org.
+  assert.equal((await app.inject({ url: `/api/orgs/${orgAId}/analytics/overview`, headers: { cookie: opCookie } })).statusCode, 200, 'operator blocked from per-org drill');
 });

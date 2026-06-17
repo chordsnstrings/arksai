@@ -39,12 +39,14 @@ export function Sidebar({
   onEditProject,
   onSchedules,
   onAdmin,
+  onAnalytics,
 }: {
   onNewSession: (projectId?: string) => void;
   onNewProject: () => void;
   onEditProject: (p: Project) => void;
   onSchedules: () => void;
   onAdmin: () => void;
+  onAnalytics: () => void;
 }) {
   const sessions = useStore((s) => s.sessions);
   const projects = useStore((s) => s.projects);
@@ -172,6 +174,11 @@ export function Sidebar({
       {(me?.isSuperadmin || me?.role === 'admin') && (
         <button className="nav-btn subtle" onClick={onAdmin}>
           <span className="plus">▦</span> {me?.isSuperadmin ? 'Admin' : 'Members'}
+        </button>
+      )}
+      {me?.isSuperadmin && (
+        <button className="nav-btn subtle" onClick={onAnalytics}>
+          <span className="plus">📊</span> Analytics
         </button>
       )}
 

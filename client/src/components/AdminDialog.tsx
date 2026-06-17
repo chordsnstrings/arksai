@@ -3,6 +3,7 @@ import { emailDomain, isFreeEmailDomain } from '@shared/types';
 import { api, type Lead, type Org, type OrgMember } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
+import { OrgAnalytics } from './OrgAnalytics';
 
 /**
  * Admin panel. Org admins manage their members (invite via a link, change/remove);
@@ -23,6 +24,7 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
   const [role, setRole] = useState<'member' | 'admin'>('member');
   const [orgName, setOrgName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
+  const [tab, setTab] = useState<'members' | 'usage'>('members');
 
   // The inviting admin's own domain — used to flag invites to someone OUTSIDE the
   // org. Skipped for the super-admin (who onboards many orgs) and if their own
@@ -115,11 +117,34 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog wide" onClick={(e) => e.stopPropagation()}>
+      <div className={`dialog wide ${tab === 'usage' ? 'analytics' : ''}`} onClick={(e) => e.stopPropagation()}>
         <h2>{isSuper ? 'Admin · spaces & members' : 'Members'}</h2>
 
+        <div className="an-tabs">
+          <button className={`an-tab ${tab === 'members' ? 'active' : ''}`} onClick={() => setTab('members')}>
+            {isSuper ? 'Spaces & members' : 'Members'}
+          </button>
+          <button className={`an-tab ${tab === 'usage' ? 'active' : ''}`} onClick={() => setTab('usage')}>
+            Usage &amp; engagement
+          </button>
+        </div>
+
+        <label>Organization</label>
+        <select value={orgId} onChange={(e) => { setOrgId(e.target.value); setLink(''); }}>
+          {orgs.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+
+        {tab === 'usage' ? (
+          orgId ? <OrgAnalytics orgId={orgId} /> : <div className="an-empty">Select an organization.</div>
+        ) : (
+        <>
+
         {isSuper && (
-          <div style={{ marginBottom: 18 }}>
+          <div style={{ margin: '14px 0 4px' }}>
             <label>Create an organization (optionally invite its admin)</label>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <input placeholder="Organization name" value={orgName} onChange={(e) => setOrgName(e.target.value)} style={{ flex: 1, minWidth: 160 }} />
@@ -130,15 +155,6 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         )}
-
-        <label>Organization</label>
-        <select value={orgId} onChange={(e) => { setOrgId(e.target.value); setLink(''); }}>
-          {orgs.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </select>
 
         <label style={{ marginTop: 14 }}>Invite a member</label>
         <input
@@ -221,6 +237,9 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
               ))}
             </div>
           </>
+        )}
+
+        </>
         )}
 
         <div className="actions" style={{ marginTop: 16 }}>

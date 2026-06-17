@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from './config';
+import { track } from './analytics/track';
 import {
   DEFAULT_ORG_ID,
   type Identity,
@@ -161,6 +162,7 @@ export function registerAuth(app: FastifyInstance) {
   app.get('/api/auth/me', async (req, reply) => {
     const id = req.identity ?? (await resolveIdentity(req));
     if (!id) return reply.code(401).send({ error: 'Unauthorized' });
+    track('app_open', { userId: id.userId, orgId: id.orgId }); // login/activity signal (fire-and-forget)
     if (id.userId === 'superadmin') {
       return {
         user: { id: 'superadmin', email: 'operator', name: 'Operator', isSuperadmin: true },

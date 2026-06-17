@@ -23,6 +23,7 @@ import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
 import { ConfirmModal } from './components/ConfirmModal';
+import { AnalyticsConsole } from './components/AnalyticsConsole';
 import { useConfirm } from './state/confirmStore';
 import { useStore, emptyLive } from './state/sessionStore';
 import type { Project } from '@shared/types';
@@ -49,6 +50,7 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSchedules, setShowSchedules] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   useEffect(() => {
@@ -129,6 +131,7 @@ export default function App() {
         onEditProject={(p) => setProjectDialog(p)}
         onSchedules={() => setShowSchedules(true)}
         onAdmin={() => setShowAdmin(true)}
+        onAnalytics={() => setShowAnalytics(true)}
       />
       <div className="nav-backdrop" onClick={() => toggleNav(false)} />
       <div className="main">
@@ -164,6 +167,7 @@ export default function App() {
       {showMemory && <MemoryDialog meta={activeMeta} onClose={() => setShowMemory(false)} />}
       {showSchedules && <SchedulesDialog onClose={() => setShowSchedules(false)} />}
       {showAdmin && <AdminDialog onClose={() => setShowAdmin(false)} />}
+      {showAnalytics && <AnalyticsConsole onClose={() => setShowAnalytics(false)} />}
       {showWhatsNew && <WhatsNewModal onClose={() => setShowWhatsNew(false)} />}
       <ConfirmModal />
     </div>

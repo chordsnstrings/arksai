@@ -230,6 +230,25 @@ async function migrate() {
     PRIMARY KEY(project_id, user_id)
   )`);
 
+  // ---- Analytics event stream (platform usage/retention; METADATA ONLY, never content) ----
+  // `day` is a precomputed epoch-day bucket (floor(ts/86400000)) so day-grained
+  // GROUP BY needs ZERO date functions (keeps SQLite+PG portable).
+  await q(`CREATE TABLE IF NOT EXISTS analytics_events(
+    id TEXT PRIMARY KEY,
+    ts ${INT} NOT NULL,
+    day ${INT} NOT NULL,
+    event TEXT NOT NULL,
+    org_id TEXT,
+    user_id TEXT,
+    session_id TEXT,
+    props TEXT,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_analytics_day ON analytics_events(day)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_analytics_org_day ON analytics_events(org_id, day)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_analytics_event ON analytics_events(event, ts)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_analytics_user ON analytics_events(user_id, ts)`);
+
   // Best-effort migrations for older DBs.
   for (const col of [
     `prompt_tokens ${INT} NOT NULL DEFAULT 0`,
