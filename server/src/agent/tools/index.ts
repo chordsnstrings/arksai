@@ -8,6 +8,7 @@ import { webFetchTool, webSearchTool } from './web';
 import { verifyTool } from './verify';
 import { generateMusicTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
+import { generateCreativeTool } from './creative';
 import { renderReportTool } from './report';
 import { renderChartTool } from './chart';
 import { addFontsTool } from './fonts';
@@ -28,6 +29,7 @@ export const ALL_TOOLS: ToolDef[] = [
   generateMusicTool,
   seeImageTool,
   generateImageTool,
+  generateCreativeTool,
   textToSpeechTool,
   generateVideoTool,
   bashTool,
@@ -71,6 +73,7 @@ const REPORT_TOOLS = new Set([
   'web_fetch',
   'see_image',
   'generate_image',
+  'generate_creative',
   'add_fonts',
   'render_report',
   'render_chart',

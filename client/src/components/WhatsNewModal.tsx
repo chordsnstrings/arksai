@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-17.3';
+export const WHATS_NEW_VERSION = '2026-06-17.4';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A sharper analytics dashboard',
-    body: 'The admin analytics is now a dense, editorial “data desk” — tabular figures, week-over-week change chips, and inline sparklines on every headline metric, so you can read what’s happening at a glance.',
+    title: 'Marketing: finished creatives, crisp text',
+    body: 'The new “Ad & social creative” play generates a ready-to-post image — an on-brand AI background with your headline, subhead, and button laid on as pixel-perfect text (image models can’t spell, so we composite real type), sized for any channel.',
   },
   {
-    title: 'Attach files when you describe a task',
-    body: 'The “describe what your team needs” box now takes file uploads, drag-and-drop, and clipboard paste — attach a logo, brief, or screenshot before you hit Make it.',
-  },
-  {
-    title: 'Marketing makes real images',
-    body: 'The Marketing team now generates on-brand hero, ad, and social imagery (a new “Ad & social creative” play) instead of placeholders.',
+    title: 'Drop your logo on it',
+    body: 'Upload your logo and it’s placed cleanly on the creative, with the text colour and placement chosen automatically for the best contrast.',
   },
 ];
 

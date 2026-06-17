@@ -30,11 +30,12 @@ test('expertiseFor: sales battlecard + marketing landing carry their craft', () 
 });
 
 test('marketing wires in MiniMax image generation (persona + creative/email plays)', () => {
-  // the brand-growth persona steers to real image generation
+  // the brand-growth persona steers to the composited creative generator + raw image gen
+  assert.match(expertiseFor('marketing.landing')!, /generate_creative/);
   assert.match(expertiseFor('marketing.landing')!, /generate_image/);
-  // the dedicated creative play + the email/social kit both call for generated visuals
-  assert.match(expertiseFor('marketing.creative')!, /generate_image/i);
-  assert.match(expertiseFor('marketing.emailkit')!, /generate_image/i);
+  // the dedicated creative play + the email/social kit use generate_creative (text-on-image)
+  assert.match(expertiseFor('marketing.creative')!, /generate_creative/i);
+  assert.match(expertiseFor('marketing.emailkit')!, /generate_creative/i);
 });
 
 test('expertiseFor: every department persona resolves', () => {
