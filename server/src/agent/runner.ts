@@ -1134,9 +1134,23 @@ export class AgentRun {
       // a STRONGER, reliable model (DeepSeek Pro — strong + doesn't stall like M3) to redo it.
       if (defects.length && this.designRounds < 2) {
         this.designRounds++;
-        if (isAutoModel(this.session.model) && this.activeModel !== 'deepseek-v4-pro' && this.activeModel !== MAX_MODEL) {
-          this.setActiveModel('deepseek-v4-pro');
-          sys('info', '↳ Bringing in ArksAI Pro to get the document right.');
+        // Bring in a different, reliable model to redo a flagged document (re-prompting the
+        // same model rarely fixes a hard-coded/empty deliverable). From M3 (whose first-pass
+        // spreadsheets are often hard-coded), hand off to NON-thinking deepseek-chat — strip
+        // M3's reasoning_content first (a thinking model rejects it), and chat carries NO such
+        // requirement, so this never errors the revise. From a weaker DeepSeek, escalate to Pro
+        // (strong at formulas; the proven path). Both keep the run completing.
+        if (isAutoModel(this.session.model)) {
+          if (this.activeModel === MAX_MODEL) {
+            // Round 1 off M3 → non-thinking chat (safe handoff; a 2nd round then goes to Pro).
+            this.dropM3Reasoning(context);
+            this.setActiveModel('deepseek-chat');
+            sys('info', '↳ Bringing in ArksAI Flash to fix the document.');
+          } else if (this.activeModel !== 'deepseek-v4-pro') {
+            // Any weaker DeepSeek (flash/chat, incl. after an M3 fallback) → Pro (proven for formulas).
+            this.setActiveModel('deepseek-v4-pro');
+            sys('info', '↳ Bringing in ArksAI Pro to get the document right.');
+          }
         }
         // A formula/empty-model failure needs a CONCRETE how-to, not just "fix it".
         const formulaIssue = defects.some((d) => /formula|hard-?cod|typed.?in|empty/i.test(d));
