@@ -1118,15 +1118,26 @@ export class AgentRun {
       const { fail, defects } = review;
       if (fail) return failFix(fail.label, fail.detail);
       this.warnIfDesignGateSkipped(review, sys);
-      // ONE bounded revise for documents: re-authoring a whole sheet/doc/deck is expensive, so
-      // a 2nd round doubles the time for diminishing returns. Cap at 1 + demand targeted edits.
-      if (defects.length && this.designRounds < 1) {
+      // Bounded revise for documents (up to 2 — the deterministic checks are cheap). A weak
+      // first model often botches a formula model (hard-coded or EMPTY cells) or leaves a thin
+      // deliverable; re-prompting the SAME weak model rarely fixes it, so in Auto mode bring in
+      // a STRONGER, reliable model (DeepSeek Pro — strong + doesn't stall like M3) to redo it.
+      if (defects.length && this.designRounds < 2) {
         this.designRounds++;
+        if (isAutoModel(this.session.model) && this.activeModel !== 'deepseek-v4-pro' && this.activeModel !== MAX_MODEL) {
+          this.setActiveModel('deepseek-v4-pro');
+          sys('info', '↳ Bringing in ArksAI Pro to get the document right.');
+        }
+        // A formula/empty-model failure needs a CONCRETE how-to, not just "fix it".
+        const formulaIssue = defects.some((d) => /formula|hard-?cod|typed.?in|empty/i.test(d));
+        const how = formulaIssue
+          ? ' CRITICAL for the spreadsheet: EVERY derived/computed cell (totals, growth, net, balances, every monthly projection) MUST be a real FORMULA referencing the Assumptions/driver cells — e.g. {f:"=B2*(1+Assumptions!$B$2)"} or {f:"=SUM(B2:B13)"} via generate_spreadsheet. Replace every hard-coded OR empty derived cell with a formula and fill in all periods; a hard-coded or empty model is rejected.'
+          : ' Make minimal, targeted edits to fix ONLY these — do not regenerate the whole document.';
         this.emitProgress('polishing', 'Design review — applying refinements…');
         sys('info', '↻ Design review of the document flagged refinements — applying them.');
         context.push({
           role: 'user',
-          content: `A design review of the rendered document flagged these concrete, fixable issues. Make MINIMAL, TARGETED edits to fix ONLY these — do NOT regenerate the whole document — then it will be re-reviewed:\n- ${defects.join('\n- ')}`,
+          content: `A review of the rendered document flagged these concrete, fixable issues. Fix them and re-produce the file, then it will be re-reviewed:\n- ${defects.join('\n- ')}${how}`,
         });
         return 'retry';
       }
