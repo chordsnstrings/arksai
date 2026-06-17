@@ -67,7 +67,7 @@ export function NewSessionDialog({
         {projects.length > 0 && (
           <div>
             <label>Project</label>
-            <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)}>
+            <select aria-label="Project" value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)}>
               <option value="">None (standalone)</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -98,7 +98,7 @@ export function NewSessionDialog({
           </div>
           <div>
             <label>Mode</label>
-            <select value={mode} onChange={(e) => setMode(e.target.value as SessionMode)}>
+            <select aria-label="Mode" value={mode} onChange={(e) => setMode(e.target.value as SessionMode)}>
               <option value="code">Code</option>
               <option value="plan">Plan</option>
               <option value="chat">Chat</option>
@@ -109,7 +109,7 @@ export function NewSessionDialog({
         <div style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: -4 }}>{MODE_DESC[mode]}</div>
         <div>
           <label>Model</label>
-          <select value={model} onChange={(e) => setModel(e.target.value as ModelId)}>
+          <select aria-label="Model" value={model} onChange={(e) => setModel(e.target.value as ModelId)}>
             {modelIds.map((id) => (
               <option key={id} value={id}>
                 {modelLabel(id)}

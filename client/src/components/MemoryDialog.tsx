@@ -74,7 +74,7 @@ export function MemoryDialog({ meta, onClose }: { meta: SessionMeta | null; onCl
           />
           <div className="row" style={{ alignItems: 'center', gap: 10 }}>
             {repoScope && (
-              <select value={scope} onChange={(e) => setScope(e.target.value)} style={{ maxWidth: 220 }}>
+              <select aria-label="Memory scope" value={scope} onChange={(e) => setScope(e.target.value)} style={{ maxWidth: 220 }}>
                 <option value="global">Global (all chats)</option>
                 <option value={repoScope}>Project ({repoScope})</option>
               </select>

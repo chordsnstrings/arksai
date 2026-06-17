@@ -295,7 +295,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
                 <input type="text" placeholder="Company" value={form.company} onChange={set('company')} />
                 <input type="text" placeholder="Your role" value={form.role} onChange={set('role')} />
               </div>
-              <select value={form.team} onChange={set('team')}>
+              <select aria-label="Which team" value={form.team} onChange={set('team')}>
                 <option value="">Which team? (optional)</option>
                 {DEPARTMENTS.map((d) => (
                   <option key={d.id} value={d.name}>

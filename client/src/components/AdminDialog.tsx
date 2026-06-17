@@ -130,7 +130,7 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <label>Organization</label>
-        <select value={orgId} onChange={(e) => { setOrgId(e.target.value); setLink(''); }}>
+        <select aria-label="Organization" value={orgId} onChange={(e) => { setOrgId(e.target.value); setLink(''); }}>
           {orgs.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name}

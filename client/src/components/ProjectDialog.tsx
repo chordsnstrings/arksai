@@ -181,7 +181,7 @@ export function ProjectDialog({ project, onClose }: { project: Project | null; o
         <div className="row">
           <div>
             <label>Default mode</label>
-            <select value={mode} onChange={(e) => setMode(e.target.value as SessionMode | '')}>
+            <select aria-label="Default mode" value={mode} onChange={(e) => setMode(e.target.value as SessionMode | '')}>
               <option value="">— none —</option>
               <option value="code">Code</option>
               <option value="plan">Plan</option>
@@ -191,7 +191,7 @@ export function ProjectDialog({ project, onClose }: { project: Project | null; o
           </div>
           <div>
             <label>Default model</label>
-            <select value={model} onChange={(e) => setModel(e.target.value as ModelId | '')}>
+            <select aria-label="Default model" value={model} onChange={(e) => setModel(e.target.value as ModelId | '')}>
               <option value="">— none —</option>
               {modelIds.map((id) => (
                 <option key={id} value={id}>
@@ -206,13 +206,13 @@ export function ProjectDialog({ project, onClose }: { project: Project | null; o
           <div>
             <label>Brand accent</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="color" value={accent} onChange={(e) => setAccent(e.target.value)} style={{ width: 40, padding: 0 }} />
-              <input value={accent} onChange={(e) => setAccent(e.target.value)} style={{ flex: 1 }} />
+              <input aria-label="Brand accent colour" type="color" value={accent} onChange={(e) => setAccent(e.target.value)} style={{ width: 40, padding: 0 }} />
+              <input aria-label="Brand accent hex value" value={accent} onChange={(e) => setAccent(e.target.value)} style={{ flex: 1 }} />
             </div>
           </div>
           <div>
             <label>Logo (from knowledge)</label>
-            <select value={logoName} onChange={(e) => setLogoName(e.target.value)}>
+            <select aria-label="Logo from knowledge files" value={logoName} onChange={(e) => setLogoName(e.target.value)}>
               <option value="">— none —</option>
               {files.map((f) => (
                 <option key={f.id} value={f.name}>
@@ -226,7 +226,7 @@ export function ProjectDialog({ project, onClose }: { project: Project | null; o
         {project && (
           <div>
             <label>Who can see this project</label>
-            <select value={visibility} onChange={(e) => changeVisibility(e.target.value as 'org' | 'private')}>
+            <select aria-label="Who can see this project" value={visibility} onChange={(e) => changeVisibility(e.target.value as 'org' | 'private')}>
               <option value="org">Everyone in the organization</option>
               <option value="private">Private — only me + people I add</option>
             </select>

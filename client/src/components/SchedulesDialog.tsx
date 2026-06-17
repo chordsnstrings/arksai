@@ -81,7 +81,7 @@ export function SchedulesDialog({ onClose }: { onClose: () => void }) {
           <div className="row">
             <div>
               <label>Mode</label>
-              <select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value as SessionMode })}>
+              <select aria-label="Mode" value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value as SessionMode })}>
                 <option value="code">Code (build)</option>
                 <option value="report">Report (PDF/deck)</option>
                 <option value="chat">Chat</option>
@@ -89,7 +89,7 @@ export function SchedulesDialog({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <label>Repeats</label>
-              <select value={form.cadence} onChange={(e) => setForm({ ...form, cadence: e.target.value as ScheduleCadence })}>
+              <select aria-label="Repeats" value={form.cadence} onChange={(e) => setForm({ ...form, cadence: e.target.value as ScheduleCadence })}>
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
                 <option value="interval">Every N hours</option>
@@ -100,7 +100,7 @@ export function SchedulesDialog({ onClose }: { onClose: () => void }) {
             {form.cadence === 'weekly' && (
               <div>
                 <label>Day</label>
-                <select value={form.weekday} onChange={(e) => setForm({ ...form, weekday: Number(e.target.value) })}>
+                <select aria-label="Day of week" value={form.weekday} onChange={(e) => setForm({ ...form, weekday: Number(e.target.value) })}>
                   {WEEKDAYS.map((d, i) => (
                     <option key={d} value={i}>
                       {d}
@@ -112,12 +112,13 @@ export function SchedulesDialog({ onClose }: { onClose: () => void }) {
             {form.cadence !== 'interval' ? (
               <div>
                 <label>Time ({Intl.DateTimeFormat().resolvedOptions().timeZone || 'local'})</label>
-                <input type="time" value={form.at} onChange={(e) => setForm({ ...form, at: e.target.value })} />
+                <input aria-label="Time of day to run" type="time" value={form.at} onChange={(e) => setForm({ ...form, at: e.target.value })} />
               </div>
             ) : (
               <div>
                 <label>Every (hours)</label>
                 <input
+                  aria-label="Interval in hours"
                   type="number"
                   min={1}
                   value={form.everyHours}
