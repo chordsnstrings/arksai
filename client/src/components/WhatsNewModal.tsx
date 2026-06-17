@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-17.4';
+export const WHATS_NEW_VERSION = '2026-06-17.5';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Marketing: finished creatives, crisp text',
-    body: 'The new “Ad & social creative” play generates a ready-to-post image — an on-brand AI background with your headline, subhead, check-marked feature list, and button laid on as pixel-perfect text (image models can’t spell, so we composite real type), sized for any channel.',
+    title: 'Just chat — no modes to pick',
+    body: 'The mode buttons are gone. Tell ArksAI what you want and it brings the right skill itself — answer, build, design a report, or generate an image. A small chip shows what it’s doing.',
   },
   {
-    title: 'Drop your logo on it',
-    body: 'Upload your logo and it’s placed cleanly on the creative, with the text colour and placement chosen automatically for the best contrast.',
+    title: 'It plans before it builds',
+    body: 'Ask for an app or tool and ArksAI shows you exactly what it’ll build first — approve it and it builds autonomously, or tell it what to change.',
+  },
+  {
+    title: 'Pick your team, then talk',
+    body: 'Choosing a department now readies ArksAI with that team’s expertise; the tasks become examples that pre-fill the box (editable) instead of firing off on their own.',
   },
 ];
 

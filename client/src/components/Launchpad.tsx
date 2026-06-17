@@ -34,11 +34,24 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   });
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [startingId, setStartingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [selectedPlayKey, setSelectedPlayKey] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
+
+  // A play is now an EXAMPLE, not an auto-send: tapping it pre-fills the chat box
+  // (editable) and remembers its key so the agent still gets that play's expertise.
+  const fillFromPlay = (p: { prompt: string; key: string }) => {
+    setText(p.prompt);
+    setSelectedPlayKey(p.key);
+    setError('');
+    requestAnimationFrame(() => {
+      boxRef.current?.focus();
+      boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
   const upsertSession = useStore((s) => s.upsertSession);
   const setActive = useStore((s) => s.setActive);
   const sessions = useStore((s) => s.sessions);
@@ -64,6 +77,8 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   const pickDept = (id: string) => {
     setDeptId(id);
     setError('');
+    setText(''); // fresh chat box per department
+    setSelectedPlayKey(null);
     applyDeptTheme(id, true); // Engineering → dark, animated
     try {
       localStorage.setItem(LS_KEY, id);
@@ -75,11 +90,10 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   // One-step: create a session in the right mode and send the brief immediately
   // (send BEFORE activating so the loaded timeline already has the first message).
   // `attach` = staged files to upload into the new session before its first run.
-  const run = async (prompt: string, mode: SessionMode, model: string = AUTO_MODEL, task?: string, id?: string, attach?: File[]) => {
+  const run = async (prompt: string, mode: SessionMode, model: string = AUTO_MODEL, task?: string, _id?: string, attach?: File[]) => {
     const brief = prompt.trim();
     if ((!brief && !(attach && attach.length)) || busy) return;
     setBusy(true);
-    setStartingId(id ?? '__free__');
     setError('');
     try {
       const session = await api.createSession({ mode, model, task });
@@ -101,7 +115,6 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
     } catch (e: any) {
       setError(e?.message ?? 'Hit a snag starting that — give it another tap.');
       setBusy(false);
-      setStartingId(null);
     }
   };
 
@@ -174,9 +187,13 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
         <div className="lp-headrow">
           <div>
             <div className="lp-kicker dept-tinted">
-              <Icon name={dept.icon} size={13} /> {dept.name}
+              <Icon name={dept.icon} size={13} /> {dept.name} · ready
             </div>
-            <h1 className="lp-title">What does your team need to ship?</h1>
+            <h1 className="lp-title">What do you need?</h1>
+            <p className="lp-sub">
+              I’m set up with your {dept.name.toLowerCase()} toolkit. Just describe it below — or tap an
+              example to start from one.
+            </p>
           </div>
           <button
             className="lp-switch"
@@ -204,16 +221,17 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
                   {plays.map((p) => (
                     <button
                       key={p.title}
-                      className={`play-card${startingId === p.title ? ' starting' : ''}${busy && startingId !== p.title ? ' dimmed' : ''}`}
-                      onClick={() => run(p.prompt, p.mode, p.model, p.key, p.title)}
+                      className={`play-card${selectedPlayKey === p.key ? ' picked' : ''}`}
+                      onClick={() => fillFromPlay(p)}
                       disabled={busy}
+                      title="Tap to start from this — you can edit it before sending"
                     >
                       <span className="play-ico">
-                        {startingId === p.title ? <span className="spinner sm" /> : <Icon name={p.icon} size={18} />}
+                        <Icon name={p.icon} size={18} />
                       </span>
                       <span className="play-body">
                         <span className="play-title">{p.title}</span>
-                        <span className="play-blurb">{startingId === p.title ? 'Starting your workspace…' : p.blurb}</span>
+                        <span className="play-blurb">{p.blurb}</span>
                       </span>
                     </button>
                   ))}
@@ -226,7 +244,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
         <div className="lp-rule" />
 
         <div className="lp-free">
-          <label className="lp-kicker">Or describe what your team needs</label>
+          <label className="lp-kicker">Describe what you need</label>
           <div
             className={`lp-box${dragOver ? ' drag-over' : ''}`}
             onDragOver={(e) => {
@@ -241,13 +259,14 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
             }}
           >
             <textarea
+              ref={boxRef}
               value={text}
               placeholder={`e.g. ${dept.plays[0].title.toLowerCase()} for our new launch…`}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault();
-                  void run(text, 'code', AUTO_MODEL, undefined, undefined, files);
+                  void run(text, 'chat', AUTO_MODEL, selectedPlayKey ?? dept.id, undefined, files);
                 }
               }}
               onPaste={(e) => {
@@ -292,7 +311,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
               <span className="spacer" style={{ flex: 1 }} />
               <button
                 className="lp-go"
-                onClick={() => void run(text, 'code', AUTO_MODEL, undefined, undefined, files)}
+                onClick={() => void run(text, 'chat', AUTO_MODEL, selectedPlayKey ?? dept.id, undefined, files)}
                 disabled={busy || (!text.trim() && files.length === 0)}
               >
                 {busy ? 'Starting…' : 'Make it →'}

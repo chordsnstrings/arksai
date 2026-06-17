@@ -371,7 +371,7 @@ export function Composer({
         <textarea
           ref={taRef}
           rows={1}
-          placeholder={meta.mode === 'chat' ? 'Chat with the model…' : 'Type / for commands'}
+          placeholder="Message ArksAI — ask, build, design, or generate. I'll pick the right tools."
           value={text}
           onChange={(e) => {
             setText(e.target.value);
@@ -420,20 +420,9 @@ export function Composer({
           >
             {uploading ? '…' : '+'}
           </button>
-          <div className="mode-toggle">
-            <button className={meta.mode === 'chat' ? 'on' : ''} onClick={() => setMode('chat')}>
-              Chat
-            </button>
-            <button className={meta.mode === 'plan' ? 'on' : ''} onClick={() => setMode('plan')}>
-              Plan
-            </button>
-            <button className={meta.mode === 'code' ? 'on' : ''} onClick={() => setMode('code')}>
-              Code
-            </button>
-            <button className={meta.mode === 'report' ? 'on' : ''} onClick={() => setMode('report')}>
-              Report
-            </button>
-          </div>
+          {/* No mode pills — ArksAI reads the request and moves itself into whatever it
+              needs (build / plan / report / image / …). Power users can still force one
+              with the /mode command. */}
           <span className="spacer" />
           <button className="model-badge" onClick={cycleModel} title={`${meta.model} — click to switch model`}>
             {modelLabel(meta.model)}

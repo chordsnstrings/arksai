@@ -1,7 +1,11 @@
 import { useState } from 'react';
-import type { SessionMeta } from '@shared/types';
+import type { SessionMeta, SessionMode } from '@shared/types';
 import { useStore } from '../state/sessionStore';
 import { DeploymentsDialog } from './DeploymentsDialog';
+
+// Read-only "what ArksAI is doing right now" — it moves itself between these as the
+// request needs; we just surface it so the work stays visible (no manual control).
+const MODE_CHIP: Record<SessionMode, string> = { chat: 'Chat', plan: 'Planning', code: 'Building', report: 'Report' };
 
 export function TopBar({ meta }: { meta: SessionMeta }) {
   const toggleCanvas = useStore((s) => s.toggleCanvas);
@@ -17,6 +21,9 @@ export function TopBar({ meta }: { meta: SessionMeta }) {
       ) : (
         <span className="title">{meta.title}</span>
       )}
+      <span className={`mode-chip ${meta.mode}`} title="ArksAI moves into the right skill (chat, planning, building, report, images…) automatically.">
+        {MODE_CHIP[meta.mode] ?? 'Chat'}
+      </span>
       <span className="spacer" />
       {meta.branch && <span className="pill">⎇ {meta.branch}</span>}
       {meta.diffStat && (

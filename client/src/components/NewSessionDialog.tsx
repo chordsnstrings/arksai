@@ -25,7 +25,7 @@ export function NewSessionDialog({
   const [projectId, setProjectId] = useState<string | null>(initialProjectId);
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('');
-  const [mode, setMode] = useState<SessionMode>('code');
+  const [mode, setMode] = useState<SessionMode>('chat');
   // Default to ArksAI Auto — the orchestrator picks the best engine per task.
   const [model, setModel] = useState<ModelId>(
     modelIds.includes(AUTO_MODEL) ? AUTO_MODEL : modelIds.includes(DEFAULT_MODEL) ? DEFAULT_MODEL : modelIds[0],

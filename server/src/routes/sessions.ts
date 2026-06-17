@@ -47,8 +47,11 @@ export function registerSessionRoutes(app: FastifyInstance) {
       repoUrl = parsed.url;
       repoName = parsed.name;
     }
+    // Default to CHAT: the seamless entry point — the agent moves itself into build /
+    // plan / report (or uses image-gen etc.) as the request needs. A project default or
+    // an explicit mode still wins.
     const modeIn = body.mode ?? project?.defaultMode ?? undefined;
-    const mode = SESSION_MODES.includes(modeIn as any) ? (modeIn as any) : 'code';
+    const mode = SESSION_MODES.includes(modeIn as any) ? (modeIn as any) : 'chat';
     const modelIn = body.model ?? project?.defaultModel ?? undefined;
     const model = modelIn && (await isValidModel(modelIn)) ? modelIn : DEFAULT_MODEL;
     const session = await store.createSession({
