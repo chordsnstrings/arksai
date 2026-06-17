@@ -1241,32 +1241,68 @@ export class AgentRun {
       liveItems.push(item);
       this.emit({ type: 'timeline_item', item });
     };
-    const hasOutput = (await this.newestDeliverable(dir, ['.pdf', '.pptx', '.docx', '.xlsx'])) !== null;
-    if (!hasOutput || !config.minimaxApiKey) return 'ok'; // nothing rendered yet, or no vision model
+    const startCmd = detectStartCommand(dir);
+    const hasDoc = (await this.newestDeliverable(dir, ['.pdf', '.pptx', '.docx', '.xlsx'])) !== null;
+    // Nothing to gate: no app, and either no rendered doc or no vision model.
+    if (!startCmd && (!hasDoc || !config.minimaxApiKey)) return 'ok';
 
-    sys('info', '⟳ Auto-rendering every page and design-reviewing the output…');
-    this.emitProgress('verifying', 'Reviewing the rendered pages…');
-    const review = await this.reviewDeliverables(dir);
-    const { fail, defects } = review;
-    this.warnIfDesignGateSkipped(review, sys);
+    let docReviewed = false;
+    let docMinorItems = false;
+    if (hasDoc && config.minimaxApiKey) {
+      docReviewed = true;
+      sys('info', '⟳ Auto-rendering every page and design-reviewing the output…');
+      this.emitProgress('verifying', 'Reviewing the rendered pages…');
+      const review = await this.reviewDeliverables(dir);
+      const { fail, defects } = review;
+      this.warnIfDesignGateSkipped(review, sys);
 
-    // Bounded revise for documents. Reports are quality-first (the user accepts a slightly
-    // slower report for Claude-grade polish), and the deterministic structural pre-check now
-    // finds the cheap defects with NO model call — so each round is targeted. Allow up to 2
-    // rounds gated on REAL defects, demanding MINIMAL TARGETED edits (not a full rebuild).
-    if ((fail || defects.length) && this.designRounds < REPORT_MAX_DESIGN_ROUNDS) {
-      this.designRounds++;
-      this.emitProgress('polishing', 'Design review — refining the output…');
-      sys('info', '↻ Design review flagged refinements — applying them.');
-      context.push({
-        role: 'user',
-        content: fail
-          ? `Automated review found a problem with the rendered ${fail.label}: ${fail.detail}. Make a MINIMAL targeted fix (edit the existing HTML/spec — do NOT regenerate the whole document), then re-render.`
-          : `A design review of the RENDERED pages flagged these concrete, fixable issues. Make MINIMAL, TARGETED edits to the EXISTING HTML/spec with edit_file to fix ONLY these — do NOT regenerate the whole document — then re-render (render_report / the generate_* tool); it will be re-reviewed:\n- ${defects.join('\n- ')}`,
-      });
-      return 'retry';
+      // Bounded revise for documents. Reports are quality-first (the user accepts a slightly
+      // slower report for Claude-grade polish), and the deterministic structural pre-check now
+      // finds the cheap defects with NO model call — so each round is targeted. Allow up to 2
+      // rounds gated on REAL defects, demanding MINIMAL TARGETED edits (not a full rebuild).
+      if ((fail || defects.length) && this.designRounds < REPORT_MAX_DESIGN_ROUNDS) {
+        this.designRounds++;
+        this.emitProgress('polishing', 'Design review — refining the output…');
+        sys('info', '↻ Design review flagged refinements — applying them.');
+        context.push({
+          role: 'user',
+          content: fail
+            ? `Automated review found a problem with the rendered ${fail.label}: ${fail.detail}. Make a MINIMAL targeted fix (edit the existing HTML/spec — do NOT regenerate the whole document), then re-render.`
+            : `A design review of the RENDERED pages flagged these concrete, fixable issues. Make MINIMAL, TARGETED edits to the EXISTING HTML/spec with edit_file to fix ONLY these — do NOT regenerate the whole document — then re-render (render_report / the generate_* tool); it will be re-reviewed:\n- ${defects.join('\n- ')}`,
+        });
+        return 'retry';
+      }
+      docMinorItems = !!(fail || defects.length);
     }
-    sys('info', fail || defects.length ? '✓ Reviewed — minor items noted; delivering.' : '✓ Reviewed — every page renders cleanly and looks designed.');
+
+    // An interactive app built in report mode (rare — the agent normally routes builds to
+    // code) would otherwise ship with NO runtime check. Boot it + smoke-test so it can't.
+    if (startCmd && !this.abort.signal.aborted) {
+      processRegistry.killAllForSession(this.session.id);
+      sys('info', '⟳ Booting the app and checking it runs…');
+      this.emitProgress('testing', 'Booting a live instance…');
+      const probe = await probeApp(this.session.id, dir, startCmd, this.abort.signal, {
+        visual: this.taskProfile?.isVisual,
+        onPhase: (label) => this.emitProgress('testing', label),
+      });
+      if (probe.ui?.visualReview) this.engineCostUsd += config.minimaxVisionCost;
+      if ((!probe.booted || probe.serverErrors > 0 || probe.ui?.hardFail) && this.designRounds < REPORT_MAX_DESIGN_ROUNDS) {
+        this.designRounds++;
+        this.emitProgress('testing', 'Fixing the app so it runs…');
+        sys('info', '↻ The app didn’t run cleanly — fixing it.');
+        context.push({
+          role: 'user',
+          content: `The interactive app built here doesn't run cleanly yet: ${probe.detail}. Fix it so it boots and the page renders without errors, then it will be re-checked.`,
+        });
+        return 'retry';
+      }
+    }
+
+    if (docReviewed) {
+      sys('info', docMinorItems ? '✓ Reviewed — minor items noted; delivering.' : '✓ Reviewed — every page renders cleanly and looks designed.');
+    } else if (startCmd) {
+      sys('info', '✓ Checked — the app boots and runs.');
+    }
     return 'ok';
   }
 
