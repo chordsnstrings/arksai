@@ -25,11 +25,13 @@ export const generateCreativeTool: ToolDef = {
       prompt: { type: 'string', description: 'The IMAGERY to generate — scene, subject, style, mood, brand palette. Do NOT ask for any text/words in the image.' },
       headline: { type: 'string', description: 'The main headline text (use \\n for a line break). Required.' },
       subhead: { type: 'string', description: 'Optional supporting line.' },
+      bullets: { type: 'array', items: { type: 'string' }, description: 'Optional feature/benefit list — each rendered with a check mark (e.g. ["Quick turnaround","Embassy-ready files"]).' },
       cta: { type: 'string', description: 'Optional call-to-action button label, e.g. "Shop now →".' },
       kicker: { type: 'string', description: 'Optional small eyebrow/label above the headline, e.g. "NEW · SUMMER".' },
       aspect_ratio: { type: 'string', enum: Object.keys(CREATIVE_SIZES), description: '1:1 (square), 4:5 (portrait feed), 9:16 (story/reel), 16:9 (wide/hero), 1.91:1 (link/OG). Default 1:1.' },
-      accent: { type: 'string', description: 'Brand accent colour as a hex (e.g. "#c0502f") for the CTA/eyebrow. Defaults to the project/brand accent.' },
-      logo: { type: 'string', description: "Workspace path to a logo the user uploaded (e.g. \"uploads/logo.png\") to place on the creative. Optional." },
+      accent: { type: 'string', description: 'Brand accent colour as a hex (e.g. "#c0502f") for the CTA/eyebrow/checks. Defaults to the project/brand accent.' },
+      logo: { type: 'string', description: "Workspace path to a logo the user uploaded (e.g. \"uploads/logo.png\") to place in the top-left corner. Optional." },
+      logo_placeholder: { type: 'boolean', description: 'If true and no logo is given, draw a tasteful "LOGO" placeholder in the top-left corner so there is a clear spot for the brand. Default false.' },
       text_color: { type: 'string', enum: ['auto', 'light', 'dark'], description: 'Force the text colour, or "auto" (default) to let vision choose for contrast.' },
       format: { type: 'string', enum: ['png', 'jpeg'], description: 'Output image format (default png).' },
     },
@@ -57,6 +59,7 @@ export const generateCreativeTool: ToolDef = {
       }
     }
 
+    const bullets = Array.isArray(args.bullets) ? args.bullets.map((b: any) => String(b)).filter(Boolean).slice(0, 6) : undefined;
     const r = await composeCreative(
       {
         prompt,
@@ -65,7 +68,8 @@ export const generateCreativeTool: ToolDef = {
         textColor,
         zone,
         logoAbsPath,
-        copy: { accent, kicker: args.kicker ? String(args.kicker) : undefined, headline, sub: args.subhead ? String(args.subhead) : undefined, cta: args.cta ? String(args.cta) : undefined },
+        logoPlaceholder: !!args.logo_placeholder,
+        copy: { accent, kicker: args.kicker ? String(args.kicker) : undefined, headline, sub: args.subhead ? String(args.subhead) : undefined, bullets, cta: args.cta ? String(args.cta) : undefined },
       },
       ctx.repoDir,
       ctx.signal,

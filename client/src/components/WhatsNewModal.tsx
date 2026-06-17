@@ -20,7 +20,7 @@ export function shouldShowWhatsNew(): boolean {
 const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Marketing: finished creatives, crisp text',
-    body: 'The new “Ad & social creative” play generates a ready-to-post image — an on-brand AI background with your headline, subhead, and button laid on as pixel-perfect text (image models can’t spell, so we composite real type), sized for any channel.',
+    body: 'The new “Ad & social creative” play generates a ready-to-post image — an on-brand AI background with your headline, subhead, check-marked feature list, and button laid on as pixel-perfect text (image models can’t spell, so we composite real type), sized for any channel.',
   },
   {
     title: 'Drop your logo on it',

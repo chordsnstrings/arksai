@@ -28,6 +28,7 @@ export interface CreativeCopy {
   kicker?: string;
   headline: string;
   sub?: string;
+  bullets?: string[];
   cta?: string;
   accent: string;
 }
@@ -65,40 +66,63 @@ export function buildCreativeHtml(opts: {
   w: number;
   h: number;
   logoDataUrl?: string;
+  logoPlaceholder?: boolean;
   fontsCss?: string;
 }): string {
-  const { bgDataUrl, zone, textColor, copy, w, h, logoDataUrl } = opts;
+  const { bgDataUrl, zone, textColor, copy, w, h, logoDataUrl, logoPlaceholder } = opts;
   const light = textColor !== 'dark';
   const ink = light ? '#ffffff' : '#1b1813';
   const subInk = light ? 'rgba(255,255,255,0.86)' : 'rgba(27,24,19,0.72)';
   const scrimRGB = light ? '16,14,12' : '245,241,233';
   const dir = { bottom: 'to top', top: 'to bottom', left: 'to right', right: 'to left' }[zone];
-  const scrim = `linear-gradient(${dir}, rgba(${scrimRGB},${light ? 0.68 : 0.88}) 0%, rgba(${scrimRGB},${light ? 0.3 : 0.52}) 40%, rgba(${scrimRGB},0) 70%)`;
+  const scrim = `linear-gradient(${dir}, rgba(${scrimRGB},${light ? 0.72 : 0.9}) 0%, rgba(${scrimRGB},${light ? 0.34 : 0.55}) 42%, rgba(${scrimRGB},0) 72%)`;
   const pos: Record<Zone, string> = {
     bottom: 'left:0;right:0;bottom:0;padding:0 8% 8.5%;justify-content:flex-end;align-items:flex-start;text-align:left',
     top: 'left:0;right:0;top:0;padding:8.5% 8% 0;justify-content:flex-start;align-items:flex-start;text-align:left',
-    left: 'left:0;top:0;bottom:0;width:64%;padding:0 0 0 8%;justify-content:center;align-items:flex-start;text-align:left',
-    right: 'right:0;top:0;bottom:0;width:64%;padding:0 8% 0 0;justify-content:center;align-items:flex-end;text-align:right',
+    left: 'left:0;top:0;bottom:0;width:62%;padding:0 0 0 8%;justify-content:center;align-items:flex-start;text-align:left',
+    right: 'right:0;top:0;bottom:0;width:62%;padding:0 8% 0 0;justify-content:center;align-items:flex-end;text-align:right',
   };
   const wide = w >= h;
-  const hSize = Math.round(w * (wide ? 0.07 : 0.082));
-  const shadow = light ? 'text-shadow:0 1px 26px rgba(0,0,0,0.32)' : 'none';
+  const hSize = Math.round(w * (wide ? 0.07 : 0.078));
+  const shadow = light ? 'text-shadow:0 1px 26px rgba(0,0,0,0.34)' : 'none';
+  const bSize = Math.round(w * 0.0235);
+  const bullets = (copy.bullets ?? []).filter(Boolean);
+  const bulletsHtml = bullets.length
+    ? `<div class="bl" style="margin-top:${Math.round(h * 0.028)}px">${bullets
+        .map((b) => `<div class="bi"><span class="ck">✓</span><span>${esc(b)}</span></div>`)
+        .join('')}</div>`
+    : '';
+  // Brand corner (top-left): a real logo, or a tasteful placeholder. Gets its own soft
+  // scrim so it always reads. The pipeline keeps the text out of the top when this is on.
+  const brandH = Math.round(h * 0.072);
+  const brand = logoDataUrl
+    ? `<div class="brand"><img src="${logoDataUrl}"></div>`
+    : logoPlaceholder
+    ? `<div class="brand"><span class="ph">LOGO</span></div>`
+    : '';
+  const brandScrim = logoDataUrl || logoPlaceholder ? `<div class="bscrim"></div>` : '';
   return `<!doctype html><html><head><meta charset="utf8"><style>${opts.fontsCss ?? fontsCss()}
 *{margin:0;box-sizing:border-box}html,body{width:100%;height:100%}
 .card{position:relative;width:${w}px;height:${h}px;overflow:hidden;background:#0d0c0b;font-family:'Inter',system-ui,sans-serif}
 .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.scrim{position:absolute;inset:0;background:${scrim}}
-.c{position:absolute;display:flex;flex-direction:column;gap:0;${pos[zone]}}
+.scrim{position:absolute;inset:0;background:${scrim};z-index:1}
+.bscrim{position:absolute;top:0;left:0;width:60%;height:34%;background:radial-gradient(ellipse at top left, rgba(0,0,0,0.5), rgba(0,0,0,0) 72%);z-index:2}
+.brand{position:absolute;top:${Math.round(h * 0.062)}px;left:${Math.round(w * 0.06)}px;z-index:4}
+.brand img{height:${brandH}px;max-width:${Math.round(w * 0.42)}px;object-fit:contain;object-position:left center}
+.brand .ph{display:inline-flex;align-items:center;justify-content:center;height:${brandH}px;padding:0 ${Math.round(w * 0.03)}px;border:1.5px dashed rgba(255,255,255,0.78);border-radius:12px;background:rgba(255,255,255,0.1);color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:${Math.round(w * 0.018)}px;letter-spacing:0.16em}
+.c{position:absolute;display:flex;flex-direction:column;gap:0;z-index:3;${pos[zone]}}
 .kick{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:${Math.round(w * 0.0185)}px;letter-spacing:0.2em;text-transform:uppercase;color:${light ? '#fff' : copy.accent};opacity:${light ? 0.92 : 1};margin-bottom:${Math.round(h * 0.022)}px}
 .h{font-family:'Source Serif 4',Georgia,serif;font-weight:600;font-size:${hSize}px;line-height:0.99;letter-spacing:-0.02em;color:${ink};${shadow}}
-.sub{font-family:'Inter',sans-serif;font-weight:400;font-size:${Math.round(w * 0.0235)}px;line-height:1.4;color:${subInk};margin-top:${Math.round(h * 0.03)}px;max-width:19em}
-.cta{align-self:${zone === 'right' ? 'flex-end' : 'flex-start'};margin-top:${Math.round(h * 0.042)}px;background:${esc(copy.accent)};color:#fff;font-family:'Inter',sans-serif;font-weight:600;font-size:${Math.round(w * 0.021)}px;padding:${Math.round(h * 0.019)}px ${Math.round(w * 0.032)}px;border-radius:999px}
-.logo{height:${Math.round(h * 0.062)}px;max-width:46%;object-fit:contain;object-position:${zone === 'right' ? 'right' : 'left'} center;margin-bottom:${Math.round(h * 0.032)}px}
-</style></head><body><div class="card"><img class="bg" src="${bgDataUrl}"><div class="scrim"></div><div class="c">${
-    logoDataUrl ? `<img class="logo" src="${logoDataUrl}">` : ''
-  }${copy.kicker ? `<div class="kick">${esc(copy.kicker)}</div>` : ''}<div class="h">${escMultiline(copy.headline)}</div>${
-    copy.sub ? `<div class="sub">${esc(copy.sub)}</div>` : ''
-  }${copy.cta ? `<span class="cta">${esc(copy.cta)}</span>` : ''}</div></div></body></html>`;
+.sub{font-family:'Inter',sans-serif;font-weight:500;font-size:${Math.round(w * 0.026)}px;line-height:1.35;color:${ink};margin-top:${Math.round(h * 0.026)}px;max-width:20em;${shadow}}
+.bl{display:flex;flex-direction:column;gap:${Math.round(h * 0.014)}px}
+.bi{display:flex;align-items:center;gap:0.55em;font-family:'Inter',sans-serif;font-weight:400;font-size:${bSize}px;color:${subInk}}
+.bi .ck{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:${Math.round(bSize * 1.25)}px;height:${Math.round(bSize * 1.25)}px;border-radius:50%;background:${esc(copy.accent)};color:#fff;font-size:${Math.round(bSize * 0.74)}px;font-weight:700}
+.cta{align-self:${zone === 'right' ? 'flex-end' : 'flex-start'};margin-top:${Math.round(h * 0.04)}px;background:${esc(copy.accent)};color:#fff;font-family:'Inter',sans-serif;font-weight:600;font-size:${Math.round(w * 0.021)}px;padding:${Math.round(h * 0.019)}px ${Math.round(w * 0.032)}px;border-radius:999px}
+</style></head><body><div class="card"><img class="bg" src="${bgDataUrl}"><div class="scrim"></div>${brandScrim}${brand}<div class="c">${
+    copy.kicker ? `<div class="kick">${esc(copy.kicker)}</div>` : ''
+  }<div class="h">${escMultiline(copy.headline)}</div>${copy.sub ? `<div class="sub">${esc(copy.sub)}</div>` : ''}${bulletsHtml}${
+    copy.cta ? `<span class="cta">${esc(copy.cta)}</span>` : ''
+  }</div></div></body></html>`;
 }
 
 const NEG = 'absolutely no text, no words, no letters, no typography, no captions, no labels, no logos, no watermark, no UI, no charts';
@@ -182,6 +206,7 @@ export async function composeCreative(
     textColor: 'auto' | 'light' | 'dark';
     zone: Zone | 'auto';
     logoAbsPath?: string | null;
+    logoPlaceholder?: boolean;
   },
   repoDir: string,
   signal: AbortSignal,
@@ -214,7 +239,10 @@ export async function composeCreative(
       plan = await visionPlan(buf, signal);
       cost += config.minimaxVisionCost;
     }
-    const zone: Zone = opts.zone === 'auto' ? plan.zone : opts.zone;
+    let zone: Zone = opts.zone === 'auto' ? plan.zone : opts.zone;
+    // a top-left brand mark is present → keep the text out of the top so they don't collide
+    const hasBrand = !!logoDataUrl || !!opts.logoPlaceholder;
+    if (hasBrand && zone === 'top') zone = 'bottom';
     let textColor: 'light' | 'dark' = opts.textColor === 'auto' ? plan.textColor : opts.textColor;
 
     // 2) composite + render
@@ -224,7 +252,7 @@ export async function composeCreative(
     const name = `creative-${Date.now()}.${ext}`;
     const absOut = path.join(dir, name);
     const bgDataUrl = `data:${sniffMime(buf)};base64,${buf.toString('base64')}`;
-    await renderToImage(buildCreativeHtml({ bgDataUrl, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl }), size.w, size.h, absOut, opts.format);
+    await renderToImage(buildCreativeHtml({ bgDataUrl, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder }), size.w, size.h, absOut, opts.format);
 
     // 3) vision QC; one corrective pass on a contrast/legibility complaint (flip the text colour)
     const finalBuf = fs.readFileSync(absOut);
@@ -237,7 +265,7 @@ export async function composeCreative(
     if (qc.ok && /\bREVISE\b/i.test(qc.text ?? '') && /legib|contrast|hard to read|washed|blends|low.?contrast/i.test(qc.text ?? '') && opts.textColor === 'auto') {
       textColor = textColor === 'light' ? 'dark' : 'light';
       log.push(`flipped text to ${textColor} for legibility`);
-      await renderToImage(buildCreativeHtml({ bgDataUrl, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl }), size.w, size.h, absOut, opts.format);
+      await renderToImage(buildCreativeHtml({ bgDataUrl, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder }), size.w, size.h, absOut, opts.format);
     }
 
     const notes = `zone=${zone}, text=${textColor}, ${opts.aspect} ${size.w}×${size.h}${log.length ? ' · ' + log.join('; ') : ''}`;

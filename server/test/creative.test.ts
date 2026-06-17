@@ -30,11 +30,23 @@ test('buildCreativeHtml: a right-zone anchors the content to the right', () => {
   assert.match(html, /align-items:flex-end/);
 });
 
-test('buildCreativeHtml: an uploaded logo is composited, omitted otherwise', () => {
+test('buildCreativeHtml: a logo / placeholder renders in the brand corner, omitted otherwise', () => {
   const withLogo = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'light', logoDataUrl: 'data:image/png;base64,LOGO' });
-  assert.match(withLogo, /class="logo" src="data:image\/png;base64,LOGO"/);
+  assert.match(withLogo, /class="brand"><img src="data:image\/png;base64,LOGO"/);
+  const placeholder = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'light', logoPlaceholder: true });
+  assert.match(placeholder, /class="ph">LOGO</);
   const without = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'light' });
-  assert.doesNotMatch(without, /class="logo"/);
+  assert.doesNotMatch(without, /class="brand"/);
+});
+
+test('buildCreativeHtml: a feature list renders check-marked bullets, escaped', () => {
+  const html = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'dark', copy: { ...base.copy, bullets: ['Quick turnaround', 'Embassy-ready files'] } });
+  assert.match(html, /class="bl"/);
+  assert.match(html, /Quick turnaround/);
+  assert.match(html, /Embassy-ready files/);
+  assert.equal((html.match(/class="ck"/g) || []).length, 2);
+  const none = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'dark' });
+  assert.doesNotMatch(none, /class="bl"/);
 });
 
 test('buildCreativeHtml: escapes HTML in copy (no injection)', () => {

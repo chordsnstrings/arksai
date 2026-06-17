@@ -66,7 +66,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Department-aware studio — Marketing, Sales, Finance/Strategy, HR·People & Ops, Engineering, BI & Analytics, Tax & Compliance (UAE), and Legal (UAE); pick your function → that team's curated tasks.
 - ~70-task catalog grouped **Create / Analyze / Operate**, each a ready-to-run brief in the right mode.
 - Per-task expert standards (server-side) — a department persona (FP&A rigor, inclusive HR, RevOps, brand-growth, senior-eng, BI/analytics, UAE tax manager) + research-backed standards injected per task.
-- **Marketing makes finished creatives (image + crisp text + logo)** — a `generate_creative` capability produces a ready-to-post **PNG/JPEG**: it generates an on-brand, text-free AI background with reserved negative space, uses **M3 vision to pick the calmest zone + the text colour that reads there**, then composites the headline/subhead/CTA as **pixel-perfect type** (HTML/CSS, never the image model's garbled lettering) plus the **user's uploaded logo** if provided, with a contrast scrim and a vision QC + auto-correct pass. The dedicated **Ad & social creative** play, the email/social kit, and landing/event heroes all use it at channel sizes (1:1 / 4:5 / 9:16 / 16:9 / 1.91:1); graceful CSS/SVG fallback when unkeyed.
+- **Marketing makes finished creatives (image + crisp text + logo)** — a `generate_creative` capability produces a ready-to-post **PNG/JPEG**: it generates an on-brand, text-free AI background with reserved negative space, uses **M3 vision to pick the calmest zone + the text colour that reads there**, then composites the headline/subhead/**check-marked feature list**/CTA as **pixel-perfect type** (HTML/CSS, never the image model's garbled lettering) plus the **user's uploaded logo** (or a tasteful top-left "LOGO" placeholder) if provided, with a contrast scrim and a vision QC + auto-correct pass. The dedicated **Ad & social creative** play, the email/social kit, and landing/event heroes all use it at channel sizes (1:1 / 4:5 / 9:16 / 16:9 / 1.91:1); graceful CSS/SVG fallback when unkeyed.
 
 ## UAE Legal
 - A dedicated **Legal (UAE)** department that drafts **execution-ready** legal work — commercial contracts, NDAs, employment contracts, POAs, MOA + shareholders' agreements, board resolutions, **legal notices / letters before action**, **police reports / criminal complaints**, **legal opinions**, **legal forensic audits**, contract-review risk reports, compliance audits, dispute briefs, licensing/jurisdiction advice, and a legal calendar/filing tracker (15 plays).
@@ -119,7 +119,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 ---
 
 ## Status & honest caveats
-- **172 automated tests green**; typecheck + build clean.
+- **173 automated tests green**; typecheck + build clean.
 - Anything needing the **model key or open egress** (live builds, real vision calls, scheduled runs firing, external data/webhook delivery) is wired + unit/integration-tested but fully exercised only on the **Droplet**.
 - **Staged (needs Droplet credentials):** OAuth Google Sheets/Drive & CRM connectors, a Slack app, SMTP email.
 - **Multi-tenant org platform — core SHIPPED** (per-user accounts, roles/invites, org-scoped data, in-app admin panel). Remaining: the invite-only landing revamp, per-org department templates, and the AUDIT-P0 low-priv agent uid-drop before any untrusted/self-serve org. The live multi-user flow should be validated on the Droplet.
