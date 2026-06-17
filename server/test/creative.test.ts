@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCreativeHtml, CREATIVE_SIZES, scrubImageryPrompt } from '../src/agent/creative';
+import { resolveCreativePrompt } from '../src/agent/tools/creative';
 
 const base = {
   bgDataUrl: 'data:image/png;base64,AAAA',
@@ -92,6 +93,25 @@ test('scrubImageryPrompt: never returns empty (falls back to the original)', () 
   // a prompt that is ENTIRELY the headline → scrub would empty it; must fall back
   const out = scrubImageryPrompt('Summer Sale', { accent: '#000', headline: 'Summer Sale' });
   assert.ok(out.length > 0);
+});
+
+test('resolveCreativePrompt: recognizes style_prompt (the operator-reported 0.0s failure)', () => {
+  // exactly what the model sent in the failing call
+  const args = { creative_name: 'uk-tourist-visa-social-post', aspect_ratio: '1:1', style_prompt: 'A happy South Asian couple exploring London' };
+  assert.equal(resolveCreativePrompt(args), 'A happy South Asian couple exploring London');
+});
+
+test('resolveCreativePrompt: prefers known aliases over the fallback', () => {
+  assert.equal(resolveCreativePrompt({ imagery_prompt: 'a beach', headline: 'this is a much longer headline string' }), 'a beach');
+});
+
+test('resolveCreativePrompt: falls back to the longest non-prompt string when no alias matches', () => {
+  // a totally unknown field name → use it rather than hard-failing
+  assert.equal(resolveCreativePrompt({ the_picture: 'a serene mountain lake at dawn', aspect_ratio: '16:9' }), 'a serene mountain lake at dawn');
+});
+
+test('resolveCreativePrompt: never grabs known non-prompt fields, returns "" only when truly empty', () => {
+  assert.equal(resolveCreativePrompt({ aspect_ratio: '1:1', accent: '#fff', headline: 'Hi', cta: 'Go' }), '');
 });
 
 test('CREATIVE_SIZES: every channel ratio maps to a canvas + a MiniMax gen ratio', () => {

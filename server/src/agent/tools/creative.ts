@@ -2,6 +2,37 @@ import { config } from '../../config';
 import { composeCreative, CREATIVE_SIZES, type Zone } from '../creative';
 import { resolveInWorkspace, type ToolDef } from './common';
 
+// Field names a model reaches for to describe the imagery, in priority order.
+const PROMPT_ALIASES = [
+  'prompt', 'imagery_prompt', 'image_prompt', 'style_prompt', 'design_prompt',
+  'visual_prompt', 'creative_prompt', 'background_prompt', 'scene', 'description', 'brief',
+];
+// Args that are definitely NOT the imagery prompt (so the fallback never grabs them).
+const NON_PROMPT = new Set([
+  'aspect_ratio', 'aspect', 'accent', 'format', 'logo', 'logo_placeholder', 'text_color',
+  'creative_name', 'name', 'headline', 'title', 'heading', 'subhead', 'cta', 'kicker', 'bullets',
+]);
+
+/**
+ * Resolve the imagery prompt from whatever field the model used. Pure + exported for tests.
+ * Models keep inventing field names (imagery_prompt → style_prompt → …) and a strict
+ * required-field check then rejects the call in 0.0s — surfacing as "image generation doesn't
+ * work". So accept every common alias AND, as a last resort, take the longest string arg that
+ * isn't a known non-prompt field. A renamed field can no longer hard-fail the tool.
+ */
+export function resolveCreativePrompt(args: Record<string, any>): string {
+  for (const k of PROMPT_ALIASES) {
+    const v = args[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  let best = '';
+  for (const [k, v] of Object.entries(args)) {
+    if (NON_PROMPT.has(k)) continue;
+    if (typeof v === 'string' && v.trim().length > best.length) best = v.trim();
+  }
+  return best;
+}
+
 /**
  * Marketing creative generator. Produces a finished, ready-to-post IMAGE (PNG/JPEG) with
  * AI-generated on-brand imagery AND pixel-crisp typography — the workaround for image
@@ -43,17 +74,17 @@ export const generateCreativeTool: ToolDef = {
   available: () => !!config.minimaxApiKey,
   summarize: (a) => `creative: ${String(a.headline ?? '').slice(0, 50)}`,
   async run(args, ctx) {
-    // Accept the field names a model naturally reaches for (it often sends `imagery_prompt`),
-    // and DON'T hard-fail on a missing headline — produce the image regardless.
-    const prompt = String(args.prompt ?? args.imagery_prompt ?? args.image_prompt ?? args.scene ?? '').trim();
+    // Resolve the imagery from whatever field the model used (never hard-fails on a rename).
+    const prompt = resolveCreativePrompt(args);
     const headline = String(args.headline ?? args.title ?? args.heading ?? '').trim();
     if (!prompt) {
       return (
-        'Error: generate_creative needs an imagery `prompt` (the scene/style ONLY — never any text/words in it), ' +
-        'and the copy in SEPARATE fields. Example call: {"prompt":"bright photorealistic London travel scene with Big Ben, ' +
-        'the London Eye and a red double-decker bus, clean empty negative space, premium","headline":"UK Tourist Visa",' +
-        '"subhead":"Fast & accurate processing","bullets":["Quick turnaround","Correct documentation","Embassy-ready files"],' +
-        '"accent":"#C8102E","aspect_ratio":"1:1","logo_placeholder":true}. Retry with the copy split out like that.'
+        'Error: generate_creative needs the imagery described in `prompt` (the scene/style ONLY — ' +
+        'never any text/words in it), with the copy in SEPARATE fields. Example: {"prompt":"bright ' +
+        'photorealistic London travel scene with Big Ben, the London Eye and a red double-decker bus, ' +
+        'clean empty negative space, premium","headline":"UK Tourist Visa","subhead":"Fast & accurate ' +
+        'processing","bullets":["Quick turnaround","Embassy-ready files"],"accent":"#C8102E",' +
+        '"aspect_ratio":"1:1","logo_placeholder":true}. Retry with the scene in `prompt`.'
       );
     }
     const aspectIn = String(args.aspect_ratio ?? args.aspect ?? '1:1');
