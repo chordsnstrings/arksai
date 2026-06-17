@@ -396,8 +396,8 @@ button { font-family: inherit; cursor: pointer; }
   padding: 3px 10px;
   white-space: nowrap;
 }
-.mode-chip.code, .mode-chip.report { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
-.mode-chip.plan { color: var(--cyan); }
+.mode-chip.mc-code, .mode-chip.mc-report { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+.mode-chip.mc-plan { color: var(--cyan); }
 
 .pill {
   display: inline-flex;

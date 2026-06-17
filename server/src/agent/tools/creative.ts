@@ -56,7 +56,8 @@ export const generateCreativeTool: ToolDef = {
         '"accent":"#C8102E","aspect_ratio":"1:1","logo_placeholder":true}. Retry with the copy split out like that.'
       );
     }
-    const aspect = CREATIVE_SIZES[String(args.aspect_ratio)] ? String(args.aspect_ratio) : '1:1';
+    const aspectIn = String(args.aspect_ratio ?? args.aspect ?? '1:1');
+    const aspect = CREATIVE_SIZES[aspectIn] ? aspectIn : '1:1';
     const accent = /^#[0-9a-fA-F]{3,8}$/.test(String(args.accent ?? '')) ? String(args.accent) : '#1f5f8b';
     const format = args.format === 'jpeg' ? 'jpeg' : 'png';
     const textColor = ['light', 'dark'].includes(String(args.text_color)) ? (String(args.text_color) as 'light' | 'dark') : 'auto';

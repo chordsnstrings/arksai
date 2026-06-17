@@ -31,7 +31,7 @@ export function TopBar({ meta }: { meta: SessionMeta }) {
       ) : (
         <span className="title">{meta.title}</span>
       )}
-      <span className={`mode-chip ${meta.mode}`} title="ArksAI moves into the right skill (chat, planning, building, report, images…) automatically.">
+      <span className={`mode-chip mc-${meta.mode}`} title="ArksAI moves into the right skill (chat, planning, building, report, images…) automatically.">
         {MODE_CHIP[meta.mode] ?? 'Chat'}
       </span>
       <span className="spacer" />
