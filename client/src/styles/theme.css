@@ -1214,7 +1214,7 @@ button { font-family: inherit; cursor: pointer; }
 .lp-cat-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 11px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
 .lp-cat-label { font-family: var(--label); font-size: 12px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dept, var(--accent)); }
 .lp-cat-blurb { font-size: 12px; color: var(--text-faint); }
-.lp-plays { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.lp-plays { display: grid; grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)); gap: 10px; }
 .play-card {
   display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 12px;
   text-align: left; background: var(--bg-elev); border: 1px solid var(--border);
@@ -1259,6 +1259,25 @@ button { font-family: inherit; cursor: pointer; }
 
 .lp-advanced { align-self: flex-start; margin-top: 30px; background: none; border: none; color: var(--text-faint); font-family: var(--label); font-size: 12px; letter-spacing: 0.04em; }
 .lp-advanced:hover { color: var(--text-muted); }
+
+/* Seamless reflow (flex order): input at the TOP, examples denser below it. lp-cats/
+   lp-free exist only in STEP B; lp-advanced stays last in both steps. */
+.lp-free { order: 1; margin-top: 4px; }
+.lp-rule { order: 2; }
+.lp-cats { order: 3; margin-top: 18px; gap: 18px; }
+.lp-advanced { order: 4; }
+
+/* personalized greeting + inline name edit */
+.lp-greet { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.lp-greet-text { margin: 0; }
+.lp-name-edit { background: none; border: none; color: var(--text-faint); font-family: var(--label); font-size: 12px; letter-spacing: 0.04em; cursor: pointer; padding: 2px 4px; align-self: center; }
+.lp-name-edit:hover { color: var(--dept, var(--accent)); }
+.lp-name-input { font-family: var(--serif); font-size: 32px; font-weight: 600; color: var(--text); background: var(--bg-input); border: 1px solid var(--dept, var(--accent)); border-radius: 10px; padding: 2px 12px; outline: none; max-width: 340px; }
+
+/* denser example cards */
+.play-card { padding: 11px 13px; gap: 10px; border-radius: 11px; }
+.play-title { font-size: 13.5px; }
+.play-blurb { font-size: 11.5px; }
 
 @media (max-width: 620px) {
   .lp-depts, .lp-plays { grid-template-columns: 1fr; }

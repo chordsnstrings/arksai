@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { CATEGORIES, DEPARTMENTS, ICONS, departmentById, type IconName } from '../lib/departments';
 import { applyDeptTheme } from '../lib/theme';
+import { greeting, displayName } from '../lib/greeting';
 
 const LS_KEY = 'arksai.department';
 
@@ -55,7 +56,49 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   const upsertSession = useStore((s) => s.upsertSession);
   const setActive = useStore((s) => s.setActive);
   const sessions = useStore((s) => s.sessions);
+  const me = useStore((s) => s.me);
   const dept = departmentById(deptId);
+
+  // Personalized, time-aware greeting for the returning user (their LOCAL time + name).
+  const [nameOverride, setNameOverride] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const name = nameOverride ?? displayName(me?.user?.name);
+  const greet = greeting(name);
+  const saveName = (v: string) => {
+    const first = v.trim().split(/\s+/)[0] ?? '';
+    try {
+      if (first) localStorage.setItem('arksai.name', first);
+      else localStorage.removeItem('arksai.name');
+    } catch {
+      /* private mode */
+    }
+    setNameOverride(first);
+    setEditingName(false);
+  };
+  const greetLine = (
+    <div className="lp-greet">
+      {editingName ? (
+        <input
+          className="lp-name-input"
+          autoFocus
+          defaultValue={name}
+          placeholder="your name"
+          onBlur={(e) => saveName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') saveName((e.target as HTMLInputElement).value);
+            if (e.key === 'Escape') setEditingName(false);
+          }}
+        />
+      ) : (
+        <>
+          <h1 className="lp-title lp-greet-text">{greet}</h1>
+          <button className="lp-name-edit" title={name ? 'Change your name' : 'Tell me your name'} onClick={() => setEditingName(true)}>
+            {name ? '✎' : 'set your name'}
+          </button>
+        </>
+      )}
+    </div>
+  );
 
   // Files are staged client-side (no session exists yet) and uploaded the moment one is
   // created, BEFORE the first message — so the agent sees them on its first run. Mirrors
@@ -133,11 +176,10 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
       <div className="launchpad">
         <div className="lp-inner">
           {masthead}
-          <div className="lp-kicker">Get started</div>
-          <h1 className="lp-title">Which team are you building for?</h1>
+          {greetLine}
           <p className="lp-sub">
-            Pick your function and we’ll show the work it ships — decks, dashboards, sites, reports, and
-            spreadsheets — built, verified, and ready to use.
+            Pick your team and I’ll be ready with its skills — or just tell me what you need. I’ll build,
+            design, report, or generate it, and check it works before you see it.
           </p>
           {recents.length > 0 && (
             <div className="lp-recents">
@@ -189,10 +231,10 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
             <div className="lp-kicker dept-tinted">
               <Icon name={dept.icon} size={13} /> {dept.name} · ready
             </div>
-            <h1 className="lp-title">What do you need?</h1>
+            {greetLine}
             <p className="lp-sub">
-              I’m set up with your {dept.name.toLowerCase()} toolkit. Just describe it below — or tap an
-              example to start from one.
+              I’m set up with your {dept.name.toLowerCase()} toolkit — just tell me what you need below, or
+              pick an example further down to start from.
             </p>
           </div>
           <button
