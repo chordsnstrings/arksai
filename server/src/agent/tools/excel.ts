@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { resolveInWorkspace, type ToolDef } from './common';
+import { recalcSheetData } from './sheetcalc';
 
 type ColType = 'text' | 'number' | 'currency' | 'percent' | 'date';
 interface ColSpec {
@@ -116,6 +117,10 @@ export const generateSpreadsheetTool: ToolDef = {
     const finalName = outName.toLowerCase().endsWith('.xlsx') ? outName : `${outName}.xlsx`;
     const sheets = Array.isArray(args.sheets) ? args.sheets : [];
     if (!sheets.length) return 'Error: provide at least one sheet (name, columns, rows).';
+    // Recompute formula cells' cached values so the in-app PREVIEW shows correct numbers
+    // (models often write a wrong/0 cached value; the formula itself is preserved + Excel
+    // recalculates the download regardless, so this is a strictly-improving preview fix).
+    recalcSheetData(sheets);
 
     let absOut: string;
     try {
