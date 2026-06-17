@@ -5,6 +5,7 @@ import { sweepWorkspaces } from './sessions/workspace';
 import { recoverDeployments } from './deploy/registry';
 import { startDeploymentJanitor } from './deploy/publish';
 import { startScheduler } from './schedule/scheduler';
+import { startAnalyticsDigest } from './analytics/digest';
 
 async function main() {
   validateConfig();
@@ -21,6 +22,7 @@ async function main() {
   await app.listen({ port: config.port, host: '0.0.0.0' });
   startScheduler();
   startDeploymentJanitor(); // 24h-preview auto-cleanup
+  startAnalyticsDigest(); // periodic platform metric snapshots (+ optional webhook)
   console.log(`ArksAI server listening on :${config.port} (data: ${config.dataDir})`);
   if (config.agentUnrestricted) {
     console.warn(

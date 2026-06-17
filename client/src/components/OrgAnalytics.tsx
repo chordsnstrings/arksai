@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { BarList, CohortGrid, Funnel, KPI, LineChart, ago, fmtMoney, fmtNum } from './analyticsCharts';
+import { BarList, CohortGrid, Funnel, KPI, LineChart, ago, downloadCsv, fmtDur, fmtMoney, fmtNum, toCsv } from './analyticsCharts';
+import { UserDetailPanel } from './UserDetailPanel';
+import { AlertsCard } from './AnalyticsAlerts';
 
 /**
  * Per-org analytics dashboard — the focused subset (engagement, usage, activation,
@@ -16,14 +18,18 @@ export function OrgAnalytics({ orgId }: { orgId: string }) {
   const [funnel, setFunnel] = useState<any[]>([]);
   const [retention, setRetention] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<any>(null);
+  const [drillUser, setDrillUser] = useState<string | null>(null);
 
   useEffect(() => {
     if (!orgId) return;
     setOv(null);
+    setDrillUser(null);
     api.analyticsOverview(orgId).then(setOv).catch(() => {});
     api.analyticsFunnel(orgId).then(setFunnel).catch(() => setFunnel([]));
     api.analyticsRetention(orgId).then(setRetention).catch(() => setRetention([]));
     api.analyticsMembers(orgId).then(setMembers).catch(() => setMembers([]));
+    api.analyticsAlerts(orgId).then(setAlerts).catch(() => setAlerts(null));
   }, [orgId]);
   useEffect(() => {
     if (!orgId) return;
@@ -50,8 +56,11 @@ export function OrgAnalytics({ orgId }: { orgId: string }) {
         <KPI label="Sessions (30d)" value={fmtNum(o.sessions30d ?? 0)} sub={`${o.sessions7d ?? 0} this week`} />
         <KPI label="Success rate" value={`${o.successRate ?? 100}%`} sub="completed runs" />
         <KPI label="Members" value={fmtNum(o.members ?? members.length)} sub={`${o.liveDeployments ?? 0} live apps`} />
+        <KPI label="Time to first build" value={fmtDur(o.timeToFirstBuildMs)} sub="median, from signup" />
         <KPI label="Cost (30d)" value={fmtMoney(o.cost30d ?? 0)} sub={`${fmtMoney(o.cost7d ?? 0)} this week`} />
       </div>
+
+      <AlertsCard alerts={alerts} scope="org" />
 
       <div className="an-grid">
         <section className="an-card an-wide">
@@ -87,12 +96,33 @@ export function OrgAnalytics({ orgId }: { orgId: string }) {
         </section>
 
         <section className="an-card an-wide">
-          <h3>Members &amp; activity</h3>
-          <table className="an-table">
+          <div className="an-card-head">
+            <h3>Members &amp; activity <span className="an-hint">— click a row to drill in</span></h3>
+            <button
+              className="an-csv"
+              onClick={() =>
+                downloadCsv(
+                  'arksai-members.csv',
+                  toCsv(
+                    members.map((r) => ({ ...r, lastActive: r.lastActive ? new Date(r.lastActive).toISOString() : '' })),
+                    [
+                      { key: 'email', label: 'Member' },
+                      { key: 'sessions', label: 'Sessions' },
+                      { key: 'cost', label: 'Cost (USD)' },
+                      { key: 'lastActive', label: 'Last active' },
+                    ],
+                  ),
+                )
+              }
+            >
+              ↓ CSV
+            </button>
+          </div>
+          <table className="an-table an-table-click">
             <thead><tr><th>Member</th><th>Sessions</th><th>Cost</th><th>Last active</th></tr></thead>
             <tbody>
               {members.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} onClick={() => setDrillUser(r.id)} title="View this member's usage">
                   <td>{r.email}</td>
                   <td>{r.sessions}</td>
                   <td>{fmtMoney(r.cost)}</td>
@@ -105,6 +135,7 @@ export function OrgAnalytics({ orgId }: { orgId: string }) {
         </section>
       </div>
       <p className="an-note">Aggregate usage metadata only — never your team's chat or document content.</p>
+      {drillUser && <UserDetailPanel userId={drillUser} orgId={orgId} onClose={() => setDrillUser(null)} />}
     </div>
   );
 }

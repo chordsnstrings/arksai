@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { roleInOrg } from '../orgs/store';
 import * as A from '../analytics/queries';
+import { listDigests } from '../analytics/digest';
 
 /**
  * Analytics endpoints. Operator (`/api/admin/analytics/*`) = superadmin-only, whole
@@ -36,6 +37,14 @@ export function registerAnalyticsRoutes(app: FastifyInstance) {
   app.get('/api/admin/analytics/funnel', async (req, reply) => (operator(req, reply) ? { funnel: await A.funnelData(OP) } : undefined));
   app.get('/api/admin/analytics/orgs', async (req, reply) => (operator(req, reply) ? { orgs: await A.orgsTable() } : undefined));
   app.get('/api/admin/analytics/users', async (req, reply) => (operator(req, reply) ? { users: await A.usersTable(OP) } : undefined));
+  app.get('/api/admin/analytics/alerts', async (req, reply) => (operator(req, reply) ? { alerts: await A.alerts(OP) } : undefined));
+  app.get('/api/admin/analytics/digests', async (req, reply) => (operator(req, reply) ? { digests: await listDigests() } : undefined));
+  app.get('/api/admin/analytics/users/:uid', async (req, reply) => {
+    if (!operator(req, reply)) return undefined;
+    const user = await A.userDetail(OP, (req.params as { uid: string }).uid);
+    if (!user) return reply.code(404).send({ error: 'Unknown user.' });
+    return { user };
+  });
 
   // ---- Per-org: an org admin (or the operator) sees their own org ----
   const org = (req: FastifyRequest) => ({ orgId: (req.params as { id: string }).id });
@@ -51,4 +60,11 @@ export function registerAnalyticsRoutes(app: FastifyInstance) {
   app.get('/api/orgs/:id/analytics/retention', async (req, reply) => ((await guard(req, reply)) ? { retention: await A.retention(org(req)) } : undefined));
   app.get('/api/orgs/:id/analytics/funnel', async (req, reply) => ((await guard(req, reply)) ? { funnel: await A.funnelData(org(req)) } : undefined));
   app.get('/api/orgs/:id/analytics/members', async (req, reply) => ((await guard(req, reply)) ? { members: await A.usersTable(org(req)) } : undefined));
+  app.get('/api/orgs/:id/analytics/alerts', async (req, reply) => ((await guard(req, reply)) ? { alerts: await A.alerts(org(req)) } : undefined));
+  app.get('/api/orgs/:id/analytics/members/:uid', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const user = await A.userDetail(org(req), (req.params as { uid: string }).uid);
+    if (!user) return reply.code(404).send({ error: 'Unknown user.' });
+    return { user };
+  });
 }

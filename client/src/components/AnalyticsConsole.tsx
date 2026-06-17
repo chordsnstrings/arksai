@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useEscClose } from '../hooks/useEscClose';
-import { BarList, CohortGrid, Funnel, KPI, LineChart, ago, fmtMoney, fmtNum } from './analyticsCharts';
+import { BarList, CohortGrid, Funnel, KPI, LineChart, ago, downloadCsv, fmtDur, fmtMoney, fmtNum, toCsv } from './analyticsCharts';
+import { UserDetailPanel } from './UserDetailPanel';
+import { AlertsCard } from './AnalyticsAlerts';
 
 /**
  * Operator analytics console (superadmin) — a full-screen view of platform usage,
@@ -20,12 +22,19 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
   const [funnel, setFunnel] = useState<any[]>([]);
   const [retention, setRetention] = useState<any[]>([]);
   const [orgs, setOrgs] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<any>(null);
+  const [digests, setDigests] = useState<any[]>([]);
+  const [drillUser, setDrillUser] = useState<string | null>(null);
 
   useEffect(() => {
     api.analyticsOverview().then(setOv).catch(() => {});
     api.analyticsFunnel().then(setFunnel).catch(() => {});
     api.analyticsRetention().then(setRetention).catch(() => {});
     api.analyticsOrgs().then(setOrgs).catch(() => {});
+    api.analyticsUsers().then(setUsers).catch(() => {});
+    api.analyticsAlerts().then(setAlerts).catch(() => {});
+    api.analyticsDigests().then(setDigests).catch(() => {});
   }, []);
   useEffect(() => {
     api.analyticsTimeseries(days).then(setTs).catch(() => {});
@@ -61,11 +70,14 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
           <KPI label="Stickiness (DAU/MAU)" value={`${Math.round((o.stickiness ?? 0) * 100)}%`} sub="habitual use" />
           <KPI label="Sessions (30d)" value={fmtNum(o.sessions30d ?? 0)} sub={`${o.sessions7d ?? 0} this week`} />
           <KPI label="Success rate" value={`${o.successRate ?? 100}%`} sub="completed runs" />
+          <KPI label="Time to first build" value={fmtDur(o.timeToFirstBuildMs)} sub={`median · ${o.activatedUsers ?? 0} activated`} />
           <KPI label="Cost (30d)" value={fmtMoney(o.cost30d ?? 0)} sub={`${fmtMoney(o.cost7d ?? 0)} this week`} />
           <KPI label="Organizations" value={fmtNum(o.totalOrgs ?? 0)} sub={`${o.onboardedOrgs ?? 0} onboarded · ${o.totalUsers ?? 0} users`} />
           <KPI label="Live apps" value={fmtNum(o.liveDeployments ?? 0)} sub="published & running" />
           <KPI label="Waitlist" value={fmtNum(o.leads ?? 0)} sub="leads captured" />
         </div>
+
+        <AlertsCard alerts={alerts} scope="platform" />
 
         <div className="an-grid">
           <section className="an-card an-wide">
@@ -114,7 +126,30 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="an-card an-wide">
-            <h3>Organizations</h3>
+            <div className="an-card-head">
+              <h3>Organizations</h3>
+              <button
+                className="an-csv"
+                onClick={() =>
+                  downloadCsv(
+                    'arksai-orgs.csv',
+                    toCsv(
+                      orgs.map((r) => ({ ...r, lastActive: r.lastActive ? new Date(r.lastActive).toISOString() : '', onboarded: r.onboarded ? 'yes' : 'no' })),
+                      [
+                        { key: 'name', label: 'Organization' },
+                        { key: 'members', label: 'Members' },
+                        { key: 'sessions', label: 'Sessions' },
+                        { key: 'cost', label: 'Cost (USD)' },
+                        { key: 'onboarded', label: 'Onboarded' },
+                        { key: 'lastActive', label: 'Last active' },
+                      ],
+                    ),
+                  )
+                }
+              >
+                ↓ CSV
+              </button>
+            </div>
             <table className="an-table">
               <thead><tr><th>Org</th><th>Members</th><th>Sessions</th><th>Cost</th><th>Onboarded</th><th>Last active</th></tr></thead>
               <tbody>
@@ -132,9 +167,79 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
               </tbody>
             </table>
           </section>
+
+          <section className="an-card an-wide">
+            <div className="an-card-head">
+              <h3>Users <span className="an-hint">— click a row to drill in</span></h3>
+              <button
+                className="an-csv"
+                onClick={() =>
+                  downloadCsv(
+                    'arksai-users.csv',
+                    toCsv(
+                      users.map((r) => ({ ...r, lastActive: r.lastActive ? new Date(r.lastActive).toISOString() : '', createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : '' })),
+                      [
+                        { key: 'email', label: 'Email' },
+                        { key: 'sessions', label: 'Sessions' },
+                        { key: 'cost', label: 'Cost (USD)' },
+                        { key: 'createdAt', label: 'Joined' },
+                        { key: 'lastActive', label: 'Last active' },
+                      ],
+                    ),
+                  )
+                }
+              >
+                ↓ CSV
+              </button>
+            </div>
+            <table className="an-table an-table-click">
+              <thead><tr><th>User</th><th>Sessions</th><th>Cost</th><th>Joined</th><th>Last active</th></tr></thead>
+              <tbody>
+                {users.slice(0, 100).map((r) => (
+                  <tr key={r.id} onClick={() => setDrillUser(r.id)} title="View this user's usage">
+                    <td>{r.email}</td>
+                    <td>{r.sessions}</td>
+                    <td>{fmtMoney(r.cost)}</td>
+                    <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</td>
+                    <td>{ago(r.lastActive)}</td>
+                  </tr>
+                ))}
+                {users.length === 0 && <tr><td colSpan={5} className="an-empty">No users yet.</td></tr>}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="an-card an-wide">
+            <h3>Scheduled digests</h3>
+            {digests.length === 0 ? (
+              <div className="an-empty">No digests yet — the first snapshot generates automatically.</div>
+            ) : (
+              <table className="an-table">
+                <thead><tr><th>When</th><th>Active (7d)</th><th>Sessions (7d)</th><th>Cost (7d)</th><th>Success</th><th>Alerts</th></tr></thead>
+                <tbody>
+                  {digests.map((d) => {
+                    const s = d.summary ?? {};
+                    const dl = s.deltas;
+                    const delta = (n?: number) => (n == null || n === 0 ? '' : n > 0 ? ` ▲${n}` : ` ▼${Math.abs(n)}`);
+                    return (
+                      <tr key={d.id}>
+                        <td>{new Date(d.generatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                        <td>{fmtNum(s.activeUsers7d ?? 0)}{delta(dl?.activeUsers7d)}</td>
+                        <td>{fmtNum(s.sessions7d ?? 0)}{delta(dl?.sessions7d)}</td>
+                        <td>{fmtMoney(s.cost7d ?? 0)}</td>
+                        <td>{s.successRate ?? 100}%</td>
+                        <td>{(s.churnRisk ?? 0) + (s.costSpikes ?? 0) > 0 ? <span className="an-pill warn">{(s.churnRisk ?? 0) + (s.costSpikes ?? 0)}</span> : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </section>
         </div>
         <p className="an-note">Aggregate usage metadata only — never your teams' chat or document content.</p>
       </div>
+      {drillUser && <UserDetailPanel userId={drillUser} onClose={() => setDrillUser(null)} />}
     </div>
   );
 }

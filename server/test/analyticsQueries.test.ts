@@ -70,8 +70,40 @@ test('every analytics query runs in both scopes without throwing', async () => {
     await A.retention(scope);
     await A.funnelData(scope);
     await A.usersTable(scope); // ← reused-placeholder regression guard
+    await A.alerts(scope);
+    await A.userDetail(scope, 'uA');
   }
   await A.orgsTable();
+});
+
+test('overview reports a numeric median time-to-first-build per scope', async () => {
+  const op = await A.overview(OP);
+  assert.equal(typeof op.timeToFirstBuildMs, 'number');
+  assert.ok((op.activatedUsers ?? 0) >= 2, 'uA and uB both built');
+});
+
+test('userDetail: metadata only, scoped, and per-org membership-gated', async () => {
+  const op = await A.userDetail(OP, 'uA');
+  assert.ok(op);
+  assert.equal(op!.email, 'a@orga.com');
+  assert.equal(op!.sessions, 3);
+  assert.ok(Array.isArray(op!.byMode) && Array.isArray(op!.plays) && Array.isArray(op!.activity));
+  assert.ok((op as any).orgs, 'operator view lists the user orgs');
+  // no content fields ever
+  for (const k of ['context', 'timeline', 'messages', 'prompt']) assert.ok(!(k in op!), `leaked ${k}`);
+
+  // per-org sees only its own sessions for that member …
+  const inA = await A.userDetail({ orgId: 'orgA' }, 'uA');
+  assert.equal(inA!.sessions, 3);
+  // … and a non-member of the org → null (404), never another org's data.
+  assert.equal(await A.userDetail({ orgId: 'orgB' }, 'uA'), null);
+});
+
+test('alerts: operator flags churn + cost spikes; per-org returns its own shape', async () => {
+  const op: any = await A.alerts(OP);
+  assert.ok(Array.isArray(op.churnRisk) && Array.isArray(op.costSpikes));
+  const perOrg: any = await A.alerts({ orgId: 'orgA' });
+  assert.ok(perOrg.costSpike && Array.isArray(perOrg.inactiveMembers));
 });
 
 test('operator overview aggregates across orgs; per-org isolates', async () => {

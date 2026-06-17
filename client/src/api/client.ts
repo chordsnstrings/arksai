@@ -239,6 +239,11 @@ export const api = {
   analyticsOrgs: () => request<{ orgs: any[] }>('/api/admin/analytics/orgs').then((r) => r.orgs),
   analyticsMembers: (orgId: string) => request<{ members: any[] }>(`/api/orgs/${orgId}/analytics/members`).then((r) => r.members),
   analyticsUsers: () => request<{ users: any[] }>('/api/admin/analytics/users').then((r) => r.users),
+  analyticsUserDetail: (userId: string, orgId?: string) =>
+    request<{ user: any }>(orgId ? `/api/orgs/${orgId}/analytics/members/${userId}` : `/api/admin/analytics/users/${userId}`).then((r) => r.user),
+  analyticsAlerts: (orgId?: string) =>
+    request<{ alerts: any }>(`${orgId ? `/api/orgs/${orgId}` : '/api/admin'}/analytics/alerts`).then((r) => r.alerts),
+  analyticsDigests: () => request<{ digests: any[] }>('/api/admin/analytics/digests').then((r) => r.digests),
 };
 
 export { ApiError };

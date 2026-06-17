@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { engagement, dailyActiveSeries, dailySumSeries, cohortRetention, funnel, type ActivePoint } from '../src/analytics/compute';
+import { engagement, dailyActiveSeries, dailySumSeries, cohortRetention, funnel, median, timeToFirstBuild, costSpike, churnRisk, type ActivePoint } from '../src/analytics/compute';
 
 const D = 20000; // an arbitrary epoch-day baseline
 
@@ -53,6 +53,57 @@ test('cohortRetention: week 0 is 100%, week 1 reflects returners', () => {
 test('funnel: conversion % relative to the first stage', () => {
   const f = funnel([{ stage: 'leads', count: 100 }, { stage: 'signup', count: 40 }, { stage: 'built', count: 10 }]);
   assert.deepEqual(f.map((s) => s.pct), [100, 40, 10]);
+});
+
+test('median: odd + even lengths', () => {
+  assert.equal(median([]), 0);
+  assert.equal(median([5]), 5);
+  assert.equal(median([3, 1, 2]), 2);
+  assert.equal(median([4, 1, 3, 2]), 2.5);
+});
+
+test('timeToFirstBuild: per-user delta from signup to first build + median', () => {
+  const HOUR = 3_600_000;
+  const signups = [
+    { user_id: 'a', ts: 1_000_000 },
+    { user_id: 'b', ts: 2_000_000 },
+    { user_id: 'c', ts: 3_000_000 }, // never builds → excluded
+  ];
+  const builds = [
+    { user_id: 'a', ts: 1_000_000 + 2 * HOUR },
+    { user_id: 'a', ts: 1_000_000 + 5 * HOUR }, // later build ignored (min wins)
+    { user_id: 'b', ts: 2_000_000 + 4 * HOUR },
+  ];
+  const r = timeToFirstBuild(signups, builds);
+  assert.equal(r.activated, 2);
+  assert.deepEqual(r.perUser.find((p) => p.user_id === 'a')?.ms, 2 * HOUR);
+  assert.equal(r.medianMs, 3 * HOUR); // median of [2h, 4h]
+});
+
+test('costSpike: flags a recent surge over the trailing weekly baseline; ignores tiny/no history', () => {
+  const now = 100;
+  // baseline weeks (days now-28..now-7) ~ small; recent (now-7..now) large
+  const series: { day: number; value: number }[] = [];
+  for (let d = now - 27; d <= now - 7; d++) series.push({ day: d, value: 1 }); // ~21 over 3 weeks → 7/wk
+  for (let d = now - 6; d <= now; d++) series.push({ day: d, value: 10 }); // 70 recent
+  const s = costSpike(series, now);
+  assert.equal(s.spiked, true);
+  assert.ok(s.ratio >= 2);
+  // no history → never alerts (avoids noise)
+  const fresh = costSpike([{ day: now, value: 999 }], now);
+  assert.equal(fresh.spiked, false);
+});
+
+test('churnRisk: onboarded once-active orgs gone quiet are flagged; active ones are not', () => {
+  const now = 100 * 86_400_000;
+  const rows = [
+    { id: '1', name: 'Quiet', onboarded: true, sessions: 5, lastActive: now - 20 * 86_400_000 },
+    { id: '2', name: 'Active', onboarded: true, sessions: 5, lastActive: now - 2 * 86_400_000 },
+    { id: '3', name: 'NeverBuilt', onboarded: true, sessions: 0, lastActive: null },
+  ];
+  const risk = churnRisk(rows, now);
+  assert.deepEqual(risk.map((r) => r.name), ['Quiet']);
+  assert.equal(risk[0].daysSince, 20);
 });
 
 test('PRIVACY: analytics code never reads conversation/document content', () => {

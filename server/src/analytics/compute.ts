@@ -74,3 +74,69 @@ export function funnel(stages: { stage: string; count: number }[]): { stage: str
   const top = stages[0]?.count || 0;
   return stages.map((s) => ({ ...s, pct: top ? Math.round((s.count / top) * 100) : 0 }));
 }
+
+const round4 = (n: number) => Math.round(n * 1e4) / 1e4;
+
+/** Median of a list (0 for empty). */
+export function median(xs: number[]): number {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/** Activation: for each user who has built, ms from signup → their first build; + the median. */
+export function timeToFirstBuild(
+  signups: { user_id: string; ts: number }[],
+  firstBuilds: { user_id: string; ts: number }[],
+): { perUser: { user_id: string; ms: number }[]; medianMs: number; activated: number } {
+  const first = new Map<string, number>();
+  for (const b of firstBuilds) {
+    const cur = first.get(b.user_id);
+    if (cur == null || b.ts < cur) first.set(b.user_id, b.ts);
+  }
+  const perUser: { user_id: string; ms: number }[] = [];
+  for (const s of signups) {
+    const fb = first.get(s.user_id);
+    if (fb == null) continue;
+    perUser.push({ user_id: s.user_id, ms: Math.max(0, fb - s.ts) });
+  }
+  return { perUser, medianMs: median(perUser.map((p) => p.ms)), activated: perUser.length };
+}
+
+/** Cost-spike detector over a daily-cost series: recent window vs the trailing weekly
+ *  average. Deliberately ignores tiny baselines (no history → no alert) to avoid noise. */
+export function costSpike(
+  dailyCost: { day: number; value: number }[],
+  nowDay: number,
+  opts: { recentDays?: number; baselineWeeks?: number; ratio?: number; minRecent?: number } = {},
+): { spiked: boolean; recent: number; baseline: number; ratio: number } {
+  const recentDays = opts.recentDays ?? 7;
+  const baselineWeeks = opts.baselineWeeks ?? 3;
+  const minRatio = opts.ratio ?? 2;
+  const minRecent = opts.minRecent ?? 1;
+  const sumRange = (loExcl: number, hiIncl: number) =>
+    dailyCost.filter((d) => d.day > loExcl && d.day <= hiIncl).reduce((a, d) => a + d.value, 0);
+  const recent = sumRange(nowDay - recentDays, nowDay);
+  const baseline = sumRange(nowDay - recentDays - baselineWeeks * 7, nowDay - recentDays) / baselineWeeks; // avg weekly cost
+  const ratio = baseline > 0 ? recent / baseline : 0;
+  return {
+    spiked: recent >= minRecent && baseline > 0 && ratio >= minRatio,
+    recent: round4(recent),
+    baseline: round4(baseline),
+    ratio: baseline > 0 ? Math.round(ratio * 10) / 10 : 0,
+  };
+}
+
+/** Churn-risk orgs: onboarded + once-active, but quiet for `inactiveDays`+. */
+export function churnRisk(
+  orgs: { id: string; name: string; onboarded: boolean; sessions: number; lastActive: number | null }[],
+  nowMs: number,
+  inactiveDays = 14,
+): { id: string; name: string; lastActive: number | null; daysSince: number }[] {
+  const cut = inactiveDays * DAY_MS;
+  return orgs
+    .filter((o) => o.onboarded && o.sessions > 0 && (o.lastActive == null || nowMs - o.lastActive > cut))
+    .map((o) => ({ id: o.id, name: o.name, lastActive: o.lastActive, daysSince: o.lastActive ? Math.round((nowMs - o.lastActive) / DAY_MS) : 9999 }))
+    .sort((a, b) => b.daysSince - a.daysSince);
+}

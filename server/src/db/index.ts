@@ -249,6 +249,18 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS idx_analytics_event ON analytics_events(event, ts)`);
   await q(`CREATE INDEX IF NOT EXISTS idx_analytics_user ON analytics_events(user_id, ts)`);
 
+  // Scheduled analytics digests — periodic metric snapshots (METADATA ONLY) the operator
+  // can review in-app; also pushed to a webhook if ANALYTICS_DIGEST_WEBHOOK is configured.
+  await q(`CREATE TABLE IF NOT EXISTS analytics_digests(
+    id TEXT PRIMARY KEY,
+    org_id TEXT,
+    period_end ${INT} NOT NULL,
+    generated_at ${INT} NOT NULL,
+    summary TEXT NOT NULL,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_analytics_digests_gen ON analytics_digests(generated_at)`);
+
   // Best-effort migrations for older DBs.
   for (const col of [
     `prompt_tokens ${INT} NOT NULL DEFAULT 0`,

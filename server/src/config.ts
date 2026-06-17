@@ -92,6 +92,11 @@ export const config = {
   minimaxVideoCost: Number(process.env.MINIMAX_VIDEO_COST || '0.43') || 0.43,
   appPassword: process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
+  // Scheduled analytics digest: how often a platform snapshot is taken (hours), and an
+  // optional webhook (Slack/Zapier/…) the digest is pushed to. Digests are always stored
+  // in-app for the operator regardless; the webhook is opt-in.
+  analyticsDigestHours: intEnv('ANALYTICS_DIGEST_HOURS', 24),
+  analyticsDigestWebhook: process.env.ANALYTICS_DIGEST_WEBHOOK || '',
   // Gating visual design-critique loop (needs a vision model). On by default;
   // set AGENT_DESIGN_GATE=false to disable (e.g. keyless dev).
   designGate: process.env.AGENT_DESIGN_GATE !== 'false',
@@ -136,5 +141,6 @@ export function secretValues(): string[] {
     config.braveApiKey,
     config.sunoApiKey,
     config.minimaxApiKey,
+    config.analyticsDigestWebhook,
   ].filter((s) => s && s.length >= 6);
 }

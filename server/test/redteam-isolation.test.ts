@@ -145,7 +145,7 @@ test('RED TEAM: org B cannot reach org A data on any route', async () => {
 });
 
 test('RED TEAM: analytics are operator-gated and per-org isolated (metadata only)', async () => {
-  const opEndpoints = ['overview', 'timeseries', 'usage', 'quality', 'cost', 'retention', 'funnel', 'orgs', 'users'];
+  const opEndpoints = ['overview', 'timeseries', 'usage', 'quality', 'cost', 'retention', 'funnel', 'orgs', 'users', 'alerts', 'digests', `users/${userAId}`];
   // A non-superadmin org admin is forbidden from EVERY operator (cross-org) analytics route.
   for (const ep of opEndpoints) {
     assert.equal(
@@ -158,7 +158,7 @@ test('RED TEAM: analytics are operator-gated and per-org isolated (metadata only
   assert.equal((await app.inject({ url: '/api/admin/analytics/overview', headers: { cookie: opCookie } })).statusCode, 200, 'operator blocked from its own analytics');
 
   // An org admin reads its OWN org analytics …
-  for (const ep of ['overview', 'timeseries', 'usage', 'quality', 'retention', 'funnel', 'members']) {
+  for (const ep of ['overview', 'timeseries', 'usage', 'quality', 'retention', 'funnel', 'members', 'alerts', `members/${userAId}`]) {
     assert.equal(
       (await app.inject({ url: `/api/orgs/${orgAId}/analytics/${ep}`, headers: { cookie: cookieA } })).statusCode,
       200,
@@ -172,6 +172,14 @@ test('RED TEAM: analytics are operator-gated and per-org isolated (metadata only
     );
   }
 
-  // The operator can drill into any org.
+  // A per-org drill on a user who is NOT a member of that org → 404 (no cross-org probing).
+  assert.equal(
+    (await app.inject({ url: `/api/orgs/${orgAId}/analytics/members/no-such-user`, headers: { cookie: cookieA } })).statusCode,
+    404,
+    'per-org drill leaked a non-member',
+  );
+
+  // The operator can drill into any org + any user.
   assert.equal((await app.inject({ url: `/api/orgs/${orgAId}/analytics/overview`, headers: { cookie: opCookie } })).statusCode, 200, 'operator blocked from per-org drill');
+  assert.equal((await app.inject({ url: `/api/admin/analytics/users/${userAId}`, headers: { cookie: opCookie } })).statusCode, 200, 'operator blocked from user drill');
 });

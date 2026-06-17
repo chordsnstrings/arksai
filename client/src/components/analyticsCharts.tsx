@@ -12,6 +12,41 @@ export const fmtNum = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : 
 export const fmtMoney = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : `$${(n ?? 0).toFixed(n < 0.01 ? 4 : 2)}`);
 export const ago = (ts: number | null) => (ts ? `${Math.max(0, Math.round((Date.now() - ts) / DAY_MS))}d ago` : '—');
 
+/** Compact human duration (e.g. "3d", "5h", "12m", "<1m"). */
+export const fmtDur = (ms: number | null | undefined): string => {
+  if (ms == null) return '—';
+  const m = ms / 60000;
+  if (m < 1) return '<1m';
+  if (m < 60) return `${Math.round(m)}m`;
+  const h = m / 60;
+  if (h < 24) return `${Math.round(h)}h`;
+  return `${Math.round(h / 24)}d`;
+};
+
+/** Quote a CSV cell only when needed. */
+const csvCell = (v: any): string => {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+/** Rows → CSV text given an ordered column spec. */
+export function toCsv(rows: Record<string, any>[], columns: { key: string; label: string }[]): string {
+  const head = columns.map((c) => csvCell(c.label)).join(',');
+  const body = rows.map((r) => columns.map((c) => csvCell(r[c.key])).join(',')).join('\n');
+  return `${head}\n${body}`;
+}
+/** Trigger a client-side CSV file download (no server round-trip). */
+export function downloadCsv(filename: string, csv: string): void {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function KPI({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="an-kpi">
