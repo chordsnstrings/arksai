@@ -15,4 +15,8 @@ test('chat prompt steers image requests to GENERATE, never to a stock-photo sear
   assert.match(p, /NEVER a search/);
   assert.match(p, /stock\/Unsplash|stock photos/i);
   assert.match(p, /do NOT web_search/i);
+  // and the prohibition that stops "I don't have image tools → fall back to HTML/CSS"
+  assert.match(p, /image generation tools/i);
+  assert.match(p, /HTML\/CSS/);
+  assert.match(p, /fix the (call|arguments)/i);
 });

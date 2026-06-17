@@ -75,17 +75,28 @@ export const generateCreativeTool: ToolDef = {
   summarize: (a) => `creative: ${String(a.headline ?? '').slice(0, 50)}`,
   async run(args, ctx) {
     // Resolve the imagery from whatever field the model used (never hard-fails on a rename).
-    const prompt = resolveCreativePrompt(args);
+    let prompt = resolveCreativePrompt(args);
     const headline = String(args.headline ?? args.title ?? args.heading ?? '').trim();
+    const subhead = String(args.subhead ?? '').trim();
+    // NEVER hard-fail when the model gave copy but forgot the imagery `prompt` — that 0.0s
+    // error gets misread by the model as "I don't have image tools" → it wrongly falls back to
+    // HTML/CSS. Instead synthesize a tasteful on-brand background from the copy so the tool
+    // ALWAYS produces an image; the steering pushes the model to pass the real scene for a
+    // better result. Only error if there's genuinely nothing (no imagery AND no copy).
     if (!prompt) {
-      return (
-        'Error: generate_creative needs the imagery described in `prompt` (the scene/style ONLY — ' +
-        'never any text/words in it), with the copy in SEPARATE fields. Example: {"prompt":"bright ' +
-        'photorealistic London travel scene with Big Ben, the London Eye and a red double-decker bus, ' +
-        'clean empty negative space, premium","headline":"UK Tourist Visa","subhead":"Fast & accurate ' +
-        'processing","bullets":["Quick turnaround","Embassy-ready files"],"accent":"#C8102E",' +
-        '"aspect_ratio":"1:1","logo_placeholder":true}. Retry with the scene in `prompt`.'
-      );
+      const topic = [headline, subhead].filter(Boolean).join(' — ');
+      if (topic) {
+        prompt = `A premium, modern, photographic on-brand background image for a marketing creative about "${topic}" — clean editorial composition with generous empty negative space for overlaid text, high-end advertising, NO text/words/letters in the image`;
+      } else {
+        return (
+          'generate_creative IS available and working — this call was just missing BOTH the imagery ' +
+          'and the copy. Call it AGAIN (do not switch modes or build HTML) with a `prompt` describing ' +
+          'the SCENE (subject, setting, style) and the wording in headline/subhead/bullets/cta. ' +
+          'Example: {"prompt":"bright photorealistic London travel scene with Big Ben and a red bus, ' +
+          'clean empty negative space, premium","headline":"UK Tourist Visa","subhead":"Fast & accurate ' +
+          'processing","aspect_ratio":"1:1","logo_placeholder":true}.'
+        );
+      }
     }
     const aspectIn = String(args.aspect_ratio ?? args.aspect ?? '1:1');
     const aspect = CREATIVE_SIZES[aspectIn] ? aspectIn : '1:1';
