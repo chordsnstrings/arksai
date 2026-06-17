@@ -71,9 +71,21 @@ export const generateCreativeTool: ToolDef = {
     required: ['prompt'],
   },
   modes: ['chat', 'code'],
-  available: () => !!config.minimaxApiKey,
+  // ALWAYS in the toolset (not gated on the key). When the key is missing we return a CLEAR
+  // config error below — otherwise the heavily-steered model calls a tool that isn't there,
+  // gets an instant "unknown tool" reject, and misreads it as "image generation unavailable"
+  // → wrongly builds a CSS/SVG graphic. Presence + a precise error is far better UX.
+  available: () => true,
   summarize: (a) => `creative: ${String(a.headline ?? '').slice(0, 50)}`,
   async run(args, ctx) {
+    if (!config.minimaxApiKey) {
+      return (
+        'Image generation is not switched on for this server yet — the MINIMAX_API_KEY is not configured. ' +
+        'Do NOT retry, do NOT switch to code, do NOT build a CSS/SVG graphic, and do NOT web-search a photo. ' +
+        'Tell the user plainly: "Image generation isn\'t enabled on this workspace yet — the operator needs to ' +
+        'add the MiniMax API key (a MiniMax sk-cp Subscription key) to the server." That is the only fix.'
+      );
+    }
     // Resolve the imagery from whatever field the model used (never hard-fails on a rename).
     let prompt = resolveCreativePrompt(args);
     const headline = String(args.headline ?? args.title ?? args.heading ?? '').trim();

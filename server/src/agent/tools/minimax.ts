@@ -54,9 +54,18 @@ export const generateImageTool: ToolDef = {
     required: ['prompt'],
   },
   modes: ['chat', 'code'],
-  available: minimaxOn,
+  // Always present (see generate_creative): a missing key returns a clear config error rather
+  // than the tool vanishing from the toolset and the model misreading the gap as "no image tool".
+  available: () => true,
   summarize: (a) => String(a.prompt ?? '').slice(0, 80),
   async run(args, ctx) {
+    if (!config.minimaxApiKey) {
+      return (
+        'Image generation is not switched on for this server yet — the MINIMAX_API_KEY is not configured. ' +
+        'Do NOT retry, switch to code, build a CSS/SVG graphic, or web-search a photo. Tell the user: ' +
+        '"Image generation isn\'t enabled on this workspace yet — the operator needs to add the MiniMax API key."'
+      );
+    }
     const r = await generateImage(
       String(args.prompt ?? ''),
       { aspectRatio: args.aspect_ratio ? String(args.aspect_ratio) : undefined, n: Number(args.n) || 1 },
