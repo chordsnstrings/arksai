@@ -22,6 +22,14 @@ export async function initStore() {
   await bootstrapOrgs();
 }
 
+// Exactly the columns rowToMeta needs — deliberately EXCLUDING the `context` blob
+// (the full agent transcript, often large). listSessions returns every session in the
+// org on each app open / sidebar refresh; SELECT * pulled + parsed + discarded that
+// blob N times. Projecting the metadata columns keeps the hot path lean.
+const META_COLS =
+  'id, title, org_id, project_id, repo_url, repo_name, branch, mode, model, status, task, ' +
+  'awaiting_plan, diff_stat, total_tokens, prompt_tokens, completion_tokens, cost_usd, created_at, updated_at';
+
 function rowToMeta(row: any): SessionMeta {
   return {
     id: row.id,
@@ -78,7 +86,7 @@ export async function createSession(opts: {
 }
 
 export async function getSession(id: string, scope?: Scope): Promise<SessionMeta | null> {
-  const row = await qOne('SELECT * FROM sessions WHERE id = $1', [id]);
+  const row = await qOne(`SELECT ${META_COLS} FROM sessions WHERE id = $1`, [id]);
   if (!row) return null;
   if (scoped(scope) && row.org_id !== scope!.orgId) return null; // cross-org → not found
   return rowToMeta(row);
@@ -86,9 +94,9 @@ export async function getSession(id: string, scope?: Scope): Promise<SessionMeta
 
 export async function listSessions(scope?: Scope): Promise<SessionMeta[]> {
   if (scoped(scope)) {
-    return (await q('SELECT * FROM sessions WHERE org_id = $1 ORDER BY updated_at DESC', [scope!.orgId])).map(rowToMeta);
+    return (await q(`SELECT ${META_COLS} FROM sessions WHERE org_id = $1 ORDER BY updated_at DESC`, [scope!.orgId])).map(rowToMeta);
   }
-  return (await q('SELECT * FROM sessions ORDER BY updated_at DESC')).map(rowToMeta);
+  return (await q(`SELECT ${META_COLS} FROM sessions ORDER BY updated_at DESC`)).map(rowToMeta);
 }
 
 const COLUMN: Record<string, string> = {
