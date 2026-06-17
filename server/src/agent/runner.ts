@@ -770,7 +770,12 @@ export class AgentRun {
     // whereas the fast model produces the same magazine-grade report ~4× faster. Code mode
     // keeps M3 (it succeeds there with the 150s patience). Once M3 has stalled on a code run,
     // also switch to the fast model for the rest of that run.
-    const useFast = this.minimaxFellBack || this.session.mode === 'report';
+    // EXCEPTION — Legal stays on M3 even in report mode. A live bake-off showed the fast
+    // model (M2.7, an "always-think" coding model) spends its whole budget on a thinking
+    // block and returns ZERO usable text on long legal drafting, whereas M3 produces
+    // law-firm-grade bilingual output. Legal quality > the report-mode latency saving.
+    const isLegal = !!this.session.task?.startsWith('legal.');
+    const useFast = this.minimaxFellBack || (this.session.mode === 'report' && !isLegal);
     const model = useFast ? config.minimaxFallbackModel : this.activeApiModel;
     const body: Record<string, unknown> = { model, max_tokens: 64000, system, messages, stream: true };
     if (tools.length) body.tools = tools;

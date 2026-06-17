@@ -44,25 +44,29 @@ test('expertiseFor: BI & Analytics tasks carry analytics rigor', () => {
   assert.ok(expertiseFor('bi.alert'));
 });
 
-test('expertiseFor: Legal persona — bilingual DOCUMENT, but conversation matches the user (not bilingual chat)', () => {
+test('expertiseFor: Legal — converse in the user language; bilingual is by destination; internal defaults to English', () => {
   const e = expertiseFor('legal.contract')!;
   assert.match(e, /BRITISH ENGLISH/);
   assert.match(e, /jurisdiction/i);
   assert.match(e, /licensed UAE advocate|licensed UAE lawyer/i);
   assert.match(e, /not legal advice/i);
-  // bilingual is scoped to the DELIVERABLE/document…
-  assert.match(e, /BILINGUAL DELIVERABLE/);
-  assert.match(e, /document only/i);
-  // …and the CONVERSATION must mirror the user's language, never go bilingual.
+  // the CONVERSATION mirrors the user's language, never bilingual chat
   assert.match(e, /MATCH THE USER/i);
   assert.match(e, /same language the user/i);
   assert.doesNotMatch(e, /bilingual by default/i);
+  // bilingual is BY DESTINATION (government/court/notary); internal → default English
+  assert.match(e, /BY DESTINATION/i);
+  assert.match(e, /government|court|notary/i);
+  assert.match(e, /DEFAULT ENGLISH/i);
 });
 
-test('expertiseFor: the operator-requested legal plays carry their specifics, and all legal plays resolve', () => {
-  assert.match(expertiseFor('legal.policereport')!, /Penal Code|criminal complaint|Public Prosecution/i);
-  assert.match(expertiseFor('legal.forensic')!, /forensic|chronology|exposure/i);
-  assert.match(expertiseFor('legal.opinion')!, /opinion|memorandum/i);
+test('expertiseFor: government-facing legal docs are bilingual; internal ones default to English', () => {
+  const police = expertiseFor('legal.policereport')!;
+  assert.match(police, /BILINGUAL/);
+  assert.match(police, /Penal Code|Public Prosecution/i);
+  // internal work product → English by default, not bilingual
+  assert.match(expertiseFor('legal.forensic')!, /default English/i);
+  assert.match(expertiseFor('legal.opinion')!, /default English/i);
   for (const k of Object.keys(LEGAL_TASKS)) {
     assert.match(expertiseFor(k) ?? '', /BRITISH ENGLISH/, `${k} resolves with the legal persona`);
   }
