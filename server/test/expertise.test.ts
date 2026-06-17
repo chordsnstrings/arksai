@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { expertiseFor } from '../src/agent/expertise';
+import { LEGAL_TASKS } from '../src/agent/legal/uae';
 import { buildSystemPrompt } from '../src/agent/prompts';
 
 test('expertiseFor: null for no task or unknown key', () => {
@@ -41,6 +42,30 @@ test('expertiseFor: BI & Analytics tasks carry analytics rigor', () => {
   assert.match(expertiseFor('bi.datadict')!, /definition|metric/i);
   assert.match(expertiseFor('bi.forecast')!, /formula|assumption/i);
   assert.ok(expertiseFor('bi.alert'));
+});
+
+test('expertiseFor: Legal persona — bilingual DOCUMENT, but conversation matches the user (not bilingual chat)', () => {
+  const e = expertiseFor('legal.contract')!;
+  assert.match(e, /BRITISH ENGLISH/);
+  assert.match(e, /jurisdiction/i);
+  assert.match(e, /licensed UAE advocate|licensed UAE lawyer/i);
+  assert.match(e, /not legal advice/i);
+  // bilingual is scoped to the DELIVERABLE/document…
+  assert.match(e, /BILINGUAL DELIVERABLE/);
+  assert.match(e, /document only/i);
+  // …and the CONVERSATION must mirror the user's language, never go bilingual.
+  assert.match(e, /MATCH THE USER/i);
+  assert.match(e, /same language the user/i);
+  assert.doesNotMatch(e, /bilingual by default/i);
+});
+
+test('expertiseFor: the operator-requested legal plays carry their specifics, and all legal plays resolve', () => {
+  assert.match(expertiseFor('legal.policereport')!, /Penal Code|criminal complaint|Public Prosecution/i);
+  assert.match(expertiseFor('legal.forensic')!, /forensic|chronology|exposure/i);
+  assert.match(expertiseFor('legal.opinion')!, /opinion|memorandum/i);
+  for (const k of Object.keys(LEGAL_TASKS)) {
+    assert.match(expertiseFor(k) ?? '', /BRITISH ENGLISH/, `${k} resolves with the legal persona`);
+  }
 });
 
 test('buildSystemPrompt: injects the expert standards when the session has a task', () => {
