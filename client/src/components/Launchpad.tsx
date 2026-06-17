@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { SessionMode } from '@shared/types';
 import { AUTO_MODEL } from '@shared/types';
 import { api } from '../api/client';
@@ -55,7 +55,9 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   const [nameOverride, setNameOverride] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const name = nameOverride ?? displayName(me?.user?.name);
-  const greet = greeting(name);
+  // Memoize on the resolved name so the line is stable across keystrokes (and doesn't
+  // re-roll mid-session) — it only updates once, when `me` loads the name in.
+  const greet = useMemo(() => greeting(name), [name]);
   const saveName = (v: string) => {
     const first = v.trim().split(/\s+/)[0] ?? '';
     try {

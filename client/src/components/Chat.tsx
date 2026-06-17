@@ -39,11 +39,23 @@ const TOOL_LABEL: Record<string, string> = {
   generate_video: 'Filming the clip',
   generate_music: 'Composing the track',
   switch_mode: 'Switching gears',
+  submit_plan: 'Sharing the plan',
+  generate_creative: 'Designing the creative',
+  generate_compliance_file: 'Preparing the filing',
+  verify: 'Checking it works',
+  crawl_site: 'Reading your website',
+  save_org_profile: 'Saving your brand',
 };
+
+// Friendly label for any tool — falls back to a humanized "snake_case" → "Snake case"
+// so a newly-added tool never shows the user a raw machine name in the ticker.
+function toolLabel(name: string): string {
+  return TOOL_LABEL[name] ?? name.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+}
 
 function ToolRow({ call }: { call: ToolCallRecord }) {
   const [open, setOpen] = useState(false);
-  const label = TOOL_LABEL[call.tool] ?? call.tool;
+  const label = toolLabel(call.tool);
   return (
     <div className="tool-row">
       <div className="head" onClick={() => setOpen((v) => !v)}>
@@ -69,13 +81,13 @@ function ToolActivity({ calls, running }: { calls: ToolCallRecord[]; running: bo
   const [open, setOpen] = useState(running);
   const byTool = new Map<string, number>();
   for (const c of calls) {
-    const label = TOOL_LABEL[c.tool] ?? c.tool;
+    const label = toolLabel(c.tool);
     byTool.set(label, (byTool.get(label) ?? 0) + 1);
   }
   const counts = [...byTool.entries()].map(([t, n]) => `${t} · ${n}`).join('  ');
   // While running, lead with a live one-line ticker of the CURRENT action.
   const current = running ? calls[calls.length - 1] : null;
-  const ticker = current ? TOOL_LABEL[current.tool] ?? current.tool : null;
+  const ticker = current ? toolLabel(current.tool) : null;
   return (
     <div className="tool-group">
       <button className="tool-group-header" onClick={() => setOpen((v) => !v)}>

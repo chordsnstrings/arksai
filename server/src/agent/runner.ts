@@ -53,11 +53,13 @@ function estimateTokens(messages: unknown): number {
 const DELIVERABLE_GLOB =
   '**/*.{xlsx,xls,csv,pdf,docx,doc,pptx,png,jpg,jpeg,svg,zip,tar,gz,tgz,tar.gz,mp3,wav,mp4,json}';
 
-const MODE_LABELS: Record<SessionMode, string> = {
-  chat: 'Chat',
-  plan: 'Plan',
-  code: 'Build (Code)',
-  report: 'Report',
+// Shown inline to the user when the agent re-routes itself. Warm + action-framed —
+// NOT "Switched to Build (Code) mode" jargon (the user never picks modes).
+const MODE_SWITCH_LINE: Record<SessionMode, string> = {
+  chat: 'Let’s talk this through.',
+  plan: 'Let me map out a plan first.',
+  code: 'Setting things up to build this.',
+  report: 'Designing this as a polished report.',
 };
 
 /** Document/binary files created or modified during a run → download chips in the chat. */
@@ -558,7 +560,7 @@ export class AgentRun {
           memoryBlock = await this.loadMemoryBlock(dir);
           systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile);
           this.routeModel(userText, sysInfo);
-          sysInfo(`↳ Switched to ${MODE_LABELS[newMode]} mode.`);
+          sysInfo(`↳ ${MODE_SWITCH_LINE[newMode]}`);
           this.emit({ type: 'session_meta_updated', meta: { id: sessionId, mode: newMode } });
           const meta = await store.getSession(sessionId);
           if (meta) bus.sessionChanged(meta);
