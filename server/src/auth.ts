@@ -77,18 +77,15 @@ export async function resolveIdentity(req: FastifyRequest): Promise<Identity | n
       if (sess) {
         const user = await getUser(sess.userId);
         if (user) {
-          const orgRole = user.isSuperadmin
-            ? 'superadmin'
-            : sess.currentOrgId
-              ? await roleInOrg(user.id, sess.currentOrgId)
-              : null;
-          return {
-            userId: user.id,
-            email: user.email,
-            orgId: sess.currentOrgId,
-            role: (orgRole ?? (user.isSuperadmin ? 'superadmin' : 'member')) as Identity['role'],
-            isSuperadmin: user.isSuperadmin,
-          };
+          if (user.isSuperadmin) {
+            return { userId: user.id, email: user.email, orgId: sess.currentOrgId, role: 'superadmin', isSuperadmin: true };
+          }
+          // A non-superadmin MUST have a current org AND still be a member of it. A
+          // null-org (or removed-from-org) identity gets NO access — never fall through
+          // to an unscoped "internal" scope (that was the cross-tenant escalation).
+          const role = sess.currentOrgId ? await roleInOrg(user.id, sess.currentOrgId) : null;
+          if (!sess.currentOrgId || !role) return null;
+          return { userId: user.id, email: user.email, orgId: sess.currentOrgId, role, isSuperadmin: false };
         }
       }
     }
@@ -134,6 +131,11 @@ export function registerAuth(app: FastifyInstance) {
         return reply.code(401).send({ error: 'Invalid email or password.' });
       }
       const orgs = user.isSuperadmin ? await listOrgs() : await orgsForUser(user.id);
+      // A non-superadmin with no organization has no access — don't mint a null-org
+      // session (that path bypassed org scoping). They need an invite.
+      if (!user.isSuperadmin && orgs.length === 0) {
+        return reply.code(403).send({ error: 'Your account isn’t part of an organization yet — ask your admin for an invite link.' });
+      }
       const currentOrg = orgs[0]?.id ?? null;
       const token = await createAuthSession(user.id, currentOrg);
       setSessCookie(reply, token);

@@ -183,3 +183,15 @@ test('RED TEAM: analytics are operator-gated and per-org isolated (metadata only
   assert.equal((await app.inject({ url: `/api/orgs/${orgAId}/analytics/overview`, headers: { cookie: opCookie } })).statusCode, 200, 'operator blocked from per-org drill');
   assert.equal((await app.inject({ url: `/api/admin/analytics/users/${userAId}`, headers: { cookie: opCookie } })).statusCode, 200, 'operator blocked from user drill');
 });
+
+test('RED TEAM: the waitlist is operator-only, and an org-less user gets NO session', async () => {
+  // /api/leads is platform data: a normal org admin (non-superadmin) must NOT dump it.
+  assert.equal((await app.inject({ url: '/api/leads', headers: { cookie: cookieA } })).statusCode, 403, 'org admin dumped the waitlist');
+  assert.equal((await app.inject({ url: '/api/leads', headers: { cookie: opCookie } })).statusCode, 200, 'operator blocked from its own waitlist');
+
+  // A user with NO org membership cannot log in — closing the null-org scope-bypass at
+  // the entry (a null-org identity used to read every org's data).
+  await orgs.createUser({ email: 'orphan@nowhere.com', password: 'password123', name: 'Orphan' });
+  const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'orphan@nowhere.com', password: 'password123' } });
+  assert.equal(login.statusCode, 403, 'an org-less user was granted a session');
+});

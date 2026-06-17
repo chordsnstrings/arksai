@@ -37,8 +37,11 @@ export function registerLeadRoutes(app: FastifyInstance) {
     return reply.code(201).send({ ok: true });
   });
 
-  // ADMIN — gated by the normal auth preHandler.
-  app.get('/api/leads', async () => {
+  // OPERATOR ONLY — the waitlist is platform data. (The auth preHandler only proves
+  // authenticated; this endpoint must additionally require super-admin so a normal
+  // tenant can't dump every lead. The client uses the gated /api/admin/leads.)
+  app.get('/api/leads', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Super-admin only.' });
     const rows = await q(`SELECT id, email, company, role, team, note, created_at FROM leads ORDER BY created_at DESC LIMIT 500`);
     return { leads: rows };
   });
