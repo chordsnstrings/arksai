@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api/client';
 import { useGlobalEvents, useSessionEvents } from './api/useEventStream';
 import { useAutomation } from './api/useAutomation';
@@ -53,6 +53,15 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
+  // A deep link (/s/<id>) that resolved to a session we can't open (deleted / no
+  // access). We keep the URL and show an explicit panel instead of silently
+  // dumping the user on the Launchpad. The ref dedupes the one-shot resolve per id.
+  const [deepLinkNotFound, setDeepLinkNotFound] = useState(false);
+  const deepLinkTried = useRef<string | null>(null);
+  // The state→URL effect must NOT clobber an as-yet-unresolved /s/<id> on first paint
+  // (the 404 lands async, after this effect's first run) — so it skips the clear-to-'/'
+  // exactly once at boot, then behaves normally.
+  const didInitialUrlSync = useRef(false);
 
   useEffect(() => {
     if (authed !== true) {
@@ -80,38 +89,69 @@ export default function App() {
 
   // Deep-linkable chats: keep the URL in sync with the active session as /s/<id>, so every
   // chat has a real shareable/bookmarkable link (and reload/back-forward reopen it).
-  // NOTE: deliberately NOT depending on activeId — this effect reacts only to load,
-  // sessions arriving, and back/forward (popstate); the state→URL effect below owns the
-  // activeId→URL direction. (Depending on activeId here ping-pongs the two into a loop.)
+  // NOTE: this resolves the URL on load + back/forward ONLY — it deliberately does NOT
+  // depend on `sessions` or `activeId`. Re-running it on a sessions-change would re-read a
+  // stale URL right after a delete and falsely 404 the just-deleted session; instead we
+  // read sessions fresh via getState() and let the state→URL effect own activeId→URL.
   useEffect(() => {
     if (authed !== true) return;
-    // Initial + when sessions arrive: only OPEN the URL's session — never clear here
-    // (clearing on a sessions-change would nuke a just-opened session before the URL syncs).
+    const resolve = (id: string) => {
+      const st = useStore.getState();
+      // Already loaded (first page / opened before): just activate it.
+      if (st.sessions.some((s) => s.id === id)) {
+        if (st.activeId !== id) setActive(id);
+        setDeepLinkNotFound(false);
+        return;
+      }
+      // Not in the loaded list — an older session past the first page, or one we
+      // can't access. Resolve it directly; on 404 show the not-available panel.
+      if (deepLinkTried.current === id) return;
+      deepLinkTried.current = id;
+      api
+        .getSession(id)
+        .then((detail) => {
+          const store = useStore.getState();
+          store.upsertSession(detail.meta);
+          store.loadDetail(detail);
+          setActive(id);
+          setDeepLinkNotFound(false);
+        })
+        .catch(() => setDeepLinkNotFound(true));
+    };
     const m = window.location.pathname.match(/^\/s\/([^/]+)$/);
-    const id = m ? m[1] : null;
-    if (id && sessions.some((s) => s.id === id) && useStore.getState().activeId !== id) setActive(id);
-    // Back/forward only: follow the URL, including clearing to the launchpad.
+    if (m) resolve(m[1]);
+    // Back/forward: follow the URL, including clearing to the launchpad.
     const onPop = () => {
       const mm = window.location.pathname.match(/^\/s\/([^/]+)$/);
-      const pid = mm ? mm[1] : null;
-      const cur = useStore.getState().activeId;
-      if (pid) {
-        if (sessions.some((s) => s.id === pid) && cur !== pid) setActive(pid);
-      } else if (cur) {
-        setActive(null);
+      if (mm) resolve(mm[1]);
+      else {
+        if (useStore.getState().activeId) setActive(null);
+        setDeepLinkNotFound(false);
       }
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [authed, sessions, setActive]);
+  }, [authed, setActive]);
 
   useEffect(() => {
     if (authed !== true) return;
     const p = window.location.pathname;
     if (p.startsWith('/invite/') || p === '/operator' || p === '/operator/') return;
+    // A real session is open → any earlier "not available" deep link is moot.
+    if (activeId && deepLinkNotFound) setDeepLinkNotFound(false);
+    // Don't erase a not-found deep link's URL — keep it so the user can copy/retry;
+    // only the explicit "Start a new chat" CTA clears it.
+    if (deepLinkNotFound && !activeId) return;
+    // First run at boot with nothing active yet: a deep link may still be resolving
+    // (its 404 is async) — skip the clear-to-'/' this once so we never clobber it.
+    if (!didInitialUrlSync.current && !activeId) {
+      didInitialUrlSync.current = true;
+      return;
+    }
+    didInitialUrlSync.current = true;
     const target = activeId ? `/s/${activeId}` : '/';
     if (p !== target) window.history.pushState({}, '', target); // guard prevents popstate loops
-  }, [activeId, authed]);
+  }, [activeId, authed, deepLinkNotFound]);
 
   useGlobalEvents(authed === true);
   useSessionEvents(authed === true ? activeId : null);
@@ -159,6 +199,14 @@ export default function App() {
   // has loaded — so switching sessions never flashes the Launchpad/department picker.
   const liveOrEmpty = live ?? emptyLive();
 
+  // Clear a not-found deep link and return to the Launchpad on the user's say-so.
+  const dismissDeepLink = () => {
+    deepLinkTried.current = null;
+    setDeepLinkNotFound(false);
+    setActive(null);
+    window.history.pushState({}, '', '/');
+  };
+
   return (
     <div className={`app ${navOpen ? 'nav-open' : 'nav-closed'}`}>
       <Sidebar
@@ -187,6 +235,20 @@ export default function App() {
             />
             <CostBar meta={activeMeta} live={liveOrEmpty} />
           </>
+        ) : deepLinkNotFound ? (
+          <div className="deeplink-missing">
+            <div className="dm-card">
+              <div className="dm-eyebrow">Chat unavailable</div>
+              <div className="dm-title">This chat isn’t available</div>
+              <p className="dm-body">
+                It may have been deleted, or you don’t have access to it. The link still works for
+                anyone it was shared with who has access.
+              </p>
+              <button className="dm-cta" onClick={dismissDeepLink}>
+                Start a new chat
+              </button>
+            </div>
+          </div>
         ) : (
           <Launchpad onAdvanced={() => setShowNew({ projectId: null })} />
         )}

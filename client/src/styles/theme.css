@@ -1166,6 +1166,23 @@ button { font-family: inherit; cursor: pointer; }
 .tool-ticker .tk-arg { color: var(--text-faint); }
 
 /* ---- Launchpad — department-aware editorial entry ---- */
+/* deep link to a chat we can't open (deleted / no access) — an explicit, calm panel */
+.deeplink-missing { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px 28px; }
+.dm-card {
+  max-width: 440px; text-align: center;
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 34px 32px;
+}
+.dm-eyebrow { font-family: var(--label); font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 12px; }
+.dm-title { font-family: var(--display); font-size: 23px; color: var(--text); margin-bottom: 10px; }
+.dm-body { color: var(--text-muted); font-size: 14px; line-height: 1.55; margin-bottom: 22px; }
+.dm-cta {
+  font-family: var(--label); font-size: 13px; font-weight: 500; letter-spacing: 0.02em;
+  background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 20px;
+  transition: background 0.15s ease;
+}
+.dm-cta:hover { background: var(--accent-strong); }
+
 .launchpad { flex: 1; display: flex; justify-content: center; padding: 24px 28px 40px; overflow: auto; }
 .lp-inner { width: 100%; max-width: 880px; display: flex; flex-direction: column; }
 

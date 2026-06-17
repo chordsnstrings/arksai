@@ -12,7 +12,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 
 ## Core product & agent
 - Autonomous agent loop — streaming, tool-calling, stall guard, context truncation, graceful error handling.
-- **Shareable per-chat links** — every session has its own URL (`/s/<id>`) reflected in the address bar (deep-link / bookmark / reload reopens it, back-forward works), plus a **🔗 Link** button in the top bar to copy it.
+- **Shareable per-chat links** — every session has its own URL (`/s/<id>`) reflected in the address bar (deep-link / bookmark / reload reopens it — including older chats past the first page, fetched on demand; back-forward works), plus a **🔗 Link** button in the top bar to copy it. A link to a deleted or inaccessible chat shows a clear "this chat isn't available" panel (the URL is kept so it can be retried) rather than silently dumping you on the home screen.
 - One seamless chat — no modes to pick. The user just talks; ArksAI reads the request and moves itself into whatever it needs — chat, plan, build (code), report, or image generation — with the right curated toolset. Under the hood there are still 4 modes (Chat / Plan / Code / Report) + capability tools, but the user never toggles them (a read-only chip in the TopBar shows what it's doing). Power users can still force one with `/mode`.
 - Tooling: file read/write/edit, glob/grep, bash + persistent background processes, git, web search/fetch.
 
