@@ -1089,15 +1089,19 @@ button { font-family: inherit; cursor: pointer; }
   transition: width 0.25s ease;
   position: relative;
 }
+/* "Alive" even when the width is static (e.g. a long silent M3 buffering gap): a gentle
+   breathing pulse on the fill PLUS a brighter sweeping highlight, so it never reads frozen. */
+.progress-fill.running { animation: progressPulse 1.8s ease-in-out infinite; }
 .progress-fill.running::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  animation: shimmer 1.3s linear infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: shimmer 1.15s linear infinite;
 }
 .progress-fill.done { transition: width 0.5s ease; }
 @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes progressPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
 .progress-label {
   padding: 5px 16px 7px;
   font-size: 12px;
@@ -1363,7 +1367,7 @@ button { font-family: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .sidebar { transition: none; }
   .canvas, .completion-card, .cc-thumb, .cc-check, .onb-accent, .onb-swatch { animation: none; }
-  .progress-fill.running::after { animation: none; }
+  .progress-fill.running, .progress-fill.running::after { animation: none; }
   /* the looping hero demo collapses to its finished card (no motion) */
   .lnd-demo-prompt, .lnd-demo-work, .d-caret { display: none; }
   .lnd-demo-result { position: static; opacity: 1; animation: none; transform: none; }

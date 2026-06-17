@@ -62,6 +62,15 @@ const MODE_SWITCH_LINE: Record<SessionMode, string> = {
   report: 'Designing this as a polished report.',
 };
 
+// Warm, mode-aware copy when a thinking model burns its whole output budget reasoning
+// and produces nothing (the terminal empty-turn case) — "nothing got built" is wrong for chat.
+const EMPTY_BUDGET_MSG: Record<SessionMode, string> = {
+  chat: 'That answer ran long and got cut off before it finished. Ask it a bit more narrowly and I’ll get you a clean, complete answer.',
+  plan: 'The plan grew too long to finish in one pass. Tell me what matters most and I’ll lay out a tighter one.',
+  code: 'That one turned out a bit too big to finish in a single pass, so nothing got built yet. Try a smaller, more specific ask — or split it into a couple of pieces — and I’ll take it from there.',
+  report: 'That turned out a bit too big to finish in a single pass, so the document didn’t get made yet. Try a tighter scope — or split it — and I’ll take it from there.',
+};
+
 /** Document/binary files created or modified during a run → download chips in the chat. */
 async function findDeliverables(repoDirPath: string, sinceTs: number): Promise<TimelineItem[]> {
   try {
@@ -511,8 +520,7 @@ export class AgentRun {
           // rather than reporting a silent "done" with nothing built (the worst outcome).
           if (!text.trim() && finishReason === 'length' && !this.abort.signal.aborted) {
             finalStatus = 'error';
-            const msg =
-              'That one turned out a bit too big to finish in a single pass, so nothing got built yet. Try again with a smaller, more specific ask — or split it into a couple of pieces — and I’ll take it from there.';
+            const msg = EMPTY_BUDGET_MSG[this.session.mode] ?? EMPTY_BUDGET_MSG.code;
             this.emit({ type: 'run_error', runId: this.runId, message: msg });
             liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
             stopReason = 'natural';
