@@ -12,12 +12,29 @@ export interface UiCheckResult {
   consoleErrors: string[];
   pageErrors: string[]; // uncaught exceptions
   failedRequests: string[]; // same-origin 4xx/5xx
+  /** Values that leaked into the visible UI ([object Object] / undefined / NaN) */
+  leakedValues?: string[];
   /** MiniMax-VL visual judgment of the screenshot, when vision is available */
   visualReview?: string;
   /** Design rubric verdict (visual tasks): gating signal for the design loop */
   designVerdict?: 'pass' | 'revise' | 'unknown';
   designDefects?: string[];
   detail: string;
+}
+
+/**
+ * Detect values that leaked into the rendered UI — "[object Object]", or a standalone
+ * "undefined"/"NaN" as visible text — almost always a template/render bug (an unset
+ * variable, an unlabelled chart series, a bad computation shown to the user). Pure +
+ * unit-tested; returns one actionable line per kind found.
+ */
+export function detectLeakedValues(visibleText: string): string[] {
+  const out: string[] = [];
+  const t = String(visibleText || '');
+  if (/\[object Object\]/.test(t)) out.push('"[object Object]" is rendered on the page — an object is being shown instead of its value.');
+  if (/\bundefined\b/.test(t)) out.push('"undefined" appears as visible text — an unset value leaked into the UI (e.g. an unlabelled chart series or a missing field).');
+  if (/\bNaN\b/.test(t)) out.push('"NaN" appears as visible text — a bad numeric computation leaked into the UI.');
+  return out;
 }
 
 const VISION_PROMPT =
@@ -184,6 +201,20 @@ export async function browserSmokeTest(
       }
     }
 
+    // Deterministic "a value leaked into the UI" check (post-interaction): a rendered
+    // "[object Object]", or a standalone "undefined"/"NaN", is almost always a
+    // template/render bug (an unset variable or a bad computation shown to the user).
+    // Surfaced as a warning the agent can self-correct — not a hard fail (rare legit text).
+    let leaked: string[] = [];
+    if (!blank) {
+      try {
+        const txt = String(await page.evaluate(() => (globalThis as any).document?.body?.innerText || '').catch(() => ''));
+        leaked = detectLeakedValues(txt);
+      } catch {
+        /* best-effort */
+      }
+    }
+
     const docFailed = !resp || resp.status() >= 400;
     const ce = dedupe(consoleErrors);
     const pe = dedupe(pageErrors);
@@ -236,6 +267,7 @@ export async function browserSmokeTest(
     if (pe.length) lines.push(`✗ Uncaught JS errors:\n  - ${pe.join('\n  - ')}`);
     if (fr.length) lines.push(`✗ Failed requests (same-origin):\n  - ${fr.join('\n  - ')}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
+    if (leaked.length) lines.push(`⚠ Value leaked into the UI:\n  - ${leaked.join('\n  - ')}`);
     if (interacted) lines.push('• Interaction pass ran (seeded inputs, submitted a form, clicked primary actions).');
     if (!hardFail && !ce.length) lines.push('✓ UI rendered cleanly — no errors, no failed requests.');
     if (designVerdict === 'revise' && designDefects?.length) {
@@ -260,6 +292,7 @@ export async function browserSmokeTest(
       consoleErrors: ce,
       pageErrors: pe,
       failedRequests: fr,
+      leakedValues: leaked,
       visualReview,
       designVerdict,
       designDefects,

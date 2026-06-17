@@ -72,7 +72,9 @@ breathing room; clear sections with a confident type scale; one primary CTA
 repeated; social-proof/feature blocks; bolder display type than an app.`,
   dashboard: `Task: a dashboard. Calm chrome, dense but scannable data; KPI tiles in an even
 grid; legible tables (compact, zebra/hairlines, right-aligned numbers); charts
-flat and on-palette; the accent only on the key metric/series.`,
+flat and on-palette; the accent only on the key metric/series. Every chart series
+MUST have a real label; with a single series, hide the legend entirely — never ship
+a chart whose legend reads "undefined" or is blank.`,
   form: `Task: a form/flow. Short, grouped fields with clear labels + helper text;
 inline validation and friendly errors; visible focus; a clear single primary
 action; a success state. Minimize fields; never overwhelm.`,
@@ -84,8 +86,10 @@ useful. Quiet chrome so the content leads.`,
   'internal-tool': `Task: an internal tool. Efficient and unambiguous over flashy; dense tables,
 clear actions/states, keyboard-friendly; still tidy and on-grid.`,
   'data-viz': `Task: data visualization. Flat 2D only — no 3D/gradients/shadows/heavy
-gridlines; label values directly (no separate legend); a muted base with the
-accent on the key series only; generous spacing; legible at a glance.`,
+gridlines; label values directly and prefer no separate legend; a muted base with the
+accent on the key series only; generous spacing; legible at a glance. If you do use a
+charting lib's legend, label every series — never leave a legend reading "undefined"
+or blank; with one series, turn the legend off.`,
   mobile: `Task: a mobile/app UI. Thumb-friendly targets, bottom-anchored primary actions,
 safe-area padding, large readable type, simple navigation; test narrow widths.`,
   report: '', // report mode has its own bespoke protocol
