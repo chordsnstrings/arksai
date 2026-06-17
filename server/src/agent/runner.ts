@@ -1089,8 +1089,10 @@ export class AgentRun {
     //     render + functional + design-review them, bounded-revise. Web apps are covered by
     //     the live probe below; this gates the FILE deliverables that probe never sees.
     if (config.designGate && !this.abort.signal.aborted) {
-      const { fail, defects } = await this.reviewDeliverables(dir);
+      const review = await this.reviewDeliverables(dir);
+      const { fail, defects } = review;
       if (fail) return failFix(fail.label, fail.detail);
+      this.warnIfDesignGateSkipped(review, sys);
       // ONE bounded revise for documents: re-authoring a whole sheet/doc/deck is expensive, so
       // a 2nd round doubles the time for diminishing returns. Cap at 1 + demand targeted edits.
       if (defects.length && this.designRounds < 1) {
@@ -1181,7 +1183,9 @@ export class AgentRun {
    * (pdf / pptx / xlsx / docx) via the universal QC module. Returns the first functional
    * failure (hard) and the merged design defects (soft), so the caller can bounded-revise.
    */
-  private async reviewDeliverables(dir: string): Promise<{ fail?: { label: string; detail: string }; defects: string[] }> {
+  private async reviewDeliverables(
+    dir: string,
+  ): Promise<{ fail?: { label: string; detail: string }; defects: string[]; checked: number; gated: number }> {
     const kinds: Array<[DeliverableKind, string[]]> = [
       ['pdf', ['.pdf']],
       ['pptx', ['.pptx']],
@@ -1190,19 +1194,39 @@ export class AgentRun {
     ];
     const defects: string[] = [];
     let fail: { label: string; detail: string } | undefined;
+    let checked = 0; // visual deliverables found + run through checkDeliverable
+    let gated = 0; // …of those, how many the DESIGN gate actually assessed (vision ran)
     for (const [kind, exts] of kinds) {
       if (this.abort.signal.aborted) break;
       const abs = await this.newestDeliverable(dir, exts);
       if (!abs) continue;
       const qc = await checkDeliverable(abs, kind, this.abort.signal);
       this.engineCostUsd += config.minimaxVisionCost * (qc.visionCalls || 0);
+      checked++;
+      if (qc.ran) gated++;
       if (!qc.functionalOk && !fail) fail = { label: `${kind.toUpperCase()} validation`, detail: qc.functionalDetail };
       if (qc.designVerdict === 'revise' && qc.designDefects?.length) {
         const tag = path.basename(abs);
         for (const d of qc.designDefects) defects.push(`[${tag}] ${d}`);
       }
     }
-    return { fail, defects: [...new Set(defects)].slice(0, 6) };
+    return { fail, defects: [...new Set(defects)].slice(0, 6), checked, gated };
+  }
+
+  /** When vision was EXPECTED (key set) but the design gate couldn't actually assess some
+   *  produced file (render or vision failed), say so out loud — never let a visual
+   *  deliverable ship as "reviewed" when the review silently didn't happen. */
+  private warnIfDesignGateSkipped(
+    review: { checked: number; gated: number },
+    sys: (level: 'info' | 'error', text: string) => void,
+  ) {
+    if (config.minimaxApiKey && review.checked > review.gated) {
+      const n = review.checked - review.gated;
+      sys(
+        'info',
+        `⚠ Couldn't run the visual design review on ${n} file${n > 1 ? 's' : ''} (the renderer or vision check was unavailable) — it's functionally valid but shipped without that polish pass, so give it a quick look.`,
+      );
+    }
   }
 
   /**
@@ -1222,7 +1246,9 @@ export class AgentRun {
 
     sys('info', '⟳ Auto-rendering every page and design-reviewing the output…');
     this.emitProgress('verifying', 'Reviewing the rendered pages…');
-    const { fail, defects } = await this.reviewDeliverables(dir);
+    const review = await this.reviewDeliverables(dir);
+    const { fail, defects } = review;
+    this.warnIfDesignGateSkipped(review, sys);
 
     // Bounded revise for documents. Reports are quality-first (the user accepts a slightly
     // slower report for Claude-grade polish), and the deterministic structural pre-check now
