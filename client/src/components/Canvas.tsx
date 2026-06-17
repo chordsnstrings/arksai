@@ -179,7 +179,7 @@ export function Canvas({ sessionId }: { sessionId: string }) {
     } else if (canvasTarget.file) {
       const f = canvasTarget.file;
       const base =
-        canvasTarget.kind === 'pdf'
+        canvasTarget.kind === 'pdf' || canvasTarget.kind === 'image'
           ? `/api/sessions/${sessionId}/files/${enc(f)}?inline=1`
           : `/api/sessions/${sessionId}/docview/${enc(f)}`;
       setDocName(f.split('/').pop() || f);

@@ -212,12 +212,12 @@ export type AgentEvent =
       totalTokens: number;
       diffStat: string | null;
       /** What the run produced, for the "it's ready" completion card. */
-      deliverable?: { kind: 'app' | 'pdf' | 'sheet' | 'doc'; name?: string };
+      deliverable?: { kind: 'app' | 'pdf' | 'sheet' | 'doc' | 'image'; name?: string };
     }
   | { type: 'run_error'; runId: string; message: string }
   | { type: 'session_meta_updated'; meta: Partial<SessionMeta> & { id: string } }
   | { type: 'timeline_item'; item: TimelineItem }
-  | { type: 'open_canvas'; port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc' }
+  | { type: 'open_canvas'; port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc' | 'image' }
   | { type: 'clone_progress'; phase: 'cloning' | 'done' | 'error'; detail: string };
 
 /** Lightweight event broadcast on the global channel for the sidebar. */

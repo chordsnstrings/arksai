@@ -20,7 +20,7 @@ export interface ProgressState {
   at: number;
 }
 export interface CompletionState {
-  kind: 'app' | 'pdf' | 'sheet' | 'doc';
+  kind: 'app' | 'pdf' | 'sheet' | 'doc' | 'image';
   name?: string;
 }
 
@@ -83,7 +83,7 @@ interface StoreState {
   commands: CustomCommand[];
   canvasOpen: boolean;
   /** what the canvas should auto-load (set by the open_canvas event) */
-  canvasTarget: { port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc'; at: number } | null;
+  canvasTarget: { port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc' | 'image'; at: number } | null;
   navOpen: boolean;
   automation: Record<string, Automation>;
   /** current user + org context from /api/auth/me (null until fetched / for the legacy operator before fetch) */

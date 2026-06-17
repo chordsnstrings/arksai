@@ -111,7 +111,7 @@ const TOOL_BEAT: Record<string, string> = {
 };
 
 /** Pick the best freshly-produced document to auto-open in the canvas. */
-function pickPreviewDoc(items: TimelineItem[]): { path: string; kind: 'pdf' | 'sheet' | 'doc' } | null {
+function pickPreviewDoc(items: TimelineItem[]): { path: string; kind: 'pdf' | 'sheet' | 'doc' | 'image' } | null {
   const files = items.filter((i): i is Extract<TimelineItem, { kind: 'file' }> => i.kind === 'file');
   const last = (re: RegExp) => {
     const m = files.filter((f) => re.test(f.name));
@@ -123,6 +123,10 @@ function pickPreviewDoc(items: TimelineItem[]): { path: string; kind: 'pdf' | 's
   if (sheet) return { path: sheet, kind: 'sheet' };
   const doc = last(/\.(docx|doc)$/i);
   if (doc) return { path: doc, kind: 'doc' };
+  // A generated image/creative (ad, social, hero) is a first-class deliverable — give it
+  // the same auto-open + "it's ready" reveal as a doc, not just a bare download chip.
+  const img = last(/\.(png|jpe?g|webp)$/i);
+  if (img) return { path: img, kind: 'image' };
   return null;
 }
 
@@ -623,7 +627,7 @@ export class AgentRun {
       // Decide what the canvas should auto-open + load (zero clicks for the user):
       // a renderable web app (preview a port), else the freshly produced
       // document (PDF / spreadsheet / doc). Only after a successful run.
-      let openCanvasEvent: { port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc' } | null = null;
+      let openCanvasEvent: { port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc' | 'image' } | null = null;
       const renderable = detectRenderable(dir);
       if (
         finalStatus === 'done' &&

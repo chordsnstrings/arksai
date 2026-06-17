@@ -1138,6 +1138,7 @@ button { font-family: inherit; cursor: pointer; }
   animation: ccReveal 0.5s 0.08s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 .cc-thumb iframe { width: 1280px; height: 800px; border: 0; transform: scale(0.42); transform-origin: top left; pointer-events: none; }
+.cc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cc-thumb-open { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,0.62); color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 6px; opacity: 0; transition: opacity 0.15s; }
 .cc-thumb:hover .cc-thumb-open { opacity: 1; }
 .cc-head { font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }

@@ -165,7 +165,7 @@ function StatusFooter({ live, sessionId }: { live: LiveState; sessionId: string 
   );
 }
 
-const DELIVERABLE_NOUN: Record<string, string> = { app: 'app', pdf: 'report', sheet: 'spreadsheet', doc: 'document' };
+const DELIVERABLE_NOUN: Record<string, string> = { app: 'app', pdf: 'report', sheet: 'spreadsheet', doc: 'document', image: 'creative' };
 
 /** The "it's ready" moment: names the finished thing and offers the next action
  *  in-flow (open it, or — for apps — put it online and get a shareable link). */
@@ -197,9 +197,16 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
   // A live thumbnail of the finished thing — the reveal — using whatever the canvas
   // auto-loaded (a running app's preview, or the produced document).
   let thumbSrc: string | null = null;
+  const isImageThumb = canvasTarget?.kind === 'image';
   if (canvasTarget?.port) thumbSrc = `/api/sessions/${sessionId}/preview/${canvasTarget.port}/`;
-  else if (canvasTarget?.file)
-    thumbSrc = `/api/sessions/${sessionId}/docview/${canvasTarget.file.split('/').map(encodeURIComponent).join('/')}`;
+  else if (canvasTarget?.file) {
+    const f = canvasTarget.file.split('/').map(encodeURIComponent).join('/');
+    // An image (or PDF) shows its raw bytes; docs render via the doc viewer.
+    thumbSrc =
+      isImageThumb || canvasTarget.kind === 'pdf'
+        ? `/api/sessions/${sessionId}/files/${f}?inline=1`
+        : `/api/sessions/${sessionId}/docview/${f}`;
+  }
 
   const publish = async () => {
     setBusy(true);
@@ -240,7 +247,11 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
     <div className="completion-card reveal">
       {thumbSrc && (
         <button className="cc-thumb" onClick={() => toggleCanvas(true)} title="Open">
-          <iframe src={thumbSrc} title="Your result" tabIndex={-1} scrolling="no" />
+          {isImageThumb ? (
+            <img src={thumbSrc} alt="Your creative" />
+          ) : (
+            <iframe src={thumbSrc} title="Your result" tabIndex={-1} scrolling="no" />
+          )}
           <span className="cc-thumb-open">Open ↗</span>
         </button>
       )}
