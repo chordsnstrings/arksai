@@ -51,7 +51,9 @@ function estimateTokens(messages: unknown): number {
 }
 
 const DELIVERABLE_GLOB =
-  '**/*.{xlsx,xls,csv,pdf,docx,doc,pptx,png,jpg,jpeg,svg,zip,tar,gz,tgz,tar.gz,mp3,wav,mp4,json}';
+  // incl. the UAE compliance machine files (.sif WPS, .xml PINT AE e-invoice; FAF is .csv,
+  // already covered) so a generated filing is actually surfaced as a download (it wasn't).
+  '**/*.{xlsx,xls,csv,pdf,docx,doc,pptx,png,jpg,jpeg,svg,zip,tar,gz,tgz,tar.gz,mp3,wav,mp4,json,sif,xml}';
 
 // Shown inline to the user when the agent re-routes itself. Warm + action-framed —
 // NOT "Switched to Build (Code) mode" jargon (the user never picks modes).
