@@ -1,0 +1,23 @@
+import { chromium } from 'playwright';
+const url = 'http://localhost:3000' + process.argv[2];
+const b = await chromium.launch(); const p = await (await b.newContext({viewport:{width:1280,height:900}})).newPage();
+await p.goto(url,{waitUntil:'domcontentloaded'}); await p.waitForTimeout(2000);
+const a = await p.evaluate(() => {
+  const r = {};
+  r.lang = document.documentElement.getAttribute('lang') || '(none)';
+  r.title = document.title || '(none)';
+  r.imgsNoAlt = [...document.querySelectorAll('img')].filter(i=>!i.hasAttribute('alt')).length;
+  r.imgsTotal = document.querySelectorAll('img').length;
+  const btns = [...document.querySelectorAll('button,a[href],[role=button]')];
+  r.btnsNoName = btns.filter(b=>!(b.textContent.trim()||b.getAttribute('aria-label')||b.getAttribute('title'))).length;
+  r.btnsTotal = btns.length;
+  r.h1 = document.querySelectorAll('h1').length;
+  r.headings = document.querySelectorAll('h1,h2,h3,h4').length;
+  const inputs = [...document.querySelectorAll('input,select,textarea')];
+  r.inputsNoLabel = inputs.filter(i=>!(i.getAttribute('aria-label')||i.labels?.length||i.closest('label')||i.getAttribute('placeholder'))).length;
+  r.inputsTotal = inputs.length;
+  r.viewport = !!document.querySelector('meta[name=viewport]');
+  return r;
+});
+console.log(JSON.stringify(a,null,2));
+await b.close();
