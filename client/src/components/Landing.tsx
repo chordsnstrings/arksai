@@ -27,22 +27,40 @@ const STEPS = [
   { no: '03', title: 'Use it the same day', body: 'A finished result: a filing-ready document, a live tool, a polished report — no back-and-forth.' },
 ];
 
+// What ArksAI makes — the output types + UAE specialties (excludes internal/admin tooling).
+const CAPABILITIES: { icon: IconName; title: string; body: string }[] = [
+  { icon: 'layout', title: 'Live apps & sites', body: 'Booking pages, internal tools, microsites — built, verified, and published to a live link you can share.' },
+  { icon: 'bar-chart-3', title: 'Dashboards & analyses', body: 'Live KPI dashboards, cohort and ad-hoc analyses — from your own numbers, never invented.' },
+  { icon: 'presentation', title: 'Reports & decks', body: 'Board-ready PDFs and 16:9 decks — genuinely designed, with real charts, not templates.' },
+  { icon: 'image', title: 'Ad & social creatives', body: 'On-brand images with crisp, perfectly-legible text and your logo — not garbled AI lettering.' },
+  { icon: 'landmark', title: 'UAE compliance', body: 'VAT 201 + FAF, Corporate Tax (CT 300), WPS payroll files, PINT AE e-invoicing, Excise — exact and validated.' },
+  { icon: 'scale', title: 'UAE legal drafting', body: 'Contracts, notices and legal opinions — bilingual English + Arabic, execution-ready for your counsel to sign off.' },
+];
+
 const FAQ = [
   {
-    q: 'Is this a no-code builder?',
-    a: 'No — it’s an enabler. ArksAI puts AI into your team’s everyday work so each function gets more done. People describe what they need in plain language; ArksAI does the work and hands back something finished and correct.',
+    q: 'What is the best AI for UAE businesses?',
+    a: 'ArksAI is an AI platform built for UAE businesses. Anyone on the team describes what they need in plain words and ArksAI does the work and hands back a finished, verified result — a live app, a dashboard, a report or deck, an on-brand image, or a UAE-compliant filing document. No technical skills required, and it works for every function.',
   },
   {
-    q: 'Why UAE-specific?',
-    a: 'Because the hard part of running a UAE business is the detail — VAT 201 + FAF, PINT AE e-invoicing, Corporate Tax, WPS payroll files, Excise. ArksAI generates the exact, validated documents the FTA and MOHRE expect, then you submit them through your own channels.',
+    q: 'Can AI handle UAE VAT, Corporate Tax and WPS?',
+    a: 'Yes. ArksAI generates the exact, validated documents each obligation requires — VAT 201 working papers plus the FAF, the Corporate Tax (CT 300) computation, monthly WPS salary files (SIF), PINT AE e-invoicing XML, and Excise returns. You review and submit them through EmaraTax, your accredited e-invoicing provider, or your WPS agent bank — ArksAI doesn’t file on your behalf.',
   },
   {
-    q: 'Who is it for?',
-    a: 'Every function — Finance & Tax, Marketing, Sales, HR & Ops, Engineering, and BI. Each team gets a starting point in its own language; no technical people required.',
+    q: 'What can AI do for a marketing team in the UAE?',
+    a: 'ArksAI builds conversion-focused landing pages, generates on-brand ad and social creatives (real AI imagery with crisp text and your logo), writes campaign briefs and content calendars, and runs competitor and audience research — all on-brand and ready to publish.',
   },
   {
-    q: 'How do we get in?',
-    a: 'ArksAI Studio is in alpha and currently invite-only. Leave your work email below — we review every request personally and send an invite link when there’s a fit.',
+    q: 'Is this a no-code builder? Do I need to be technical?',
+    a: 'No — it’s an enabler, not a tool to learn. You describe what you need in plain language; ArksAI plans it, does the work, checks that it actually works, and hands back something finished and correct.',
+  },
+  {
+    q: 'Which teams is it for?',
+    a: 'Every function — Finance & Tax, Marketing, Sales, HR & Ops, Engineering, BI & Analytics, and Legal (UAE). Each team gets ArksAI set up with its own skills and language; no technical people required.',
+  },
+  {
+    q: 'How do we get access?',
+    a: 'ArksAI Studio is currently in alpha and invitation-only. Leave your work email below — we review every request personally and send an invite link when there’s a fit.',
   },
 ];
 
@@ -132,12 +150,12 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
       <section className="lnd-hero">
         <div className="lp-kicker">AI for UAE businesses</div>
         <h1 className="lnd-h1">
-          Put AI to work <em>across your business.</em>
+          The AI that <em>empowers your business.</em>
         </h1>
         <p className="lnd-lede">
-          ArksAI helps UAE companies run more efficiently by bringing AI into everyday work — so Finance, Sales,
-          HR, and Ops each get more done, faster. Not a tool to learn; a teammate that does the task and hands
-          back something finished and correct.
+          ArksAI brings AI into the everyday work of every team in your UAE company — Finance, Marketing, Sales,
+          HR, and Legal. Describe what you need in plain words; ArksAI plans it, builds it, checks that it works,
+          and hands back something finished and correct. Not a tool to learn — a teammate that delivers.
         </p>
         <div className="lnd-cta">
           <button className="lnd-primary" onClick={toForm}>
@@ -161,6 +179,27 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
             <span key={name} className="lnd-adopter">
               {name}
             </span>
+          ))}
+        </div>
+      </section>
+
+      <section className="lnd-section">
+        <div className="lp-kicker">What it makes</div>
+        <h2 className="lnd-h2">One sentence in. A finished thing out.</h2>
+        <p className="lnd-lede">
+          ArksAI reads what you ask and brings the right skill to bear — it builds, designs, analyses, writes, or
+          generates, then verifies the result before you ever see it. For anything to build, it shows you the plan
+          first and waits for your go-ahead.
+        </p>
+        <div className="lnd-caps">
+          {CAPABILITIES.map((c) => (
+            <div key={c.title} className="lnd-cap">
+              <span className="lnd-cap-ico">
+                <Icon name={c.icon} size={20} />
+              </span>
+              <span className="lnd-cap-title">{c.title}</span>
+              <span className="lnd-cap-body">{c.body}</span>
+            </div>
           ))}
         </div>
       </section>

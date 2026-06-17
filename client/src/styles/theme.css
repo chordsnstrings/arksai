@@ -1520,6 +1520,13 @@ button { font-family: inherit; cursor: pointer; }
 .lnd-uae-ico { display: inline-flex; color: var(--dept, var(--accent)); }
 .lnd-uae-title { font-family: var(--serif); font-size: 16px; font-weight: 600; color: var(--text); }
 .lnd-uae-blurb { font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+/* "what it makes" capability grid */
+.lnd-caps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
+.lnd-cap { display: flex; flex-direction: column; gap: 6px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 14px; padding: 18px 19px; transition: border-color 0.15s, transform 0.15s; }
+.lnd-cap:hover { border-color: var(--accent); transform: translateY(-1px); }
+.lnd-cap-ico { display: inline-flex; color: var(--accent); }
+.lnd-cap-title { font-family: var(--serif); font-size: 17px; font-weight: 600; color: var(--text); }
+.lnd-cap-body { font-size: 13.5px; line-height: 1.55; color: var(--text-muted); }
 .lnd-fineprint { font-size: 12.5px; line-height: 1.5; color: var(--text-faint); margin: 18px 0 0; max-width: 70ch; }
 
 .lnd-section { padding: 52px 28px; border-top: 1px solid var(--border); }
@@ -1572,7 +1579,7 @@ button { font-family: inherit; cursor: pointer; }
 
 @media (max-width: 760px) {
   .lnd-h1 { font-size: 40px; }
-  .lnd-depts, .lnd-steps, .lnd-form-wrap, .lnd-faq, .lnd-uae-grid { grid-template-columns: 1fr; }
+  .lnd-depts, .lnd-steps, .lnd-form-wrap, .lnd-faq, .lnd-uae-grid, .lnd-caps { grid-template-columns: 1fr; }
   .lnd-hero { padding: 48px 22px 40px; }
   .lnd-section { padding: 40px 22px; }
   .lnd-nav { padding: 16px 22px; }
