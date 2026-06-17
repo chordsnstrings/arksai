@@ -41,6 +41,22 @@ export async function buildApp() {
     }
   });
 
+  // One place for thrown/uncaught errors. The client reads the `error` field, so put a
+  // calm, actionable message there: surface a deliberate 4xx message (validation, bad
+  // request) since it tells the user what to fix, but NEVER leak an internal 5xx detail
+  // (a DB/filesystem error) — that's logged server-side and shown as a friendly generic
+  // line. (Intentional `reply.code().send({error})` responses don't reach here.)
+  app.setErrorHandler((err: { statusCode?: number; message?: string }, req, reply) => {
+    const raw = err.statusCode;
+    const status = typeof raw === 'number' && raw >= 400 && raw < 600 ? raw : 500;
+    if (status >= 500) req.log.error({ err }, 'unhandled error');
+    const error =
+      status < 500
+        ? err.message || 'Bad request.'
+        : 'Something went wrong on our end. Please try again in a moment.';
+    reply.code(status).send({ error });
+  });
+
   await app.register(fastifyCookie, { secret: cookieSecret() });
   await app.register(fastifyMultipart, {
     limits: { fileSize: 25 * 1024 * 1024, files: 10 },

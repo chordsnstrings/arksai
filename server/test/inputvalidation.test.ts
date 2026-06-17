@@ -31,6 +31,10 @@ before(async () => {
   await orgs.bootstrapOrgs();
   const appMod = await import('../src/app');
   app = await appMod.buildApp();
+  // a route that throws a leaky internal error → proves the error handler doesn't leak
+  app.get('/__boom', async () => {
+    throw new Error('SQLITE_ERROR: no such column secret_path /etc/private');
+  });
   await app.ready();
   const op = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { password: 'test-operator' } });
   opCookie = cookieOf(op, 'arksai_auth');
@@ -131,6 +135,16 @@ test('malformed JSON body → 400, never 500', async () => {
     payload: '{ this is : not valid json,,, }',
   });
   assert.equal(r.statusCode, 400, 'got ' + r.statusCode);
+  // the actionable message must reach the client via the `error` field (it reads .error)
+  assert.match(r.json().error, /malformed json/i);
+});
+
+test('an unexpected 5xx never leaks internal detail to the client', async () => {
+  // The client only ever sees a calm generic message (the real error is logged server-side).
+  const r = await app.inject({ url: '/__boom' });
+  assert.equal(r.statusCode, 500);
+  assert.doesNotMatch(r.json().error, /SQLITE|secret_path|\/etc/i, 'internal detail leaked');
+  assert.match(r.json().error, /something went wrong/i);
 });
 
 test('a Content-Type:json header with an EMPTY body does not 500 (the tolerant parser)', async () => {
