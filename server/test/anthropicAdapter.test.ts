@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toAnthropicMessages, mapAnthropicStop, anthropicSseToOpenAI } from '../src/agent/runner';
+import { toAnthropicMessages, mapAnthropicStop, anthropicSseToOpenAI, AgentRun } from '../src/agent/runner';
 
 test('toAnthropicMessages: system is hoisted, user becomes a text block', () => {
   const { system, messages } = toAnthropicMessages([
@@ -196,4 +196,29 @@ test('anthropicSseToOpenAI: text + tool_use + usage translate to OpenAI chunks',
   assert.equal(usage.completion_tokens, 42);
   assert.equal(usage.prompt_tokens, 120); // 100 input + 20 cache_read
   assert.equal(usage.prompt_cache_hit_tokens, 20);
+});
+
+// Regression for the M3 headers-hang: M3 can buffer the response HEADERS server-side for
+// minutes on a big prompt, and ac.abort() does NOT reliably reject a pending undici fetch
+// stuck awaiting headers — so the run hung at 0 tokens with no fallback (observed on legal/
+// code-mode M3). The fix races the `await fetch` against the turn deadline. This proves a
+// fetch that never returns headers stalls out (→ minimaxStall → the loop falls back) instead
+// of hanging forever.
+test('createMinimaxStream: a fetch that never sends headers stalls out (no infinite hang)', async () => {
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = (() => new Promise(() => {})) as any; // never resolves, ignores abort
+  process.env.MINIMAX_TURN_DEADLINE_MS = '150'; // 150ms so the test is fast
+  try {
+    const run: any = new AgentRun({ id: 's', mode: 'code', task: 'legal.contract', model: 'arksai-max' } as any);
+    const t0 = Date.now();
+    await assert.rejects(
+      () => run.createMinimaxStream({ messages: [{ role: 'user', content: 'hi' }], tools: [] }),
+      (e: any) => e && e.minimaxStall === true,
+      'should reject with a minimaxStall error (→ fallback), not hang',
+    );
+    assert.ok(Date.now() - t0 < 3000, `fell back promptly (was ${Date.now() - t0}ms), did not hang`);
+  } finally {
+    globalThis.fetch = origFetch;
+    delete process.env.MINIMAX_TURN_DEADLINE_MS;
+  }
 });
