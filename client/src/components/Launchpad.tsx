@@ -38,21 +38,9 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   const [error, setError] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
-  const [selectedPlayKey, setSelectedPlayKey] = useState<string | null>(null);
+  const [startingKey, setStartingKey] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
-
-  // A play is now an EXAMPLE, not an auto-send: tapping it pre-fills the chat box
-  // (editable) and remembers its key so the agent still gets that play's expertise.
-  const fillFromPlay = (p: { prompt: string; key: string }) => {
-    setText(p.prompt);
-    setSelectedPlayKey(p.key);
-    setError('');
-    requestAnimationFrame(() => {
-      boxRef.current?.focus();
-      boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
-  };
   const upsertSession = useStore((s) => s.upsertSession);
   const setActive = useStore((s) => s.setActive);
   const sessions = useStore((s) => s.sessions);
@@ -121,7 +109,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
     setDeptId(id);
     setError('');
     setText(''); // fresh chat box per department
-    setSelectedPlayKey(null);
+    setStartingKey(null);
     applyDeptTheme(id, true); // Engineering → dark, animated
     try {
       localStorage.setItem(LS_KEY, id);
@@ -158,6 +146,24 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
     } catch (e: any) {
       setError(e?.message ?? 'Hit a snag starting that — give it another tap.');
       setBusy(false);
+    }
+  };
+
+  // Tapping an example opens a NEW chat with that play's skills preloaded (task=key) and
+  // waits — no canned text, no auto-send. The user's first message names the chat.
+  const startChat = async (key: string) => {
+    if (busy) return;
+    setBusy(true);
+    setStartingKey(key);
+    setError('');
+    try {
+      const session = await api.createSession({ mode: 'chat', model: AUTO_MODEL, task: key });
+      upsertSession(session);
+      setActive(session.id);
+    } catch (e: any) {
+      setError(e?.message ?? 'Hit a snag opening that — try again.');
+      setBusy(false);
+      setStartingKey(null);
     }
   };
 
@@ -234,7 +240,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
             {greetLine}
             <p className="lp-sub">
               I’m set up with your {dept.name.toLowerCase()} toolkit — just tell me what you need below, or
-              pick an example further down to start from.
+              pick an example to jump straight into a chat for it.
             </p>
           </div>
           <button
@@ -263,17 +269,17 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
                   {plays.map((p) => (
                     <button
                       key={p.title}
-                      className={`play-card${selectedPlayKey === p.key ? ' picked' : ''}`}
-                      onClick={() => fillFromPlay(p)}
+                      className={`play-card${startingKey === p.key ? ' starting' : ''}${busy && startingKey !== p.key ? ' dimmed' : ''}`}
+                      onClick={() => startChat(p.key)}
                       disabled={busy}
-                      title="Tap to start from this — you can edit it before sending"
+                      title="Open a chat ready for this — then just describe what you want"
                     >
                       <span className="play-ico">
-                        <Icon name={p.icon} size={18} />
+                        {startingKey === p.key ? <span className="spinner sm" /> : <Icon name={p.icon} size={18} />}
                       </span>
                       <span className="play-body">
                         <span className="play-title">{p.title}</span>
-                        <span className="play-blurb">{p.blurb}</span>
+                        <span className="play-blurb">{startingKey === p.key ? 'Opening your chat…' : p.blurb}</span>
                       </span>
                     </button>
                   ))}
@@ -308,7 +314,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault();
-                  void run(text, 'chat', AUTO_MODEL, selectedPlayKey ?? dept.id, undefined, files);
+                  void run(text, 'chat', AUTO_MODEL, dept.id, undefined, files);
                 }
               }}
               onPaste={(e) => {
@@ -353,7 +359,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
               <span className="spacer" style={{ flex: 1 }} />
               <button
                 className="lp-go"
-                onClick={() => void run(text, 'chat', AUTO_MODEL, selectedPlayKey ?? dept.id, undefined, files)}
+                onClick={() => void run(text, 'chat', AUTO_MODEL, dept.id, undefined, files)}
                 disabled={busy || (!text.trim() && files.length === 0)}
               >
                 {busy ? 'Starting…' : 'Make it →'}

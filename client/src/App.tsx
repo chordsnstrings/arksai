@@ -85,19 +85,24 @@ export default function App() {
   // activeId→URL direction. (Depending on activeId here ping-pongs the two into a loop.)
   useEffect(() => {
     if (authed !== true) return;
-    const open = () => {
-      const m = window.location.pathname.match(/^\/s\/([^/]+)$/);
-      const id = m ? m[1] : null;
+    // Initial + when sessions arrive: only OPEN the URL's session — never clear here
+    // (clearing on a sessions-change would nuke a just-opened session before the URL syncs).
+    const m = window.location.pathname.match(/^\/s\/([^/]+)$/);
+    const id = m ? m[1] : null;
+    if (id && sessions.some((s) => s.id === id) && useStore.getState().activeId !== id) setActive(id);
+    // Back/forward only: follow the URL, including clearing to the launchpad.
+    const onPop = () => {
+      const mm = window.location.pathname.match(/^\/s\/([^/]+)$/);
+      const pid = mm ? mm[1] : null;
       const cur = useStore.getState().activeId;
-      if (id) {
-        if (sessions.some((s) => s.id === id) && cur !== id) setActive(id);
+      if (pid) {
+        if (sessions.some((s) => s.id === pid) && cur !== pid) setActive(pid);
       } else if (cur) {
-        setActive(null); // back to the launchpad when the URL has no session
+        setActive(null);
       }
     };
-    open();
-    window.addEventListener('popstate', open);
-    return () => window.removeEventListener('popstate', open);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, [authed, sessions, setActive]);
 
   useEffect(() => {

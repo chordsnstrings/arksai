@@ -305,6 +305,12 @@ export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }
   return (
     <div className="chat" ref={scrollRef}>
       <div className="chat-inner">
+        {live.items.length === 0 && !live.running && !live.pendingAssistant && !live.pendingTools && (
+          <div className="chat-ready">
+            <span className="logo-mark" />
+            <p>Ready when you are — tell me what you need and I’ll take it from here.</p>
+          </div>
+        )}
         {live.items.map((item) => (
           <TimelineRow key={item.id} item={item} sessionId={sessionId} />
         ))}
