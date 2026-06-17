@@ -127,12 +127,46 @@ export function buildCreativeHtml(opts: {
 
 const NEG = 'absolutely no text, no words, no letters, no typography, no captions, no labels, no logos, no watermark, no UI, no charts';
 
-async function genBackground(prompt: string, genRatio: string, signal: AbortSignal): Promise<Buffer> {
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Strip the COPY out of the imagery prompt so the image model can't try to render it as
+ * (garbled) text in the background — the #1 cause of a bad creative. Models routinely cram
+ * the headline/CTA into `prompt`; this removes the literal copy fields, any quoted strings,
+ * and "text that says…" lead-ins, leaving only the scene description. Pure (unit-tested).
+ */
+export function scrubImageryPrompt(prompt: string, copy: CreativeCopy): string {
+  let p = ` ${prompt} `;
+  const phrases = [copy.headline, copy.sub, copy.cta, copy.kicker, ...(copy.bullets ?? [])]
+    .map((s) => (s ?? '').trim())
+    .filter((s) => s.length >= 3)
+    .sort((a, b) => b.length - a.length); // remove longer phrases first
+  for (const ph of phrases) p = p.replace(new RegExp(escapeRegExp(ph), 'gi'), ' ');
+  // quoted strings (straight + curly + guillemets) are almost always literal copy
+  p = p.replace(/["“”'‘’«»][^"“”'‘’«»]{0,140}["“”'‘’«»]/g, ' ');
+  // copy-injection lead-ins ("with the text …", "that says …", "headline reading …")
+  p = p.replace(
+    /\b(?:with (?:the )?(?:text|headline|caption|words?|copy|title|slogan|tagline)|that says|which says|reading|labell?ed|captioned|overla(?:y|id|ying)(?:ed)? text|text overlay)\b[:,]?/gi,
+    ' ',
+  );
+  p = p
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.;:])/g, '$1')
+    .replace(/^[\s,.;:–—-]+|[\s,.;:–—-]+$/g, '')
+    .trim();
+  return p || prompt.trim(); // never return empty — fall back to the original
+}
+
+async function genBackground(prompt: string, genRatio: string, signal: AbortSignal, hard = false): Promise<Buffer> {
+  // On a re-gen after text leaked into the image, lead with an emphatic no-text directive.
+  const lead = hard
+    ? 'CRITICAL: a purely VISUAL image with ABSOLUTELY ZERO text, letters, words or numbers anywhere. '
+    : '';
   const res = await fetch(`${config.minimaxBaseUrl.replace(/\/$/, '')}/image_generation`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${config.minimaxApiKey}`, 'Content-Type': 'application/json' },
     signal,
-    body: JSON.stringify({ model: config.minimaxImageModel, prompt: `${prompt}. Leave generous clean empty negative space for a text overlay. Editorial, premium, high-end advertising. ${NEG}`, aspect_ratio: genRatio, n: 1, response_format: 'url' }),
+    body: JSON.stringify({ model: config.minimaxImageModel, prompt: `${lead}${prompt}. Leave generous clean empty negative space for a text overlay. Editorial, premium, high-end advertising. ${NEG}`, aspect_ratio: genRatio, n: 1, response_format: 'url' }),
   });
   const data: any = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`image_generation HTTP ${res.status}: ${JSON.stringify(data).slice(0, 200)}`);
@@ -227,14 +261,18 @@ export async function composeCreative(
     }
   }
   try {
-    // 1) background (with one regeneration if it came back cluttered or with text)
-    let buf = await genBackground(opts.prompt, size.gen, signal);
+    // 1) background (with one regeneration if it came back cluttered or with text).
+    // Scrub the copy out of the imagery prompt FIRST so the model can't render garbled
+    // text into the background (the #1 failure mode — copy crammed into `prompt`).
+    const imagery = scrubImageryPrompt(opts.prompt, opts.copy);
+    if (imagery !== opts.prompt.trim()) log.push('scrubbed copy out of the imagery prompt');
+    let buf = await genBackground(imagery, size.gen, signal);
     cost += config.minimaxImageCost;
     let plan = await visionPlan(buf, signal);
     cost += config.minimaxVisionCost;
     if (plan.hasText || plan.clutter >= 7) {
       log.push(`regenerated background (${plan.hasText ? 'text in image' : `cluttered ${plan.clutter}/10`})`);
-      buf = await genBackground(opts.prompt, size.gen, signal);
+      buf = await genBackground(imagery, size.gen, signal, plan.hasText); // hard no-text on a text leak
       cost += config.minimaxImageCost;
       plan = await visionPlan(buf, signal);
       cost += config.minimaxVisionCost;

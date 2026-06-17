@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCreativeHtml, CREATIVE_SIZES } from '../src/agent/creative';
+import { buildCreativeHtml, CREATIVE_SIZES, scrubImageryPrompt } from '../src/agent/creative';
 
 const base = {
   bgDataUrl: 'data:image/png;base64,AAAA',
@@ -59,6 +59,31 @@ test('buildCreativeHtml: escapes HTML in copy (no injection)', () => {
   const html = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'dark', copy: { ...base.copy, headline: '<script>x</script>' } });
   assert.doesNotMatch(html, /<script>x<\/script>/);
   assert.match(html, /&lt;script&gt;/);
+});
+
+test('scrubImageryPrompt: strips the copy fields out of the imagery prompt', () => {
+  const copy = { accent: '#000', headline: 'UK Tourist Visa', sub: 'Fast & accurate processing', cta: 'Apply now', bullets: ['Quick turnaround'] };
+  const out = scrubImageryPrompt(
+    'London travel scene with the text "UK Tourist Visa" and Fast & accurate processing, Big Ben, a red bus',
+    copy,
+  );
+  assert.doesNotMatch(out, /UK Tourist Visa/i);
+  assert.doesNotMatch(out, /Fast & accurate processing/i);
+  assert.match(out, /Big Ben/); // the actual scene survives
+  assert.match(out, /red bus/);
+});
+
+test('scrubImageryPrompt: removes quoted strings and "that says" lead-ins', () => {
+  const out = scrubImageryPrompt('a calm beach at sunset that says “Summer Sale”, minimal', { accent: '#000', headline: 'Summer Sale' });
+  assert.doesNotMatch(out, /Summer Sale/);
+  assert.doesNotMatch(out, /that says/i);
+  assert.match(out, /calm beach at sunset/);
+});
+
+test('scrubImageryPrompt: never returns empty (falls back to the original)', () => {
+  // a prompt that is ENTIRELY the headline → scrub would empty it; must fall back
+  const out = scrubImageryPrompt('Summer Sale', { accent: '#000', headline: 'Summer Sale' });
+  assert.ok(out.length > 0);
 });
 
 test('CREATIVE_SIZES: every channel ratio maps to a canvas + a MiniMax gen ratio', () => {
