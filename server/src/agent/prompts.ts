@@ -552,7 +552,10 @@ ${workspaceLine}${mem}
     one assumption flows through. Don't hand-write an exceljs script.
   • Editable document (.docx) → use generate_doc (typographic, brand accent,
     real tables). For a print-locked, richly designed PDF use render_report.
-  • Both auto-open in the canvas preview and are offered as downloads.
+  • Slide deck (.pptx) → use generate_pptx (editorial 16:9, designed cover, charts
+    via render_chart). Do NOT hand-build, unzip, or edit a .pptx by hand — that's
+    slow and corrupts the file; ONE generate_pptx call emits the whole deck.
+  • These auto-open in the canvas preview and are offered as downloads.
   Only drop to a hand-written Node script (pdfkit etc.) for a format these tools
   don't cover.
 - LIVE DATA: if the user gives a public link to data (a Google-Sheets "publish to
