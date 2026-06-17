@@ -4,6 +4,7 @@
  * editorial theme — no chart dependency. METADATA ONLY: these render counts/rates, never
  * any message or document content.
  */
+import type { ReactNode } from 'react';
 
 export const DAY_MS = 86_400_000;
 export const fmtDay = (epochDay: number) => new Date(epochDay * DAY_MS).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -57,20 +58,79 @@ export function KPI({ label, value, sub }: { label: string; value: string; sub?:
   );
 }
 
+/** A period-over-period change chip. `invert` = up is bad (e.g. cost). */
+export function Delta({ cur, prev, invert }: { cur: number; prev: number | null | undefined; invert?: boolean }) {
+  if (prev == null || (prev === 0 && cur === 0)) return null;
+  const pct = prev === 0 ? 100 : Math.round(((cur - prev) / Math.abs(prev)) * 100);
+  if (pct === 0) return <span className="an-delta flat">±0%</span>;
+  const up = pct > 0;
+  const good = invert ? !up : up;
+  return (
+    <span className={`an-delta ${good ? 'good' : 'bad'}`} title="vs the previous 7 days">
+      {up ? '▲' : '▼'} {Math.abs(pct)}%
+    </span>
+  );
+}
+
+/** Tiny inline trend line (line + soft area) that stretches to fill its cell. */
+export function Sparkline({ data }: { data: number[] }) {
+  if (!data || data.length < 2) return <div className="an-spark-empty" />;
+  const w = 100, h = 28;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const pts = data.map((v, i) => [(i / (data.length - 1)) * w, h - 2 - ((v - min) / range) * (h - 4)] as const);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  return (
+    <svg className="an-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      <path d={`${line} L${w},${h} L0,${h} Z`} className="an-spark-area" />
+      <path d={line} className="an-spark-line" fill="none" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+/** Dense editorial stat cell: eyebrow + delta, a big tabular number, then a sparkline or caption. */
+export function Stat({
+  label,
+  value,
+  delta,
+  spark,
+  sub,
+}: {
+  label: string;
+  value: string;
+  delta?: ReactNode;
+  spark?: number[];
+  sub?: string;
+}) {
+  return (
+    <div className="an-stat">
+      <div className="an-stat-top">
+        <span className="an-stat-label">{label}</span>
+        {delta}
+      </div>
+      <div className="an-stat-value">{value}</div>
+      {spark && spark.length > 1 ? <Sparkline data={spark} /> : sub ? <div className="an-stat-sub">{sub}</div> : null}
+    </div>
+  );
+}
+
 export function LineChart({ data, fmt }: { data: { x: number; y: number }[]; fmt?: (n: number) => string }) {
   if (!data.length) return <div className="an-empty">No data yet.</div>;
-  const W = 640, H = 120, P = 6;
+  const W = 640, H = 104, PT = 12, PB = 6, PX = 3;
   const ys = data.map((d) => d.y);
   const max = Math.max(1, ...ys);
-  const pts = data.map((d, i) => {
-    const x = P + (i / Math.max(1, data.length - 1)) * (W - 2 * P);
-    const y = H - P - (d.y / max) * (H - 2 * P);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
+  const x = (i: number) => PX + (i / Math.max(1, data.length - 1)) * (W - 2 * PX);
+  const y = (v: number) => PT + (1 - v / max) * (H - PT - PB);
+  const line = data.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(d.y).toFixed(1)}`).join(' ');
+  const area = `${line} L${x(data.length - 1).toFixed(1)},${H - PB} L${x(0).toFixed(1)},${H - PB} Z`;
   return (
     <svg className="an-line" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-      <polyline points={pts.join(' ')} fill="none" stroke="var(--accent)" strokeWidth="2" />
-      <text x={P} y={12} className="an-axis">{fmt ? fmt(max) : max}</text>
+      <line x1="0" x2={W} y1={y(max)} y2={y(max)} className="an-grid-line" />
+      <line x1="0" x2={W} y1={y(max / 2)} y2={y(max / 2)} className="an-grid-line" />
+      <path d={area} className="an-area" />
+      <path d={line} className="an-line-path" fill="none" vectorEffect="non-scaling-stroke" />
+      <text x={PX} y={9} className="an-axis">{fmt ? fmt(max) : max}</text>
     </svg>
   );
 }

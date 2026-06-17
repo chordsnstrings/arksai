@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { SessionMode } from '@shared/types';
 import { AUTO_MODEL } from '@shared/types';
 import { api } from '../api/client';
@@ -36,10 +36,27 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
   const [busy, setBusy] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const upsertSession = useStore((s) => s.upsertSession);
   const setActive = useStore((s) => s.setActive);
   const sessions = useStore((s) => s.sessions);
   const dept = departmentById(deptId);
+
+  // Files are staged client-side (no session exists yet) and uploaded the moment one is
+  // created, BEFORE the first message — so the agent sees them on its first run. Mirrors
+  // the Composer's attach/drag/paste affordances.
+  const addFiles = (list: FileList | File[]) => {
+    const incoming = [...list];
+    if (!incoming.length) return;
+    setFiles((prev) => {
+      const seen = new Set(prev.map((f) => `${f.name}:${f.size}`));
+      return [...prev, ...incoming.filter((f) => !seen.has(`${f.name}:${f.size}`))];
+    });
+    setError('');
+  };
+  const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
 
   // Returning users resume, not restart: a quick row of their most recent work.
   const recents = sessions.filter((s) => s.task !== 'org.onboarding').slice(0, 4);
@@ -57,15 +74,28 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
 
   // One-step: create a session in the right mode and send the brief immediately
   // (send BEFORE activating so the loaded timeline already has the first message).
-  const run = async (prompt: string, mode: SessionMode, model: string = AUTO_MODEL, task?: string, id?: string) => {
+  // `attach` = staged files to upload into the new session before its first run.
+  const run = async (prompt: string, mode: SessionMode, model: string = AUTO_MODEL, task?: string, id?: string, attach?: File[]) => {
     const brief = prompt.trim();
-    if (!brief || busy) return;
+    if ((!brief && !(attach && attach.length)) || busy) return;
     setBusy(true);
     setStartingId(id ?? '__free__');
     setError('');
     try {
       const session = await api.createSession({ mode, model, task });
-      await api.sendMessage(session.id, brief);
+      if (attach && attach.length) {
+        const form = new FormData();
+        for (const f of attach) form.append('files', f, f.name);
+        const res = await fetch(`/api/sessions/${session.id}/upload`, { method: 'POST', body: form, credentials: 'same-origin' });
+        if (!res.ok) {
+          let message = res.statusText;
+          try {
+            message = (await res.json()).error ?? message;
+          } catch {}
+          throw new Error(message);
+        }
+      }
+      await api.sendMessage(session.id, brief || 'I’ve attached some files — take a look and let’s get started.');
       upsertSession(session);
       setActive(session.id);
     } catch (e: any) {
@@ -197,7 +227,19 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
 
         <div className="lp-free">
           <label className="lp-kicker">Or describe what your team needs</label>
-          <div className="lp-box">
+          <div
+            className={`lp-box${dragOver ? ' drag-over' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              addFiles(e.dataTransfer.files);
+            }}
+          >
             <textarea
               value={text}
               placeholder={`e.g. ${dept.plays[0].title.toLowerCase()} for our new launch…`}
@@ -205,14 +247,57 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault();
-                  void run(text, 'code');
+                  void run(text, 'code', AUTO_MODEL, undefined, undefined, files);
+                }
+              }}
+              onPaste={(e) => {
+                const dt = e.clipboardData;
+                if (!dt) return;
+                let dropped: File[] = Array.from(dt.files);
+                if (dropped.length === 0) {
+                  dropped = Array.from(dt.items)
+                    .filter((it) => it.kind === 'file')
+                    .map((it) => it.getAsFile())
+                    .filter((f): f is File => !!f);
+                }
+                if (dropped.length > 0) {
+                  e.preventDefault();
+                  addFiles(dropped);
                 }
               }}
               disabled={busy}
             />
-            <button className="lp-go" onClick={() => void run(text, 'code')} disabled={busy || !text.trim()}>
-              {busy ? 'Starting…' : 'Make it →'}
-            </button>
+            {files.length > 0 && (
+              <div className="lp-attached">
+                {files.map((f, i) => (
+                  <span key={`${f.name}-${i}`} className="att-chip" title={f.name}>
+                    📎 {f.name.length > 28 ? f.name.slice(0, 26) + '…' : f.name}
+                    <button className="att-x" onClick={() => removeFile(i)} disabled={busy} aria-label={`Remove ${f.name}`}>
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="lp-box-bar">
+              <input ref={fileRef} type="file" multiple hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
+              <button
+                className="lp-attach"
+                title="Attach files — click, drag & drop, or paste (⌘/Ctrl+V)"
+                onClick={() => fileRef.current?.click()}
+                disabled={busy}
+              >
+                + Attach
+              </button>
+              <span className="spacer" style={{ flex: 1 }} />
+              <button
+                className="lp-go"
+                onClick={() => void run(text, 'code', AUTO_MODEL, undefined, undefined, files)}
+                disabled={busy || (!text.trim() && files.length === 0)}
+              >
+                {busy ? 'Starting…' : 'Make it →'}
+              </button>
+            </div>
           </div>
           {error && <div className="lp-error">{error}</div>}
         </div>

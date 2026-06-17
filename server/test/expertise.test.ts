@@ -29,6 +29,14 @@ test('expertiseFor: sales battlecard + marketing landing carry their craft', () 
   assert.match(expertiseFor('marketing.landing')!, /CTA/);
 });
 
+test('marketing wires in MiniMax image generation (persona + creative/email plays)', () => {
+  // the brand-growth persona steers to real image generation
+  assert.match(expertiseFor('marketing.landing')!, /generate_image/);
+  // the dedicated creative play + the email/social kit both call for generated visuals
+  assert.match(expertiseFor('marketing.creative')!, /generate_image/i);
+  assert.match(expertiseFor('marketing.emailkit')!, /generate_image/i);
+});
+
 test('expertiseFor: every department persona resolves', () => {
   for (const d of ['marketing', 'sales', 'finance', 'people', 'engineering', 'bi']) {
     assert.ok(expertiseFor(`${d}.kpidashboard`) || expertiseFor(`${d}.unknown`) === null);

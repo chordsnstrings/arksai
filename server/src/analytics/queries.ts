@@ -56,6 +56,14 @@ export async function overview(scope: Scope) {
   const sessions30 = num((await qScalar(`SELECT COUNT(*) c FROM sessions WHERE created_at >= $1${w(2)}`, oarg([cutoffMs(30)]))));
   const cost7 = num((await qScalar(`SELECT COALESCE(SUM(cost_usd),0) c FROM sessions WHERE updated_at >= $1${w(2)}`, oarg([cutoffMs(7)]))));
   const cost30 = num((await qScalar(`SELECT COALESCE(SUM(cost_usd),0) c FROM sessions WHERE updated_at >= $1${w(2)}`, oarg([cutoffMs(30)]))));
+  // Prior 7-day window [now-14, now-7) for week-over-week deltas (distinct placeholders).
+  const sessionsPrev7 = num(
+    await qScalar(`SELECT COUNT(*) c FROM sessions WHERE created_at >= $1 AND created_at < $2${org ? ' AND org_id = $3' : ''}`, org ? [cutoffMs(14), cutoffMs(7), org] : [cutoffMs(14), cutoffMs(7)]),
+  );
+  const costPrev7 = num(
+    await qScalar(`SELECT COALESCE(SUM(cost_usd),0) c FROM sessions WHERE updated_at >= $1 AND updated_at < $2${org ? ' AND org_id = $3' : ''}`, org ? [cutoffMs(14), cutoffMs(7), org] : [cutoffMs(14), cutoffMs(7)]),
+  );
+  const engPrev = engagement(pts30, today() - 7); // prior-week WAU as of a week ago
   const done = num((await qScalar(`SELECT COUNT(*) c FROM sessions WHERE status = 'done' AND updated_at >= $1${w(2)}`, oarg([cutoffMs(30)]))));
   const errored = num((await qScalar(`SELECT COUNT(*) c FROM sessions WHERE status = 'error' AND updated_at >= $1${w(2)}`, oarg([cutoffMs(30)]))));
   const liveDeploys = num((await qScalar(`SELECT COUNT(*) c FROM deployments WHERE status = 'running'${org ? ' AND org_id = $1' : ''}`, org ? [org] : [])));
@@ -75,12 +83,15 @@ export async function overview(scope: Scope) {
     activatedUsers: ttfb.activated,
     activeUsers7d: eng.wau,
     activeUsers30d: eng.mau,
+    activeUsersPrev7d: engPrev.wau,
     dau: eng.dau,
     stickiness: eng.stickiness,
     sessions7d: sessions7,
     sessions30d: sessions30,
+    sessionsPrev7d: sessionsPrev7,
     cost7d: Math.round(cost7 * 1e4) / 1e4,
     cost30d: Math.round(cost30 * 1e4) / 1e4,
+    costPrev7d: Math.round(costPrev7 * 1e4) / 1e4,
     successRate: done + errored ? Math.round((done / (done + errored)) * 100) : 100,
     liveDeployments: liveDeploys,
   };

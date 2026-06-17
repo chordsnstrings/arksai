@@ -62,6 +62,25 @@ test('invite link is single-use, creates the user + membership, and expires', as
   assert.ok('error' in (await orgs.acceptInvite(t3, 'short')));
 });
 
+test('granting access removes the person from the waitlist (on invite + on accept)', async () => {
+  const db = await import('../src/db');
+  const org = await orgs.createOrg('Waitlisted Co');
+  const seedLead = (email: string) => db.q(`INSERT INTO leads(id,email,company,created_at) VALUES($1,$2,$3,$4)`, [`lead-${email}`, email, 'Co', Date.now()]);
+  const leadCount = async (email: string) => (await db.q(`SELECT COUNT(*) c FROM leads WHERE LOWER(email)=LOWER($1)`, [email]))[0].c;
+
+  // Issuing an invite removes the matching lead (case-insensitive).
+  await seedLead('Hire@waitlisted.co');
+  assert.equal(Number(await leadCount('hire@waitlisted.co')), 1);
+  await orgs.createInvite({ orgId: org.id, email: 'hire@waitlisted.co', role: 'member' });
+  assert.equal(Number(await leadCount('hire@waitlisted.co')), 0, 'lead should be removed when invited');
+
+  // And accepting an invite also clears it (defensive, e.g. a re-submitted lead).
+  const { token } = await orgs.createInvite({ orgId: org.id, email: 'second@waitlisted.co', role: 'member' });
+  await seedLead('second@waitlisted.co'); // re-added after the invite
+  await orgs.acceptInvite(token, 'password123');
+  assert.equal(Number(await leadCount('second@waitlisted.co')), 0, 'lead should be gone after accept');
+});
+
 test('auth sessions create → resolve → revoke; removing a membership kills the session', async () => {
   const org = await orgs.createOrg('Gamma');
   const u = await orgs.createUser({ email: 'g@gamma.com', password: 'password123' });

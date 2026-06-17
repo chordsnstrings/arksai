@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { BarList, CohortGrid, Funnel, KPI, LineChart, ago, downloadCsv, fmtDur, fmtMoney, fmtNum, toCsv } from './analyticsCharts';
+import { BarList, CohortGrid, Delta, Funnel, LineChart, Stat, ago, downloadCsv, fmtDur, fmtMoney, fmtNum, toCsv } from './analyticsCharts';
 import { UserDetailPanel } from './UserDetailPanel';
 import { AlertsCard } from './AnalyticsAlerts';
 
@@ -38,40 +38,46 @@ export function OrgAnalytics({ orgId }: { orgId: string }) {
   }, [orgId, days]);
 
   const o = ov ?? {};
+  const spark = (arr: any[] | undefined, key: string) => (arr ?? []).slice(-14).map((d) => d[key]);
 
   return (
     <div className="an-embed">
       <div className="an-embed-head">
-        <span className="an-kicker">Usage &amp; engagement · last {days} days</span>
-        <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="an-range">
-          <option value={7}>7 days</option>
-          <option value={30}>30 days</option>
-          <option value={90}>90 days</option>
-        </select>
-      </div>
-
-      <div className="an-kpis">
-        <KPI label="Active members (30d)" value={fmtNum(o.activeUsers30d ?? 0)} sub={`${o.activeUsers7d ?? 0} this week · ${o.dau ?? 0} today`} />
-        <KPI label="Stickiness" value={`${Math.round((o.stickiness ?? 0) * 100)}%`} sub="DAU / MAU" />
-        <KPI label="Sessions (30d)" value={fmtNum(o.sessions30d ?? 0)} sub={`${o.sessions7d ?? 0} this week`} />
-        <KPI label="Success rate" value={`${o.successRate ?? 100}%`} sub="completed runs" />
-        <KPI label="Members" value={fmtNum(o.members ?? members.length)} sub={`${o.liveDeployments ?? 0} live apps`} />
-        <KPI label="Time to first build" value={fmtDur(o.timeToFirstBuildMs)} sub="median, from signup" />
-        <KPI label="Cost (30d)" value={fmtMoney(o.cost30d ?? 0)} sub={`${fmtMoney(o.cost7d ?? 0)} this week`} />
+        <span className="an-kicker">Usage &amp; engagement</span>
+        <div className="an-tabs">
+          {[7, 30, 90].map((d) => (
+            <button key={d} className={`an-tab ${days === d ? 'active' : ''}`} onClick={() => setDays(d)}>{d}d</button>
+          ))}
+        </div>
       </div>
 
       <AlertsCard alerts={alerts} scope="org" />
 
-      <div className="an-grid">
-        <section className="an-card an-wide">
+      <div className="an-strip hero">
+        <Stat label="Active · 7d" value={fmtNum(o.activeUsers7d ?? 0)} delta={<Delta cur={o.activeUsers7d ?? 0} prev={o.activeUsersPrev7d} />} spark={spark(ts?.activeUsers, 'count')} />
+        <Stat label="Sessions · 7d" value={fmtNum(o.sessions7d ?? 0)} delta={<Delta cur={o.sessions7d ?? 0} prev={o.sessionsPrev7d} />} spark={spark(ts?.sessions, 'value')} />
+        <Stat label="Cost · 7d" value={fmtMoney(o.cost7d ?? 0)} delta={<Delta cur={o.cost7d ?? 0} prev={o.costPrev7d} invert />} spark={spark(ts?.cost, 'value')} />
+        <Stat label="Success rate" value={`${o.successRate ?? 100}%`} sub="completed runs" />
+        <Stat label="Members" value={fmtNum(o.members ?? members.length)} sub={`${o.liveDeployments ?? 0} live apps`} />
+        <Stat label="Time to first build" value={fmtDur(o.timeToFirstBuildMs)} sub="median, from signup" />
+      </div>
+
+      <div className="an-charts">
+        <section className="an-card">
           <h3>Active members / day</h3>
           <LineChart data={(ts?.activeUsers ?? []).map((d: any) => ({ x: d.day, y: d.count }))} />
         </section>
-        <section className="an-card an-wide">
+        <section className="an-card">
           <h3>Sessions / day</h3>
           <LineChart data={(ts?.sessions ?? []).map((d: any) => ({ x: d.day, y: d.value }))} />
         </section>
+        <section className="an-card">
+          <h3>Cost / day</h3>
+          <LineChart data={(ts?.cost ?? []).map((d: any) => ({ x: d.day, y: d.value }))} fmt={fmtMoney} />
+        </section>
+      </div>
 
+      <div className="an-grid">
         <section className="an-card">
           <h3>Activation funnel</h3>
           <Funnel stages={funnel} />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useEscClose } from '../hooks/useEscClose';
-import { BarList, CohortGrid, Funnel, KPI, LineChart, ago, downloadCsv, fmtDur, fmtMoney, fmtNum, toCsv } from './analyticsCharts';
+import { BarList, CohortGrid, Delta, Funnel, LineChart, Stat, ago, downloadCsv, fmtDur, fmtMoney, fmtNum, toCsv } from './analyticsCharts';
 import { UserDetailPanel } from './UserDetailPanel';
 import { AlertsCard } from './AnalyticsAlerts';
 
@@ -46,49 +46,63 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
   const o = ov ?? {};
   const errors = quality.find((q) => q.status === 'error')?.count ?? 0;
   const dones = quality.find((q) => q.status === 'done')?.count ?? 0;
+  const spark = (arr: any[] | undefined, key: string) => (arr ?? []).slice(-14).map((d) => d[key]);
+  const asOf = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
     <div className="an-view">
       <header className="an-head">
         <div>
-          <div className="an-kicker">Platform analytics</div>
+          <div className="an-kicker">Platform analytics · as of {asOf}</div>
           <h1 className="an-title">How ArksAI is being used</h1>
         </div>
         <div className="an-head-right">
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="an-range">
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
+          <div className="an-tabs">
+            {[7, 30, 90].map((d) => (
+              <button key={d} className={`an-tab ${days === d ? 'active' : ''}`} onClick={() => setDays(d)}>{d}d</button>
+            ))}
+          </div>
           <button className="cancel" onClick={onClose}>Close</button>
         </div>
       </header>
 
       <div className="an-body">
-        <div className="an-kpis">
-          <KPI label="Active users (30d)" value={fmtNum(o.activeUsers30d ?? 0)} sub={`${o.activeUsers7d ?? 0} this week · ${o.dau ?? 0} today`} />
-          <KPI label="Stickiness (DAU/MAU)" value={`${Math.round((o.stickiness ?? 0) * 100)}%`} sub="habitual use" />
-          <KPI label="Sessions (30d)" value={fmtNum(o.sessions30d ?? 0)} sub={`${o.sessions7d ?? 0} this week`} />
-          <KPI label="Success rate" value={`${o.successRate ?? 100}%`} sub="completed runs" />
-          <KPI label="Time to first build" value={fmtDur(o.timeToFirstBuildMs)} sub={`median · ${o.activatedUsers ?? 0} activated`} />
-          <KPI label="Cost (30d)" value={fmtMoney(o.cost30d ?? 0)} sub={`${fmtMoney(o.cost7d ?? 0)} this week`} />
-          <KPI label="Organizations" value={fmtNum(o.totalOrgs ?? 0)} sub={`${o.onboardedOrgs ?? 0} onboarded · ${o.totalUsers ?? 0} users`} />
-          <KPI label="Live apps" value={fmtNum(o.liveDeployments ?? 0)} sub="published & running" />
-          <KPI label="Waitlist" value={fmtNum(o.leads ?? 0)} sub="leads captured" />
-        </div>
-
         <AlertsCard alerts={alerts} scope="platform" />
 
-        <div className="an-grid">
-          <section className="an-card an-wide">
+        <div className="an-strip hero">
+          <Stat label="Active users · 7d" value={fmtNum(o.activeUsers7d ?? 0)} delta={<Delta cur={o.activeUsers7d ?? 0} prev={o.activeUsersPrev7d} />} spark={spark(ts?.activeUsers, 'count')} />
+          <Stat label="Sessions · 7d" value={fmtNum(o.sessions7d ?? 0)} delta={<Delta cur={o.sessions7d ?? 0} prev={o.sessionsPrev7d} />} spark={spark(ts?.sessions, 'value')} />
+          <Stat label="Cost · 7d" value={fmtMoney(o.cost7d ?? 0)} delta={<Delta cur={o.cost7d ?? 0} prev={o.costPrev7d} invert />} spark={spark(ts?.cost, 'value')} />
+          <Stat label="Success rate" value={`${o.successRate ?? 100}%`} sub={`${dones} done · ${errors} errored`} />
+          <Stat label="Stickiness" value={`${Math.round((o.stickiness ?? 0) * 100)}%`} sub="DAU / MAU" />
+          <Stat label="Time to first build" value={fmtDur(o.timeToFirstBuildMs)} sub={`median · ${o.activatedUsers ?? 0} activated`} />
+        </div>
+
+        <div className="an-strip sub">
+          <Stat label="Active · 30d" value={fmtNum(o.activeUsers30d ?? 0)} sub={`${o.dau ?? 0} today`} />
+          <Stat label="Sessions · 30d" value={fmtNum(o.sessions30d ?? 0)} sub={`${fmtMoney(o.cost30d ?? 0)} cost`} />
+          <Stat label="Organizations" value={fmtNum(o.totalOrgs ?? 0)} sub={`${o.onboardedOrgs ?? 0} onboarded`} />
+          <Stat label="Users" value={fmtNum(o.totalUsers ?? 0)} sub="accounts" />
+          <Stat label="Live apps" value={fmtNum(o.liveDeployments ?? 0)} sub="running" />
+          <Stat label="Waitlist" value={fmtNum(o.leads ?? 0)} sub="leads" />
+        </div>
+
+        <div className="an-charts">
+          <section className="an-card">
             <h3>Active users / day</h3>
             <LineChart data={(ts?.activeUsers ?? []).map((d: any) => ({ x: d.day, y: d.count }))} />
           </section>
-          <section className="an-card an-wide">
+          <section className="an-card">
             <h3>Sessions / day</h3>
             <LineChart data={(ts?.sessions ?? []).map((d: any) => ({ x: d.day, y: d.value }))} />
           </section>
+          <section className="an-card">
+            <h3>Cost / day</h3>
+            <LineChart data={(ts?.cost ?? []).map((d: any) => ({ x: d.day, y: d.value }))} fmt={fmtMoney} />
+          </section>
+        </div>
 
+        <div className="an-grid">
           <section className="an-card">
             <h3>Acquisition funnel</h3>
             <Funnel stages={funnel} />

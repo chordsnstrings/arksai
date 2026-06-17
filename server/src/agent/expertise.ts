@@ -16,7 +16,8 @@ import { LEGAL_PERSONA, LEGAL_TASKS } from './legal/uae';
 // ---- Department persona / cross-cutting rigor ----
 const DEPARTMENT: Record<string, string> = {
   marketing:
-    'Work as a senior brand & growth marketer. Lead with the audience and the benefit (not features), keep the message consistent and on-brand, and make every asset clear, scannable, and conversion-minded.',
+    'Work as a senior brand & growth marketer. Lead with the audience and the benefit (not features), keep the message consistent and on-brand, and make every asset clear, scannable, and conversion-minded. ' +
+    'VISUALS: marketing lives on imagery — when an asset needs a hero, ad, OG, or social graphic, GENERATE a real on-brand image with the `generate_image` tool (MiniMax) and place it in the deliverable; never ship grey placeholder boxes. Write a vivid, specific prompt (subject, style, mood, brand palette, no text baked into the image), pick the right aspect ratio (1:1 square, 9:16 story, 16:9 wide/hero), then reference the saved file. If image generation is unavailable, fall back to a tasteful CSS/gradient/SVG treatment — never a broken or empty image.',
   sales:
     'Work as a sharp sales-enablement / RevOps partner. Be specific and persuasive WITHOUT hype — concrete claims and metrics beat adjectives, always framed around the buyer’s outcome. Everything skimmable and on-brand.',
   finance:
@@ -55,7 +56,9 @@ const TASK: Record<string, string> = {
   'marketing.landing':
     'High-converting landing page: one focused goal; eye-path headline → subhead → one strong visual → social proof → CTA; the CTA is the single most prominent element; minimum form fields; bullets over paragraphs; benefit-led copy; flawless and fast on mobile.',
   'marketing.emailkit':
-    'Marketing email: mobile-first (≥14px text, ~44px tap targets, generous whitespace); ONE clear CTA; 50–200 words, scannable subject + preheader; benefit-led and personal, never spammy. Social graphics: on-brand, legible, one message each.',
+    'Marketing email: mobile-first (≥14px text, ~44px tap targets, generous whitespace); ONE clear CTA; 50–200 words, scannable subject + preheader; benefit-led and personal, never spammy. Social graphics: GENERATE them as real on-brand images with generate_image (one clear message each, channel-correct sizes), not placeholder rectangles.',
+  'marketing.creative':
+    'Ad & social creative: GENERATE the visuals with generate_image — a hero/ad image plus channel-sized social graphics (1:1, 9:16, 16:9). Each prompt is specific (subject, composition, style, mood, brand colour, photographic vs illustrated) and avoids baking in text; add any copy/logo as an overlay in the layout. Produce a tidy contact-sheet/board of the results and expose the files as downloads. On-brand, high-contrast, one idea per image.',
   'marketing.blog':
     'Article craft: a specific, promise-keeping headline; a hook that states the value up front; scannable sections with subheads and bullets; concrete examples; a clear takeaway/CTA. Research facts and cite them; never pad.',
   'marketing.brief': `${REPORT} Campaign brief specifics: a single measurable objective, the precise audience, the one key message, channels, timeline, and the success metrics — one tight page.`,

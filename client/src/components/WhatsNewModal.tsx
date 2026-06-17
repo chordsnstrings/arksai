@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-17.2';
+export const WHATS_NEW_VERSION = '2026-06-17.3';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Analytics: drill into any member',
-    body: 'Click a user (or member) in the admin analytics to see their usage — sessions, success rate, cost, time-to-first-build, and what they build — as metadata only, never their content.',
+    title: 'A sharper analytics dashboard',
+    body: 'The admin analytics is now a dense, editorial “data desk” — tabular figures, week-over-week change chips, and inline sparklines on every headline metric, so you can read what’s happening at a glance.',
   },
   {
-    title: 'Alerts, digests & CSV export',
-    body: 'Get automatic cost-spike and churn-risk alerts (no setup), a scheduled platform digest you can review in-app or push to a Slack/webhook, and one-click CSV export of the orgs, users, and members tables.',
+    title: 'Attach files when you describe a task',
+    body: 'The “describe what your team needs” box now takes file uploads, drag-and-drop, and clipboard paste — attach a logo, brief, or screenshot before you hit Make it.',
+  },
+  {
+    title: 'Marketing makes real images',
+    body: 'The Marketing team now generates on-brand hero, ad, and social imagery (a new “Ad & social creative” play) instead of placeholders.',
   },
 ];
 

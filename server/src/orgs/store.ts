@@ -250,6 +250,14 @@ const rowToInvite = (r: any): Invite => ({
   acceptedAt: r.accepted_at != null ? Number(r.accepted_at) : null,
   createdAt: Number(r.created_at),
 });
+/** Remove a waitlist lead once that person has been granted access (an invite issued /
+ *  accepted). Case-insensitive on email; best-effort so it never blocks the flow. */
+export async function removeLeadByEmail(email: string): Promise<void> {
+  const e = (email ?? '').trim();
+  if (!e) return;
+  await q('DELETE FROM leads WHERE LOWER(email) = LOWER($1)', [e]).catch(() => {});
+}
+
 export async function createInvite(opts: {
   orgId: string;
   email: string;
@@ -265,6 +273,9 @@ export async function createInvite(opts: {
     'INSERT INTO invites(id, org_id, email, role, token_hash, invited_by, expires_at, accepted_at, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,NULL,$8)',
     [id, opts.orgId, opts.email, opts.role, sha256(token), opts.invitedBy ?? null, expiresAt, now],
   );
+  // Being invited = being given access → drop them from the waitlist so the operator's
+  // review list only ever shows people not yet actioned.
+  await removeLeadByEmail(opts.email);
   return {
     invite: { id, orgId: opts.orgId, email: opts.email, role: opts.role, invitedBy: opts.invitedBy ?? null, expiresAt, acceptedAt: null, createdAt: now },
     token,
@@ -293,6 +304,7 @@ export async function acceptInvite(
   }
   await addMembership(userId, r.org_id, r.role as Role);
   await q('UPDATE invites SET accepted_at = $1 WHERE id = $2', [Date.now(), r.id]);
+  await removeLeadByEmail(r.email); // defensive: ensure they're off the waitlist on join
   return { user: (await getUser(userId))!, orgId: r.org_id };
 }
 
