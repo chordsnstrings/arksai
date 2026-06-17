@@ -53,6 +53,19 @@ export async function qOne<T = any>(sql: string, params: any[] = []): Promise<T 
   return (await q<T>(sql, params))[0] ?? null;
 }
 
+/** Tiny global key/value helpers (app_settings). Portable upsert via excluded.value
+ *  (NOT a reused $N — SQLite rewrites every $N→? positionally, so reuse underspecifies). */
+export async function getSetting(key: string): Promise<string | null> {
+  const r = await qOne<{ value: string }>('SELECT value FROM app_settings WHERE key = $1', [key]);
+  return r?.value ?? null;
+}
+export async function setSetting(key: string, value: string): Promise<void> {
+  await q('INSERT INTO app_settings(key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [
+    key,
+    value,
+  ]);
+}
+
 async function migrate() {
   const INT = dialect === 'pg' ? 'BIGINT' : 'INTEGER';
   const REAL = dialect === 'pg' ? 'DOUBLE PRECISION' : 'REAL';
@@ -260,6 +273,13 @@ async function migrate() {
     created_at ${INT} NOT NULL
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_analytics_digests_gen ON analytics_digests(generated_at)`);
+
+  // Small global key/value store (e.g. the operator's chosen display name — the operator
+  // logs in via APP_PASSWORD and has no users row, so it can't live on a user).
+  await q(`CREATE TABLE IF NOT EXISTS app_settings(
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`);
 
   // Best-effort migrations for older DBs.
   for (const col of [

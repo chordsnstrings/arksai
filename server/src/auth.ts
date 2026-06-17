@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from './config';
 import { track } from './analytics/track';
+import { getSetting, setSetting } from './db';
 import {
   DEFAULT_ORG_ID,
   type Identity,
@@ -14,8 +15,11 @@ import {
   resolveAuthSession,
   revokeAuthSession,
   roleInOrg,
+  updateUserName,
   verifyPassword,
 } from './orgs/store';
+
+const OPERATOR_NAME_KEY = 'operator.display_name';
 
 export const COOKIE_NAME = 'arksai_auth'; // legacy super-admin marker (value "ok")
 export const SESS_COOKIE = 'arksai_sess'; // per-user opaque session token
@@ -166,8 +170,9 @@ export function registerAuth(app: FastifyInstance) {
     if (!id) return reply.code(401).send({ error: 'Unauthorized' });
     track('app_open', { userId: id.userId, orgId: id.orgId }); // login/activity signal (fire-and-forget)
     if (id.userId === 'superadmin') {
+      const opName = (await getSetting(OPERATOR_NAME_KEY).catch(() => null)) || 'Operator';
       return {
-        user: { id: 'superadmin', email: 'operator', name: 'Operator', isSuperadmin: true },
+        user: { id: 'superadmin', email: 'operator', name: opName, isSuperadmin: true },
         orgs: await listOrgs(),
         currentOrg: id.orgId,
         role: 'superadmin',
@@ -186,6 +191,18 @@ export function registerAuth(app: FastifyInstance) {
       role: id.role,
       isSuperadmin: id.isSuperadmin,
     };
+  });
+
+  // Persist the user's chosen display name so the greeting follows them across devices
+  // (the operator has no users row → it lives in app_settings; members → their user row).
+  app.post('/api/auth/name', async (req, reply) => {
+    const id = req.identity ?? (await resolveIdentity(req));
+    if (!id) return reply.code(401).send({ error: 'Unauthorized' });
+    const raw = String((req.body as any)?.name ?? '').trim().slice(0, 60);
+    const name = raw || null;
+    if (id.userId === 'superadmin') await setSetting(OPERATOR_NAME_KEY, name ?? 'Operator');
+    else await updateUserName(id.userId, name);
+    return { ok: true, name };
   });
 
   app.post('/api/auth/logout', async (req, reply) => {

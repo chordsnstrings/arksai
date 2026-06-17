@@ -92,6 +92,8 @@ export const api = {
   submitLead: (lead: { email: string; company?: string; role?: string; team?: string; note?: string }) =>
     request<{ ok: true }>('/api/leads', { method: 'POST', body: JSON.stringify(lead) }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  setName: (name: string) =>
+    request<{ ok: true; name: string | null }>('/api/auth/name', { method: 'POST', body: JSON.stringify({ name }) }),
   listModels: () => request<{ models: ModelInfo[] }>('/api/models').then((r) => r.models),
   listSessions: () => request<SessionMeta[]>('/api/sessions'),
   createSession: (body: CreateSessionRequest) =>

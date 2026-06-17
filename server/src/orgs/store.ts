@@ -192,6 +192,9 @@ export async function createUser(opts: {
 export async function setPassword(userId: string, password: string): Promise<void> {
   await q('UPDATE users SET password_hash = $1 WHERE id = $2', [hashPassword(password), userId]);
 }
+export async function updateUserName(userId: string, name: string | null): Promise<void> {
+  await q('UPDATE users SET name = $1 WHERE id = $2', [name, userId]);
+}
 
 // ---- memberships ----
 const rowToMembership = (r: any): Membership => ({

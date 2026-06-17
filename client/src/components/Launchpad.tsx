@@ -68,6 +68,8 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
     }
     setNameOverride(first);
     setEditingName(false);
+    // Persist server-side too, so the greeting follows the user to any device.
+    api.setName(first).catch(() => {});
   };
   const greetLine = (
     <div className="lp-greet">
