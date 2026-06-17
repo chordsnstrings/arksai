@@ -15,9 +15,12 @@ import { analyzeImage } from '../engines/minimax';
 const FONT_DIR = path.join(repoRoot, 'server', 'assets', 'report-fonts');
 
 // Target canvas per aspect + the nearest MiniMax-supported generation ratio (we cover-crop).
+// image-01 supports 1:1/3:4/4:3/2:3/3:2/9:16/16:9/21:9 — pick the CLOSEST so the crop is
+// minimal and the vision-chosen text zone stays valid (4:5≈0.80 → 3:4≈0.75 crops ~90px,
+// vs 9:16≈0.56 which cropped ~570px and moved the imagery out from under the zone).
 export const CREATIVE_SIZES: Record<string, { w: number; h: number; gen: string }> = {
   '1:1': { w: 1080, h: 1080, gen: '1:1' },
-  '4:5': { w: 1080, h: 1350, gen: '9:16' },
+  '4:5': { w: 1080, h: 1350, gen: '3:4' },
   '9:16': { w: 1080, h: 1920, gen: '9:16' },
   '16:9': { w: 1280, h: 720, gen: '16:9' },
   '1.91:1': { w: 1200, h: 628, gen: '16:9' },
@@ -67,9 +70,10 @@ export function buildCreativeHtml(opts: {
   h: number;
   logoDataUrl?: string;
   logoPlaceholder?: boolean;
+  logoIsSvg?: boolean;
   fontsCss?: string;
 }): string {
-  const { bgDataUrl, zone, textColor, copy, w, h, logoDataUrl, logoPlaceholder } = opts;
+  const { bgDataUrl, zone, textColor, copy, w, h, logoDataUrl, logoPlaceholder, logoIsSvg } = opts;
   const light = textColor !== 'dark';
   const ink = light ? '#ffffff' : '#1b1813';
   const subInk = light ? 'rgba(255,255,255,0.86)' : 'rgba(27,24,19,0.72)';
@@ -108,7 +112,7 @@ export function buildCreativeHtml(opts: {
 .scrim{position:absolute;inset:0;background:${scrim};z-index:1}
 .bscrim{position:absolute;top:0;left:0;width:60%;height:34%;background:radial-gradient(ellipse at top left, rgba(0,0,0,0.5), rgba(0,0,0,0) 72%);z-index:2}
 .brand{position:absolute;top:${Math.round(h * 0.062)}px;left:${Math.round(w * 0.06)}px;z-index:4}
-.brand img{height:${brandH}px;max-width:${Math.round(w * 0.42)}px;object-fit:contain;object-position:left center}
+.brand img{${logoIsSvg ? `width:${Math.round(w * 0.42)}px;` : ''}height:${brandH}px;max-width:${Math.round(w * 0.42)}px;object-fit:contain;object-position:left center}
 .brand .ph{display:inline-flex;align-items:center;justify-content:center;height:${brandH}px;padding:0 ${Math.round(w * 0.03)}px;border:1.5px dashed rgba(255,255,255,0.78);border-radius:12px;background:rgba(255,255,255,0.1);color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:${Math.round(w * 0.018)}px;letter-spacing:0.16em}
 .c{position:absolute;display:flex;flex-direction:column;gap:0;z-index:3;${pos[zone]}}
 .kick{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:${Math.round(w * 0.0185)}px;letter-spacing:0.2em;text-transform:uppercase;color:${light ? '#fff' : copy.accent};opacity:${light ? 0.92 : 1};margin-bottom:${Math.round(h * 0.022)}px}
@@ -250,10 +254,12 @@ export async function composeCreative(
   const log: string[] = [];
   // Optional uploaded logo → data URL (fail-soft: a bad path just omits the logo).
   let logoDataUrl: string | undefined;
+  let logoIsSvg = false;
   if (opts.logoAbsPath) {
     try {
       const lb = fs.readFileSync(opts.logoAbsPath);
       const ext = path.extname(opts.logoAbsPath).toLowerCase();
+      logoIsSvg = ext === '.svg';
       const mt = ext === '.png' ? 'image/png' : ext === '.svg' ? 'image/svg+xml' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : 'image/jpeg';
       logoDataUrl = `data:${mt};base64,${lb.toString('base64')}`;
     } catch {
@@ -290,7 +296,7 @@ export async function composeCreative(
     const name = `creative-${Date.now()}.${ext}`;
     const absOut = path.join(dir, name);
     const bgDataUrl = `data:${sniffMime(buf)};base64,${buf.toString('base64')}`;
-    await renderToImage(buildCreativeHtml({ bgDataUrl, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder }), size.w, size.h, absOut, opts.format);
+    await renderToImage(buildCreativeHtml({ bgDataUrl, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder, logoIsSvg }), size.w, size.h, absOut, opts.format);
 
     // 3) vision QC; one corrective pass on a contrast/legibility complaint (flip the text colour)
     const finalBuf = fs.readFileSync(absOut);
@@ -303,7 +309,7 @@ export async function composeCreative(
     if (qc.ok && /\bREVISE\b/i.test(qc.text ?? '') && /legib|contrast|hard to read|washed|blends|low.?contrast/i.test(qc.text ?? '') && opts.textColor === 'auto') {
       textColor = textColor === 'light' ? 'dark' : 'light';
       log.push(`flipped text to ${textColor} for legibility`);
-      await renderToImage(buildCreativeHtml({ bgDataUrl, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder }), size.w, size.h, absOut, opts.format);
+      await renderToImage(buildCreativeHtml({ bgDataUrl, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder, logoIsSvg }), size.w, size.h, absOut, opts.format);
     }
 
     const notes = `zone=${zone}, text=${textColor}, ${opts.aspect} ${size.w}×${size.h}${log.length ? ' · ' + log.join('; ') : ''}`;

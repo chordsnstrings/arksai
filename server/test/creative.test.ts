@@ -45,6 +45,14 @@ test('buildCreativeHtml: a logo / placeholder renders in the brand corner, omitt
   assert.doesNotMatch(without, /class="brand"/);
 });
 
+test('buildCreativeHtml: an SVG logo gets an explicit width box (so it never renders blank)', () => {
+  const svg = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'light', logoDataUrl: 'data:image/svg+xml;base64,LOGO', logoIsSvg: true });
+  assert.match(svg, /\.brand img\{width:\d+px;height:/); // explicit width for SVG
+  const png = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'light', logoDataUrl: 'data:image/png;base64,LOGO' });
+  assert.match(png, /\.brand img\{height:/); // raster keeps natural width (no forced width)
+  assert.doesNotMatch(png, /\.brand img\{width:/);
+});
+
 test('buildCreativeHtml: a feature list renders check-marked bullets, escaped', () => {
   const html = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'dark', copy: { ...base.copy, bullets: ['Quick turnaround', 'Embassy-ready files'] } });
   assert.match(html, /class="bl"/);
