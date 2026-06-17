@@ -72,6 +72,14 @@ test('chat→code (one-off file, no plan) is never gated by the plan check', asy
   assert.doesNotMatch(res, /^Error/);
 });
 
+test('submit_plan is BLOCKED on an approval run (build, don\'t re-submit)', async () => {
+  let submitted = false;
+  const res = await submitPlanTool.run({}, ctx('plan', undefined, { submitPlan: () => (submitted = true), planApproved: true }));
+  assert.equal(submitted, false); // did NOT re-park the plan
+  assert.match(res, /^Error/);
+  assert.match(res, /already approved|switch_mode/i);
+});
+
 test('submit_plan signals the runner and ends the turn (plan mode only)', async () => {
   let submitted = false;
   const res = await submitPlanTool.run({}, ctx('plan', undefined, { submitPlan: () => (submitted = true) }));

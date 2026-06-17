@@ -72,6 +72,11 @@ export const submitPlanTool: ToolDef = {
   async run(_args, ctx) {
     if (ctx.mode !== 'plan') return 'Error: submit_plan is only used in plan mode.';
     if (!ctx.submitPlan) return 'Error: plan approval is not available in this run.';
+    // The user already clicked "Approve & build" — do NOT re-submit the plan (that re-parks
+    // the approval card and nothing builds). Build now.
+    if (ctx.planApproved) {
+      return 'Error: the user has ALREADY approved this plan — do NOT call submit_plan again. Call switch_mode("code") right now and build the whole thing end-to-end and autonomously, making sensible default decisions for any open choices (do not ask more questions).';
+    }
     ctx.submitPlan();
     return 'Plan submitted for approval. Your turn ends now — the user will either Approve & build (you then switch_mode("code") and build the whole thing autonomously) or ask to Revise. Output nothing further.';
   },

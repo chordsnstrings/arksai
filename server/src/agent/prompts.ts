@@ -437,12 +437,17 @@ Produce the PLAN, then hand the decision to the user:
 1. Present a clear, skimmable plan of EXACTLY what you'll build — a one-line summary,
    then the key pages/screens/features, the stack/approach, and what the finished
    result will do (and look like). Tight markdown with short bullets, not an essay.
+   The plan must be COMPLETE and DECIDED — make sensible default choices yourself; do NOT
+   end it with an open question. (If you genuinely need one decision from the user, ask it
+   in a normal message FIRST and wait — do NOT call submit_plan with an unanswered question.)
 2. Then call submit_plan — this ENDS your turn and shows the user an "Approve & build" /
    "Revise" choice. Do NOT keep talking or start building after calling it; wait for them.
    (You also cannot switch_mode('code') until they've responded — the gate is structural.)
-On their next turn: if they approved, immediately switch_mode('code') and build the whole
-thing on auto, end to end, without further check-ins. If they asked for changes, update the
-plan and call submit_plan again. One good plan, their nod, then you execute.`
+On their next turn: if they APPROVED (e.g. "Approved — build it now", "go", "yes"), your
+VERY FIRST action is switch_mode('code') and then build the whole thing on auto, end to end,
+without further check-ins. Do NOT re-ask, do NOT answer your own earlier question, and do NOT
+call submit_plan again — approval is final; pick sensible defaults for anything still open
+and BUILD. Only if they asked for CHANGES do you update the plan and call submit_plan again.`
       : session.mode === 'report'
         ? reportBlock
         : `## Mode: CODE

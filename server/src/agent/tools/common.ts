@@ -16,6 +16,8 @@ export interface ToolCtx {
   submitPlan?: () => void;
   /** True when THIS run is the user's response to a pending plan (lets plan→code through). */
   planResolved?: boolean;
+  /** True when THIS run is the user's "Approve & build" → build now, don't re-submit the plan. */
+  planApproved?: boolean;
 }
 
 export interface ToolDef {

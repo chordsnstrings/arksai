@@ -192,6 +192,7 @@ export class AgentRun {
   private pendingMode: SessionMode | null = null; // set by switch_mode; applied between tool batches
   private planSubmitted = false; // set by submit_plan; ends the turn awaiting the user's nod
   private planResolved = false; // this run answers a pending plan → plan→code is allowed
+  private planApproved = false; // this run is the user's "Approve & build" → must build, not re-plan
   private client: OpenAI; // DeepSeek (also used for title gen)
   private minimaxClient: OpenAI | null = null;
   private minimaxAvailable = !!config.minimaxApiKey;
@@ -355,6 +356,12 @@ export class AgentRun {
     // the user, THIS run is their response — clear the flag (the card disappears) and
     // unlock plan→code so an approval can proceed to the build.
     this.planResolved = this.session.awaitingPlan === true;
+    // The "Approve & build" button sends this canonical message. When it's the response to a
+    // pending plan, this run is a definite GO: the agent must build, NOT re-submit the plan
+    // (re-submitting re-parks awaitingPlan → the card reappears and nothing builds — the
+    // operator's "approve & build doesn't start building" bug, esp. when the plan ended with
+    // an open question). submit_plan is blocked this run; switch_mode('code') is unlocked.
+    this.planApproved = this.planResolved && /\bbuild it now\b/i.test(userText);
     if (this.session.awaitingPlan) {
       this.session.awaitingPlan = false;
       await store.setAwaitingPlan(sessionId, false).catch(() => {});
@@ -998,6 +1005,7 @@ export class AgentRun {
             this.planSubmitted = true;
           },
           planResolved: this.planResolved,
+          planApproved: this.planApproved,
           addCost: (usd: number) => {
             if (usd > 0) {
               this.engineCostUsd += usd;
