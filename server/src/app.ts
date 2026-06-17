@@ -27,14 +27,17 @@ export async function buildApp() {
   const app = Fastify({ logger: { level: config.isProd ? 'warn' : 'info' } });
 
   // Tolerate empty JSON bodies (e.g. DELETE/POST with no payload) instead of
-  // returning 400 — the default parser errors on an empty body.
+  // returning 400 — the default parser errors on an empty body. Malformed JSON
+  // is a CLIENT error → return 400 (a bad request), not a 500 (looks like we broke).
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
     const s = (body as string).trim();
     if (!s) return done(null, undefined);
     try {
       done(null, JSON.parse(s));
-    } catch (err) {
-      done(err as Error);
+    } catch {
+      const err = new Error('Malformed JSON in request body.') as Error & { statusCode?: number };
+      err.statusCode = 400;
+      done(err);
     }
   });
 

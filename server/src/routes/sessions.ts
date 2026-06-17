@@ -17,6 +17,10 @@ import { detectStartCommand, verifyProject } from '../agent/verify';
 import { probeApp } from '../agent/runtimeCheck';
 import { scopeOf } from '../auth';
 
+// Only strings have .trim(): a wrong-typed field (number/array/object) must coerce
+// to '' rather than throw a TypeError that surfaces as a 500.
+const asStr = (v: unknown): string => (typeof v === 'string' ? v : '');
+
 export function registerSessionRoutes(app: FastifyInstance) {
   // Org-scope every /api/sessions/:id access in one place: a caller may only touch
   // sessions in their current org (cross-org → 404). This now applies to the platform
@@ -38,7 +42,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const project = body.projectId ? await store.getProject(body.projectId, scopeOf(req)) : null;
     let repoUrl: string | null = null;
     let repoName: string | null = null;
-    const repoInput = body.repoUrl?.trim() || project?.defaultRepoUrl || '';
+    const repoInput = asStr(body.repoUrl).trim() || project?.defaultRepoUrl || '';
     if (repoInput) {
       const parsed = parseRepoUrl(repoInput);
       if (!parsed) {
@@ -57,7 +61,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const session = await store.createSession({
       repoUrl,
       repoName,
-      branch: body.branch?.trim() || project?.defaultBranch || null,
+      branch: asStr(body.branch).trim() || project?.defaultBranch || null,
       mode,
       model,
       projectId: project?.id ?? null,
@@ -120,7 +124,9 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const meta = await store.getSession(id);
     if (!meta) return reply.code(404).send({ error: 'Not found' });
     const body = (req.body ?? {}) as SendMessageRequest;
-    const text = String(body.text ?? '').trim();
+    // Require an actual string: coercing (e.g. an object → "[object Object]") would
+    // feed the agent garbage. A non-string becomes '' → a clean 400.
+    const text = asStr(body.text).trim();
     if (!text) return reply.code(400).send({ error: 'Empty message' });
 
     await store.appendTimeline(id, { kind: 'user', id: randomUUID(), text, ts: Date.now() });
