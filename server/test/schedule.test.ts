@@ -42,3 +42,36 @@ test('next run is always strictly in the future', () => {
     assert.ok(n > now.getTime(), `${c} should be in the future`);
   }
 });
+
+const dayInTz = (ms: number, tz: string) =>
+  new Intl.DateTimeFormat('en-US', { timeZone: tz, day: '2-digit' }).formatToParts(new Date(ms)).find((p) => p.type === 'day')!.value;
+
+test('daily honors the schedule timezone, not the server', () => {
+  // 07:00 in Dubai (UTC+4) → today's 09:00 Dubai run == 05:00 UTC (NOT 09:00 server-local).
+  const from = new Date('2026-06-14T03:00:00Z');
+  const next = computeNextRun(from, 'daily', '09:00', null, null, 'Asia/Dubai');
+  assert.equal(new Date(next).getUTCHours(), 5);
+  assert.equal(dayInTz(next, 'Asia/Dubai'), '14'); // same Dubai day
+});
+
+test('daily rolls to tomorrow in the schedule timezone once the time has passed', () => {
+  const from = new Date('2026-06-14T07:00:00Z'); // 11:00 Dubai — past 09:00
+  const next = computeNextRun(from, 'daily', '09:00', null, null, 'Asia/Dubai');
+  assert.equal(new Date(next).getUTCHours(), 5); // 09:00 Dubai
+  assert.equal(dayInTz(next, 'Asia/Dubai'), '15'); // tomorrow in Dubai
+});
+
+test('daily is DST-correct (offset applied per date) for America/New_York', () => {
+  // Winter EST (UTC-5): 09:00 NY == 14:00 UTC
+  const winter = computeNextRun(new Date('2026-01-15T00:00:00Z'), 'daily', '09:00', null, null, 'America/New_York');
+  assert.equal(new Date(winter).getUTCHours(), 14);
+  // Summer EDT (UTC-4): 09:00 NY == 13:00 UTC
+  const summer = computeNextRun(new Date('2026-07-15T00:00:00Z'), 'daily', '09:00', null, null, 'America/New_York');
+  assert.equal(new Date(summer).getUTCHours(), 13);
+});
+
+test('an invalid timezone falls back to the legacy path without throwing', () => {
+  const from = new Date('2026-06-14T03:00:00Z');
+  const n = computeNextRun(from, 'daily', '09:00', null, null, 'Not/AZone');
+  assert.ok(n > from.getTime());
+});

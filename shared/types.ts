@@ -287,12 +287,14 @@ export interface Schedule {
   mode: SessionMode;
   model: ModelId;
   cadence: ScheduleCadence;
-  /** "HH:MM" (24h, server local time) for daily/weekly. */
+  /** "HH:MM" (24h) for daily/weekly — interpreted in `tz`. */
   at: string | null;
   /** 0–6 (Sun–Sat) for weekly. */
   weekday: number | null;
   /** milliseconds for the 'interval' cadence. */
   intervalMs: number | null;
+  /** IANA timezone the `at`/`weekday` wall-clock is read in (e.g. "Asia/Dubai"). UTC if null. */
+  tz: string | null;
   enabled: boolean;
   nextRunAt: number;
   lastRunAt: number | null;
@@ -308,6 +310,8 @@ export interface CreateScheduleRequest {
   at?: string;
   weekday?: number;
   intervalMs?: number;
+  /** IANA timezone for `at`/`weekday` (defaults to the creator's browser tz). */
+  tz?: string;
 }
 
 export interface Project {

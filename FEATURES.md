@@ -82,7 +82,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - B2B acquisition landing (pre-login) — positioned as **"the AI that empowers your business"** for the UAE, and **SEO/LLM-optimized for "AI in the UAE"**: a keyword-rich `<title>`/description/keywords + Open Graph + **JSON-LD structured data** (Organization, SoftwareApplication, FAQPage) in `index.html` so search and answer engines can read and cite it pre-JS. Meatier content: a **"what it makes"** capability grid (live apps, dashboards, reports/decks, on-brand ad & social creatives, UAE compliance, UAE legal), a **"Built for the UAE"** compliance block (VAT 201/FAF, PINT AE e-invoicing, Corporate Tax, WPS, Excise), a by-department value grid, a UAE-focused FAQ, an early-adopter strip (the ARKS group), and a "watch it build" demo. Kept **alpha · invite-only** throughout (nav pill + hero note + request-access funnel → `POST /api/leads`). Excludes any admin/analytics surfaces.
 
 ## Day-to-day capabilities
-- Recurring/scheduled tasks — a durable server scheduler (daily/weekly/interval) that fires a fresh session even with the browser closed; managed via a Schedules dialog.
+- Recurring/scheduled tasks — a durable server scheduler (daily/weekly/interval) that fires a fresh session even with the browser closed; managed via a Schedules dialog. Times are read in **your local timezone** (captured from your browser, DST-correct), so "daily 08:00" fires at 08:00 where you are — not on the server's clock.
 - Data in — `fetch_data` pulls a public CSV/JSON/published-Sheet URL (SSRF-guarded).
 - Deliver out — `send_webhook` posts a result to a Slack/Zapier/Discord hook.
 

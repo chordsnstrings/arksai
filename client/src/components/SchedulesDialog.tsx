@@ -45,6 +45,8 @@ export function SchedulesDialog({ onClose }: { onClose: () => void }) {
         at: form.cadence === 'interval' ? undefined : form.at,
         weekday: form.cadence === 'weekly' ? form.weekday : undefined,
         intervalMs: form.cadence === 'interval' ? form.everyHours * 3_600_000 : undefined,
+        // Fire at the USER's local wall-clock time, not the server's (Bangalore).
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
       });
       setForm((f) => ({ ...f, label: '', prompt: '' }));
       await refresh();
@@ -109,7 +111,7 @@ export function SchedulesDialog({ onClose }: { onClose: () => void }) {
             )}
             {form.cadence !== 'interval' ? (
               <div>
-                <label>Time (server)</label>
+                <label>Time ({Intl.DateTimeFormat().resolvedOptions().timeZone || 'local'})</label>
                 <input type="time" value={form.at} onChange={(e) => setForm({ ...form, at: e.target.value })} />
               </div>
             ) : (

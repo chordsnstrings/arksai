@@ -307,6 +307,7 @@ async function migrate() {
     "projects:visibility TEXT NOT NULL DEFAULT 'org'",
     'deployments:org_id TEXT',
     'schedules:org_id TEXT',
+    'schedules:tz TEXT',
     `deployments:expires_at ${INT}`,
   ]) {
     const cut = spec.indexOf(':');

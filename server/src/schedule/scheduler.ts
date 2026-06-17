@@ -21,29 +21,90 @@ import * as manager from '../sessions/manager';
 const TICK_MS = 60_000;
 const MIN_INTERVAL_MS = 5 * 60_000; // floor for the 'interval' cadence
 
-/** Next fire time (ms epoch) at/after `from`. Pure — unit-tested. */
+// --- timezone helpers (pure; no deps) so a schedule fires at the user's LOCAL wall-clock
+// time, not the server's. The server runs in Bangalore but a UAE user's "daily 08:00"
+// must mean 08:00 Asia/Dubai. We read/round-trip wall-clock via Intl.DateTimeFormat. ---
+function tzParts(tz: string, utcMs: number) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  });
+  const m: Record<string, string> = {};
+  for (const p of dtf.formatToParts(new Date(utcMs))) if (p.type !== 'literal') m[p.type] = p.value;
+  return { y: +m.year, mo: +m.month - 1, d: +m.day, hh: +m.hour % 24, mm: +m.minute, ss: +m.second };
+}
+function tzOffsetMs(tz: string, utcMs: number): number {
+  const p = tzParts(tz, utcMs);
+  return Date.UTC(p.y, p.mo, p.d, p.hh, p.mm, p.ss) - utcMs;
+}
+/** UTC instant for a wall-clock time in `tz` (DST-corrected by re-reading the offset). */
+function zonedWallToUtc(tz: string, y: number, mo: number, d: number, hh: number, mm: number): number {
+  const guess = Date.UTC(y, mo, d, hh, mm, 0);
+  const o1 = tzOffsetMs(tz, guess);
+  let utc = guess - o1;
+  const o2 = tzOffsetMs(tz, utc);
+  if (o2 !== o1) utc = guess - o2;
+  return utc;
+}
+function addDays(y: number, mo: number, d: number, n: number) {
+  const t = new Date(Date.UTC(y, mo, d + n));
+  return { y: t.getUTCFullYear(), mo: t.getUTCMonth(), d: t.getUTCDate() };
+}
+/** A string is a usable IANA tz iff Intl accepts it. */
+function validTz(tz?: string | null): boolean {
+  if (!tz) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Next fire time (ms epoch) strictly after `from`, with `at`/`weekday` read in `tz`
+ *  (IANA). A null/invalid tz keeps the legacy server-local behaviour (so schedules
+ *  created before timezones existed don't shift). Pure — unit-tested. */
 export function computeNextRun(
   from: Date,
   cadence: Schedule['cadence'],
   at: string | null,
   weekday: number | null,
   intervalMs: number | null,
+  tz: string | null = null,
 ): number {
   if (cadence === 'interval') {
     return from.getTime() + Math.max(MIN_INTERVAL_MS, intervalMs ?? MIN_INTERVAL_MS);
   }
-  const [hh, mm] = (at ?? '09:00').split(':').map((n) => parseInt(n, 10));
+  const [hh0, mm0] = (at ?? '09:00').split(':').map((n) => parseInt(n, 10));
+  const hh = Number.isFinite(hh0) ? hh0 : 9;
+  const mm = Number.isFinite(mm0) ? mm0 : 0;
+  const target = ((weekday ?? 1) % 7 + 7) % 7;
+  const fromMs = from.getTime();
+
+  if (tz) {
+    try {
+      const base = tzParts(tz, fromMs); // today's wall date in tz
+      const maxOff = cadence === 'daily' ? 1 : 7;
+      for (let off = 0; off <= maxOff; off++) {
+        const wd = addDays(base.y, base.mo, base.d, off);
+        if (cadence === 'weekly' && new Date(Date.UTC(wd.y, wd.mo, wd.d)).getUTCDay() !== target) continue;
+        const utc = zonedWallToUtc(tz, wd.y, wd.mo, wd.d, hh, mm);
+        if (utc > fromMs) return utc;
+      }
+    } catch {
+      /* bad tz → fall through to the server-local path below */
+    }
+  }
+
+  // Legacy / fallback: server-local wall-clock.
   const next = new Date(from);
-  next.setSeconds(0, 0);
-  next.setHours(Number.isFinite(hh) ? hh : 9, Number.isFinite(mm) ? mm : 0, 0, 0);
+  next.setHours(hh, mm, 0, 0);
   if (cadence === 'daily') {
-    if (next.getTime() <= from.getTime()) next.setDate(next.getDate() + 1);
+    if (next.getTime() <= fromMs) next.setDate(next.getDate() + 1);
     return next.getTime();
   }
-  // weekly: advance to the target weekday (0–6), then to next week if already past.
-  const target = ((weekday ?? 1) % 7 + 7) % 7;
   let delta = (target - next.getDay() + 7) % 7;
-  if (delta === 0 && next.getTime() <= from.getTime()) delta = 7;
+  if (delta === 0 && next.getTime() <= fromMs) delta = 7;
   next.setDate(next.getDate() + delta);
   return next.getTime();
 }
@@ -59,6 +120,7 @@ function rowToSchedule(r: any): Schedule {
     at: r.at ?? null,
     weekday: r.weekday ?? null,
     intervalMs: r.interval_ms ?? null,
+    tz: r.tz ?? null,
     enabled: !!r.enabled,
     nextRunAt: Number(r.next_run_at),
     lastRunAt: r.last_run_at != null ? Number(r.last_run_at) : null,
@@ -80,7 +142,8 @@ export async function createSchedule(req: CreateScheduleRequest, orgId: string |
   const at = cadence === 'interval' ? null : (req.at || '09:00');
   const weekday = cadence === 'weekly' ? (((req.weekday ?? 1) % 7) + 7) % 7 : null;
   const intervalMs = cadence === 'interval' ? Math.max(MIN_INTERVAL_MS, req.intervalMs ?? MIN_INTERVAL_MS) : null;
-  const next = computeNextRun(new Date(), cadence, at, weekday, intervalMs);
+  const tz = validTz(req.tz) ? req.tz! : null;
+  const next = computeNextRun(new Date(), cadence, at, weekday, intervalMs, tz);
   const s: Schedule = {
     id: randomUUID(),
     label: String(req.label || 'Scheduled task').slice(0, 120),
@@ -91,15 +154,16 @@ export async function createSchedule(req: CreateScheduleRequest, orgId: string |
     at,
     weekday,
     intervalMs,
+    tz,
     enabled: true,
     nextRunAt: next,
     lastRunAt: null,
     createdAt: Date.now(),
   };
   await q(
-    `INSERT INTO schedules(id,label,prompt,mode,model,cadence,at,weekday,interval_ms,enabled,next_run_at,last_run_at,created_at,org_id)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-    [s.id, s.label, s.prompt, s.mode, s.model, s.cadence, s.at, s.weekday, s.intervalMs, 1, s.nextRunAt, null, s.createdAt, orgId],
+    `INSERT INTO schedules(id,label,prompt,mode,model,cadence,at,weekday,interval_ms,tz,enabled,next_run_at,last_run_at,created_at,org_id)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+    [s.id, s.label, s.prompt, s.mode, s.model, s.cadence, s.at, s.weekday, s.intervalMs, s.tz, 1, s.nextRunAt, null, s.createdAt, orgId],
   );
   return s;
 }
@@ -152,7 +216,7 @@ export async function tick(now = Date.now()) {
   for (const row of due) {
     const s = rowToSchedule(row);
     // Advance next_run_at FIRST so a slow/failed fire can't double-trigger.
-    const next = computeNextRun(new Date(now), s.cadence, s.at, s.weekday, s.intervalMs);
+    const next = computeNextRun(new Date(now), s.cadence, s.at, s.weekday, s.intervalMs, s.tz);
     await q(`UPDATE schedules SET next_run_at=$1, last_run_at=$2 WHERE id=$3`, [next, now, s.id]).catch(() => {});
     try {
       await fire(s, row.org_id ?? null);
