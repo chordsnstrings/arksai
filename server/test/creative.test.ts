@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCreativeHtml, CREATIVE_SIZES, scrubImageryPrompt } from '../src/agent/creative';
 import { resolveCreativePrompt } from '../src/agent/tools/creative';
+import { isValidImageBytes } from '../src/engines/minimax';
 
 const base = {
   bgDataUrl: 'data:image/png;base64,AAAA',
@@ -112,6 +113,14 @@ test('resolveCreativePrompt: falls back to the longest non-prompt string when no
 
 test('resolveCreativePrompt: never grabs known non-prompt fields, returns "" only when truly empty', () => {
   assert.equal(resolveCreativePrompt({ aspect_ratio: '1:1', accent: '#fff', headline: 'Hi', cta: 'Go' }), '');
+});
+
+test('isValidImageBytes: accepts real PNG/JPEG, rejects empty / error-page / too-tiny', () => {
+  assert.equal(isValidImageBytes(Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(600)])), true); // PNG
+  assert.equal(isValidImageBytes(Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(600)])), true); // JPEG
+  assert.equal(isValidImageBytes(Buffer.alloc(0)), false); // empty download
+  assert.equal(isValidImageBytes(Buffer.concat([Buffer.from('<!DOCTYPE html><html>error'), Buffer.alloc(600)])), false); // error page (no magic)
+  assert.equal(isValidImageBytes(Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3])), false); // valid magic but truncated/tiny
 });
 
 test('CREATIVE_SIZES: every channel ratio maps to a canvas + a MiniMax gen ratio', () => {

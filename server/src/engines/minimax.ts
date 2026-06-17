@@ -52,6 +52,20 @@ async function downloadTo(url: string, absPath: string, signal: AbortSignal): Pr
   }
 }
 
+/** A real generated image isn't tiny and starts with a known magic header (PNG/JPEG/GIF/
+ *  WebP). Guards against a 0-byte / truncated / error-page download passing as an image.
+ *  Pure + exported for tests. */
+export function isValidImageBytes(buf: Buffer): boolean {
+  if (!buf || buf.length < 512) return false;
+  const png = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+  const jpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  const gif = buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38;
+  const webp =
+    buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+    buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50;
+  return png || jpeg || gif || webp;
+}
+
 // ---------------------------------------------------------------- Vision (VLM)
 
 /**
@@ -154,9 +168,13 @@ export async function generateImage(
     const files: EngineFile[] = [];
     for (let i = 0; i < urls.length; i++) {
       const name = `minimax-image-${Date.now()}-${i + 1}.png`;
-      if (await downloadTo(urls[i], path.join(dir, name), signal)) files.push({ path: `images/${name}`, kind: 'image' });
+      const abs = path.join(dir, name);
+      if (!(await downloadTo(urls[i], abs, signal))) continue;
+      // Gate the output: a 0-byte / truncated / error-page download is not a usable image.
+      if (isValidImageBytes(fs.readFileSync(abs))) files.push({ path: `images/${name}`, kind: 'image' });
+      else try { fs.unlinkSync(abs); } catch { /* best-effort cleanup */ }
     }
-    if (!files.length) return { ok: false, files: [], error: 'could not download generated image(s)' };
+    if (!files.length) return { ok: false, files: [], error: 'the image came back empty or unreadable — try again' };
     return { ok: true, files };
   } catch (e: any) {
     return { ok: false, files: [], error: String(e?.message ?? e) };
