@@ -18,7 +18,9 @@ export const generateCreativeTool: ToolDef = {
     'NOT generate_image, because image models cannot render text reliably; this composites real type so it is ' +
     'always sharp. You write the imagery `prompt` (scene, style, mood, palette — never ask for text in it) and ' +
     'the copy; it picks the best text placement automatically. Saved to images/ and offered as a download. ' +
-    'Generate one per channel size (1:1 / 4:5 / 9:16 / 16:9 / 1.91:1).',
+    'Generate one per channel size (1:1 / 4:5 / 9:16 / 16:9 / 1.91:1). ' +
+    'BRAND FIRST: if the user has not given a logo, ASK them to upload one and pass its path — or set logo_placeholder. ' +
+    'This is a SOCIAL creative — write conversion-led copy that stops the scroll: a benefit/outcome headline (value in the first few words), a short check-marked benefit list (bullets), proof/specifics only where true, and a single clear CTA.',
   parameters: {
     type: 'object',
     properties: {

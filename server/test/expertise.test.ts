@@ -38,6 +38,20 @@ test('marketing wires in MiniMax image generation (persona + creative/email play
   assert.match(expertiseFor('marketing.emailkit')!, /generate_creative/i);
 });
 
+test('marketing creative asks for the logo + carries high-conversion social tactics', () => {
+  const c = expertiseFor('marketing.creative')!;
+  assert.match(c, /logo/i); // prompt the user for / pass a logo
+  assert.match(c, /logo_placeholder/); // …or a clean placeholder
+  assert.match(c, /CTA|call-to-action/i); // a single clear CTA
+  assert.match(c, /thumb/i); // the SOCIAL block ("make the thumb stop")
+});
+
+test('email and social are optimized for their own medium — no social-scroll tactics in email', () => {
+  const email = expertiseFor('marketing.emailkit')!;
+  assert.match(email, /subject|preheader|inbox/i); // email's own levers
+  assert.doesNotMatch(email, /thumb/i); // NOT loaded with the social-scroll playbook
+});
+
 test('expertiseFor: every department persona resolves', () => {
   for (const d of ['marketing', 'sales', 'finance', 'people', 'engineering', 'bi']) {
     assert.ok(expertiseFor(`${d}.kpidashboard`) || expertiseFor(`${d}.unknown`) === null);
