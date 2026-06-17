@@ -98,23 +98,38 @@ export async function analyzeImage(
     return { ok: false, error: `image read failed: ${String(e?.message ?? e)}` };
   }
   // Vision has no model fallback, so bound it: abort on the run's signal OR a local timeout
-  // and degrade to {ok:false} rather than hang the gate.
+  // and degrade to {ok:false} rather than hang the gate. NB: ac.abort() does NOT reliably
+  // reject a pending undici fetch that's still awaiting response headers (M3 can buffer those
+  // for minutes), so we ALSO race the await against a deadline promise — otherwise a slow
+  // vision call freezes the whole verify/report gate (observed: an 11-min frozen legal run).
   const ac = new AbortController();
   const onAbort = () => ac.abort();
   if (signal.aborted) ac.abort();
   else signal.addEventListener('abort', onAbort, { once: true });
-  const timer = setTimeout(() => ac.abort(), 60_000);
+  let rejectDeadline: ((e: any) => void) | null = null;
+  const deadline = new Promise<never>((_, rej) => {
+    rejectDeadline = rej;
+  });
+  deadline.catch(() => {}); // never an unhandled rejection
+  const visionMs = Number(process.env.MINIMAX_VISION_TIMEOUT_MS || '60000') || 60_000;
+  const timer = setTimeout(() => {
+    ac.abort();
+    rejectDeadline?.(new Error(`vision timed out after ${Math.round(visionMs / 1000)}s`));
+  }, visionMs);
   try {
-    const res = await fetch(`${anthropicBase()}/v1/messages`, {
-      method: 'POST',
-      headers: { ...authHeaders(), 'anthropic-version': '2023-06-01' },
-      signal: ac.signal,
-      body: JSON.stringify({
-        model: config.minimaxVlModel,
-        max_tokens: 1500,
-        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, imageBlock] }],
+    const res = await Promise.race([
+      fetch(`${anthropicBase()}/v1/messages`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'anthropic-version': '2023-06-01' },
+        signal: ac.signal,
+        body: JSON.stringify({
+          model: config.minimaxVlModel,
+          max_tokens: 1500,
+          messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, imageBlock] }],
+        }),
       }),
-    });
+      deadline,
+    ]);
     const data: any = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${JSON.stringify(data).slice(0, 300)}` };
     // Anthropic response: content is an array of blocks; concatenate the text blocks.
