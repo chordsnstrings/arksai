@@ -12,6 +12,10 @@ export interface ToolCtx {
   addCost: (usd: number) => void;
   /** Switch this session's mode mid-run (the runner reloads tools/prompt/engine). */
   requestModeSwitch?: (mode: SessionMode) => void;
+  /** Plan mode: hand the build plan to the user for Approve/Revise — ends the turn. */
+  submitPlan?: () => void;
+  /** True when THIS run is the user's response to a pending plan (lets plan→code through). */
+  planResolved?: boolean;
 }
 
 export interface ToolDef {

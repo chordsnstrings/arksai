@@ -40,6 +40,13 @@ export function Composer({
     taRef.current?.focus();
   }, [meta.id]);
 
+  // Let other surfaces (e.g. the plan "Revise" button) drop focus into the box.
+  useEffect(() => {
+    const onFocus = () => taRef.current?.focus();
+    window.addEventListener('arksai:focus-composer', onFocus);
+    return () => window.removeEventListener('arksai:focus-composer', onFocus);
+  }, []);
+
   const upsertSession = useStore((s) => s.upsertSession);
   const addUserMessage = useStore((s) => s.addUserMessage);
   const beginRun = useStore((s) => s.beginRun);

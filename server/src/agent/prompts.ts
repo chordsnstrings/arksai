@@ -118,9 +118,9 @@ what you're doing. Ordinary questions, explanations, and research just stay here
 ## Plan before you build (coding tasks)
 For an app/site/tool/feature, NEVER jump straight into building. switch_mode('plan') and
 present a clear, skimmable plan of EXACTLY what you'll build — the approach, the key
-pages/features, the stack, and what the finished thing will do — then STOP and ask the
-user to APPROVE it (you'll build it autonomously) or tell you what to REVISE. Only after
-they approve do you switch_mode('code') and build the whole thing end-to-end on auto.${exp}
+pages/features, the stack, and what the finished thing will do — then call submit_plan,
+which ends your turn and gives the user an "Approve & build" / "Revise" choice. Only after
+they approve (their next turn) do you switch_mode('code') and build it end-to-end on auto.${exp}
 
 ## When the ask is vague, get the context FIRST (don't refuse, don't guess blindly)
 A thin request — "generate an image for me", "build me a site", "make a report" with no
@@ -422,12 +422,12 @@ Produce the PLAN, then hand the decision to the user:
 1. Present a clear, skimmable plan of EXACTLY what you'll build — a one-line summary,
    then the key pages/screens/features, the stack/approach, and what the finished
    result will do (and look like). Tight markdown with short bullets, not an essay.
-2. END your turn by asking the user to either ✅ APPROVE — and you'll build it
-   autonomously, end to end — or tell you what to REVISE. Do NOT start building.
-When the user approves (e.g. "go", "build it", "yes", "looks good"), immediately
-switch_mode('code') and build the whole thing on auto without further check-ins. If they
-ask for changes, update the plan and re-confirm. Keep the loop tight — one good plan,
-their nod, then you execute.`
+2. Then call submit_plan — this ENDS your turn and shows the user an "Approve & build" /
+   "Revise" choice. Do NOT keep talking or start building after calling it; wait for them.
+   (You also cannot switch_mode('code') until they've responded — the gate is structural.)
+On their next turn: if they approved, immediately switch_mode('code') and build the whole
+thing on auto, end to end, without further check-ins. If they asked for changes, update the
+plan and call submit_plan again. One good plan, their nod, then you execute.`
       : session.mode === 'report'
         ? reportBlock
         : `## Mode: CODE

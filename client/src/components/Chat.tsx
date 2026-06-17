@@ -296,8 +296,50 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
   );
 }
 
+/** Plan mode parked awaiting the user's nod — the explicit Approve / Revise gate. */
+function PlanApprovalCard({ sessionId }: { sessionId: string }) {
+  const addUserMessage = useStore((s) => s.addUserMessage);
+  const beginRun = useStore((s) => s.beginRun);
+  const [busy, setBusy] = useState(false);
+
+  const approve = async () => {
+    if (busy) return;
+    setBusy(true);
+    const msg = 'Approved — build it now, end to end and autonomously. No more check-ins.';
+    addUserMessage(sessionId, msg);
+    beginRun(sessionId);
+    try {
+      await api.sendMessage(sessionId, msg);
+    } catch {
+      /* the optimistic running state clears on the next event */
+    }
+  };
+
+  return (
+    <div className="plan-card reveal">
+      <div className="pc-head">
+        <span className="pc-badge">Plan ready</span>
+        Approve to build it autonomously, or tell me what to change.
+      </div>
+      <div className="pc-actions">
+        <button className="pc-approve" onClick={approve} disabled={busy}>
+          {busy ? 'Starting…' : '✓ Approve & build'}
+        </button>
+        <button
+          className="pc-revise"
+          disabled={busy}
+          onClick={() => window.dispatchEvent(new Event('arksai:focus-composer'))}
+        >
+          Revise
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const awaitingPlan = useStore((s) => s.sessions.find((x) => x.id === sessionId)?.awaitingPlan ?? false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const itemCount =
     live.items.length +
@@ -332,6 +374,7 @@ export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }
           </div>
         )}
         {live.running && <StatusFooter live={live} sessionId={sessionId} />}
+        {!live.running && awaitingPlan && <PlanApprovalCard sessionId={sessionId} />}
         {!live.running && live.completion && (
           <CompletionCard completion={live.completion} sessionId={sessionId} />
         )}

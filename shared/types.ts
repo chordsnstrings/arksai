@@ -137,6 +137,8 @@ export interface SessionMeta {
   status: SessionStatus;
   /** Department task key (e.g. "finance.cashflow") → injects expert standards. */
   task: string | null;
+  /** Plan mode presented a build plan and is awaiting the user's Approve/Revise. */
+  awaitingPlan?: boolean;
   diffStat: string | null;
   totalTokens: number;
   promptTokens: number;

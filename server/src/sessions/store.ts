@@ -35,6 +35,7 @@ function rowToMeta(row: any): SessionMeta {
     model: row.model as ModelId,
     status: row.status as SessionStatus,
     task: row.task ?? null,
+    awaitingPlan: !!row.awaiting_plan,
     diffStat: row.diff_stat,
     totalTokens: Number(row.total_tokens),
     promptTokens: Number(row.prompt_tokens ?? 0),
@@ -120,6 +121,15 @@ export async function updateSession(id: string, patch: Partial<SessionMeta>) {
   }
   vals.push(id);
   await q(`UPDATE sessions SET ${sets.join(', ')} WHERE id = $${i}`, vals);
+}
+
+/** The plan-mode approval flag is a 0/1 column (booleans don't bind on SQLite). */
+export async function setAwaitingPlan(id: string, awaiting: boolean) {
+  await q('UPDATE sessions SET awaiting_plan = $1, updated_at = $2 WHERE id = $3', [
+    awaiting ? 1 : 0,
+    Date.now(),
+    id,
+  ]);
 }
 
 export async function deleteSession(id: string) {

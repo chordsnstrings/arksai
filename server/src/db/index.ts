@@ -268,6 +268,7 @@ async function migrate() {
     `cost_usd ${REAL} NOT NULL DEFAULT 0`,
     `project_id TEXT`,
     `task TEXT`,
+    `awaiting_plan ${INT} NOT NULL DEFAULT 0`,
   ]) {
     try {
       await q(`ALTER TABLE sessions ADD COLUMN ${col}`);

@@ -17,7 +17,7 @@ import { publishAppTool } from './publish';
 import { generateSpreadsheetTool } from './excel';
 import { generateDocTool } from './docx';
 import { generatePptxTool } from './pptx';
-import { switchModeTool } from './mode';
+import { switchModeTool, submitPlanTool } from './mode';
 import { fetchDataTool } from './data';
 import { sendWebhookTool } from './outbound';
 import { generateComplianceFileTool } from './compliance';
@@ -54,6 +54,7 @@ export const ALL_TOOLS: ToolDef[] = [
   generateDocTool,
   generatePptxTool,
   switchModeTool,
+  submitPlanTool,
   fetchDataTool,
   sendWebhookTool,
   generateComplianceFileTool,

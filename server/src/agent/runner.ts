@@ -177,6 +177,8 @@ export class AgentRun {
   private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
   private progressPhase: ProgressPhase = 'understanding';
   private pendingMode: SessionMode | null = null; // set by switch_mode; applied between tool batches
+  private planSubmitted = false; // set by submit_plan; ends the turn awaiting the user's nod
+  private planResolved = false; // this run answers a pending plan → plan→code is allowed
   private client: OpenAI; // DeepSeek (also used for title gen)
   private minimaxClient: OpenAI | null = null;
   private minimaxAvailable = !!config.minimaxApiKey;
@@ -327,6 +329,16 @@ export class AgentRun {
 
     const context = await store.getContext(sessionId);
     context.push({ role: 'user', content: userText });
+
+    // Plan gate: if the previous turn presented a plan and parked the session awaiting
+    // the user, THIS run is their response — clear the flag (the card disappears) and
+    // unlock plan→code so an approval can proceed to the build.
+    this.planResolved = this.session.awaitingPlan === true;
+    if (this.session.awaitingPlan) {
+      this.session.awaitingPlan = false;
+      await store.setAwaitingPlan(sessionId, false).catch(() => {});
+      this.emit({ type: 'session_meta_updated', meta: { id: sessionId, awaitingPlan: false } });
+    }
 
     // Make UPLOADED FILES visible to the text-only agent: it can't see an image and
     // won't notice a freshly-dropped CSV/PDF/doc, so tell it exactly what was just
@@ -555,6 +567,19 @@ export class AgentRun {
             newMode === 'report' ? 'Designing your report…' : newMode === 'code' ? 'Building it…' : 'Working on it…',
           );
           stallSig = ''; // a fresh mode means a fresh batch — don't false-trip the stall guard
+        }
+
+        // The agent submitted its build plan: park the session awaiting the user's
+        // Approve/Revise and END the turn here — building can only start on their next
+        // message (this is the structural half of the plan gate).
+        if (this.planSubmitted) {
+          this.session.awaitingPlan = true;
+          await store.setAwaitingPlan(sessionId, true).catch(() => {});
+          this.emit({ type: 'session_meta_updated', meta: { id: sessionId, awaitingPlan: true } });
+          const meta = await store.getSession(sessionId);
+          if (meta) bus.sessionChanged(meta);
+          stopReason = 'natural';
+          break;
         }
 
         // Stall guard: the model silently repeating the exact same tool batch
@@ -932,6 +957,10 @@ export class AgentRun {
           requestModeSwitch: (mode: SessionMode) => {
             if (mode !== this.session.mode) this.pendingMode = mode;
           },
+          submitPlan: () => {
+            this.planSubmitted = true;
+          },
+          planResolved: this.planResolved,
           addCost: (usd: number) => {
             if (usd > 0) {
               this.engineCostUsd += usd;
