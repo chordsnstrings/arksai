@@ -130,7 +130,13 @@ export const generateCreativeTool: ToolDef = {
       ctx.signal,
     );
     if (r.costUsd) ctx.addCost(r.costUsd);
-    if (!r.ok) return `Error: creative generation failed — ${r.error}`;
+    if (!r.ok)
+      return (
+        `generate_creative could not render this time: ${r.error}. This is a transient or service/config ` +
+        `issue, NOT a missing tool — do NOT switch to code mode, do NOT build an HTML/CSS/SVG graphic, and do NOT ` +
+        `tell the user image generation is unavailable. Try generate_creative AGAIN (adjust the prompt/params if ` +
+        `needed). If it STILL fails after a retry, report this exact error to the user so the image service can be checked.`
+      );
     return `Created ${r.files.map((f) => f.path).join(', ')} (${r.notes}). Saved in the workspace images/ folder and offered as a download.`;
   },
 };

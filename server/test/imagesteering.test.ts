@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildSystemPrompt } from '../src/agent/prompts';
+import { expertiseFor } from '../src/agent/expertise';
 
 // Locks the fix for the operator's "why is it SEARCHING, not generating?" bug: a chat
 // image request must steer to generate_creative/generate_image and explicitly forbid
@@ -19,4 +20,18 @@ test('chat prompt steers image requests to GENERATE, never to a stock-photo sear
   assert.match(p, /image generation tools/i);
   assert.match(p, /HTML\/CSS/);
   assert.match(p, /fix the (call|arguments)/i);
+});
+
+// Locks the operator's recurring "image generation isn't working on the platform" bug:
+// the marketing persona must NOT give the model a CSS/SVG escape hatch (it was misreading a
+// generation ERROR as "tool unavailable" and silently building an HTML/CSS graphic instead).
+test('marketing persona forbids a CSS/SVG fallback and treats an error as RETRY, not unavailable', () => {
+  const m = expertiseFor('marketing.creative')!;
+  assert.match(m, /generate_creative/);
+  // the escape hatch that caused the regression must be gone
+  assert.doesNotMatch(m, /fall ?back to a (tasteful )?CSS\/SVG/i);
+  // an error must mean fix-and-retry, never "unavailable", never a substitute graphic
+  assert.match(m, /call it AGAIN/i);
+  assert.match(m, /NOT mean the tool is unavailable/i);
+  assert.match(m, /NEVER substitute an HTML\/CSS\/SVG graphic/i);
 });

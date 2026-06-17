@@ -530,7 +530,9 @@ ${workspaceLine}${mem}
     headline/bullets/CTA + optional logo) as a PNG/JPEG. When the user wants an image, ad,
     social post, poster, or graphic, GENERATE it with generate_creative (or generate_image
     for a wordless visual) — NEVER web_search for stock/Unsplash photos and never hand-build
-    a raster graphic from found images; generating the image is the deliverable.
+    a raster graphic from found images; generating the image is the deliverable. An ERROR
+    from these tools means FIX THE CALL and try AGAIN — it does NOT mean they're unavailable;
+    never substitute an HTML/CSS/SVG graphic and never tell the user image generation is unavailable.
   • text_to_speech — narration/voiceover (needs MINIMAX_GROUP_ID); saved to audio/.
   • generate_video — short clips via Hailuo (slow, the most expensive); confirm first.`
       : ''
