@@ -1160,6 +1160,10 @@ button { font-family: inherit; cursor: pointer; }
 .cc-recover { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-muted); flex-wrap: wrap; }
 .cc-fix { background: var(--accent); color: #fff; border: none; border-radius: 7px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .cc-err { font-size: 12.5px; color: var(--amber); }
+.cc-next { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 4px; padding-top: 11px; border-top: 1px solid var(--border); }
+.cc-next-label { font-family: var(--label); font-size: 11px; letter-spacing: 0.06em; color: var(--text-faint); margin-right: 1px; }
+.cc-next-chip { background: var(--bg-bubble); color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 12px; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+.cc-next-chip:hover { color: var(--text); border-color: var(--text-muted); }
 @keyframes ccReveal { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes ccCheck { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.25); } 100% { transform: scale(1); opacity: 1; } }
 .tool-ticker { display: inline-flex; align-items: center; gap: 7px; color: var(--text); }

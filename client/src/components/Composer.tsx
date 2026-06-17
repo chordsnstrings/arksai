@@ -43,8 +43,26 @@ export function Composer({
   // Let other surfaces (e.g. the plan "Revise" button) drop focus into the box.
   useEffect(() => {
     const onFocus = () => taRef.current?.focus();
+    // "What's next" chips pre-fill an editable starter and focus the box (never auto-send).
+    const onCompose = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (typeof detail !== 'string') return;
+      setText(detail);
+      requestAnimationFrame(() => {
+        const ta = taRef.current;
+        if (!ta) return;
+        ta.focus();
+        ta.style.height = 'auto';
+        ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+      });
+    };
     window.addEventListener('arksai:focus-composer', onFocus);
-    return () => window.removeEventListener('arksai:focus-composer', onFocus);
+    window.addEventListener('arksai:compose', onCompose as EventListener);
+    return () => {
+      window.removeEventListener('arksai:focus-composer', onFocus);
+      window.removeEventListener('arksai:compose', onCompose as EventListener);
+    };
   }, []);
 
   const upsertSession = useStore((s) => s.upsertSession);

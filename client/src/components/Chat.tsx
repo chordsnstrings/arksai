@@ -167,6 +167,31 @@ function StatusFooter({ live, sessionId }: { live: LiveState; sessionId: string 
 
 const DELIVERABLE_NOUN: Record<string, string> = { app: 'app', pdf: 'report', sheet: 'spreadsheet', doc: 'document', image: 'creative' };
 
+// Keep momentum after a delivery: 2 contextual next steps that pre-fill the composer
+// (editable, never auto-sent) so the user always has an obvious "what now".
+const NEXT_STEPS: Record<string, { label: string; prompt: string }[]> = {
+  app: [
+    { label: '+ Add a feature', prompt: 'Add this to the app: ' },
+    { label: 'Tweak the design', prompt: 'Refine the design: ' },
+  ],
+  image: [
+    { label: 'Make a variation', prompt: 'Make another version of this — same brief, but ' },
+    { label: 'Resize it', prompt: 'Make this creative in another size/aspect ratio: ' },
+  ],
+  pdf: [
+    { label: 'Make an edit', prompt: 'Revise the report: ' },
+    { label: 'Turn into a deck', prompt: 'Turn this into a polished 16:9 slide deck.' },
+  ],
+  doc: [
+    { label: 'Make an edit', prompt: 'Revise the document: ' },
+    { label: 'Make a PDF', prompt: 'Produce a polished, print-ready PDF version of this.' },
+  ],
+  sheet: [
+    { label: 'Add an analysis', prompt: 'Add this analysis/tab to the spreadsheet: ' },
+    { label: 'Build a dashboard', prompt: 'Build a dashboard from this data.' },
+  ],
+};
+
 /** The "it's ready" moment: names the finished thing and offers the next action
  *  in-flow (open it, or — for apps — put it online and get a shareable link). */
 function CompletionCard({ completion, sessionId }: { completion: CompletionState; sessionId: string }) {
@@ -292,6 +317,20 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
         </div>
       )}
       {err && <div className="cc-err">{err}</div>}
+      {(NEXT_STEPS[completion.kind] ?? []).length > 0 && (
+        <div className="cc-next">
+          <span className="cc-next-label">What’s next?</span>
+          {(NEXT_STEPS[completion.kind] ?? []).map((s) => (
+            <button
+              key={s.label}
+              className="cc-next-chip"
+              onClick={() => window.dispatchEvent(new CustomEvent('arksai:compose', { detail: s.prompt }))}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
