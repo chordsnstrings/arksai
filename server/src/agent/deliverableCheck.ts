@@ -235,13 +235,14 @@ function parseAddr(addr: string): { col: number; row: number } | null {
 export function auditFormulaModel(wb: any): { isModel: boolean; reason: string } {
   let formulas = 0;
   let numericTotal = 0;
-  let derivedHardcoded = '';
+  let derivedWithNumbers = ''; // a derived row carrying numbers (0-formula case, ≥1)
+  let derivedAllLiteral = ''; // a derived row whose numbers are ALL typed-in literals (≥2, none formulas)
   const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
   for (const name of names) {
     const sh = wb?.Sheets?.[name];
     if (!sh) continue;
-    // Group cells by row so we can read each row's label + whether it carries numbers.
-    const rows = new Map<number, { label?: string; labelCol: number; hasNum: boolean }>();
+    // Group cells by row so we can read each row's label + whether its numbers are formulas.
+    const rows = new Map<number, { label?: string; labelCol: number; numCells: number; numFormulaCells: number }>();
     for (const addr of Object.keys(sh)) {
       if (addr[0] === '!') continue;
       const c = sh[addr];
@@ -250,13 +251,14 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
       if (!p) continue;
       let r = rows.get(p.row);
       if (!r) {
-        r = { labelCol: Infinity, hasNum: false };
+        r = { labelCol: Infinity, numCells: 0, numFormulaCells: 0 };
         rows.set(p.row, r);
       }
       const isNum = c?.t === 'n' && typeof c?.v === 'number';
       if (isNum) {
         numericTotal++;
-        r.hasNum = true;
+        r.numCells++;
+        if (c?.f) r.numFormulaCells++;
       }
       const isText = (c?.t === 's' || c?.t === 'str') && typeof c?.v === 'string' && c.v.trim();
       if (isText && p.col < r.labelCol) {
@@ -264,19 +266,26 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
         r.label = String(c.v);
       }
     }
-    if (!derivedHardcoded) {
-      for (const r of rows.values()) {
-        if (r.label && r.hasNum && DERIVED_LABEL_RE.test(r.label)) {
-          derivedHardcoded = r.label.trim();
-          break;
-        }
-      }
+    // An assumptions/driver/input sheet is SUPPOSED to be hard-coded numbers — never treat
+    // its rows as "should-be-computed" derived rows (that's a false positive).
+    const isInputSheet = MODEL_SHEET_RE.test(name);
+    for (const r of rows.values()) {
+      if (!r.label || !DERIVED_LABEL_RE.test(r.label)) continue;
+      if (!derivedWithNumbers && r.numCells >= 1) derivedWithNumbers = r.label.trim();
+      // On a CALCULATION sheet, a derived row with ≥2 numbers that are ALL literals (no
+      // formulas) was typed in, not computed.
+      if (!derivedAllLiteral && !isInputSheet && r.numCells >= 2 && r.numFormulaCells === 0)
+        derivedAllLiteral = r.label.trim();
     }
   }
-  // Any formula at all → the model is (at least partly) formula-driven; don't flag.
+  // Partial hard-coding: a derived row (Total/Growth/Margin/…) is literals while the rest of
+  // the model uses formulas — it should have been computed. Flag whether or not formulas exist.
+  if (derivedAllLiteral && formulas > 0)
+    return { isModel: true, reason: `the "${derivedAllLiteral}" row is hard-coded literals while the model uses formulas elsewhere — it should be a formula` };
+  // Whole model hard-coded (0 formulas) but clearly showing derived numbers.
+  if (formulas === 0 && derivedWithNumbers)
+    return { isModel: true, reason: `the "${derivedWithNumbers}" row is hard-coded, 0 formulas` };
   if (formulas > 0) return { isModel: false, reason: `${formulas} formula cells` };
-  if (derivedHardcoded)
-    return { isModel: true, reason: `the "${derivedHardcoded}" row is hard-coded, 0 formulas` };
   const hasAssumptions = names.some((n) => MODEL_SHEET_RE.test(n));
   if (names.length >= 2 && hasAssumptions && numericTotal >= 30)
     return { isModel: true, reason: `multi-sheet model with an assumptions sheet but 0 formulas (${numericTotal} hard-coded numbers)` };

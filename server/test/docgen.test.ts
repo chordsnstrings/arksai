@@ -106,6 +106,51 @@ test('auditFormulaModel: a hard-coded model (Total row, 0 formulas) IS flagged',
   assert.equal(r.isModel, true, r.reason);
 });
 
+test('auditFormulaModel: a derived row typed in as literals (model uses formulas elsewhere) IS flagged', async () => {
+  await generateSpreadsheetTool.run(
+    {
+      output: 'model_partial.xlsx',
+      sheets: [
+        { name: 'Assumptions', columns: [{ header: 'Driver' }, { header: 'Value', type: 'number' }], rows: [['Growth', 0.1]] },
+        {
+          name: 'P&L',
+          columns: [{ header: 'Line' }, { header: 'Q1', type: 'number' }, { header: 'Q2', type: 'number' }],
+          rows: [
+            ['Revenue', { f: 'Assumptions!B2*1000', v: 100 }, { f: "B2*(1+Assumptions!B2)", v: 110 }],
+            ['Margin', 0.2, 0.21], // derived row typed in as literals (≥2, no formulas)
+          ],
+        },
+      ],
+    },
+    ctx(),
+  );
+  const r = auditFormulaModel(await readWb(path.join(ws, 'model_partial.xlsx')));
+  assert.equal(r.isModel, true, r.reason);
+});
+
+test('auditFormulaModel: multi-value literal driver rows on the Assumptions sheet are NOT flagged', async () => {
+  await generateSpreadsheetTool.run(
+    {
+      output: 'model_inputs.xlsx',
+      sheets: [
+        {
+          name: 'Assumptions',
+          columns: [{ header: 'Driver' }, { header: 'Y1', type: 'number' }, { header: 'Y2', type: 'number' }],
+          rows: [['Growth', 0.1, 0.12]], // legitimate hard-coded INPUTS, not a computed row
+        },
+        {
+          name: 'Plan',
+          columns: [{ header: 'Line' }, { header: 'Y1', type: 'number' }, { header: 'Y2', type: 'number' }],
+          rows: [['Revenue', { f: 'Assumptions!B2', v: 0.1 }, { f: 'Assumptions!C2', v: 0.12 }]],
+        },
+      ],
+    },
+    ctx(),
+  );
+  const r = auditFormulaModel(await readWb(path.join(ws, 'model_inputs.xlsx')));
+  assert.equal(r.isModel, false, r.reason);
+});
+
 test('auditFormulaModel: a plain data table is NOT flagged', async () => {
   await generateSpreadsheetTool.run(
     {
