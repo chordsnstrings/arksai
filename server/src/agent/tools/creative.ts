@@ -15,17 +15,17 @@ export const generateCreativeTool: ToolDef = {
     'Create a finished marketing creative as a single ready-to-use IMAGE (PNG or JPEG): an AI-generated, ' +
     'on-brand background with crisp, perfectly-legible headline/subhead/button text laid on top (and the ' +
     "user's logo if they uploaded one). Use this for ads, social posts, hero/banner images, and OG images — " +
-    'NOT generate_image, because image models cannot render text reliably; this composites real type so it is ' +
-    'always sharp. You write the imagery `prompt` (scene, style, mood, palette — never ask for text in it) and ' +
-    'the copy; it picks the best text placement automatically. Saved to images/ and offered as a download. ' +
-    'Generate one per channel size (1:1 / 4:5 / 9:16 / 16:9 / 1.91:1). ' +
+    'NOT generate_image, because image models cannot render text reliably; this composites real type so it is always sharp. ' +
+    'SPLIT THE BRIEF — this is the #1 thing to get right: `prompt` is ONLY the imagery (scene, subject, style, mood, palette, NO text/words/letters in it); put ALL the wording in the SEPARATE fields `headline` / `subhead` / `bullets` / `cta` / `kicker`. ' +
+    'Example call: {"prompt":"bright photorealistic London travel scene — a happy couple, Big Ben, the London Eye, a red double-decker bus, clean empty negative space, premium","headline":"UK Tourist Visa","subhead":"Fast & accurate processing","bullets":["Quick turnaround","Correct documentation","Embassy-ready files"],"accent":"#C8102E","aspect_ratio":"1:1","logo_placeholder":true}. ' +
+    'It picks the best text placement automatically, saves to images/, and offers a download; make one per channel size (1:1 / 4:5 / 9:16 / 16:9 / 1.91:1). ' +
     'BRAND FIRST: if the user has not given a logo, ASK them to upload one and pass its path — or set logo_placeholder. ' +
-    'This is a SOCIAL creative — write conversion-led copy that stops the scroll: a benefit/outcome headline (value in the first few words), a short check-marked benefit list (bullets), proof/specifics only where true, and a single clear CTA.',
+    'SOCIAL conversion: a benefit/outcome headline (value in the first few words), a short check-marked benefit list, proof/specifics only where true, and a single clear CTA.',
   parameters: {
     type: 'object',
     properties: {
-      prompt: { type: 'string', description: 'The IMAGERY to generate — scene, subject, style, mood, brand palette. Do NOT ask for any text/words in the image.' },
-      headline: { type: 'string', description: 'The main headline text (use \\n for a line break). Required.' },
+      prompt: { type: 'string', description: 'The IMAGERY ONLY — scene, subject, style, mood, brand palette. NEVER put any text/words/letters here (they go in headline/subhead/bullets/cta).' },
+      headline: { type: 'string', description: 'The main headline text (use \\n for a line break). Strongly recommended — this is the composited text.' },
       subhead: { type: 'string', description: 'Optional supporting line.' },
       bullets: { type: 'array', items: { type: 'string' }, description: 'Optional feature/benefit list — each rendered with a check mark (e.g. ["Quick turnaround","Embassy-ready files"]).' },
       cta: { type: 'string', description: 'Optional call-to-action button label, e.g. "Shop now →".' },
@@ -37,15 +37,25 @@ export const generateCreativeTool: ToolDef = {
       text_color: { type: 'string', enum: ['auto', 'light', 'dark'], description: 'Force the text colour, or "auto" (default) to let vision choose for contrast.' },
       format: { type: 'string', enum: ['png', 'jpeg'], description: 'Output image format (default png).' },
     },
-    required: ['prompt', 'headline'],
+    required: ['prompt'],
   },
   modes: ['chat', 'code'],
   available: () => !!config.minimaxApiKey,
   summarize: (a) => `creative: ${String(a.headline ?? '').slice(0, 50)}`,
   async run(args, ctx) {
-    const headline = String(args.headline ?? '').trim();
-    const prompt = String(args.prompt ?? '').trim();
-    if (!prompt || !headline) return 'Error: both an imagery `prompt` and a `headline` are required.';
+    // Accept the field names a model naturally reaches for (it often sends `imagery_prompt`),
+    // and DON'T hard-fail on a missing headline — produce the image regardless.
+    const prompt = String(args.prompt ?? args.imagery_prompt ?? args.image_prompt ?? args.scene ?? '').trim();
+    const headline = String(args.headline ?? args.title ?? args.heading ?? '').trim();
+    if (!prompt) {
+      return (
+        'Error: generate_creative needs an imagery `prompt` (the scene/style ONLY — never any text/words in it), ' +
+        'and the copy in SEPARATE fields. Example call: {"prompt":"bright photorealistic London travel scene with Big Ben, ' +
+        'the London Eye and a red double-decker bus, clean empty negative space, premium","headline":"UK Tourist Visa",' +
+        '"subhead":"Fast & accurate processing","bullets":["Quick turnaround","Correct documentation","Embassy-ready files"],' +
+        '"accent":"#C8102E","aspect_ratio":"1:1","logo_placeholder":true}. Retry with the copy split out like that.'
+      );
+    }
     const aspect = CREATIVE_SIZES[String(args.aspect_ratio)] ? String(args.aspect_ratio) : '1:1';
     const accent = /^#[0-9a-fA-F]{3,8}$/.test(String(args.accent ?? '')) ? String(args.accent) : '#1f5f8b';
     const format = args.format === 'jpeg' ? 'jpeg' : 'png';

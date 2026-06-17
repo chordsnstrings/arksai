@@ -18,6 +18,12 @@ test('buildCreativeHtml: headline newline → <br>, copy escaped, accent on the 
   assert.ok(html.includes(base.bgDataUrl));
 });
 
+test('buildCreativeHtml: a missing headline is omitted (never blocks output)', () => {
+  const html = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'dark', copy: { ...base.copy, headline: '' } });
+  assert.doesNotMatch(html, /class="h"/); // no empty headline element
+  assert.match(html, /class="bg"/); // the image + composite still render
+});
+
 test('buildCreativeHtml: light vs dark text colour drives ink + scrim', () => {
   const light = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'light' });
   const dark = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'dark' });

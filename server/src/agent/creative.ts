@@ -120,7 +120,7 @@ export function buildCreativeHtml(opts: {
 .cta{align-self:${zone === 'right' ? 'flex-end' : 'flex-start'};margin-top:${Math.round(h * 0.04)}px;background:${esc(copy.accent)};color:#fff;font-family:'Inter',sans-serif;font-weight:600;font-size:${Math.round(w * 0.021)}px;padding:${Math.round(h * 0.019)}px ${Math.round(w * 0.032)}px;border-radius:999px}
 </style></head><body><div class="card"><img class="bg" src="${bgDataUrl}"><div class="scrim"></div>${brandScrim}${brand}<div class="c">${
     copy.kicker ? `<div class="kick">${esc(copy.kicker)}</div>` : ''
-  }<div class="h">${escMultiline(copy.headline)}</div>${copy.sub ? `<div class="sub">${esc(copy.sub)}</div>` : ''}${bulletsHtml}${
+  }${copy.headline ? `<div class="h">${escMultiline(copy.headline)}</div>` : ''}${copy.sub ? `<div class="sub">${esc(copy.sub)}</div>` : ''}${bulletsHtml}${
     copy.cta ? `<span class="cta">${esc(copy.cta)}</span>` : ''
   }</div></div></body></html>`;
 }
