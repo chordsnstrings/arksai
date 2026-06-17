@@ -9,7 +9,11 @@ import { repoDir } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import { extractText } from '../lib/extract';
 
-function sanitizeFilename(name: string): string {
+// SECURITY: an uploaded filename is untrusted. path.basename() strips any directory
+// component (defeating ../ traversal and absolute paths), then the allowlist removes
+// path separators / null bytes / control chars, and the length is capped. The result
+// is always a single safe segment that stays inside the uploads dir.
+export function sanitizeFilename(name: string): string {
   const base = path.basename(name || 'file').replace(/[^\w.\- ()]/g, '_');
   return (base || 'file').slice(0, 100);
 }

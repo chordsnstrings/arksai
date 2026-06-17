@@ -1,9 +1,34 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildUploadNote } from '../src/lib/extract';
+import { sanitizeFilename } from '../src/routes/upload';
 
 test('buildUploadNote: null when nothing was uploaded', () => {
   assert.equal(buildUploadNote([], true), null);
+});
+
+// SECURITY: an upload filename is untrusted input — it must never escape the uploads dir.
+test('sanitizeFilename: path traversal is neutralized (no separators survive)', () => {
+  for (const evil of ['../../../etc/passwd', '/etc/shadow', '..\\..\\windows\\system32\\cmd.exe', './../secret']) {
+    const safe = sanitizeFilename(evil);
+    assert.ok(!safe.includes('/') && !safe.includes('\\'), `no separators in ${safe}`);
+  }
+  assert.equal(sanitizeFilename('../../../etc/passwd'), 'passwd'); // basename wins
+});
+
+test('sanitizeFilename: shell metacharacters / control chars / non-word chars are stripped', () => {
+  // only [\w.\- ()] survive — shell metachars, pipes, redirects, null bytes all become _
+  assert.doesNotMatch(sanitizeFilename('a;rm -rf~`$()<>|&.png\0'), /[;~`$<>|&\0]/);
+  // a legitimate dotted/hyphenated/spaced/parenthesised name is preserved verbatim
+  assert.equal(sanitizeFilename('Q3 Report (final)-v2.xlsx'), 'Q3 Report (final)-v2.xlsx');
+});
+
+test('sanitizeFilename: empty / undefined / oversized names degrade safely', () => {
+  assert.equal(sanitizeFilename(''), 'file');
+  assert.equal(sanitizeFilename(undefined as any), 'file');
+  assert.ok(sanitizeFilename('x'.repeat(500)).length <= 100);
+  // a name that's all-separators still yields a usable, contained segment
+  assert.ok(sanitizeFilename('/////').length >= 1);
 });
 
 test('buildUploadNote: a data file points the agent at its extracted sidecar', () => {
