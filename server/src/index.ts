@@ -24,6 +24,15 @@ async function main() {
   startDeploymentJanitor(); // 24h-preview auto-cleanup
   startAnalyticsDigest(); // periodic platform metric snapshots (+ optional webhook)
   console.log(`ArksAI server listening on :${config.port} (data: ${config.dataDir})`);
+  // Make provider configuration self-evident at boot — so "why doesn't image generation work?"
+  // is answerable from the logs without guessing. Image gen / vision / M3 all need the MiniMax
+  // key; text generation needs the DeepSeek key. They are SEPARATE providers/keys.
+  console.log(
+    `[capabilities] text (DeepSeek): ${config.deepseekApiKey ? 'enabled' : 'DISABLED — set DEEPSEEK_API_KEY'} · ` +
+      `image generation + vision + ArksAI Max/M3 (MiniMax): ${
+        config.minimaxApiKey ? 'enabled' : 'DISABLED — set MINIMAX_API_KEY in /opt/arksai/.env'
+      } · web search: ${config.serperApiKey || config.braveApiKey ? 'enabled' : 'off'}`,
+  );
   if (config.agentUnrestricted) {
     console.warn(
       '[security] AGENT_UNRESTRICTED=true — the agent has FULL host + env access. ' +
