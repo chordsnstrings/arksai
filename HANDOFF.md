@@ -36,6 +36,31 @@ Then load https://arksai.studio and confirm operator login works.
 
 ---
 
+## 1b. Deployment health check + the known Canvas bug
+
+**Known bug to chase:** publishing works (the app is live at `/apps/<slug>/`), but the **Canvas
+won't load the published app on the live deployment**. Local audits can't see this — they run the
+built code on localhost, where the publish/serve path is verified clean (base href + assets load,
+no blocking headers). So it's a **deployment-only** issue: most likely **mixed content** (an
+`http://` asset on the HTTPS site → browser blocks it in the iframe), the Canvas pointing at a
+**dead dev-preview port** after publish, or a TLS/Caddy proxy quirk. There are NO `X-Frame-Options`
+/ CSP headers in the app or Caddy, so iframe-blocking headers are ruled out.
+
+**Run the deployment check ON the box** (read-only; makes no changes):
+```bash
+ssh root@159.89.172.210 'cd /opt/arksai && bash scripts/deploy-check.sh'
+```
+It verifies containers, TLS, health, auth/DB, capabilities, AND the publish/serve path against the
+REAL deployment — per published app it checks `/apps/<slug>/` loads, the `<base href>` is injected,
+assets return 200 (not an HTML error), and flags **mixed content** (http asset on https → the
+prime "Canvas won't load it" suspect). Then the browser-level check (run where Playwright exists —
+the arksai container has it) actually renders the app + loads it in an iframe:
+```bash
+ssh root@159.89.172.210 "cd /opt/arksai && docker compose -f docker-compose.tls.yml exec -T arksai sh -c 'BASE=https://arksai.studio APP_PASSWORD=\$APP_PASSWORD node /app/scripts/deploy-check-browser.mjs'"
+```
+It reports console errors, failed asset requests, and whether the app renders inside an iframe —
+which pinpoints the Canvas bug. Screenshots land in `/tmp/deploy-check-*.png` in the container.
+
 ## 2. SSH + infra access
 
 - **Droplet:** DigitalOcean, project "ARKS AI Platform", droplet `arksai` (id 577088981),
