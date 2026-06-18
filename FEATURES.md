@@ -35,6 +35,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Parameterized-route filling (`:id`/`{id}`/`<int:id>`/`:slug`) + an interaction pass (seeds inputs, submits a form, clicks primary buttons).
 - Headless-Chromium UI smoke test (blank/console-error/failed-request detection).
 - Post-publish smoke test of the real `/apps/<slug>/` URL — a broken deploy is caught and handed back to the agent, never the user.
+- **Self-contained apps (no CDN)** — built apps vendor their libraries (charting, etc.) locally and self-host fonts, with one real root `index.html`; nothing is pulled from an external CDN at runtime, so a published dashboard's charts can't silently break when a third-party CDN rate-limits/403s.
 
 ## Deliverables & deployment
 - **Publish & share a 24-hour preview** (`publish_app` + the TopBar "Publish & share") — ship a site/app (static or node/python) to a **public URL anyone can open, no login** at `/apps/<slug>/`, served via a process registry that survives restarts (boot recovery). Every publish is a **24-hour preview**: a boot-started janitor auto-deletes it (process + files + record) 24h after publishing; re-publish to refresh. The dialog shows a live "expires in …" countdown. (Single-Droplet constraint for now — a permanent tier comes with a bigger server; pre-existing deployments without an expiry are left running.)

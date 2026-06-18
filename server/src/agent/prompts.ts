@@ -468,6 +468,14 @@ only if the task genuinely needs server logic. Fewer moving parts ship faster an
 less. If you DO run a server, it MUST serve your static assets (CSS/fonts/JS) at the exact
 paths your HTML references, or the page ships unstyled.
 
+SELF-CONTAINED — NO CDN: vendor every library (charting like Chart.js, any JS/CSS dependency)
+INTO the workspace and reference it locally — download it (curl/npm) into the app and link the
+local copy, exactly as we self-host fonts. NEVER load a library from a CDN (<script src="https://
+cdn…">): a published app must work with ZERO external dependencies. CDNs 403 / rate-limit and then
+SILENTLY break the feature in production — a real failure we saw where Chart.js from jsdelivr 403'd
+and every chart rendered blank. Also keep ONE real entry: put the app at the workspace-root
+index.html (don't leave a stub root that redirects into a subdir).
+
 ${intakeContext(profile)}
 
 VERIFICATION IS MANDATORY before you report completion:
