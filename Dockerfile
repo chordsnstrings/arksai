@@ -13,9 +13,15 @@ RUN npm run build && npm prune --omit=dev
 
 # ---- runtime stage ----
 FROM node:22-bookworm-slim
-# git + ripgrep are functional requirements (clone/push, grep tool)
+# git + ripgrep are functional requirements (clone/push, grep tool).
+# python3 + pip + venv are also functional, NOT just build-time: the canvas static
+# preview serves apps with `python3 -m http.server` (canvasExport.ts) and the agent
+# builds/previews/publishes Python apps (`python3`/`pip`). The build stage had python3
+# but the runtime stage did not — so static previews silently never bound their port
+# and every Python app was dead. python-is-python3 maps `python` → `python3` too.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git ripgrep ca-certificates bash procps zip unzip curl jq openssh-client \
+      python3 python3-pip python3-venv python-is-python3 \
       && rm -rf /var/lib/apt/lists/*
 # doctl (DigitalOcean CLI) so the agent can manage infrastructure
 ARG DOCTL_VERSION=1.120.0
