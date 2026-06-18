@@ -855,12 +855,14 @@ export class AgentRun {
     // whereas the fast model produces the same magazine-grade report ~4× faster. Code mode
     // keeps M3 (it succeeds there with the 150s patience). Once M3 has stalled on a code run,
     // also switch to the fast model for the rest of that run.
-    // EXCEPTION — Legal stays on M3 even in report mode. A live bake-off showed the fast
-    // model (M2.7, an "always-think" coding model) spends its whole budget on a thinking
-    // block and returns ZERO usable text on long legal drafting, whereas M3 produces
-    // law-firm-grade bilingual output. Legal quality > the report-mode latency saving.
+    // LEGAL → the FAST model (M2.7-highspeed) in every mode. A fresh live test settled this:
+    // on a long bilingual UAE contract M3 produced a 34-char STUB and then froze the gate,
+    // while M2.7-highspeed produced a complete 24k-char bilingual document (8.2k Arabic chars,
+    // full clauses, eloquent MSA, lawyer footer) in ~4 min. (The earlier opinion-only bake-off
+    // that favoured M3 doesn't hold for real document generation — M2.7 both completes AND is
+    // higher quality here.)
     const isLegal = !!this.session.task?.startsWith('legal.');
-    const useFast = this.minimaxFellBack || (this.session.mode === 'report' && !isLegal);
+    const useFast = this.minimaxFellBack || this.session.mode === 'report' || isLegal;
     const model = useFast ? config.minimaxFallbackModel : this.activeApiModel;
     const body: Record<string, unknown> = { model, max_tokens: 64000, system, messages, stream: true };
     if (tools.length) body.tools = tools;
@@ -873,7 +875,8 @@ export class AgentRun {
     // M3's quality and only fall back on the genuinely slow tail; the fast model gets a
     // generous cap (it legitimately takes ~1min). Env-overridable.
     const PRIMARY_MS = Number(process.env.MINIMAX_TURN_DEADLINE_MS || '150000') || 150_000;
-    const totalMs = useFast ? 240_000 : PRIMARY_MS;
+    const FAST_MS = Number(process.env.MINIMAX_FAST_DEADLINE_MS || '240000') || 240_000;
+    const totalMs = useFast ? FAST_MS : PRIMARY_MS;
     const ac = new AbortController();
     // `trip` is set by the stream adapter once streaming starts; it REJECTS the in-flight
     // read so a stall unblocks the loop even if ac.abort() doesn't propagate to a hung socket

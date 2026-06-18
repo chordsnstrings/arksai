@@ -208,6 +208,7 @@ test('createMinimaxStream: a fetch that never sends headers stalls out (no infin
   const origFetch = globalThis.fetch;
   globalThis.fetch = (() => new Promise(() => {})) as any; // never resolves, ignores abort
   process.env.MINIMAX_TURN_DEADLINE_MS = '150'; // 150ms so the test is fast
+  process.env.MINIMAX_FAST_DEADLINE_MS = '150'; // legal now routes to the fast path → bound it too
   try {
     const run: any = new AgentRun({ id: 's', mode: 'code', task: 'legal.contract', model: 'arksai-max' } as any);
     const t0 = Date.now();
@@ -220,5 +221,29 @@ test('createMinimaxStream: a fetch that never sends headers stalls out (no infin
   } finally {
     globalThis.fetch = origFetch;
     delete process.env.MINIMAX_TURN_DEADLINE_MS;
+    delete process.env.MINIMAX_FAST_DEADLINE_MS;
+  }
+});
+
+// Live evidence settled it: M2.7-highspeed produced a complete 24k-char bilingual UAE
+// contract where M3 stubbed + froze. So legal MUST route to the fast model; a non-legal
+// code run stays on M3. Lock both by capturing the model actually sent on the wire.
+test('legal routes to the fast model; a non-legal code run stays on M3', async () => {
+  const { config } = await import('../src/config');
+  const origFetch = globalThis.fetch;
+  const seen: string[] = [];
+  globalThis.fetch = ((_url: any, opts: any) => {
+    try { seen.push(JSON.parse(opts.body).model); } catch { /* ignore */ }
+    return Promise.resolve(new Response('', { status: 500 })); // fail fast, don't hang
+  }) as any;
+  try {
+    const legal: any = new AgentRun({ id: 's', mode: 'code', task: 'legal.contract', model: 'arksai-max' } as any);
+    await legal.createMinimaxStream({ messages: [{ role: 'user', content: 'hi' }], tools: [] }).catch(() => {});
+    const code: any = new AgentRun({ id: 's2', mode: 'code', task: 'finance.cashflow', model: 'arksai-max' } as any);
+    await code.createMinimaxStream({ messages: [{ role: 'user', content: 'hi' }], tools: [] }).catch(() => {});
+    assert.equal(seen[0], config.minimaxFallbackModel, 'legal → fast model (M2.7)');
+    assert.notEqual(seen[1], config.minimaxFallbackModel, 'non-legal code → M3, not the fast model');
+  } finally {
+    globalThis.fetch = origFetch;
   }
 });
