@@ -115,6 +115,34 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const deleteSelectedOrg = async () => {
+    const org = orgs.find((o) => o.id === orgId);
+    if (!org) return;
+    if (
+      !(await confirmDialog({
+        title: `Delete “${org.name}”?`,
+        body: `This permanently deletes the organization and ALL its data — every chat, project, published app, schedule, and its member accounts. This cannot be undone.`,
+        confirmLabel: 'Delete organization',
+        danger: true,
+      }))
+    )
+      return;
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api.adminDeleteOrg(orgId);
+      const list = await api.adminListOrgs();
+      setOrgs(list);
+      setOrgId(list[0]?.id ?? '');
+      setLink('');
+      setError(`Deleted “${r.name}” — removed ${r.sessions} chats, ${r.deployments} apps, and ${r.deletedUsers} user account(s).`);
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to delete the org.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div className={`dialog wide ${tab === 'usage' ? 'analytics' : ''}`} onClick={(e) => e.stopPropagation()}>
@@ -130,13 +158,26 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <label>Organization</label>
-        <select aria-label="Organization" value={orgId} onChange={(e) => { setOrgId(e.target.value); setLink(''); }}>
-          {orgs.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select aria-label="Organization" value={orgId} onChange={(e) => { setOrgId(e.target.value); setLink(''); }} style={{ flex: 1 }}>
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+          {isSuper && orgId && orgId !== 'default' && (
+            <button
+              className="danger-btn"
+              onClick={deleteSelectedOrg}
+              disabled={busy}
+              title="Delete this organization and all its data"
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              Delete org…
+            </button>
+          )}
+        </div>
 
         {tab === 'usage' ? (
           orgId ? <OrgAnalytics orgId={orgId} /> : <div className="an-empty">Select an organization.</div>

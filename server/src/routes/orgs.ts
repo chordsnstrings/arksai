@@ -19,7 +19,13 @@ import {
   roleInOrg,
   setSessionOrg,
   updateOrgName,
+  deleteOrg,
+  DEFAULT_ORG_ID,
 } from '../orgs/store';
+import fs from 'node:fs';
+import path from 'node:path';
+import { deploymentRegistry, deploymentDir } from '../deploy/registry';
+import { processRegistry } from '../agent/processes';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -165,6 +171,34 @@ export function registerOrgRoutes(app: FastifyInstance) {
       adminInviteLink = inviteLink(req, token);
     }
     return reply.code(201).send({ org, adminInviteLink });
+  });
+
+  // Delete an org + ALL its data (cascade) — super-admin only, and never the default workspace.
+  app.delete('/api/admin/orgs/:id', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Super-admin only.' });
+    const { id: orgId } = req.params as { id: string };
+    if (orgId === DEFAULT_ORG_ID) return reply.code(400).send({ error: 'The default workspace cannot be deleted.' });
+    const org = await getOrg(orgId);
+    if (!org) return reply.code(404).send({ error: 'Not found' });
+    const res = await deleteOrg(orgId);
+    // Filesystem + running-process cleanup (best-effort; the DB rows are already gone).
+    for (const slug of res.deploymentSlugs) {
+      try { deploymentRegistry.kill(slug); fs.rmSync(deploymentDir(slug), { recursive: true, force: true }); } catch {}
+    }
+    for (const sid of res.sessionIds) {
+      try { processRegistry.killAllForSession(sid); fs.rmSync(path.join(config.dataDir, 'workspaces', sid), { recursive: true, force: true }); } catch {}
+    }
+    for (const pid of res.projectIds) {
+      try { fs.rmSync(path.join(config.dataDir, 'projects', pid), { recursive: true, force: true }); } catch {}
+    }
+    return {
+      ok: true,
+      name: org.name,
+      deletedUsers: res.deletedUsers.length,
+      sessions: res.sessionIds.length,
+      projects: res.projectIds.length,
+      deployments: res.deploymentSlugs.length,
+    };
   });
 
   // The waitlist (leads) — super-admin reviews it, then provisions an org + invite.

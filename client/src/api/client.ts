@@ -222,6 +222,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name, adminEmail }),
     }),
+  adminDeleteOrg: (id: string) =>
+    request<{ ok: true; name: string; deletedUsers: number; sessions: number; projects: number; deployments: number }>(
+      `/api/admin/orgs/${id}`,
+      { method: 'DELETE' },
+    ),
   adminListLeads: () => request<{ leads: Lead[] }>('/api/admin/leads').then((r) => r.leads),
 
   // ---- Analytics (operator cross-org; pass orgId for the per-org view) ----

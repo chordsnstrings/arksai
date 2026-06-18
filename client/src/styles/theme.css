@@ -843,6 +843,18 @@ button { font-family: inherit; cursor: pointer; }
 }
 .send-btn:hover:not(:disabled) { background: var(--accent-strong); }
 .send-btn:disabled { opacity: 0.4; cursor: default; }
+.danger-btn {
+  background: transparent;
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  color: var(--red);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 14px;
+  transition: background 0.12s, color 0.12s;
+}
+.danger-btn:hover:not(:disabled) { background: var(--red); color: #fff; }
+.danger-btn:disabled { opacity: 0.4; cursor: default; }
 
 /* ---------- cost bar (very bottom) ---------- */
 

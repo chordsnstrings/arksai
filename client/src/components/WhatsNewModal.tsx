@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-18.3';
+export const WHATS_NEW_VERSION = '2026-06-18.4';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
+    title: 'Admins can delete an organization',
+    body: 'Operators can now remove an organization and all of its data — chats, projects, published apps, schedules, and member accounts — in one action from the admin panel. The default workspace is protected.',
+  },
+  {
     title: 'Stop means stop',
     body: 'Hitting Stop now ends a run promptly, even if the model was mid-thought — no more waiting it out.',
   },
   {
-    title: 'Stronger report covers',
-    body: 'Designed PDF/deck covers now fill the page top-to-bottom instead of leaving a big empty gap under the title.',
-  },
-  {
-    title: 'More predictable chat',
-    body: 'When you ask to build something with a clear subject, the agent goes straight to a plan you can approve or tweak — consistently, instead of sometimes asking extra questions first.',
+    title: 'Cleaner reports & more predictable chat',
+    body: 'Designed covers fill the page instead of leaving a gap, and a clear build request goes straight to a plan you can approve — consistently.',
   },
 ];
 
