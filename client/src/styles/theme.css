@@ -294,7 +294,14 @@ button { font-family: inherit; cursor: pointer; }
 .search-box::placeholder { color: var(--text-faint); }
 .search-box:focus { border-color: var(--accent); }
 
-.session-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+/* min-height:0 lets this flex child shrink below its content height so overflow-y
+   actually scrolls (default min-height:auto would grow it to fit every chat, push
+   the footer off-screen, and show no scroller — the "too many chats looks odd" bug). */
+.session-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 2px; }
+.session-list::-webkit-scrollbar { width: 8px; }
+.session-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+.session-list:hover::-webkit-scrollbar-thumb { background: var(--text-faint); background-clip: padding-box; }
+.session-list { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 
 .session-item {
   display: flex;
