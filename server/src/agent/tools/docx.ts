@@ -250,10 +250,30 @@ export const generateDocTool: ToolDef = {
       }
     }
 
+    // Split inline markup into styled runs so the model's <b>/<strong>/<em>/<i> and **bold**
+    // become real bold/italic instead of literal tags shown as text (the .docx bug). Any other
+    // stray HTML tag is dropped.
+    const inlineRuns = (text: string, base: any = {}): any[] => {
+      const t = String(text ?? "")
+        .replace(/<\/?(?:strong|b)\s*>/gi, "[[B]]")
+        .replace(/<\/?(?:em|i)\s*>/gi, "[[I]]")
+        .replace(/\*\*(.+?)\*\*/g, "[[B]]$1[[B]]")
+        .replace(/<[^>]+>/g, "");
+      const runs: any[] = [];
+      let bold = false, italic = false;
+      for (const p of t.split(/(\[\[B\]\]|\[\[I\]\])/)) {
+        if (p === "[[B]]") { bold = !bold; continue; }
+        if (p === "[[I]]") { italic = !italic; continue; }
+        if (!p) continue;
+        runs.push(new TextRun({ font: BODY, size: 22, color: "16181D", ...base, text: p, bold: bold || !!base.bold, italics: italic || !!base.italics }));
+      }
+      return runs.length ? runs : [new TextRun({ font: BODY, size: 22, color: "16181D", ...base, text: "" })];
+    };
+
     const para = (text: string, opts: any = {}) =>
       new Paragraph({
         spacing: { after: 140, line: 300 },
-        children: [new TextRun({ text, font: BODY, size: 22, color: '16181D', ...opts })],
+        children: inlineRuns(text, opts),
       });
 
     for (const b of blocks) {
@@ -285,7 +305,7 @@ export const generateDocTool: ToolDef = {
               spacing: { before: 120, after: 160, line: 300 },
               indent: { left: 360 },
               border: { left: { style: BorderStyle.SINGLE, size: 18, space: 12, color: accent } },
-              children: [new TextRun({ text: String(b.text || ''), italics: true, size: 22, font: BODY, color: '374151' })],
+              children: inlineRuns(String(b.text || ''), { italics: true, color: '374151' }),
             }),
           );
           break;
@@ -297,7 +317,7 @@ export const generateDocTool: ToolDef = {
                 spacing: { after: 70, line: 290 },
                 bullet: b.type === 'bullets' ? { level: 0 } : undefined,
                 numbering: b.type === 'numbered' ? { reference: 'arksai-num', level: 0 } : undefined,
-                children: [new TextRun({ text: String(item), font: BODY, size: 22, color: '16181D' })],
+                children: inlineRuns(String(item)),
               }),
             );
           }

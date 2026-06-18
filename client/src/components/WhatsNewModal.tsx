@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-18.1';
+export const WHATS_NEW_VERSION = '2026-06-18.2';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A tidier chat list',
-    body: 'When you have a lot of chats, the sidebar list now scrolls cleanly inside its own panel — your New session button and workspace footer stay put instead of getting pushed off-screen.',
+    title: 'Cleaner documents & spreadsheets',
+    body: 'Word documents now render bold text properly (no more stray “<b>” tags), and spreadsheet totals add up correctly when figures were written with commas or currency signs — your dashboards no longer show 0 by mistake.',
+  },
+  {
+    title: 'Sharper ad creatives',
+    body: 'Generated ad/social images no longer show a literal “\\n” in the headline — line breaks render the way they should.',
   },
 ];
 

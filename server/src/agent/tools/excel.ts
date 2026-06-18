@@ -32,12 +32,30 @@ function toArgb(hex: string | undefined, fallback: string): string {
  * into ExcelJS formula cells; leaves plain values untouched. This is what lets a
  * model be genuinely formula-driven (change one assumption → everything flows).
  */
+/**
+ * A model often emits a numeric metric AS TEXT (e.g. "480,000.", "$15,000", "49.6"). Stored as
+ * text, Excel's SUM ignores it → dashboard totals read 0 (a real bug we saw). Coerce strings that
+ * are CLEARLY a formatted number (thousands commas, a currency symbol, or a decimal point) to a
+ * real number. Bare integer strings (possible IDs/codes/zips) and anything else are left as text.
+ */
+export function coerceNumeric(v: any): any {
+  if (typeof v !== 'string') return v;
+  const s = v.trim();
+  const formatted =
+    /^[-+]?[$£€]?\d{1,3}(,\d{3})+(\.\d+)?\.?$/.test(s) || // 480,000.  $15,000  1,580,000.
+    /^[-+]?[$£€]\d+(\.\d+)?$/.test(s) ||                  // $48713
+    /^[-+]?\d+\.\d+$/.test(s);                            // 49.6  3.13
+  if (!formatted) return v;
+  const n = Number(s.replace(/[$£€,\s]/g, '').replace(/\.$/, ''));
+  return Number.isFinite(n) ? n : v;
+}
+
 export function toCell(v: any): any {
   if (typeof v === 'string' && v.length > 1 && v[0] === '=') return { formula: v.slice(1) };
   if (v && typeof v === 'object' && typeof v.f === 'string') {
     return v.v !== undefined ? { formula: v.f, result: v.v } : { formula: v.f };
   }
-  return v;
+  return coerceNumeric(v);
 }
 function toRow(r: any): any {
   if (Array.isArray(r)) return r.map(toCell);

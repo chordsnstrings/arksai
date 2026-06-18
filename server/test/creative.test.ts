@@ -12,6 +12,12 @@ const base = {
   fontsCss: '/* no fonts in test */',
 };
 
+test('buildCreativeHtml: a LITERAL backslash-n in the headline also becomes <br> (no stray \\n)', () => {
+  const html = buildCreativeHtml({ ...base, copy: { ...base.copy, headline: 'Resolve conflicts\\nin minutes' }, zone: 'bottom', textColor: 'light' });
+  assert.match(html, /Resolve conflicts<br>in minutes/);
+  assert.ok(!/conflicts\\nin/.test(html), 'literal \\n must not survive into the rendered headline');
+});
+
 test('buildCreativeHtml: headline newline → <br>, copy escaped, accent on the CTA', () => {
   const html = buildCreativeHtml({ ...base, zone: 'bottom', textColor: 'light' });
   assert.match(html, /Line one<br>line two/); // newline became a break
