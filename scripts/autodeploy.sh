@@ -20,20 +20,17 @@ if [ "$REMOTE" = "$DEPLOYED" ]; then
 fi
 
 echo "[autodeploy] deploying $REMOTE (last good: $DEPLOYED)…"
-git reset --hard origin/main
 
-# Pick whichever stack is currently running (tls if its container exists),
-# else default to plain HTTP.
-if docker ps --format '{{.Names}}' | grep -q '^arksai-caddy-1$'; then
-  COMPOSE="docker-compose.tls.yml"
-else
-  COMPOSE="docker-compose.yml"
-fi
-
-if docker compose -f "$COMPOSE" up -d --build; then
+# Delegate to deploy.sh (auto mode): it hard-resets to origin/main, picks TLS vs plain
+# from SITE_ADDRESS in .env (the SOURCE OF TRUTH), stops BOTH stacks to avoid a port
+# 80/443 conflict, rebuilds, and health-checks (non-zero exit on failure).
+# This replaces the old "pick the stack based on whether the Caddy container is running"
+# heuristic, which silently DOWNGRADED a TLS site to plain HTTP the moment Caddy was
+# stopped (e.g. a manual `docker compose down --remove-orphans`) and then never recovered.
+if ./deploy.sh; then
   echo "$REMOTE" > "$MARKER"
-  echo "[autodeploy] done ($COMPOSE) at $REMOTE."
+  echo "[autodeploy] done at $REMOTE."
 else
-  echo "[autodeploy] BUILD FAILED for $REMOTE — keeping marker at $DEPLOYED; will retry next tick." >&2
+  echo "[autodeploy] DEPLOY FAILED for $REMOTE — keeping marker at $DEPLOYED; will retry next tick." >&2
   exit 1
 fi
