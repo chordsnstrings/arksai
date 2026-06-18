@@ -486,7 +486,7 @@ export class AgentRun {
           // and stalls AGAIN on tool-use turns, so the run would hang then die with nothing built
           // (the operator's 9-min code-build hang). deepseek-v4-pro finishes; the verify/report
           // gates guard quality. Mirrors the fetch-time hard-failure fallback (createCompletionWithRetry).
-          if (err?.minimaxStall && !this.minimaxFellBack && resolveProvider(this.activeModel).provider === 'minimax') {
+          if (err?.minimaxStall && !this.minimaxFellBack && !this.abort.signal.aborted && resolveProvider(this.activeModel).provider === 'minimax') {
             this.minimaxFellBack = true;
             // Fall back to the NON-THINKING DeepSeek model: a thinking model (v4-pro) 400s when
             // continuing M3's history ("reasoning_content … must be passed back"), but the
@@ -883,8 +883,6 @@ export class AgentRun {
     // read (a real undici behavior — a mid-stream abort can leave read() pending forever,
     // which is exactly the operator's "code build hangs 9 min, no fallback" symptom).
     const stall: { tripped: boolean; trip?: () => void } = { tripped: false };
-    if (this.abort.signal.aborted) ac.abort();
-    else this.abort.signal.addEventListener('abort', () => ac.abort(), { once: true });
     // The HEADERS wait must be raced against the deadline too, not just aborted: M3 can buffer
     // server-side for minutes before sending ANY response byte on a big prompt, and ac.abort()
     // does NOT reliably reject a pending undici fetch that's still awaiting headers — so relying
@@ -903,6 +901,16 @@ export class AgentRun {
       e.minimaxStall = true;
       rejectHeaders?.(e); // unblocks a hung HEADERS await (before streaming begins)
     }, totalMs);
+    // A user INTERRUPT (Stop) must unblock a hung fetch promptly — abort the socket, trip the
+    // mid-stream read race, and reject a pending headers await. This fires ONLY on an explicit
+    // user abort; it adds NO time/token heuristic, so a slow-but-healthy run is never killed.
+    const onUserAbort = () => {
+      ac.abort();
+      stall.trip?.(); // unblocks a hung mid-stream read (set once streaming begins)
+      rejectHeaders?.(new Error('interrupted by user')); // unblocks a hung headers await
+    };
+    if (this.abort.signal.aborted) onUserAbort();
+    else this.abort.signal.addEventListener('abort', onUserAbort, { once: true });
     let resp: Response;
     try {
       resp = await Promise.race([

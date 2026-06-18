@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-18.2';
+export const WHATS_NEW_VERSION = '2026-06-18.3';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Cleaner documents & spreadsheets',
-    body: 'Word documents now render bold text properly (no more stray “<b>” tags), and spreadsheet totals add up correctly when figures were written with commas or currency signs — your dashboards no longer show 0 by mistake.',
+    title: 'Stop means stop',
+    body: 'Hitting Stop now ends a run promptly, even if the model was mid-thought — no more waiting it out.',
   },
   {
-    title: 'Sharper ad creatives',
-    body: 'Generated ad/social images no longer show a literal “\\n” in the headline — line breaks render the way they should.',
+    title: 'Stronger report covers',
+    body: 'Designed PDF/deck covers now fill the page top-to-bottom instead of leaving a big empty gap under the title.',
+  },
+  {
+    title: 'More predictable chat',
+    body: 'When you ask to build something with a clear subject, the agent goes straight to a plan you can approve or tweak — consistently, instead of sometimes asking extra questions first.',
   },
 ];
 
