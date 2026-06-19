@@ -97,15 +97,77 @@ test('BENCHMARK: deterministic router hits >= 85% on plain phrasings', () => {
 });
 
 test('empty / whitespace input routes to null (today behaviour, safe)', () => {
-  assert.deepEqual(routeExpertise('', 'chat'), { taskKey: null, department: null, confidence: 0, source: 'auto' });
-  assert.deepEqual(routeExpertise('   ', 'chat'), { taskKey: null, department: null, confidence: 0, source: 'auto' });
+  assert.deepEqual(routeExpertise('', 'chat'), { taskKey: null, department: null, confidence: 0, tier: 'none', source: 'auto' });
+  assert.deepEqual(routeExpertise('   ', 'chat'), { taskKey: null, department: null, confidence: 0, tier: 'none', source: 'auto' });
 });
 
 test('a clearly off-catalog ask returns null (no blind mis-route)', () => {
   const r = routeExpertise('what is the weather like today', 'chat');
   assert.equal(r.taskKey, null);
-  // may persona-fallback to nothing; never a confident specific task
-  assert.ok(r.confidence < 0.34 || r.taskKey === null);
+  assert.equal(r.tier, 'none');
+});
+
+// ─── PHASE 4: confidence tiers + the mis-route guard ("never confidently wrong") ───
+
+test('PHASE 4 — a specific taskKey is ONLY ever returned at tier "high" (mis-route guard)', () => {
+  // The router invariant: it may never surface a confident SPECIFIC task below 'high'.
+  // Below high it degrades to a department persona (medium) or nothing (low/none).
+  const probes = [
+    ...BENCHMARK.map((b) => b.prompt),
+    'make me something nice',
+    'help with my thing tomorrow',
+    'I run a bakery, need to look more professional',
+    'what is the weather like today',
+    'can you help me with something',
+    'I have a startup',
+    'something for my business please',
+    'make it better',
+    'do the thing',
+    'help',
+  ];
+  for (const prompt of probes) {
+    const r = routeExpertise(prompt, 'chat');
+    if (r.taskKey !== null) {
+      assert.equal(r.tier, 'high', `"${prompt}" surfaced a specific task "${r.taskKey}" at tier "${r.tier}" (must be high)`);
+    }
+    if (r.tier !== 'high') {
+      assert.equal(r.taskKey, null, `tier "${r.tier}" for "${prompt}" must NOT carry a specific task`);
+    }
+  }
+});
+
+test('PHASE 4 — deliberately ambiguous prompts never return a confident specific task', () => {
+  // These have no clear subject/audience. At MOST a department persona; never a specific task.
+  const vague = [
+    'make me something nice',
+    'help with my thing tomorrow',
+    'something for my business',
+    'can you help me',
+    'make it better',
+  ];
+  for (const prompt of vague) {
+    const r = routeExpertise(prompt, 'chat');
+    assert.equal(r.taskKey, null, `"${prompt}" must not route to a specific task (got "${r.taskKey}")`);
+    assert.notEqual(r.tier, 'high', `"${prompt}" must not be tier high (got "${r.tier}")`);
+  }
+});
+
+test('PHASE 4 — a clear request still routes to its specific task at tier high (no regression)', () => {
+  for (const { prompt, expect } of BENCHMARK) {
+    const r = routeExpertise(prompt, 'chat');
+    if (r.taskKey === expect) {
+      // when the deterministic matcher nails the exact task it MUST be a confident high tier
+      assert.equal(r.tier, 'high', `"${prompt}" hit "${expect}" but at tier "${r.tier}" (expected high)`);
+      assert.ok(r.confidence >= 0.5, `"${prompt}" task confidence ${r.confidence} below the high bar`);
+    }
+  }
+});
+
+test('PHASE 4 — tier is one of the four declared values', () => {
+  for (const { prompt } of BENCHMARK) {
+    const t = routeExpertise(prompt, 'chat').tier;
+    assert.ok(['high', 'medium', 'low', 'none'].includes(t), `unexpected tier "${t}"`);
+  }
 });
 
 test('source is always "auto"', () => {

@@ -14,17 +14,39 @@
 import type { SessionMode } from '../../../shared/types';
 import { TASK_TRIGGERS, DEPARTMENT_TRIGGERS } from './expertise';
 
+/**
+ * Confidence tier (Phase 4). Drives how the caller injects expertise:
+ * - 'high'   → inject the specific task expertise silently.
+ * - 'medium' → inject the DEPARTMENT PERSONA only (still expert voice, no wrong specifics).
+ * - 'low'    → a weak signal; inject NOTHING — leave the message to the chat prompt's
+ *              vague-clarify path so the agent asks ONE crisp question instead of guessing.
+ * - 'none'   → no signal at all (off-catalog / empty).
+ */
+export type ExpertiseTier = 'high' | 'medium' | 'low' | 'none';
+
 export interface ExpertiseRoute {
   taskKey: string | null;
   department: string | null;
   confidence: number; // 0..1
+  tier: ExpertiseTier;
   source: 'auto';
 }
 
-const NONE: ExpertiseRoute = { taskKey: null, department: null, confidence: 0, source: 'auto' };
+const NONE: ExpertiseRoute = { taskKey: null, department: null, confidence: 0, tier: 'none', source: 'auto' };
 
 /** Confidence below this for the best TASK → fall back to a department persona match. */
 const TASK_CONFIDENCE_FLOOR = 0.34;
+
+/**
+ * MIS-ROUTE GUARD (Phase 4) — the "never confidently wrong" line. A SPECIFIC task key is
+ * only ever returned at tier 'high'; below this threshold the router downgrades to a
+ * department persona (medium) or nothing (low/none). Tuned against the live distribution:
+ * a clear, specific request (a single 2-word trigger phrase) scores ~0.667, and EVERY
+ * benchmark task case lands ≥ 0.667 — comfortably above this — while a stray
+ * two-single-keyword coincidence (the mis-route risk) lands below it. So a deliberately
+ * ambiguous prompt can never surface a confident specific task.
+ */
+const TASK_HIGH_CONFIDENCE = 0.5;
 
 /** Fold accents/diacritics so "résumé" matches the "resume" trigger, "café" → "cafe". */
 function deaccent(text: string): string {
@@ -108,13 +130,16 @@ export function routeExpertise(userText: string, _mode: SessionMode): ExpertiseR
     // lifts confidence; a near-tie lowers it.
     const strength = Math.min(1, best.score / 6);
     const margin = best.score > 0 ? (best.score - runnerUp) / best.score : 0;
-    const confidence = Math.min(1, 0.55 * strength + 0.45 * (strength * (0.5 + 0.5 * margin)));
-    if (confidence >= TASK_CONFIDENCE_FLOOR) {
-      return { taskKey: best.key, department: best.key.split('.')[0], confidence: round(confidence), source: 'auto' };
+    const confidence = round(Math.min(1, 0.55 * strength + 0.45 * (strength * (0.5 + 0.5 * margin))));
+    // HIGH tier only: a specific task is NEVER returned below the high bar (mis-route guard).
+    if (confidence >= TASK_HIGH_CONFIDENCE) {
+      return { taskKey: best.key, department: best.key.split('.')[0], confidence, tier: 'high', source: 'auto' };
     }
+    // Between the floor and the high bar: the signal points at a department but isn't
+    // strong enough to commit to a SPECIFIC task → degrade to a persona-only match below.
   }
 
-  // --- Department persona fallback ---
+  // --- Department persona fallback (MEDIUM tier) ---
   let bestDept: { dept: string; score: number } | null = null;
   for (const [dept, phrases] of Object.entries(DEPARTMENT_TRIGGERS)) {
     const { score } = scoreTriggers(hay, phrases);
@@ -123,14 +148,16 @@ export function routeExpertise(userText: string, _mode: SessionMode): ExpertiseR
   }
   if (bestDept) {
     const confidence = round(Math.min(0.6, 0.25 + 0.1 * bestDept.score));
-    return { taskKey: null, department: bestDept.dept, confidence, source: 'auto' };
+    return { taskKey: null, department: bestDept.dept, confidence, tier: 'medium', source: 'auto' };
   }
 
-  // If the task best existed but was below the floor and no department matched, still
-  // surface it as a low-confidence department persona (better than nothing, but caller
-  // can choose to apply or not). Here we keep it simple: return the weak task's dept.
+  // A task matched above the FLOOR but below the HIGH bar, with no department trigger hit:
+  // surface its department as a persona-only (medium) match — still the right family, never
+  // a confident specific task.
   if (best) {
-    return { taskKey: null, department: best.key.split('.')[0], confidence: round(Math.min(0.3, best.score / 12)), source: 'auto' };
+    const strength = Math.min(1, best.score / 6);
+    const conf = round(Math.min(0.49, 0.3 * strength + 0.2));
+    return { taskKey: null, department: best.key.split('.')[0], confidence: conf, tier: 'medium', source: 'auto' };
   }
 
   return NONE;

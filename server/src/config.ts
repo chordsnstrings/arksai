@@ -131,6 +131,12 @@ export const config = {
   // deterministically selects the right expert standards. ON by default; kill
   // switch EXPERTISE_AUTOROUTE=false for instant rollback to the generic agent.
   autoExpertise: process.env.EXPERTISE_AUTOROUTE !== 'false',
+  // Confidence → clarify (Phase 4): apply explicit HIGH/MEDIUM/LOW tiers when auto-routing —
+  // HIGH fires the specific task, MEDIUM fires only the department persona (no wrong
+  // specifics), LOW/none injects nothing and leaves the message to the chat prompt's
+  // vague-clarify path (ask ONE crisp question). ON by default; EXPERTISE_CLARIFY=false
+  // reverts to applying whatever the router surfaces (task OR dept) regardless of tier.
+  clarifyExpertise: process.env.EXPERTISE_CLARIFY !== 'false',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
   maxIterations: intEnv('MAX_ITERATIONS', 200),
   // When true the agent's shell inherits the FULL process environment (so it

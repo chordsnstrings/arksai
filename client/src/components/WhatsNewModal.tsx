@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.9';
+export const WHATS_NEW_VERSION = '2026-06-19.10';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Now for everyday life, not just business',
-    body: 'ArksAI just learned a whole set of personal skills — a friendly monthly budget, a savings or debt plan, a “should I buy or sell?” price check that researches real listings (your car, phone, anything), a résumé and cover letter, complaint and formal letters, an email rewrite, a trip itinerary, an event plan — plus Learning: explain a concept at your level, a study guide, or summarize a document. Just type what you need in plain words; it picks the right expertise for you automatically.',
+    title: 'Asks the right question when you’re vague',
+    body: 'When your message is clear, ArksAI just gets to work with the right expertise. When it’s a bit broad, it leans on the right team’s expert voice. And when it’s genuinely too thin to know what you want — “make me something nice”, “help with my thing tomorrow” — it now asks one warm, specific question to get it right, instead of guessing or saying it can’t help. It will never confidently pick the wrong skill.',
   },
 ];
 

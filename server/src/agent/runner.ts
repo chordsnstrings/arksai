@@ -312,7 +312,21 @@ export class AgentRun {
     if (this.session.task) return; // an explicit play (or an already-applied inference) wins
     if (this.session.mode === 'plan') return; // plan is a gate, not a deliverable; routes on the build turn
     const route = routeExpertise(userText, this.session.mode);
-    const inferred = route.taskKey ?? route.department;
+    // Phase 4 — confidence tiers (gated on config.clarifyExpertise; flip OFF to revert):
+    //   HIGH   → inject the SPECIFIC task expertise silently.
+    //   MEDIUM → inject the DEPARTMENT PERSONA only (expert voice, no wrong task specifics).
+    //   LOW/none → inject NOTHING; the chat prompt's vague-clarify path asks ONE question.
+    // The router already enforces the mis-route guard (a specific taskKey is only ever
+    // returned at tier 'high'), so this just maps the tier to what we set as session.task.
+    let inferred: string | null;
+    if (config.clarifyExpertise) {
+      if (route.tier === 'high') inferred = route.taskKey; // a confident specific task
+      else if (route.tier === 'medium') inferred = route.department; // persona only
+      else inferred = null; // low/none → leave it to vague-clarify; never guess
+    } else {
+      // Legacy behaviour (flag off): apply whatever the router surfaced.
+      inferred = route.taskKey ?? route.department;
+    }
     if (!inferred) return;
     this.session.task = inferred; // in-memory for this session object → survives turns + switch_mode
     this.autoExpertiseApplied = true;
@@ -322,7 +336,7 @@ export class AgentRun {
       orgId: this.session.orgId,
       userId: (this.session as any).createdBy ?? null,
       sessionId: this.session.id,
-      props: { task: inferred, confidence: route.confidence, source: route.source },
+      props: { task: inferred, confidence: route.confidence, tier: route.tier, source: route.source },
     });
   }
 
