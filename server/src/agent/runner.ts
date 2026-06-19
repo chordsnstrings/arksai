@@ -506,13 +506,20 @@ export class AgentRun {
           // gates guard quality. Mirrors the fetch-time hard-failure fallback (createCompletionWithRetry).
           if (err?.minimaxStall && !this.minimaxFellBack && !this.abort.signal.aborted && resolveProvider(this.activeModel).provider === 'minimax') {
             this.minimaxFellBack = true;
-            // Fall back to the NON-THINKING DeepSeek model: a thinking model (v4-pro) 400s when
-            // continuing M3's history ("reasoning_content … must be passed back"), but the
-            // non-thinking model imposes no such rule and reliably finishes. Strip M3's
-            // reasoning_content too so the history is a clean, standard tool-use transcript.
-            this.setActiveModel('deepseek-chat');
-            this.dropM3Reasoning(context);
-            sysInfo(`↳ ArksAI Max was slow — switching to ArksAI Flash to finish reliably.`);
+            if (this.deepseekFellBack) {
+              // DeepSeek is unreachable on this run (we already failed over FROM it) — do NOT
+              // bounce an M3 stall back onto a dead engine (that ping-pong was killing the run
+              // mid-report). Stay on MiniMax; minimaxFellBack now routes to the faster model.
+              sysInfo(`↳ Switching to faster mode to finish.`);
+            } else {
+              // Fall back to the NON-THINKING DeepSeek model: a thinking model (v4-pro) 400s when
+              // continuing M3's history ("reasoning_content … must be passed back"), but the
+              // non-thinking model imposes no such rule and reliably finishes. Strip M3's
+              // reasoning_content too so the history is a clean, standard tool-use transcript.
+              this.setActiveModel('deepseek-chat');
+              this.dropM3Reasoning(context);
+              sysInfo(`↳ ArksAI Max was slow — switching to ArksAI Flash to finish reliably.`);
+            }
             continue;
           }
           // The provider connection dropped (e.g. a "premature close" / terminated
