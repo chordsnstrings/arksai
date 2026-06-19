@@ -202,6 +202,10 @@ export class AgentRun {
   // Set once M3 has stalled on this run; subsequent MiniMax turns use the faster
   // fallback coding model instead (the user's "M3, but fall back if slow" choice).
   private minimaxFellBack = false;
+  // Set once DeepSeek connections have hard-failed on this run (e.g. the egress path to
+  // api.deepseek.com cutting every response body) → fail over to MiniMax for the rest of
+  // the run so the user still gets an answer instead of a dead "Premature close".
+  private deepseekFellBack = false;
   // The concrete model the orchestrator is using right now (resolved from the
   // session model, which may be the virtual 'arksai-auto').
   private activeModel = '';
@@ -538,6 +542,24 @@ export class AgentRun {
             forceNonStream = true;
             this.emit({ type: 'turn_reset', runId: this.runId });
             sysInfo(`↳ The connection keeps dropping — fetching the reply in one piece instead.`);
+            continue;
+          }
+          // Both streaming AND buffered DeepSeek attempts failed → DeepSeek is unreachable
+          // from here right now (the egress path to api.deepseek.com cutting every response
+          // body). Fail OVER to MiniMax (which is reachable) so the run still completes,
+          // instead of dying with "Premature close". Mirror of the MiniMax→DeepSeek fallback.
+          if (
+            isTransientApiError(err) &&
+            !this.abort.signal.aborted &&
+            !this.deepseekFellBack &&
+            this.minimaxAvailable &&
+            resolveProvider(this.activeModel).provider === 'deepseek'
+          ) {
+            this.deepseekFellBack = true;
+            forceNonStream = false; // MiniMax uses its own streaming adapter
+            this.setActiveModel(MAX_MODEL);
+            this.emit({ type: 'turn_reset', runId: this.runId });
+            sysInfo(`↳ Couldn’t reach the default engine — switching to ArksAI Max to finish.`);
             continue;
           }
           throw err;
