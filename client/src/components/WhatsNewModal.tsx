@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.1';
+export const WHATS_NEW_VERSION = '2026-06-19.2';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -21,6 +21,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'A real music studio',
     body: 'Ask for a song and ArksAI now works like a Suno expert: richer style direction and structured lyrics (with vocal cues), plus controls for vocal gender, how closely to follow the style, and styles to avoid. It also drafts lyrics on their own (no audio), extends a track to make it longer, and covers an existing song in a new style.',
+  },
+  {
+    title: 'Published apps load more reliably',
+    body: 'Fixed a "premature close" error that could intermittently break a published or previewed app — the proxy now recovers from a dropped connection and retries instead of showing an error page.',
   },
 ];
 

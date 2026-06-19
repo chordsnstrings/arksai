@@ -5,6 +5,7 @@ import * as store from '../sessions/store';
 import { deploymentDir, deploymentRegistry } from '../deploy/registry';
 import { publishSession, removeDeployment, restartDeployment, stopDeployment } from '../deploy/publish';
 import { resolveInWorkspace } from '../agent/tools/common';
+import { proxyFetch } from '../lib/proxy';
 import { scopeOf } from '../auth';
 
 const MIME: Record<string, string> = {
@@ -91,25 +92,14 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
         return reply.code(502).type('text/html').send(`<body style="font-family:sans-serif;padding:40px">This app isn't running. Restart it from ArksAI.</body>`);
       }
       const qs = req.url.includes('?') ? '?' + req.url.split('?').slice(1).join('?') : '';
-      let res: Response;
-      try {
-        res = await fetch(`http://127.0.0.1:${port}/${rest}${qs}`, {
-          method: req.method,
-          headers: { 'accept-encoding': 'identity' },
-          body: ['GET', 'HEAD'].includes(req.method) ? undefined : (req.body as any),
-          redirect: 'manual',
-        });
-      } catch {
-        return reply.code(502).type('text/html').send(`<body style="font-family:sans-serif;padding:40px">App not responding on port ${port}.</body>`);
+      const res = await proxyFetch(`http://127.0.0.1:${port}/${rest}${qs}`, req);
+      if (!res) {
+        return reply.code(502).type('text/html').send(`<body style="font-family:sans-serif;padding:40px">App not responding on port ${port}. Restart it from ArksAI.</body>`);
       }
-      const ct = res.headers.get('content-type') ?? '';
       reply.code(res.status);
-      for (const h of ['content-type', 'cache-control']) {
-        const v = res.headers.get(h);
-        if (v) reply.header(h, v);
-      }
-      if (/text\/html/i.test(ct)) return reply.type('text/html').send(rewriteHtml(await res.text(), prefix));
-      return reply.send(Buffer.from(await res.arrayBuffer()));
+      for (const [h, v] of Object.entries(res.headers)) reply.header(h, v);
+      if (/text\/html/i.test(res.contentType)) return reply.type('text/html').send(rewriteHtml(res.body.toString('utf8'), prefix));
+      return reply.send(res.body);
     }
 
     // Static: serve a file from the snapshot dir.

@@ -35,6 +35,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Parameterized-route filling (`:id`/`{id}`/`<int:id>`/`:slug`) + an interaction pass (seeds inputs, submits a form, clicks primary buttons).
 - Headless-Chromium UI smoke test (blank/console-error/failed-request detection).
 - Post-publish smoke test of the real `/apps/<slug>/` URL — a broken deploy is caught and handed back to the agent, never the user.
+- **Resilient app/preview proxy** — the reverse proxy that serves published apps (`/apps/<slug>/`) and the in-app preview reads the upstream response defensively and retries once on a dropped/stale connection, so a transient "premature close" can't surface as a 500 error page; an upstream that's genuinely down returns a clean "restart it" 502 instead.
 - **Self-contained apps (no CDN)** — built apps vendor their libraries (charting, etc.) locally and self-host fonts, with one real root `index.html`; nothing is pulled from an external CDN at runtime, so a published dashboard's charts can't silently break when a third-party CDN rate-limits/403s.
 
 ## Deliverables & deployment

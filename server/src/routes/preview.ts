@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import * as store from '../sessions/store';
+import { proxyFetch } from '../lib/proxy';
 
 /**
  * Reverse-proxy to a dev server the agent started inside the workspace
@@ -18,15 +19,8 @@ export function registerPreviewRoutes(app: FastifyInstance) {
     const upstream = `http://127.0.0.1:${p}/${rest}${qs}`;
     const prefix = `/api/sessions/${id}/preview/${p}/`;
 
-    let res: Response;
-    try {
-      res = await fetch(upstream, {
-        method: req.method,
-        headers: { 'accept-encoding': 'identity' },
-        body: ['GET', 'HEAD'].includes(req.method) ? undefined : (req.body as any),
-        redirect: 'manual',
-      });
-    } catch {
+    const res = await proxyFetch(upstream, req);
+    if (!res) {
       return reply
         .code(502)
         .type('text/html')
@@ -36,15 +30,11 @@ export function registerPreviewRoutes(app: FastifyInstance) {
         );
     }
 
-    const ct = res.headers.get('content-type') ?? '';
     reply.code(res.status);
-    for (const h of ['content-type', 'cache-control']) {
-      const v = res.headers.get(h);
-      if (v) reply.header(h, v);
-    }
+    for (const [h, v] of Object.entries(res.headers)) reply.header(h, v);
 
-    if (/text\/html/i.test(ct)) {
-      let html = await res.text();
+    if (/text\/html/i.test(res.contentType)) {
+      let html = res.body.toString('utf8');
       // Rewrite root-relative asset URLs and inject <base> so the app loads
       // through the proxy prefix instead of the ArksAI app root.
       html = html.replace(/\b(src|href)=("|')\/(?!\/)/gi, `$1=$2${prefix}`);
@@ -52,8 +42,7 @@ export function registerPreviewRoutes(app: FastifyInstance) {
       else html = `<base href="${prefix}">` + html;
       return reply.type('text/html').send(html);
     }
-    const buf = Buffer.from(await res.arrayBuffer());
-    return reply.send(buf);
+    return reply.send(res.body);
   };
 
   for (const method of ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] as const) {
