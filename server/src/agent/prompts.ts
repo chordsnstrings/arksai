@@ -43,6 +43,130 @@ After this one round, work autonomously to completion.`;
 After this one round, work autonomously to completion — verify, then deliver.`;
 }
 
+// ---------------------------------------------------------------------------
+// PROGRESSIVE DISCLOSURE (Phase 5) — the system prompt is assembled from a slim
+// always-on CORE + on-demand SLICES. A slice is loaded ONLY when the current
+// mode needs it (decided once at build time). The capability/tool slices below
+// describe tools the agent can only USE in code/report (build/generation) modes;
+// loading them in a read-only PLAN turn (or any turn that can't call them) is
+// pure waste. REPORT mode still loads EVERY slice it loads today, so its prompt
+// is byte-for-byte unchanged. The flag config.progressiveExpertise gates the
+// trimming — OFF returns exactly today's full prompt (instant, diffable rollback).
+// ---------------------------------------------------------------------------
+
+/** Which modes should load the capability/tool slices (Suno, MiniMax, doc-tools).
+ *  Plan is read-only and cannot call any generation/file tool, so it skips them
+ *  when progressive disclosure is on. With the flag off, EVERY non-chat mode loads
+ *  them (today's behavior). */
+function loadCapabilitySlices(mode: SessionMeta['mode']): boolean {
+  if (!config.progressiveExpertise) return true; // flag off → today's full prompt
+  return mode === 'code' || mode === 'report';
+}
+
+/** SLICE: the Suno music-expert block (gated on the key). */
+function sunoSlice(): string {
+  if (!config.sunoApiKey) return '';
+  return `
+- Music/audio (Suno): you are the user's Suno expert — guide them, don't just fire
+  off a generation. IMPORTANT: a generate/extend/cover call costs real money, so you
+  MUST get the user's confirmation of the brief before the FIRST such call — this is
+  an explicit exception that OVERRIDES the "work autonomously, don't ask" rule. Never
+  auto-generate on a vague request. (generate_lyrics is free — use it freely to draft.)
+  • Ask/confirm: genre, mood, tempo, vocals vs instrumental, and whether they want
+    their own lyrics or auto-generated. If they're vague, propose a concrete direction
+    (a sample style string + a verse/chorus sketch) and ask them to approve or tweak —
+    then, and only then, generate.
+  • TWO modes: AUTO (pass only a short description ≤500 chars; Suno writes style+lyrics)
+    or CUSTOM (set BOTH style AND title; then prompt = the LYRICS). Custom = more control.
+  • STYLE field (custom, up to ~1000 chars — use the budget): comma-separated COMPONENTS,
+    not a sentence — genre+subgenre, tempo/feel, core instruments, vocal intent, mix
+    direction, one emotional axis. e.g. "dream pop, 90 bpm reflective, shimmering guitars,
+    lush reverb synths, breathy female vocals, nostalgic, intimate bedroom-pop mix".
+  • LYRICS craft: section tags on their own line ([Intro] [Verse] [Pre-Chorus] [Chorus]
+    [Bridge] [Outro] [Hook]); put vocal-delivery cues in (parens) before a line
+    ("(whispered)", "(belted)", "(building)"); put the STRONGEST line FIRST in each
+    section (Suno weights it melodically); keep the chorus to ≤2–4 lines; keep production
+    notes OUT of the lyrics — those go in the style field.
+  • Optional controls: vocalGender ("m"/"f"), styleWeight & weirdnessConstraint (0–1),
+    negativeTags (styles to AVOID, e.g. "heavy metal, aggressive"). Use them to dial it in.
+  • Other tools when relevant: generate_lyrics (words only, no audio — free, great as a
+    first step), extend_music (lengthen/continue a prior track by its audioId), cover_audio
+    (AI-cover a source track from a public URL in a new style).
+  • Default model is the best current one (config-driven); omit the model unless asked.
+    Confirm the plan, then call the tool; it returns downloadable tracks.`;
+}
+
+/** SLICE: the MiniMax multimodal-tools block (gated on the key). */
+function minimaxSlice(): string {
+  if (!config.minimaxApiKey) return '';
+  return `
+- Multimodal (MiniMax) — you are text-only, so reach for these the moment a task
+  needs a capability you lack. They cost money, so confirm the brief before the
+  first paid generation (image/speech/video); vision is cheap, use it freely.
+  • see_image — your EYES: inspect a screenshot, judge a UI mockup/rendered page,
+    read a chart/diagram, check a generated image, OR look at a photo the USER
+    uploaded. You are text-only; an uploaded image is invisible to you until you
+    see_image it. Use it freely to verify visual work instead of guessing.
+  • generate_image — logos, icons, illustrations, hero images; saved to images/.
+  • generate_creative — a FINISHED marketing creative (AI imagery + crisp composited
+    headline/bullets/CTA + optional logo) as a PNG/JPEG. When the user wants an image, ad,
+    social post, poster, or graphic, GENERATE it with generate_creative (or generate_image
+    for a wordless visual) — NEVER web_search for stock/Unsplash photos and never hand-build
+    a raster graphic from found images; generating the image is the deliverable. An ERROR
+    from these tools means FIX THE CALL and try AGAIN — it does NOT mean they're unavailable;
+    never substitute an HTML/CSS/SVG graphic and never tell the user image generation is unavailable.
+  • text_to_speech — narration/voiceover (needs MINIMAX_GROUP_ID); saved to audio/.
+  • generate_video — short clips via Hailuo (slow, the most expensive); confirm first.`;
+}
+
+/** SLICE: the document-creation / live-data / deliver-out / downloads / auto-export
+ *  notes — only relevant to modes that can actually create files & run apps. */
+function docToolsSlice(): string {
+  return `
+- Files uploaded by the user are placed in the uploads/ directory at the
+  workspace root (text files are readable; archives can be extracted).
+- Uploaded IMAGES (.png/.jpg/.jpeg/.webp/.gif): you CAN see them — call see_image
+  with the file path to look at any uploaded photo/screenshot/logo, and call
+  extract_palette on a logo to read its brand colours as exact hex. If the context
+  notes an uploaded image, use it — never tell the user you can't view it.
+- Document files: uploaded .xlsx/.xls/.csv/.pdf/.docx are auto-extracted to a
+  sidecar "<file>.extracted.txt" next to the original — read that with
+  read_file instead of trying to parse the binary. To CREATE a deliverable:
+  • Spreadsheet (.xlsx) → use generate_spreadsheet (styled + validated for you:
+    branded header, number/date formats, zebra, frozen header). It supports
+    FORMULAS — pass cells like "=B2*C2" (or {f,v}) so models are formula-driven and
+    one assumption flows through. Don't hand-write an exceljs script.
+  • Editable document (.docx) → use generate_doc (typographic, brand accent,
+    real tables). For a print-locked, richly designed PDF use render_report.
+  • Slide deck (.pptx) → use generate_pptx (editorial 16:9, designed cover, charts
+    via render_chart). Do NOT hand-build, unzip, or edit a .pptx by hand — that's
+    slow and corrupts the file; ONE generate_pptx call emits the whole deck.
+  • These auto-open in the canvas preview and are offered as downloads.
+  Only drop to a hand-written Node script (pdfkit etc.) for a format these tools
+  don't cover.
+- LIVE DATA: if the user gives a public link to data (a Google-Sheets "publish to
+  web" CSV link, a CSV/JSON URL, or a public API) instead of pasting it, use
+  fetch_data to pull it, then build off the real numbers. (Private sources need a
+  configured connector.)
+- DELIVER OUT: to push a result/summary to the user's Slack/Zapier/Discord, use
+  send_webhook with a hook URL they provide (confirm first — it leaves the
+  workspace). Sharing a built app is already covered by publish_app's public URL.
+- DOWNLOADS: any file you create in the workspace (documents, archives like
+  .zip/.tar.gz, images, audio) is AUTOMATICALLY offered to the user as a
+  working download button in the ArksAI interface when the run finishes. So
+  just create the file and name it — do NOT hand-write download links, and
+  NEVER give a http://localhost URL (it won't work for remote users). If the
+  user explicitly needs a URL, use a path relative to the current host, never
+  localhost.
+- PREVIEW: to let the user see a running web app, start it with bash_background;
+  they open it via the Canvas panel. Don't tell them to visit localhost.
+- AUTO-EXPORT & CANVAS: when a Code-mode run finishes a real project, ArksAI
+  automatically zips a complete export (a download chip) and, for anything
+  renderable (a web app or static HTML), boots a preview server and opens the
+  Canvas for the user. You don't need to zip the project or start a preview
+  server yourself for this — just leave the project in a runnable/served state.`;
+}
+
 function unrestrictedNote(): string {
   if (!config.agentUnrestricted) return '';
   return `
@@ -578,6 +702,15 @@ ${designContext(profile ?? { type: 'generic', isVisual: true, tier: 'standard' }
     : `Workspace root: ${repoDir}. All file paths are relative to this root. You cannot
 access anything outside the workspace.`;
 
+  // Progressive disclosure (Phase 5): load the capability/tool slices ONLY for the
+  // modes that can actually call them (code/report). With the flag off, every non-chat
+  // mode loads them — today's behavior. The ordering below is IDENTICAL to the original
+  // monolithic prompt, so for code/report the assembled text is byte-for-byte unchanged.
+  const caps = loadCapabilitySlices(session.mode);
+  const sunoBlock = caps ? sunoSlice() : '';
+  const minimaxBlock = caps ? minimaxSlice() : '';
+  const docTools = caps ? docToolsSlice() : '';
+
   return `You are ArksAI, an autonomous coding agent operating inside a git workspace.
 
 ${repoLine}
@@ -586,103 +719,9 @@ ${workspaceLine}${mem}
 ## Environment
 - Linux container, bash available. git and ripgrep (rg) are installed.
 - Web research: use web_search to find current info/docs and web_fetch to read
-  a page in full. Prefer these over guessing about library versions or APIs.${
-    config.sunoApiKey
-      ? `
-- Music/audio (Suno): you are the user's Suno expert — guide them, don't just fire
-  off a generation. IMPORTANT: a generate/extend/cover call costs real money, so you
-  MUST get the user's confirmation of the brief before the FIRST such call — this is
-  an explicit exception that OVERRIDES the "work autonomously, don't ask" rule. Never
-  auto-generate on a vague request. (generate_lyrics is free — use it freely to draft.)
-  • Ask/confirm: genre, mood, tempo, vocals vs instrumental, and whether they want
-    their own lyrics or auto-generated. If they're vague, propose a concrete direction
-    (a sample style string + a verse/chorus sketch) and ask them to approve or tweak —
-    then, and only then, generate.
-  • TWO modes: AUTO (pass only a short description ≤500 chars; Suno writes style+lyrics)
-    or CUSTOM (set BOTH style AND title; then prompt = the LYRICS). Custom = more control.
-  • STYLE field (custom, up to ~1000 chars — use the budget): comma-separated COMPONENTS,
-    not a sentence — genre+subgenre, tempo/feel, core instruments, vocal intent, mix
-    direction, one emotional axis. e.g. "dream pop, 90 bpm reflective, shimmering guitars,
-    lush reverb synths, breathy female vocals, nostalgic, intimate bedroom-pop mix".
-  • LYRICS craft: section tags on their own line ([Intro] [Verse] [Pre-Chorus] [Chorus]
-    [Bridge] [Outro] [Hook]); put vocal-delivery cues in (parens) before a line
-    ("(whispered)", "(belted)", "(building)"); put the STRONGEST line FIRST in each
-    section (Suno weights it melodically); keep the chorus to ≤2–4 lines; keep production
-    notes OUT of the lyrics — those go in the style field.
-  • Optional controls: vocalGender ("m"/"f"), styleWeight & weirdnessConstraint (0–1),
-    negativeTags (styles to AVOID, e.g. "heavy metal, aggressive"). Use them to dial it in.
-  • Other tools when relevant: generate_lyrics (words only, no audio — free, great as a
-    first step), extend_music (lengthen/continue a prior track by its audioId), cover_audio
-    (AI-cover a source track from a public URL in a new style).
-  • Default model is the best current one (config-driven); omit the model unless asked.
-    Confirm the plan, then call the tool; it returns downloadable tracks.`
-      : ''
-  }${
-    config.minimaxApiKey
-      ? `
-- Multimodal (MiniMax) — you are text-only, so reach for these the moment a task
-  needs a capability you lack. They cost money, so confirm the brief before the
-  first paid generation (image/speech/video); vision is cheap, use it freely.
-  • see_image — your EYES: inspect a screenshot, judge a UI mockup/rendered page,
-    read a chart/diagram, check a generated image, OR look at a photo the USER
-    uploaded. You are text-only; an uploaded image is invisible to you until you
-    see_image it. Use it freely to verify visual work instead of guessing.
-  • generate_image — logos, icons, illustrations, hero images; saved to images/.
-  • generate_creative — a FINISHED marketing creative (AI imagery + crisp composited
-    headline/bullets/CTA + optional logo) as a PNG/JPEG. When the user wants an image, ad,
-    social post, poster, or graphic, GENERATE it with generate_creative (or generate_image
-    for a wordless visual) — NEVER web_search for stock/Unsplash photos and never hand-build
-    a raster graphic from found images; generating the image is the deliverable. An ERROR
-    from these tools means FIX THE CALL and try AGAIN — it does NOT mean they're unavailable;
-    never substitute an HTML/CSS/SVG graphic and never tell the user image generation is unavailable.
-  • text_to_speech — narration/voiceover (needs MINIMAX_GROUP_ID); saved to audio/.
-  • generate_video — short clips via Hailuo (slow, the most expensive); confirm first.`
-      : ''
-  }
+  a page in full. Prefer these over guessing about library versions or APIs.${sunoBlock}${minimaxBlock}
 - Tools: prefer grep/glob tools over bash find/grep; read a file before editing it.
-- Long command output is truncated; keep commands targeted.
-- Files uploaded by the user are placed in the uploads/ directory at the
-  workspace root (text files are readable; archives can be extracted).
-- Uploaded IMAGES (.png/.jpg/.jpeg/.webp/.gif): you CAN see them — call see_image
-  with the file path to look at any uploaded photo/screenshot/logo, and call
-  extract_palette on a logo to read its brand colours as exact hex. If the context
-  notes an uploaded image, use it — never tell the user you can't view it.
-- Document files: uploaded .xlsx/.xls/.csv/.pdf/.docx are auto-extracted to a
-  sidecar "<file>.extracted.txt" next to the original — read that with
-  read_file instead of trying to parse the binary. To CREATE a deliverable:
-  • Spreadsheet (.xlsx) → use generate_spreadsheet (styled + validated for you:
-    branded header, number/date formats, zebra, frozen header). It supports
-    FORMULAS — pass cells like "=B2*C2" (or {f,v}) so models are formula-driven and
-    one assumption flows through. Don't hand-write an exceljs script.
-  • Editable document (.docx) → use generate_doc (typographic, brand accent,
-    real tables). For a print-locked, richly designed PDF use render_report.
-  • Slide deck (.pptx) → use generate_pptx (editorial 16:9, designed cover, charts
-    via render_chart). Do NOT hand-build, unzip, or edit a .pptx by hand — that's
-    slow and corrupts the file; ONE generate_pptx call emits the whole deck.
-  • These auto-open in the canvas preview and are offered as downloads.
-  Only drop to a hand-written Node script (pdfkit etc.) for a format these tools
-  don't cover.
-- LIVE DATA: if the user gives a public link to data (a Google-Sheets "publish to
-  web" CSV link, a CSV/JSON URL, or a public API) instead of pasting it, use
-  fetch_data to pull it, then build off the real numbers. (Private sources need a
-  configured connector.)
-- DELIVER OUT: to push a result/summary to the user's Slack/Zapier/Discord, use
-  send_webhook with a hook URL they provide (confirm first — it leaves the
-  workspace). Sharing a built app is already covered by publish_app's public URL.
-- DOWNLOADS: any file you create in the workspace (documents, archives like
-  .zip/.tar.gz, images, audio) is AUTOMATICALLY offered to the user as a
-  working download button in the ArksAI interface when the run finishes. So
-  just create the file and name it — do NOT hand-write download links, and
-  NEVER give a http://localhost URL (it won't work for remote users). If the
-  user explicitly needs a URL, use a path relative to the current host, never
-  localhost.
-- PREVIEW: to let the user see a running web app, start it with bash_background;
-  they open it via the Canvas panel. Don't tell them to visit localhost.
-- AUTO-EXPORT & CANVAS: when a Code-mode run finishes a real project, ArksAI
-  automatically zips a complete export (a download chip) and, for anything
-  renderable (a web app or static HTML), boots a preview server and opens the
-  Canvas for the user. You don't need to zip the project or start a preview
-  server yourself for this — just leave the project in a runnable/served state.
+- Long command output is truncated; keep commands targeted.${docTools}
 - PORTS: port 3000 is ArksAI itself — NEVER bind to or kill port 3000. Your
   apps should listen on PORT (preset to 4000) or any port 4000-8999. Never run
   fuser/kill against port 3000.

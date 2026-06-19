@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.10';
+export const WHATS_NEW_VERSION = '2026-06-19.11';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Asks the right question when you’re vague',
-    body: 'When your message is clear, ArksAI just gets to work with the right expertise. When it’s a bit broad, it leans on the right team’s expert voice. And when it’s genuinely too thin to know what you want — “make me something nice”, “help with my thing tomorrow” — it now asks one warm, specific question to get it right, instead of guessing or saying it can’t help. It will never confidently pick the wrong skill.',
+    title: 'Faster and leaner under the hood',
+    body: 'ArksAI now loads only the expertise and tools each task actually needs, so every turn is lighter and quicker — with no change to what it can do. Reports and decks still get every bit of the same carefully-tuned design craft; the savings come purely from skipping what a given task can’t use.',
   },
 ];
 

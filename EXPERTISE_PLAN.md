@@ -331,6 +331,29 @@ across report/app/deck. → flip flag ON.
 **Iterate loop:** a missing slice (a rule didn't load when needed → a defect appears) → adjust
 the expertise's declared slices → re-test that path.
 
+**Phase 5 notes (shipped 2026-06-19):** Implemented the **LOW-RISK STATIC version** the
+scope calls for. `buildSystemPrompt` (`server/src/agent/prompts.ts`) now assembles a slim
+always-on CORE + on-demand SLICES, each included ONCE at prompt-build time (per run + on
+`switch_mode` — exactly the existing rebuild points; NO mid-run swapping). Slices:
+`sunoSlice()` (Suno music-expert block), `minimaxSlice()` (MiniMax multimodal-tools block),
+`docToolsSlice()` (document-creation / live-data / deliver-out / downloads / auto-export
+notes); the giant `reportBlock` and `designContext` were already mode-gated. `loadCapabilitySlices(mode)`
+gates suno/minimax/doc-tools to **code/report only** — a read-only **PLAN** turn cannot call
+any generation/file tool, so loading those slices there was pure waste. The slice ORDER is
+identical to the old monolithic prompt, so **CODE and REPORT prompts are byte-for-byte
+unchanged** (a locking test asserts equality with the flag ON vs OFF, plus a 19-phrase
+report-rule lock). Flag `EXPERTISE_PROGRESSIVE` in `config.ts` (default ON, `=false` returns
+exactly today's full prompt → instant diffable rollback). **Measured saving:** the PLAN-turn
+prompt drops from 6394→3323 chars (**48% smaller**) in the keyless test env — larger still in
+prod where the Suno/MiniMax slices carry real text; the report path is unchanged. Tests:
+`server/test/progressivePrompt.test.ts` (7) — byte-equivalence for report+code, the
+prompt-size reduction with the char counts printed, plan keeps its plan-gate while dropping
+the build slices, chat unaffected. 343 tests + typecheck + build green.
+**DEFERRED (deliberately, per the scope):** the riskier **mid-run progressive rebuilding /
+slice eviction** variant (the plan's "cousin of `trimStaleResearch`"). The static, build-time
+slicing captures the real saving at near-zero regression risk; mid-run eviction would add the
+risk of a needed rule vanishing mid-build for marginal extra savings, so it is not implemented.
+
 ---
 
 ## 6. Instrumentation (so "does it work?" is answerable, not guessed)

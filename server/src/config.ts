@@ -137,6 +137,15 @@ export const config = {
   // vague-clarify path (ask ONE crisp question). ON by default; EXPERTISE_CLARIFY=false
   // reverts to applying whatever the router surfaces (task OR dept) regardless of tier.
   clarifyExpertise: process.env.EXPERTISE_CLARIFY !== 'false',
+  // Progressive disclosure (Phase 5): the system prompt is assembled from a slim
+  // always-on CORE + on-demand SLICES (report page-mechanics, design-system,
+  // capability/tool notes); a slice is included ONLY when the current mode/task
+  // needs it, decided ONCE at prompt-build time (per run + on switch_mode — no
+  // mid-run swapping). A REPORT-mode build still receives EVERY rule it gets today
+  // (byte-equivalent); the saving is NOT loading report/design/tool slices on turns
+  // that don't use them (a plain plan turn, etc.). ON by default; EXPERTISE_PROGRESSIVE
+  // =false returns the full prompt for an instant, diffable rollback.
+  progressiveExpertise: process.env.EXPERTISE_PROGRESSIVE !== 'false',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
   maxIterations: intEnv('MAX_ITERATIONS', 200),
   // When true the agent's shell inherits the FULL process environment (so it
