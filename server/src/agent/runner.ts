@@ -503,14 +503,15 @@ export class AgentRun {
             continue;
           }
           // The provider connection dropped (e.g. a "premature close" / terminated
-          // socket — common when an upstream resets a stale keep-alive). Nothing was
-          // committed to the context yet, so redo the turn on a fresh connection
-          // (bounded) instead of failing the whole run with a scary error. Only retry
-          // when NOTHING visible streamed yet (the dominant stale-socket case drops on
-          // the first read) so the user never sees doubled text in the same bubble.
-          const nothingStreamed = !text.trim() && toolCalls.filter(Boolean).length === 0;
-          if (isTransientApiError(err) && nothingStreamed && !this.abort.signal.aborted && streamRetries < STREAM_RETRY_LIMIT) {
+          // socket — common when an upstream resets a stale keep-alive). Nothing is
+          // committed to the context until a turn completes, so redo the turn on a
+          // fresh connection (bounded) instead of failing the run with a scary error.
+          // Emit turn_reset first so any partial assistant text/tool output already
+          // streamed to the UI is discarded — the retry then renders cleanly with no
+          // doubled text (the model had only emitted a preamble like "Let me research…").
+          if (isTransientApiError(err) && !this.abort.signal.aborted && streamRetries < STREAM_RETRY_LIMIT) {
             streamRetries++;
+            this.emit({ type: 'turn_reset', runId: this.runId });
             sysInfo(`↳ The connection dropped — reconnecting (${streamRetries}/${STREAM_RETRY_LIMIT}).`);
             await new Promise((r) => setTimeout(r, 400 * streamRetries));
             continue;

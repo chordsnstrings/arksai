@@ -303,6 +303,12 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
       };
     }
 
+    case 'turn_reset': {
+      // The turn dropped mid-stream and is being redone — discard the partial
+      // assistant text and any half-streamed tool group so the retry is clean.
+      return { ...live, pendingAssistant: null, pendingTools: null };
+    }
+
     case 'tool_call_started': {
       const group = live.pendingTools ?? { id: `pt-${Date.now()}`, calls: [] };
       return {

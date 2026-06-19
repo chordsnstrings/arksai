@@ -169,6 +169,9 @@ export type AgentEvent =
   | { type: 'run_started'; runId: string; mode: SessionMode }
   | { type: 'assistant_delta'; runId: string; text: string }
   | { type: 'assistant_message_done'; runId: string; messageId: string }
+  // The current turn was dropped mid-stream (a transient connection close) and is being
+  // redone — clear any partial assistant/tool output so the retry doesn't visibly double.
+  | { type: 'turn_reset'; runId: string }
   | {
       type: 'tool_call_started';
       runId: string;
