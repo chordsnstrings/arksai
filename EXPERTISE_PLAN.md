@@ -6,9 +6,11 @@
 > applies. "Apple, for everyone."
 
 This plan turns the 5-phase expertise roadmap into an executable program with: per-phase
-**goals**, an explicit **build → self-verify → operator-live-test → iterate** loop, concrete
-**operator test matrices** run on the deployment server (https://arksai.studio), feature
-flags for safe rollout, and instrumentation so we can SEE whether auto-selection works.
+**goals**, an explicit **build → self-verify → build-health-watch → self-validate → iterate**
+loop run AUTONOMOUSLY (I am builder + tester, no operator gating), concrete test matrices I run
+on the deployment server (https://arksai.studio), feature flags for safe rollout, and
+instrumentation so we can SEE whether auto-selection works. The operator is notified at phase
+boundaries but never blocks the loop.
 
 ---
 
@@ -36,7 +38,7 @@ expertise consistently extensible — is this program.
 5. **Robustness**: never break the deterministic play path; degrade gracefully when unsure.
 
 **Success metrics (tracked live — metadata only)**
-- **Auto-select hit-rate** ≥ 85% on a fixed 30-prompt benchmark (operator-graded).
+- **Auto-select hit-rate** ≥ 85% on a fixed 30-prompt benchmark (graded by the benchmark unit test).
 - **Mis-route rate** (wrong expertise fired) ≤ 5%.
 - **Free-form expertise coverage**: % of real sessions that get a non-null task ≥ 80%.
 - **No regression**: every existing play produces the same or better output.
@@ -48,8 +50,8 @@ expertise consistently extensible — is this program.
 
 - **Deterministic-first.** A picked play always wins; auto-routing only fills the `null` case.
   Never trade away the reliable path.
-- **Feature-flag every phase** (`config.ts`), default OFF, flip ON only after the operator
-  live-test passes. Instant rollback = flip the flag.
+- **Feature-flag every phase** (`config.ts`), default OFF, flip ON only after my self-validation
+  passes its exit criteria. Instant rollback = flip the flag.
 - **Quality bar is sacred.** Aesthetics + correctness + cite-don't-fabricate unchanged.
 - **Privacy.** The classifier reads the user's own message in-run; we persist only the
   resulting **task key + confidence + source** as analytics metadata (never message content),
@@ -60,38 +62,67 @@ expertise consistently extensible — is this program.
 
 ---
 
-## 3. The Loop (the methodology used in EVERY phase)
+## 3. Autonomy contract (how this runs without operator intervention)
+
+This program is executed **end-to-end autonomously**. The operator does NOT grade, gate, or
+approve between phases. I am the builder AND the tester: I drive the live deployment server
+(https://arksai.studio) with the same API + Playwright + mupdf-rasterize harness used all
+session, grade each phase's test matrix against its pass criteria, iterate on failures, flip
+the flag, and advance. The operator is informed at phase boundaries (async, non-blocking) and
+can override any time — but the loop never waits on them.
+
+**Decision defaults (used whenever a choice arises, no operator ask):**
+- Classifier = **trigger-table first, fast non-thinking LLM tie-break only on ambiguity** (cheap, explainable, low-latency).
+- After self-validation passes, **flip the flag ON globally** (the goal is live UX; the flag stays only for rollback).
+- **Breadth is validated by the benchmark UNIT test** (classifier output only — no live generation, ~free). **Depth** = a small set of live end-to-end spot-checks per phase (rasterize/inspect) to confirm the expertise actually lifts output quality. This keeps the autonomous loop token-frugal.
+- If a phase can't reach its exit criteria after the bounded iteration, I **ship the safe working subset, document the deferral in this file, and continue** — never block the program.
+- Quality bar (Section 1) and guardrails (Section 2) are never traded for speed.
+
+## 4. The Loop (autonomous, run for EVERY phase)
 
 ```
-┌─ BUILD ──────────────────────────────────────────────────────────────┐
-│ implement behind a feature flag (default OFF)                         │
+┌─ BUILD (me, or a dispatched build subagent to save context) ─────────┐
+│ implement behind a feature flag (default OFF)                        │
 └──────────────────────────────────────────────────────────────────────┘
         ↓
 ┌─ SELF-VERIFY (automated, in-sandbox) ────────────────────────────────┐
-│ typecheck + unit tests + build; new tests for the phase;             │
-│ where visual: rasterize/Playwright; classifier: a fixed benchmark    │
+│ typecheck + unit tests + build; the phase's new tests;               │
+│ the fixed routing BENCHMARK (breadth); visual→rasterize/Playwright   │
 └──────────────────────────────────────────────────────────────────────┘
-        ↓ commit + push → auto-deploy (~2 min) → flag ON for the operator only
-┌─ OPERATOR LIVE-TEST (on arksai.studio) ──────────────────────────────┐
-│ operator runs the phase's TEST MATRIX; grades each case pass/fail;   │
-│ instrumentation shows inferred task + confidence per run             │
+        ↓ commit + push → auto-deploy
+┌─ BUILD-HEALTH WATCH (background loop) ────────────────────────────────┐
+│ poll arksai.studio for a clean down→up restart on the new asset      │
+│ hash; if it never comes up / 5xx persists → treat as a deploy        │
+│ incident, diagnose, fix, re-push (never advance on a dead server)    │
+└──────────────────────────────────────────────────────────────────────┘
+        ↓ flag ON (operator scope) → live
+┌─ SELF-VALIDATION (me, on arksai.studio) ─────────────────────────────┐
+│ run the phase TEST MATRIX via the API harness; grade vs pass         │
+│ criteria; depth spot-checks rasterized/inspected; read instrumented  │
+│ {task, confidence, source} to see what it inferred                   │
 └──────────────────────────────────────────────────────────────────────┘
         ↓
-   pass ≥ exit criteria? ── NO ──► DIAGNOSE → FIX → redeploy → re-test (bounded: 3 rounds,
-        │                          then escalate to operator with options)
+   pass ≥ exit criteria? ── NO ──► DIAGNOSE → FIX (me/subagent) → re-push →
+        │                          health-watch → re-run only failed cases
+        │                          (bounded: 3 rounds → ship safe subset, log, continue)
         YES
         ↓
-   flip flag ON for everyone → record baseline metrics → NEXT PHASE
+   flip flag ON globally → record baseline metrics → async-notify operator → NEXT PHASE
 ```
 
-A **continuous metrics loop** runs across all phases: every auto-route logs
-`{task, confidence, source}`; the operator console surfaces hit-rate + the top misses; each
-miss becomes a new trigger phrase or a new expertise (Phase 2/3 feed). This is how the system
-keeps getting smarter from real use.
+**Build-health watch (explicit, the operator's ask):** after every push, a background poller
+confirms the deploy actually came back up on the new build hash before I run any live test —
+so a broken build can't silently stall the program. A failed/again-down deploy is itself an
+incident I diagnose and fix before continuing; I never grade against a dead or stale server.
+
+**Continuous metrics loop** (across all phases): every auto-route logs
+`{task, confidence, source}`; I read hit-rate + top misses from the analytics endpoints; each
+miss becomes a new trigger phrase or expertise. The system keeps getting smarter from real use,
+and I fold the strongest misses into Phase 2/3 without being asked.
 
 ---
 
-## 4. Sequencing & dependencies
+## 5. Sequencing & dependencies
 
 ```
 Phase 1  Trigger-aware registry + auto-router (the UX unlock)         ── biggest win
@@ -129,7 +160,7 @@ is untouched.
   task key) asserts the deterministic matcher hits ≥ 85% without the LLM call; no collisions.
 - Full gate green.
 
-**Operator live-test (arksai.studio) — TEST MATRIX A**
+**Self-validation (I run this on arksai.studio) — TEST MATRIX A**
 Type each as a NEW chat (no play picked); confirm the output reflects the named expertise:
 
 | # | Type this | Expect expertise | Pass criteria |
@@ -143,8 +174,8 @@ Type each as a NEW chat (no play picked); confirm the output reflects the named 
 | 7 | "dashboard of these sales numbers [paste]" | `bi.dashboard`/`finance.kpidashboard` | F-pattern, 5–7 KPIs, headline takeaway |
 | 8 | "explain how mortgages work to a beginner" | research/explainer | plain, structured, sourced |
 
-The operator grades each ✅/❌. Instrumentation (console) shows the inferred task + confidence
-so misses are visible.
+I grade each ✅/❌ from the rasterized/inspected output; instrumentation shows the inferred
+task + confidence so misses are diagnosable.
 
 **Exit criteria:** ≥ 7/8 matrix cases correct AND no existing play regressed (spot-check 3
 plays) AND benchmark ≥ 85%. → flip `EXPERTISE_AUTOROUTE` ON, record baseline hit-rate.
@@ -175,12 +206,11 @@ the server standards can never drift.
 **Self-verify:** gate green + the new sync tests; a migration diff showing all ~50 existing
 expertises round-trip identically (no wording lost).
 
-**Operator live-test — TEST MATRIX B (regression-focused)**
+**Self-validation — TEST MATRIX B (regression-focused)**
 - Pick **5 existing plays** across departments → confirm output quality is **identical or
   better** (no wording dropped in the migration).
 - Re-run **3 cases from Matrix A** → auto-routing still works on the unified registry.
-- The operator adds **one trivial new expertise** with me (e.g. `personal.complaintletter`
-  via the template) → it appears as a play AND auto-routes from "write a complaint letter
+- I add **one trivial new expertise** via the template (e.g. `personal.complaintletter`) → it appears as a play AND auto-routes from "write a complaint letter
   about a faulty product" — proving the template + single-source works end to end.
 
 **Exit criteria:** zero regressions on the 5 plays; the operator-added expertise works on both
@@ -208,7 +238,7 @@ Each carries triggers so it auto-routes. Add to the catalog as an optional "Pers
 **Self-verify:** template-conformance tests for each; benchmark expanded with ~10 personal
 prompts; gate green.
 
-**Operator live-test — TEST MATRIX C (personal, free-form)**
+**Self-validation — TEST MATRIX C (personal, free-form)**
 
 | Type this | Expect | Pass criteria |
 |---|---|---|
@@ -219,8 +249,7 @@ prompts; gate green.
 | "explain compound interest to a 15-year-old" | learning.explainer | plain, example-led, accurate |
 | "summarize this contract [paste]" | learning.summarize | faithful, structured, flags uncertainties |
 
-**Exit criteria:** ≥ 5/6 correct expertise + quality; operator confirms it "feels like it just
-knows what I want." → proceed.
+**Exit criteria:** ≥ 5/6 correct expertise + quality (output reads as expert, on par with or better than a Claude result). → proceed.
 
 **Iterate loop:** misses → trigger tuning or a new personal expertise (the metrics loop feeds
 this from real usage too).
@@ -242,7 +271,7 @@ question or falls back to the department persona — never blind-guesses or refu
 
 **Self-verify:** unit tests for the threshold branches; benchmark mis-route rate ≤ 5%.
 
-**Operator live-test — TEST MATRIX D (edge cases)**
+**Self-validation — TEST MATRIX D (edge cases)**
 
 | Type this | Expect | Pass criteria |
 |---|---|---|
@@ -274,7 +303,7 @@ per-turn fixed cost (the report token problem) with no quality loss.
 **Self-verify:** a token-accounting test (a representative report build draws fewer prompt
 tokens with the flag ON than OFF); rasterized output identical quality; gate green.
 
-**Operator live-test — TEST MATRIX E (efficiency + quality)**
+**Self-validation — TEST MATRIX E (efficiency + quality)**
 - Run the **same report** (e.g. the Porsche brief) with the flag ON. Confirm via the cost bar /
   analytics: **token count down ≥ 30% vs the recorded baseline**; rasterized pages show the
   same section-per-page, full-bleed cover, charts — **no quality regression**.
@@ -288,7 +317,7 @@ the expertise's declared slices → re-test that path.
 
 ---
 
-## 5. Instrumentation (so "does it work?" is answerable, not guessed)
+## 6. Instrumentation (so "does it work?" is answerable, not guessed)
 
 - `expertise_selected {task, confidence, source}` on every run (Phase 1).
 - Operator console panel: auto-select **hit-rate**, **top mis-routes**, **free-form coverage
@@ -296,14 +325,14 @@ the expertise's declared slices → re-test that path.
 - A fixed **benchmark suite** (grows each phase) is the regression net for the classifier.
 - The **metrics loop**: real misses → new triggers / new expertises, continuously.
 
-## 6. Risks & mitigations
+## 7. Risks & mitigations
 - *Classifier latency/cost* → trigger-table first; LLM only on ambiguity; fast model.
 - *Mis-routes hurting trust* → confidence gating (Phase 4) + persona fallback; flags for
   instant rollback.
 - *Registry migration dropping nuance* → migration diff + round-trip test (Phase 2).
 - *Refactor risk on live system* → every phase flagged, operator-tested before global ON.
 
-## 7. Definition of done (program)
+## 8. Definition of done (program)
 All five flags ON globally; benchmark hit-rate ≥ 85%, mis-route ≤ 5%, free-form coverage ≥
 80%, report tokens down ≥ 30%, zero play regressions — and the operator can add a new expertise
 from the template in minutes and watch it auto-route on the live server.
