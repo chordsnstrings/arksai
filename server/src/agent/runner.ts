@@ -17,6 +17,7 @@ import { extractPaletteTool } from './tools/palette';
 import { track } from '../analytics/track';
 import { ToolError, type ToolCtx } from './tools/common';
 import { deriveTitle } from './titleGen';
+import { recordIncident } from '../incidents/store';
 import { makeThinkFilter } from './thinkFilter';
 import { Usage } from './usage';
 import { checkLabel, detectStartCommand, verifyProject } from './verify';
@@ -620,12 +621,24 @@ export class AgentRun {
         const msg = `I got stuck repeating the same step and want to avoid spinning — could you give me a steer on what to do next? Tell me a bit more and I’ll pick it right back up.`;
         this.emit({ type: 'run_error', runId: this.runId, message: msg });
         liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
+        void recordIncident({
+          kind: 'stall', severity: 'med', signature: `stall ${this.session.mode}`,
+          title: `Run stalled (repeated step) in ${this.session.mode} mode`,
+          context: { mode: this.session.mode, model: this.activeModel, task: this.session.task },
+          orgId: this.session.orgId, sessionId: this.session.id,
+        });
       } else if (stopReason === 'budget') {
         finalStatus = 'error';
         const msg = `This task used an unusually large amount of processing (over the per-run safety budget), so I stopped to avoid runaway cost. Your work so far is saved. This usually means the request looped — tell me to continue and I’ll resume more efficiently.`;
         this.emit({ type: 'run_error', runId: this.runId, message: msg });
         liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
         console.warn(`[budget] run ${this.runId} hit the token budget (${this.usage.totalTokens} tokens) — session ${this.session.id}`);
+        void recordIncident({
+          kind: 'cost_spike', severity: 'high', signature: `budget ${this.session.mode}`,
+          title: `Run exceeded the token budget (${this.usage.totalTokens} tokens) in ${this.session.mode} mode`,
+          context: { mode: this.session.mode, model: this.activeModel, task: this.session.task, tokens: this.usage.totalTokens },
+          orgId: this.session.orgId, sessionId: this.session.id,
+        });
       }
     } catch (err: any) {
       if (this.abort.signal.aborted) {
@@ -640,6 +653,14 @@ export class AgentRun {
           level: 'error',
           text: `Agent error: ${message}`,
           ts: Date.now(),
+        });
+        void recordIncident({
+          kind: /stall|premature|terminated|timeout/i.test(message) ? 'timeout' : 'run_error',
+          severity: 'high', signature: `${this.session.mode}: ${message}`,
+          title: `Agent error in ${this.session.mode} mode: ${message.slice(0, 120)}`,
+          detail: message,
+          context: { mode: this.session.mode, model: this.activeModel, task: this.session.task },
+          orgId: this.session.orgId, sessionId: this.session.id,
         });
       }
     } finally {

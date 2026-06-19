@@ -295,6 +295,27 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS idx_connectors_org ON connectors(org_id)`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_connectors_uniq ON connectors(org_id, provider, account_id)`);
 
+  // Self-healing: captured errors/timeouts/cost-spikes (METADATA + scrubbed context) the
+  // operator can review and an auto-fix agent can act on. Deduped by fingerprint (count++).
+  await q(`CREATE TABLE IF NOT EXISTS incidents(
+    id TEXT PRIMARY KEY,
+    fingerprint TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    title TEXT NOT NULL,
+    detail TEXT,
+    context TEXT,
+    org_id TEXT,
+    session_id TEXT,
+    count ${INT} NOT NULL,
+    status TEXT NOT NULL,
+    issue_url TEXT,
+    first_seen ${INT} NOT NULL,
+    last_seen ${INT} NOT NULL
+  )`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_incidents_fp ON incidents(fingerprint)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status, last_seen)`);
+
   // Small global key/value store (e.g. the operator's chosen display name — the operator
   // logs in via APP_PASSWORD and has no users row, so it can't live on a user).
   await q(`CREATE TABLE IF NOT EXISTS app_settings(

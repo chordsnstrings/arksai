@@ -96,6 +96,13 @@ export const config = {
   minimaxVideoCost: Number(process.env.MINIMAX_VIDEO_COST || '0.43') || 0.43,
   appPassword: process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
+  // Self-healing: when true, errors/timeouts/cost-spikes are captured as incidents
+  // (and, if a GitHub repo + token are set, an auto-fix issue is filed for a fresh
+  // one). OFF by default — the kill switch for the whole loop. Set AUTO_HEAL=true.
+  autoHeal: process.env.AUTO_HEAL === 'true',
+  // Repo the auto-fix issues are filed against (owner/name); the Claude Code trigger
+  // watches it. Defaults to this project's repo.
+  autoHealRepo: process.env.AUTO_HEAL_REPO || 'chordsnstrings/arksai',
   // Public base URL of this app — used to build OAuth redirect URIs for ad-platform
   // connectors (must be HTTPS and registered in each provider's app). Defaults to the
   // live host; override per environment.
