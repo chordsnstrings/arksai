@@ -535,7 +535,8 @@ render, every time):
     .bleed.light  { background:var(--surface) }           /* edge-to-edge light field, ink type */
     .cover { } /* the COVER is simply the first full-bleed page → use class="cover bleed dark|accent|light" */
     .toc { page-break-after: always }                /* a Contents page, if used, is its OWN page */
-    .section { break-before: page }                   /* EVERY top-level section starts a new page (heading at the page top, never stranded). The FIRST section after the cover already starts fresh; wrap each major section: <section class="section"> … </section>. Do NOT put this on sub-headings. */
+    .section { break-before: page }                   /* EVERY top-level section starts a new page (heading at the page top, never stranded). Wrap each major section: <section class="section"> … </section>. Do NOT put this on sub-headings. */
+    .bleed + .section, .cover + .section { break-before: avoid } /* CRITICAL: the section RIGHT AFTER the cover must NOT double-break — the cover already ended its page, so a second break-before here makes a BLANK page. This neutralises it. */
     .break { break-before: page }                    /* legacy manual break — prefer .section for section starts */
     thead { display: table-header-group }             /* repeat table headers */
     /* ATOMIC blocks — these may NEVER split across a page. .keep / .fig are the
@@ -580,13 +581,23 @@ render, every time):
 - SECTION = PAGE: every top-level section starts a NEW page (wrap it in
   <section class="section">, break-before:page) so its heading sits at the top of a clean
   page and is never stranded at a page bottom with its content pushed past the break. Do
-  NOT break before SUB-headings — those flow within the section's page. THEN each section
-  must FILL its page ~85–100%: if a section is too thin to fill a page (just a heading + a
-  paragraph, or a heading + a KPI band), give it real substance OR merge two thin sections
-  into one — never let a section's page end below ~70% full. A long section naturally
-  continues onto further pages. ENFORCE the anti-orphan mechanically too: wrap each
-  section's heading + kicker + opening paragraph in one <div class="lede">
-  (break-inside:avoid) so the heading + its lede always travel together to the page top.
+  NOT break before SUB-headings — those flow within the section's page.
+  TWO MECHANICAL RULES that prevent blank/near-empty pages (both were real defects):
+  (a) THE FIRST SECTION AFTER THE COVER must still use class="section" but the CSS
+  ".bleed + .section { break-before: avoid }" neutralises its break — do NOT add any extra
+  page-break before it, and do NOT insert an empty element between the cover and it, or you
+  get a BLANK page 2.
+  (b) SIZE EACH SECTION TO FILL ABOUT ONE PAGE (or a clean two) — NEVER let a section run
+  just past a page so a lone callout/paragraph/table spills onto an otherwise-empty next
+  page. If the content slightly overflows, TIGHTEN it to fit one page; if it needs more than
+  one page, give it enough substance to fill the second too. A small block (a callout, a
+  short table) that won't fit the space left must NOT strand on a near-empty page — keep it
+  with the section by trimming above it.
+  THEN each section must FILL its page ~85–100%: if a section is too thin to fill a page
+  (just a heading + a paragraph, or a heading + a KPI band), give it real substance OR merge
+  two thin sections into one — never let a section's page end below ~70% full. ENFORCE the
+  anti-orphan mechanically: wrap each section's heading + kicker + opening paragraph in one
+  <div class="lede"> (break-inside:avoid) so the heading + its lede travel together.
 - ATOMIC VISUALS — NO CONTENT BLEED (the other recurring bug): a chart, CSS bar-list,
   figure, legend, stat band, or image is ONE indivisible unit — wrap EACH in <figure
   class="fig"> (or class="keep") so it can NEVER split across a page. A visual that
@@ -597,9 +608,12 @@ render, every time):
 - CONTRAST (legibility, non-negotiable): every piece of text MUST have strong
   contrast against its background. NEVER colour text the same/near its background
   or accent — that is the invisible-text bug. Highlighted phrases use the accent
-  at a legible weight on a LIGHT background; callout/"Verdict" boxes are LIGHT
-  (tinted surface + dark text + accent left-bar), not dark blocks, unless the
-  user explicitly asks for dark.
+  at a legible weight on a LIGHT background. NO DARK / HEAVY FILLED BOXES on interior
+  pages — EVERY callout, "Verdict", checklist, KPI band and box on a content page is LIGHT
+  (subtle tinted surface + dark text + an accent left-bar or hairline border); a dark/
+  saturated FILLED field is reserved for the COVER ONLY (a dark Due-Diligence/checklist box
+  mid-report is the exact defect to avoid). Light box tints for hierarchy are good — dark
+  filled boxes on interior pages are not, even if the brief implies emphasis.
 - ICONS & TYPOGRAPHY: use tasteful LINE icons (Lucide/Feather style) for section
   markers, KPI tiles, and key bullets — never emoji or clip-art. The cover carries
   the supplied brand LOGO when there is one (embed the uploaded image) and otherwise
