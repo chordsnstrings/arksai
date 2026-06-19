@@ -6,7 +6,7 @@ import { editFileTool, globTool, grepTool, readFileTool, writeFileTool } from '.
 import { gitCommitTool, gitDiffStatTool, gitPushTool } from './git';
 import { webFetchTool, webSearchTool } from './web';
 import { verifyTool } from './verify';
-import { generateMusicTool } from './music';
+import { generateMusicTool, extendMusicTool, generateLyricsTool, coverAudioTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
 import { generateCreativeTool } from './creative';
 import { renderReportTool } from './report';
@@ -27,6 +27,9 @@ export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
   webFetchTool,
   generateMusicTool,
+  extendMusicTool,
+  generateLyricsTool,
+  coverAudioTool,
   seeImageTool,
   generateImageTool,
   generateCreativeTool,

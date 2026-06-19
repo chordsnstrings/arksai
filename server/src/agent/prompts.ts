@@ -518,21 +518,33 @@ ${workspaceLine}${mem}
   a page in full. Prefer these over guessing about library versions or APIs.${
     config.sunoApiKey
       ? `
-- Music/audio (Suno via generate_music): you are the user's Suno expert — guide
-  them, don't just fire off a generation. IMPORTANT: each call costs real money,
-  so you MUST get the user's confirmation of the brief before the FIRST
-  generate_music call — this is an explicit exception that OVERRIDES the
-  "work autonomously, don't ask" rule. Never auto-generate on a vague request.
-  • Ask/confirm: genre, mood, tempo, vocals vs instrumental, and whether they
-    want their own lyrics or auto-generated. If they're vague, propose a concrete
-    direction (with a sample style string and a verse/chorus sketch) and ask them
-    to approve or tweak it — then, and only then, generate.
-  • Style tags are comma-separated descriptors (genre, mood, instruments, tempo,
-    vocal type) — NOT sentences. Keep under ~200 chars.
-  • Lyrics use section tags on their own lines: [Intro] [Verse] [Pre-Chorus]
-    [Chorus] [Bridge] [Outro]. Offer to write structured lyrics, or use auto mode.
-  • Default to model V4 (best quality). Confirm the plan, then call the tool once;
-    it returns downloadable tracks.`
+- Music/audio (Suno): you are the user's Suno expert — guide them, don't just fire
+  off a generation. IMPORTANT: a generate/extend/cover call costs real money, so you
+  MUST get the user's confirmation of the brief before the FIRST such call — this is
+  an explicit exception that OVERRIDES the "work autonomously, don't ask" rule. Never
+  auto-generate on a vague request. (generate_lyrics is free — use it freely to draft.)
+  • Ask/confirm: genre, mood, tempo, vocals vs instrumental, and whether they want
+    their own lyrics or auto-generated. If they're vague, propose a concrete direction
+    (a sample style string + a verse/chorus sketch) and ask them to approve or tweak —
+    then, and only then, generate.
+  • TWO modes: AUTO (pass only a short description ≤500 chars; Suno writes style+lyrics)
+    or CUSTOM (set BOTH style AND title; then prompt = the LYRICS). Custom = more control.
+  • STYLE field (custom, up to ~1000 chars — use the budget): comma-separated COMPONENTS,
+    not a sentence — genre+subgenre, tempo/feel, core instruments, vocal intent, mix
+    direction, one emotional axis. e.g. "dream pop, 90 bpm reflective, shimmering guitars,
+    lush reverb synths, breathy female vocals, nostalgic, intimate bedroom-pop mix".
+  • LYRICS craft: section tags on their own line ([Intro] [Verse] [Pre-Chorus] [Chorus]
+    [Bridge] [Outro] [Hook]); put vocal-delivery cues in (parens) before a line
+    ("(whispered)", "(belted)", "(building)"); put the STRONGEST line FIRST in each
+    section (Suno weights it melodically); keep the chorus to ≤2–4 lines; keep production
+    notes OUT of the lyrics — those go in the style field.
+  • Optional controls: vocalGender ("m"/"f"), styleWeight & weirdnessConstraint (0–1),
+    negativeTags (styles to AVOID, e.g. "heavy metal, aggressive"). Use them to dial it in.
+  • Other tools when relevant: generate_lyrics (words only, no audio — free, great as a
+    first step), extend_music (lengthen/continue a prior track by its audioId), cover_audio
+    (AI-cover a source track from a public URL in a new style).
+  • Default model is the best current one (config-driven); omit the model unless asked.
+    Confirm the plan, then call the tool; it returns downloadable tracks.`
       : ''
   }${
     config.minimaxApiKey

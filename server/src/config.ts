@@ -65,7 +65,12 @@ export const config = {
   sunoApiKey: process.env.SUNO_API_KEY || '',
   sunoBaseUrl: process.env.SUNO_BASE_URL || 'https://api.sunoapi.org',
   sunoCallbackUrl: process.env.SUNO_CALLBACK_URL || 'https://arksai.example.com/suno/callback',
-  // Estimated USD cost per generated track, added to the session cost.
+  // Default Suno model id. Kept on the proven `V4` so a wrong guess can't break music; set
+  // SUNO_MODEL to the best CURRENT id (e.g. V4_5 / V4_5PLUS / V5) once confirmed against the
+  // live sunoapi.org docs/API on the Droplet (newer = better quality + up to ~8 min songs).
+  sunoModel: process.env.SUNO_MODEL || 'V4',
+  // Estimated USD cost per generated track, added to the session cost. NB: a generate call
+  // returns ~2 tracks, so a single generation costs ≈ 2× this.
   sunoCostPerTrack: Number(process.env.SUNO_COST_PER_TRACK || '0.08') || 0.08,
   // MiniMax (LLM, voice/audio, music, video/Hailuo). Registered in the engine
   // roster when the key is set; specific tools wired per capability later.
