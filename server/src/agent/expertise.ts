@@ -34,6 +34,10 @@ const DEPARTMENT: Record<string, string> = {
     'Work as a senior BI / analytics lead (analytics engineer + analyst). Lead with the DECISION the work serves; define every metric precisely and consistently (one agreed definition, with grain/units/period); surface the "so what", not just charts; cite data sources and NEVER fabricate or plug a number — mark anything missing as "data not provided". Insight-first, trustworthy, scannable.',
   tax: TAX_PERSONA,
   legal: LEGAL_PERSONA,
+  personal:
+    'Work as a friendly, practical, trustworthy generalist helping an everyday person with real life — money, writing, big purchases, plans. Use PLAIN language, no business jargon, no corporate framing; be warm, clear, and genuinely useful, like a sharp friend who happens to be an expert. Be honest: give the real answer (including the downside), never over-promise, and where a fact matters (a price, a rule, a figure) use REAL sources and CITE them — NEVER make a number up; if you can\'t find it, say so. Ask only the one or two things you truly need, then do the work. Aesthetics + correctness still matter: the result should look clean and be right.',
+  learning:
+    'Work as a patient, clear teacher who makes things genuinely click. Explain accurately, pitched to the reader\'s stated level (a 10-year-old, a beginner, an expert — ask if unsure), leading with a plain-language intuition, then a concrete example, then the precise detail. Build from what they already know; define every term you introduce; use analogies that are honest (and flag where the analogy breaks). NEVER fabricate facts, dates, formulas, or quotes — if you\'re unsure, say so. Scannable structure, no padding.',
 };
 
 // Single-source-of-truth guard: every registered department MUST have a persona here.
@@ -48,6 +52,8 @@ for (const dept of DEPARTMENT_IDS) {
 // ---- Reusable archetype standards (research-backed) ----
 const FIN_SHEET =
   'Financial-spreadsheet rigor: separate inputs/assumptions from calculations from outputs; put every assumption in its OWN labelled cell (never bury a number inside a formula) so a single change flows through. EVERY derived number MUST be a LIVE formula in generate_spreadsheet (pass {"f":"C5*(1+Assumptions!B5)","v":<result>} — formula + cached result — or a "=B2*C2" string; totals via =SUM(...)); a model that hard-codes its totals/balances/growth is rejected by the automated review. Clean number formats (currency symbol, thousands separators, % where due); bold/shade the header row and totals, freeze the header; include a summary/totals; add light sanity checks. Never invent figures.';
+const HOME_SHEET =
+  'Personal-money spreadsheet (friendly, NOT corporate FP&A): simple, warm, and obvious to a non-accountant. A clear income block, plain everyday expense CATEGORIES (rent/housing, groceries, transport, bills/utilities, subscriptions, eating out, savings, fun), and a big "what\'s left this month" number. Every total/remaining figure MUST be a LIVE formula in generate_spreadsheet (a "=SUM(...)" or a {"f":...,"v":...} cell — never hard-code a total, or the automated review rejects it) so when they change one number everything updates. Currency formatted to the user\'s locale (AED by default in the UAE), thousands separators, a frozen header, light colour. No jargon, no scenario tabs unless asked. Never invent the user\'s numbers — ask or mark as an estimate.';
 const TRACKER =
   'Tracker spreadsheet: a clean, frozen header row, one record per row, sensible column types, dropdown/validation on status fields, subtotals where useful, and light banding so it scans. Usable and editable, not over-engineered.';
 const DECK =
@@ -166,6 +172,35 @@ const TASK: Record<string, string> = {
   'bi.digest': `${REPORT} Recurring digest: tight and scannable, built to be sent on a schedule — headline number(s), the key movers vs last period, ONE chart, and the single thing to act on; identical structure each run so it’s comparable across periods.`,
   'bi.alert': `KPI monitor/alert: pull the latest data, evaluate the threshold/condition, and signal ONLY when it’s actionable — a clear message with the metric, value, threshold, and the change/direction; route to the Slack/webhook provided. Avoid alert fatigue: no noise, no alert on normal variation; say plainly when nothing breached.`,
 
+  // Personal / everyday life
+  'personal.budget': `${HOME_SHEET} Personal/household monthly budget: income at the top, everyday categories, category subtotals, and a clear "money left over" line — built so changing one number flows through. Plain and reassuring; suggest sensible category splits if they\'re unsure but never invent their actual figures.`,
+  'personal.savings':
+    'Savings / debt-payoff plan: start from the goal (target amount or "be debt-free") and a realistic timeline; lay out a simple month-by-month plan of how much to set aside or pay down, the order to tackle debts (highest-interest first — explain why), and the date they\'ll get there. Be honest about whether the timeline is realistic on their numbers and suggest a tweak if not. Use a clean sheet or doc; formula-driven if a spreadsheet so they can flex it. Never invent their balances or rates — ask.',
+  'personal.valuation': `${RESEARCH} Big-purchase valuation & price comparison (the "should I buy / sell" call — car, home, phone, any product): RESEARCH real, current public listings/prices for the exact item (make/model/year/condition/mileage/region) and CITE each source with its price; give a fair BUY range and a realistic RESALE/sell range, the key factors that move the price (condition, mileage/age, spec, market timing, location), and a plain-English verdict (good deal / overpriced / hold) with the reasoning. NEVER fabricate a price or a listing — if you can\'t find comparables, say so and explain how to value it. Note prices are indicative and move with the market.`,
+  'personal.resume':
+    'Résumé / CV (an editable, ATS-friendly document): clean single-column, standard parseable headings (Experience, Education, Skills), no tables/columns/graphics that break ATS parsing; strong action-verb bullets that are QUANTIFIED (impact + number, not duties); reverse-chronological; tailored to the target role with its keywords; one page for <10 yrs experience; clearly marked [placeholders] for anything not provided. Never invent jobs, dates, or achievements — ask or mark to fill in.',
+  'personal.coverletter':
+    'Cover letter (an editable, one-page document): open with a specific hook (why THIS role/company, not a generic intro); 2–3 short paragraphs mapping the candidate\'s real, relevant achievements to the job\'s needs (quantified where possible); a confident, warm close with a clear call to action; tailored, never templated-sounding. Marked [placeholders] for specifics; never fabricate experience.',
+  'personal.complaintletter':
+    'Complaint / dispute letter (an editable document): firm but polite and professional; lead with the facts (dates, order/reference/booking numbers, amounts); state the specific failure clearly, then the exact remedy you want (refund/replacement/compensation) and a reasonable deadline; add a calm escalation line (next step if unresolved — regulator, ombudsman, chargeback). Keep it to one page. Never invent facts — ask for the details.',
+  'personal.letter':
+    'Formal letter (an editable document): the correct register and structure for its purpose (sender/recipient blocks, date, clear subject line, a concise body that states the purpose in the first line, and a proper sign-off); polite, unambiguous, and appropriately formal. Marked [placeholders] for specifics; never invent facts.',
+  'personal.emailrewrite':
+    'Rewrite / polish a message or email: keep the original MEANING and intent exactly, but improve tone, clarity, and brevity for the goal the user states (more professional, warmer, firmer, shorter, clearer). Fix grammar and awkward phrasing; cut filler; make the ask obvious. Offer the rewritten version plainly (and a short note on what you changed if helpful). Never add facts or commitments the user didn\'t make.',
+  'personal.trip':
+    'Trip itinerary: a realistic day-by-day plan for the destination, dates, party, and budget given — grouped sensibly by area so the days flow (no zig-zagging across the city), with a mix of must-sees and downtime, rough timings, and getting-around notes. FLAG costs as indicative estimates (entry fees, transport, meals) — never present invented prices as exact, and cite where a figure or an opening time matters. Note anything seasonal/booking-ahead. Clean, scannable document.',
+  'personal.event':
+    'Event / party plan: a clear checklist + timeline working back from the date (what to do this week, the day before, the day of), a simple budget with category estimates (flagged as estimates), guest/headcount considerations, and a shopping/supplies list. Practical and realistic for the size and budget given; never invent vendor prices — mark them to confirm.',
+  'personal.checklist': `${TRACKER} Personal checklist / plan: a clear, ordered list of the steps or items for the task, grouped logically with sensible due-dates/owners where it helps, in a clean editable format (a sheet or a simple doc). Practical and complete — think through what they\'d forget — without over-engineering it.`,
+
+  // Learning & explainers
+  'learning.explainer':
+    'Concept explainer at a chosen level: ASK (or infer) the reader\'s level, then lead with a one-line plain intuition, give a concrete relatable example/analogy, then the precise mechanics, and end with a quick check ("so, in short…"). Accurate above all — define each term as you use it, flag where an analogy breaks down, and NEVER fabricate facts, formulas, or history; cite if it\'s a real-world figure. Scannable, no padding.',
+  'learning.studyguide':
+    'Study guide / revision notes (an editable, scannable document): organised by topic with clear headings; the key points distilled (bold the must-knows), worked examples, simple mnemonics/memory aids where they help, and a short set of practice questions WITH answers at the end. Faithful to the source material; accurate; never invent facts or formulas. Built to revise from, not to read once.',
+  'learning.summarize':
+    'Summarize a document/text the user pastes: be FAITHFUL — only what the source actually says, no added claims, no invented detail; lead with a 1–2 line TL;DR, then the key points as scannable bullets (grouped by theme/section), preserve any critical numbers/dates/terms verbatim, and flag explicitly where the text is ambiguous or where something important seems missing. State the level of detail you kept. Never editorialise beyond what\'s there.',
+
   // Tax & Compliance (UAE) — researched per-obligation specs live in compliance/uae.ts
   ...TAX_TASKS,
   // Legal (UAE) — persona + per-play standards live in legal/uae.ts
@@ -222,6 +257,8 @@ export const DEPARTMENT_TRIGGERS: Record<string, string[]> = {
   bi: ['analytics', 'data analysis', 'business intelligence', 'metrics', 'reporting dashboard', 'kpi', 'data viz'],
   tax: ['tax', 'vat', 'corporate tax', 'fta', 'emaratax', 'excise', 'wps', 'e-invoice', 'compliance filing'],
   legal: ['legal', 'lawyer', 'attorney', 'contract law', 'lawsuit', 'litigation', 'court', 'statute', 'clause'],
+  personal: ['for myself', 'for my family', 'personal', 'everyday', 'at home', 'my own', 'help me with my'],
+  learning: ['learn', 'understand', 'teach me', 'explain', 'studying', 'revision', 'homework', 'how does it work'],
 };
 
 /**
@@ -263,7 +300,7 @@ export const TASK_TRIGGERS: Record<string, string[]> = {
   'finance.model': ['financial model', 'projection model', 'revenue model', '3 statement model', 'build a model'],
   'finance.cashflow': ['cash flow', 'cashflow', 'runway', 'cash forecast', 'cash flow forecast', 'cash flow projection'],
   'finance.scenario': ['scenario model', 'sensitivity analysis', 'best worst case', 'what-if model', 'scenario analysis'],
-  'finance.budget': ['budget', 'monthly budget', 'track expenses', 'spending plan', 'household budget', 'family budget', 'annual budget'],
+  'finance.budget': ['company budget', 'department budget', 'business budget', 'annual budget', 'operating budget', 'budget plan'],
   'finance.expenses': ['expense tracker', 'track spending', 'expense log', 'expense sheet'],
 
   // ---- People / HR ----
@@ -304,6 +341,24 @@ export const TASK_TRIGGERS: Record<string, string[]> = {
   'bi.scorecard': ['scorecard', 'kpi scorecard', 'okr scorecard', 'metrics scorecard'],
   'bi.digest': ['weekly digest', 'metrics digest', 'recurring report', 'scheduled report'],
   'bi.alert': ['kpi alert', 'metric alert', 'threshold alert', 'monitor a metric', 'alert when'],
+
+  // ---- Personal / everyday life ----
+  'personal.budget': ['my budget', 'household budget', 'family budget', 'personal budget', 'budget for myself', 'home budget', 'budget for my family', 'budget for a family', 'monthly budget for'],
+  'personal.savings': ['savings plan', 'save money', 'pay off debt', 'debt payoff', 'debt payoff plan', 'how to save for', 'sinking fund', 'get out of debt'],
+  'personal.valuation': ['should i buy', 'should i sell', 'whats it worth', 'what is it worth', 'value my', 'resale value', 'sell my', 'is it a good deal', 'how much is my', 'price comparison for', 'buy or not'],
+  'personal.resume': ['resume', 'cv', 'curriculum vitae', 'build a resume', 'write my cv', 'update my resume'],
+  'personal.coverletter': ['cover letter', 'covering letter', 'letter for a job application', 'application letter'],
+  'personal.complaintletter': ['complaint letter', 'dispute letter', 'letter of complaint', 'write a complaint', 'refund letter'],
+  'personal.letter': ['formal letter', 'write a letter', 'official letter', 'letter to', 'request letter'],
+  'personal.emailrewrite': ['rewrite this email', 'rewrite my email', 'polish this message', 'make this email sound', 'reword this', 'fix the tone', 'improve this email'],
+  'personal.trip': ['trip itinerary', 'plan a trip', 'travel itinerary', 'plan my holiday', 'plan a vacation', 'days in', 'travel plan', 'trip for', 'trip to', 'day trip'],
+  'personal.event': ['plan a party', 'party plan', 'event plan', 'plan an event', 'birthday party', 'plan a wedding', 'party checklist'],
+  'personal.checklist': ['checklist', 'a checklist for', 'to do list', 'make a checklist', 'packing list', 'moving checklist'],
+
+  // ---- Learning & explainers ----
+  'learning.explainer': ['explain', 'explain to me', 'explain like im 5', 'eli5', 'help me understand', 'in simple terms', 'break it down for me', 'teach me about', 'how does it work'],
+  'learning.studyguide': ['study guide', 'study notes', 'revision notes', 'exam notes', 'help me study', 'revision guide'],
+  'learning.summarize': ['summarize', 'summarise', 'summary of', 'tldr', 'sum up', 'give me the gist', 'shorten this'],
 
   // ---- Tax & Compliance (UAE) ----
   'tax.tax_invoice': ['tax invoice', 'uae tax invoice', 'vat invoice', 'compliant invoice'],

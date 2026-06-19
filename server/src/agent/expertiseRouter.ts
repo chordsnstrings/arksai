@@ -26,9 +26,14 @@ const NONE: ExpertiseRoute = { taskKey: null, department: null, confidence: 0, s
 /** Confidence below this for the best TASK → fall back to a department persona match. */
 const TASK_CONFIDENCE_FLOOR = 0.34;
 
-/** Normalize: lowercase, collapse whitespace, strip most punctuation to spaces. */
+/** Fold accents/diacritics so "résumé" matches the "resume" trigger, "café" → "cafe". */
+function deaccent(text: string): string {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+/** Normalize: lowercase, fold accents, collapse whitespace, strip most punctuation to spaces. */
 function normalize(text: string): string {
-  return ` ${text
+  return ` ${deaccent(text)
     .toLowerCase()
     // Keep & % . / + as in-token chars (p&l, 50%, 3.5, vat/cash); turn hyphens and
     // everything else into separators so "cash-flow" matches the "cash flow" trigger
@@ -40,7 +45,7 @@ function normalize(text: string): string {
 
 /** Normalize a trigger phrase the SAME way as the text (so "e-invoice" → "e invoice" both sides). */
 function normPhrase(phrase: string): string {
-  return phrase
+  return deaccent(phrase)
     .toLowerCase()
     .replace(/[^a-z0-9&%./+]+/g, ' ')
     .replace(/\s+/g, ' ')

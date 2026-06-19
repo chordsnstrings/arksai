@@ -33,6 +33,8 @@ export const DEPARTMENT_IDS = [
   'bi',
   'tax',
   'legal',
+  'personal',
+  'learning',
 ] as const;
 
 export type DepartmentId = (typeof DEPARTMENT_IDS)[number];
@@ -138,6 +140,22 @@ export const EXPERTISE_KEYS = [
   'legal.dispute',
   'legal.licensing',
   'legal.calendar',
+  // personal — everyday-life expertise for a non-business user ("for everyone")
+  'personal.budget',
+  'personal.savings',
+  'personal.valuation',
+  'personal.resume',
+  'personal.coverletter',
+  'personal.complaintletter',
+  'personal.letter',
+  'personal.emailrewrite',
+  'personal.trip',
+  'personal.event',
+  'personal.checklist',
+  // learning — teach / explain / study
+  'learning.explainer',
+  'learning.studyguide',
+  'learning.summarize',
 ] as const;
 
 export type ExpertiseKey = (typeof EXPERTISE_KEYS)[number];

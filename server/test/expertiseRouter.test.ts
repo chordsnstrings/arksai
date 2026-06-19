@@ -20,7 +20,7 @@ const BENCHMARK: { prompt: string; expect: string }[] = [
   { prompt: 'build a pitch deck for my coffee startup', expect: 'sales.pitchdeck' },
   { prompt: 'competitor teardown of Notion vs us', expect: 'marketing.competitor' },
   // Finance
-  { prompt: 'make me a monthly budget for a family of four in Dubai', expect: 'finance.budget' },
+  { prompt: 'make me a monthly budget for a family of four in Dubai', expect: 'personal.budget' },
   { prompt: 'cash-flow forecast for next 12 months', expect: 'finance.cashflow' },
   { prompt: 'how much runway do we have, build a cash flow', expect: 'finance.cashflow' },
   { prompt: 'build a 3 statement financial model for my startup', expect: 'finance.model' },
@@ -57,9 +57,26 @@ const BENCHMARK: { prompt: string; expect: string }[] = [
   // Legal (UAE)
   { prompt: 'draft an NDA for a contractor', expect: 'legal.nda' },
   { prompt: 'write a police report / criminal complaint', expect: 'legal.policereport' },
+  // Personal / everyday (Phase 3 — the "for everyone" family)
+  { prompt: 'household budget for next month', expect: 'personal.budget' },
+  { prompt: 'help me make a family budget', expect: 'personal.budget' },
+  { prompt: 'I need a savings plan to save money for a house', expect: 'personal.savings' },
+  { prompt: 'help me pay off debt this year', expect: 'personal.savings' },
+  { prompt: 'should I buy a 2019 Cayenne at 200k km, buy and resale price', expect: 'personal.valuation' },
+  { prompt: 'value my iPhone 13 Pro for resale in UAE', expect: 'personal.valuation' },
+  { prompt: 'help me build a résumé, I am a marketing manager', expect: 'personal.resume' },
+  { prompt: 'write a cover letter for a job application', expect: 'personal.coverletter' },
+  { prompt: 'write a complaint letter, the airline lost my bag', expect: 'personal.complaintletter' },
+  { prompt: 'rewrite my email so it sounds more professional', expect: 'personal.emailrewrite' },
+  { prompt: 'plan a 5-day Tokyo trip for a couple, mid-budget', expect: 'personal.trip' },
+  { prompt: 'help me plan a birthday party for 20 people', expect: 'personal.event' },
+  // Learning & explainers
+  { prompt: 'explain compound interest to a 15-year-old', expect: 'learning.explainer' },
+  { prompt: 'make me a study guide for my biology exam', expect: 'learning.studyguide' },
+  { prompt: 'summarize this contract for me', expect: 'learning.summarize' },
 ];
 
-test('BENCHMARK: deterministic router hits >= 85% (>= 26/30) on plain phrasings', () => {
+test('BENCHMARK: deterministic router hits >= 85% on plain phrasings', () => {
   const misses: string[] = [];
   let hits = 0;
   for (const { prompt, expect } of BENCHMARK) {
@@ -75,7 +92,8 @@ test('BENCHMARK: deterministic router hits >= 85% (>= 26/30) on plain phrasings'
     // eslint-disable-next-line no-console
     console.log(`\n[expertiseRouter benchmark] ${hits}/${BENCHMARK.length} (${pct}%). Misses:\n${misses.join('\n')}\n`);
   }
-  assert.ok(hits >= 26, `benchmark hit-rate ${hits}/30 (${pct}%) is below the 26/30 (85%) bar`);
+  const bar = Math.ceil(BENCHMARK.length * 0.85);
+  assert.ok(hits >= bar, `benchmark hit-rate ${hits}/${BENCHMARK.length} (${pct}%) is below the ${bar}/${BENCHMARK.length} (85%) bar`);
 });
 
 test('empty / whitespace input routes to null (today behaviour, safe)', () => {

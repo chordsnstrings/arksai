@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expertiseFor } from '../src/agent/expertise';
 import { SESSION_MODES } from '../../shared/types';
+import { DEPARTMENT_IDS } from '../../shared/expertiseKeys';
 
 /**
  * COMPLETE catalog audit: every play a user can launch (the client catalog) must
@@ -37,7 +38,7 @@ for (let i = 0; i < keyHits.length; i++) {
 // every real, ready-to-run brief (the literal first message the play sends)
 const prompts = [...src.matchAll(/prompt:\s*'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1]);
 
-const DEPTS = ['marketing', 'sales', 'finance', 'people', 'engineering', 'bi', 'tax', 'legal'];
+const DEPTS: readonly string[] = DEPARTMENT_IDS;
 
 test('catalog: a substantial number of plays are defined (sanity)', () => {
   assert.ok(plays.length >= 80, `expected ≥80 plays, found ${plays.length}`);

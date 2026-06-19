@@ -60,6 +60,27 @@ test('expertiseFor: every department persona resolves', () => {
   assert.ok(expertiseFor('engineering.designdoc'));
 });
 
+test('expertiseFor: personal/everyday family resolves with the right rigor', () => {
+  // friendly persona, not corporate
+  const persona = expertiseFor('personal')!;
+  assert.match(persona, /plain language|everyday|friendly/i);
+  // valuation must demand real cited prices, no fabrication
+  const val = expertiseFor('personal.valuation')!;
+  assert.match(val, /resale|cite|never fabricate/i);
+  // budget is friendly + formula-driven, not FP&A
+  const budget = expertiseFor('personal.budget')!;
+  assert.match(budget, /formula|what.s left|household|monthly/i);
+  // résumé is ATS-friendly
+  assert.match(expertiseFor('personal.resume')!, /ATS|action-verb|quantif/i);
+});
+
+test('expertiseFor: learning family teaches accurately and never fabricates', () => {
+  const persona = expertiseFor('learning')!;
+  assert.match(persona, /teacher|explain|level/i);
+  assert.match(expertiseFor('learning.summarize')!, /faithful|tl.dr|only what/i);
+  assert.match(expertiseFor('learning.explainer')!, /intuition|example|level/i);
+});
+
 test('expertiseFor: BI & Analytics tasks carry analytics rigor', () => {
   assert.match(expertiseFor('bi.dashboard')!, /F-pattern|KPI/i);
   assert.match(expertiseFor('bi.datadict')!, /definition|metric/i);
