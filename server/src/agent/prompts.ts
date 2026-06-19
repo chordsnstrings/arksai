@@ -259,11 +259,12 @@ render, every time):
      tiny cornered chart (a real defect we saw: "AED 155K / 318K / 120K / 100K km"
      all overlapping). The returned SVG is already fluid (width:100%; height:auto) — do
      NOT wrap it in a fixed-width box and do NOT add width/height attributes.
-  3. BACKGROUNDS FILL THE WHOLE SHEET — no white frame. The paper colour lives ONLY on
-     html, body (so it reaches all four edges with the @page margins); the cover and any
-     contrast page use class="bleed". NEVER paint a page background onto a max-width /
-     margined wrapper — that floats a tinted box inside a white frame (page 2 of the bad
-     run). Interior text pages need NO page-level background element at all.
+  3. ONLY THE COVER HAS A BACKGROUND. The cover (and ONLY the cover) carries a full-bleed
+     background field via class="cover bleed …". EVERY other page is plain WHITE — no page
+     background, no paper/ivory tint, no shade, no framed box. Do NOT paint html/body or any
+     wrapper with a background colour on interior pages. (Component elements like cards,
+     callouts and table zebra rows may still use their subtle surface tint — this rule is
+     about the PAGE background only.)
   4. NO ORPHANED HEADINGS or split visuals — every heading+lede wrapped in <div
      class="lede">, every chart/figure/table/card-grid wrapped in .fig/.keep.
 - Design EACH report bespoke for its data and audience — there are no fixed
@@ -382,14 +383,14 @@ render, every time):
   fixed-width padded container, and size the cover to the printable height:
     @page { size: A4; margin: 20mm 26mm }            /* GENEROUS newspaper-style side gutters; repeats every page */
     @page bleed { margin: 0 }                        /* full-bleed pages: ZERO margin = the whole sheet */
-    html, body { background: var(--bg) }             /* the PAPER colour — paints the FULL sheet, edge-to-edge, on every text page (never put a page background on a margined wrapper — that is the white-frame "bleed" defect) */
-    /* FULL-BLEED PAGE — the ONE reusable mechanic for ANY page that should be a solid
-       colour field: the cover, OR a dark/accent "divider" page dropped MID-document for
-       contrast. It is pinned to EXACTLY ONE A4 sheet (height:100vh on its own zero-margin
+    html, body { background:#fff }                   /* interior pages are ALWAYS plain white — NO paper tint, NO shade. Only the cover carries a background (via .bleed). */
+    /* FULL-BLEED PAGE — the reusable mechanic for the COVER (the only page with a
+       background). It is pinned to EXACTLY ONE A4 sheet (height:100vh on its own zero-margin
        page) and CLIPS overflow, so the field reaches all four paper edges (no white frame)
        and can NEVER spill onto a second page. Content sits on its OWN generous padding.
-       Use it: <section class="bleed dark"> … </section>. (Do NOT use min-height — that lets
-       it grow past one page; do NOT use negative margins — that leaves a white frame.) */
+       Use it: <section class="cover bleed dark"> … </section>. (Do NOT use min-height — that
+       lets it grow past one page; do NOT use negative margins — that leaves a white frame.)
+       Do NOT drop .bleed background pages into the middle of the report — cover only. */
     .bleed { page: bleed; box-sizing: border-box; height: 100vh; width: 100%;
              padding: 24mm 26mm; overflow: hidden;
              display:flex; flex-direction:column; justify-content:space-between;
@@ -431,18 +432,15 @@ render, every time):
   (Keep the side margins WIDE — 24–28mm — for the editorial/newspaper feel the
   brand wants on the INTERIOR text pages; a .bleed page bleeds full because it sits
   on the zero-margin @page. Render layout "slides" → use a landscape page instead.)
-- BACKGROUNDS FILL THE WHOLE SHEET — NO WHITE FRAME (the recurring "bleed" defect):
-  a page's colour comes from ONE of exactly two places — the PAPER (html, body =
-  var(--bg), which paints every text page edge-to-edge automatically; interior pages
-  need nothing else) OR a FULL-BLEED page (<section class="bleed dark|accent|light"> for
-  the cover or a deliberate contrast/divider page; the .bleed mechanic above fills all
-  four edges). You're ENCOURAGED to drop a full-bleed dark/accent page mid-report — just
-  always via .bleed. ABSOLUTE RULE: NEVER put a page background on a margined/max-width
-  WRAPPER (a <div class="page">, a content container, or body with a side margin) — it
-  paints only the inner box and leaves a WHITE FRAME (the #1 defect the user flags). A
-  tinted area inside a white border = the colour is on the wrong element; move it to
-  html/body or a .bleed page. (Contained blocks — callouts, KPI tiles, zebra rows — keep
-  their own light tint; those are intentional, not page fields.)
+- ONLY THE COVER HAS A BACKGROUND — every other page is plain WHITE. The cover's colour
+  comes from a FULL-BLEED page (<section class="cover bleed dark|accent|light">; the .bleed
+  mechanic above fills all four edges). Interior pages get NO page background at all — keep
+  html/body white (set above), paint nothing on a wrapper. Do NOT drop full-bleed
+  dark/accent pages into the middle of the report; the cover is the ONLY background field.
+  Even on the cover, NEVER paint the background onto a margined/max-width wrapper — that
+  leaves a WHITE FRAME (a tinted box inside a white border); the field must come from .bleed.
+  (Contained blocks — callouts, KPI tiles, zebra rows — keep their own subtle light tint;
+  those are intentional content elements, not page backgrounds.)
 - CONTENT FLOW: let sections FLOW and fill each page. Do NOT sprinkle .break /
   page-break-before / page-break-after on headings or sections — those forced breaks
   are the #1 CAUSE of the half-empty "lonely page" defect. Use .break ONLY for a
