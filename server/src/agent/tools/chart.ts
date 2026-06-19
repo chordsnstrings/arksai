@@ -127,8 +127,7 @@ const labelText = (field: string, fmt?: string) => ({
 export function buildVlSpec(args: ChartArgs): any {
   const accent = clampHex(args.accent, '#c8962a');
   const data = Array.isArray(args.data) ? args.data : [];
-  const width = Math.max(160, Math.min(1400, Number(args.width) || 560));
-  const height = Math.max(120, Math.min(1000, Number(args.height) || 300));
+  const { width, height } = chartSize(args);
   const x = args.x || 'x';
   const y = args.y || 'y';
   const config = baseConfig(accent);
@@ -268,6 +267,27 @@ export function buildVlSpec(args: ChartArgs): any {
   }
 }
 
+/**
+ * Make a Vega SVG FLUID for inlining into the report HTML. Vega emits fixed `width`/`height`
+ * pixel attributes plus a `viewBox`; when that SVG is dropped into a narrow column or a card it
+ * keeps its intrinsic px size and either overflows-and-clips or visually collapses into a corner
+ * (the "tiny chart with overlapping labels" defect). We KEEP the viewBox (so it scales) but make
+ * the rendered box responsive: width:100% of its .fig container, height:auto to preserve aspect,
+ * capped at the natural width so it never up-scales blurrily, and centred. Pure string transform.
+ */
+export function makeSvgResponsive(svg: string): string {
+  if (!svg || !svg.includes('<svg')) return svg;
+  // Pull the intrinsic width so we can cap max-width at the natural size (no blurry upscaling).
+  const wMatch = /<svg[^>]*\bwidth="(\d+(?:\.\d+)?)"/.exec(svg);
+  const natural = wMatch ? Math.round(parseFloat(wMatch[1])) : 600;
+  const style = `width:100%;height:auto;max-width:${natural}px;display:block;margin:0 auto`;
+  return svg.replace(/<svg\b([^>]*)>/, (full, attrs) => {
+    // Drop any existing inline style, keep everything else (incl. the viewBox), append ours.
+    const cleaned = String(attrs).replace(/\sstyle="[^"]*"/i, '');
+    return `<svg${cleaned} style="${style}">`;
+  });
+}
+
 /** Compile + render an SVG string from concise chart args. */
 export async function renderChartSvg(args: ChartArgs): Promise<string> {
   const vega: any = await nativeImport('vega');
@@ -281,11 +301,25 @@ export async function renderChartSvg(args: ChartArgs): Promise<string> {
   return svg;
 }
 
+/**
+ * Page-appropriate intrinsic dimensions. The chart is INLINED into a report whose printable
+ * measure (inside @page{margin:20mm 26mm} on A4) is ~597px wide, so the default width matches
+ * a FULL-MEASURE .fig block — a chart that comes out small/cornered is the #1 chart defect.
+ * Height auto-grows with the data so labels never collide: a tall column count (heatmap rows,
+ * horizontal bars, many categories) needs more vertical room or axis labels overlap (the
+ * "AED 155K/318K/120K all colliding" defect). Defaults are deliberately generous; an explicit
+ * width/height still wins but is floored so the model can't request a tiny chart.
+ */
 export function chartSize(args: ChartArgs): { width: number; height: number } {
-  return {
-    width: Math.max(160, Math.min(1400, Number(args.width) || 560)),
-    height: Math.max(120, Math.min(1000, Number(args.height) || 300)),
-  };
+  const rows = Array.isArray(args.data) ? args.data.length : 0;
+  // Full-measure default so the chart fills the .fig block, never a narrow corner.
+  const width = Math.max(360, Math.min(1400, Number(args.width) || 600));
+  let defHeight = 340;
+  if (args.type === 'bar_h') defHeight = Math.max(280, Math.min(900, rows * 30 + 90)); // one labelled row each
+  else if (args.type === 'heatmap') defHeight = Math.max(300, Math.min(900, rows * 16 + 140));
+  else if (args.type === 'donut') defHeight = 320;
+  const height = Math.max(220, Math.min(1000, Number(args.height) || defHeight));
+  return { width, height };
 }
 
 /**
@@ -349,9 +383,11 @@ export const renderChartTool: ToolDef = {
     'Render a publication-grade chart as an embeddable SVG (flat, on-brand: muted base + your accent ' +
     'on the key series, direct value labels, light gridlines). Prefer this over hand-coded CSS bar-lists ' +
     'for any real data-viz in a report/dashboard. The SVG is saved to charts/ AND returned — INLINE the ' +
-    'returned <svg> into your report HTML (wrap it in <figure class="fig"> so it never splits across a page). ' +
-    'Types: line, multi_line, dual_axis (bars + a trend line on a 2nd axis — great for time-series), bar, ' +
-    'bar_h, stacked_bar, area, donut, heatmap (e.g. month×year). Pass the report ACCENT so it matches.',
+    'returned <svg> into your report HTML inside a FULL-MEASURE <figure class="fig"> (its OWN row, the full ' +
+    'text width — NEVER a narrow column or a small card, or the axis labels collide and it looks cornered). ' +
+    'The returned SVG is already fluid (width:100%; height:auto) so it fills the figure; you do NOT need to ' +
+    'resize it. Types: line, multi_line, dual_axis (bars + a trend line on a 2nd axis — great for time-series), ' +
+    'bar, bar_h, stacked_bar, area, donut, heatmap (e.g. month×year). Pass the report ACCENT so it matches.',
   parameters: {
     type: 'object',
     properties: {
@@ -393,6 +429,8 @@ export const renderChartTool: ToolDef = {
       return `Error: chart render failed — ${e?.message ?? e}`;
     }
     if (!svg || !svg.includes('<svg')) return 'Error: the chart rendered empty — check the data/field names.';
+    // Make it fluid so it fills its .fig block instead of collapsing to a fixed-px corner.
+    svg = makeSvgResponsive(svg);
 
     const outName = String(args.output || 'chart.svg').replace(/[^a-zA-Z0-9._-]/g, '-');
     const finalName = outName.toLowerCase().endsWith('.svg') ? outName : `${outName}.svg`;
@@ -411,8 +449,9 @@ export const renderChartTool: ToolDef = {
     const kb = Math.max(1, Math.round(svg.length / 1024));
     return (
       `Rendered ${args.type} chart → charts/${finalName} (${kb} KB SVG).\n` +
-      `INLINE this SVG into your report HTML inside <figure class="fig">…</figure> so it stays atomic across pages. ` +
-      `Markup:\n\n${svg}`
+      `INLINE this SVG into your report HTML inside a FULL-MEASURE <figure class="fig">…</figure> (its own row, ` +
+      `the full text width — never a narrow column/small card) so it stays atomic AND large enough that the axis ` +
+      `labels don't collide. It's already fluid (width:100%; height:auto) — don't add a width/height. Markup:\n\n${svg}`
     );
   },
 };

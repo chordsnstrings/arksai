@@ -230,6 +230,32 @@ INSIGHT & METHODOLOGY (make it read consultant-grade, not just pretty):
   scaffolding is most of what makes a report read as professional and trustworthy.
 
 HOW TO BUILD (the pipeline):
+GET THE FIRST RENDER RIGHT (this is the whole game — a clean first render means the
+automated design review passes immediately instead of churning expensive revise rounds;
+the four defects below are EXACTLY what the gate catches, so eliminate them BEFORE you
+render, every time):
+  1. NO LONELY / HALF-EMPTY PAGES. Every interior page must be filled ~85–100%. Do NOT
+     force a page break before/after each section — that is what strands 4 small cards
+     on a 70%-empty page. The ONLY guaranteed breaks are the cover and (if used) a
+     Contents page. Let sections FLOW continuously: a heading follows the previous
+     section's last paragraph on the SAME page when there's room. If a short block (a
+     card grid, a small chart, a 3-line conclusion) would land alone on an otherwise
+     empty page, it belongs WITH the surrounding narrative, not on its own page. Before
+     you render, mentally walk each page: is the bottom 1/3 empty? then pull the next
+     section up — do not break.
+  2. CHARTS FILL THEIR ROW. Every render_chart SVG goes in a FULL-MEASURE <figure
+     class="fig"> on its OWN row (the full text width) — NEVER inside a narrow column,
+     a 2-up grid cell, or a small card, or the axis labels collide and it reads as a
+     tiny cornered chart (a real defect we saw: "AED 155K / 318K / 120K / 100K km"
+     all overlapping). The returned SVG is already fluid (width:100%; height:auto) — do
+     NOT wrap it in a fixed-width box and do NOT add width/height attributes.
+  3. BACKGROUNDS FILL THE WHOLE SHEET — no white frame. The paper colour lives ONLY on
+     html, body (so it reaches all four edges with the @page margins); the cover and any
+     contrast page use class="bleed". NEVER paint a page background onto a max-width /
+     margined wrapper — that floats a tinted box inside a white frame (page 2 of the bad
+     run). Interior text pages need NO page-level background element at all.
+  4. NO ORPHANED HEADINGS or split visuals — every heading+lede wrapped in <div
+     class="lede">, every chart/figure/table/card-grid wrapped in .fig/.keep.
 - Design EACH report bespoke for its data and audience — there are no fixed
   templates. But ALWAYS obey the protocol below; every report must come out
   beautiful, minimal, modern and typography-first.
@@ -370,6 +396,12 @@ HOW TO BUILD (the pipeline):
        or data group you build in <figure class="fig"> or class="keep". */
     figure, .fig, .keep, .kpi, .kpi-row, .stat-band, .chart, .bars, .bar-list, .legend,
     svg, img, .callout { break-inside: avoid }
+    /* A FIGURE/CHART is a FULL-MEASURE block on its OWN row — never squeezed into a narrow
+       column or a small card (that is the "tiny chart, colliding axis labels" defect). The
+       inlined chart SVG is already fluid; this makes the figure span the full text column. */
+    figure, .fig { width:100%; margin:5mm 0; break-inside:avoid }
+    .fig svg, figure svg, .fig img, figure img { width:100%; height:auto; max-width:100%; display:block }
+    figcaption, .fig .cap { font:.78em var(--sans); color:var(--muted); margin-top:2mm }
     thead { break-inside: avoid }  tr { break-inside: avoid }   /* header + each row stay whole; a LONG table still flows (thead repeats) */
     h1,h2,h3,h4 { break-after: avoid }  p,li { orphans:3; widows:3 }
     /* ANTI-ORPHAN (the #1 report bug): a heading must NEVER strand at the bottom
@@ -409,7 +441,13 @@ HOW TO BUILD (the pipeline):
   page fields.)
 - CONTENT FLOW: let sections FLOW and fill each page — do NOT force every section
   onto its own page (that leaves lonely, half-empty pages, e.g. a one-line
-  "Verdict" alone). Only start a new page for a genuinely major division or when
+  "Verdict" alone, or 4 small cards stranded at the top of an otherwise blank page).
+  Do NOT sprinkle .break / page-break-before / page-break-after on headings or
+  sections — those forced breaks are the #1 CAUSE of the half-empty "lonely page"
+  defect. Use .break ONLY for a genuinely major division (e.g. before a part title),
+  and never more than a handful of times in a document. A KPI/card grid, a small
+  chart, or a short conclusion must sit WITH the surrounding narrative on a filled
+  page — never alone. Only start a new page for a genuinely major division or when
   the page is full. The cover (and a Contents page, if used) are the only
   guaranteed page breaks. Never leave a near-empty page, and NEVER let a heading
   sit at the very bottom with its content on the next page — this is the recurring

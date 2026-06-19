@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.4';
+export const WHATS_NEW_VERSION = '2026-06-19.5';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A real music studio',
-    body: 'Ask for a song and ArksAI now works like a Suno expert: richer style direction and structured lyrics (with vocal cues), plus controls for vocal gender, how closely to follow the style, and styles to avoid. It also drafts lyrics on their own (no audio), extends a track to make it longer, and covers an existing song in a new style.',
-  },
-  {
-    title: 'Connect your ad accounts',
-    body: 'Org admins can now connect Meta (Facebook/Instagram), Google Ads, and TikTok Ads under Settings → Connections. Once connected, just ask — ArksAI pulls your live ad numbers straight into dashboards and reports. Tokens are encrypted and scoped to your organization. (An operator sets up each platform app once; see CONNECTORS.md.)',
+    title: 'Reports look right the first time',
+    body: 'Designed PDFs and decks now nail the layout on the first pass — no more half-empty "lonely" pages, and charts fill the width with readable axis labels instead of getting squeezed into a tiny corner. Page backgrounds run cleanly edge-to-edge (no white frame), and the whole document flows to fill every page. The result: a more polished report, delivered faster.',
   },
 ];
 
