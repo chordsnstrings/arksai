@@ -381,6 +381,17 @@ HOW TO BUILD (the pipeline):
   (Keep the side margins WIDE — 24–28mm — for the editorial/newspaper feel the
   brand wants on the INTERIOR pages; the COVER bleeds full because it sits on the
   zero-margin @page cover. Render layout "slides" → use a landscape page instead.)
+- INTERIOR BACKGROUNDS — CLEAN LIKE THE COVER, NEVER A FLOATING BAND: a tinted
+  page-wide background FIELD belongs ONLY to the cover (and, if you truly need one,
+  a deliberate full-page section divider) — and it MUST run FULL-BLEED to the paper
+  edge via the named zero-margin @page mechanic, EXACTLY like the cover. NEVER paint
+  a tinted rectangle (running header/masthead band, section-title strip, page-top
+  banner) that floats INSIDE the @page margins — it leaves an ugly gap above/around
+  it and edges that don't reach the paper (the grey header-box defect). Running
+  headers/mastheads on interior pages are TYPE + a hairline RULE only — NO fill.
+  If a section needs a coloured field, give it its OWN full-bleed page (the cover
+  mechanic), not an inline band. (Contained elements — callouts, KPI tiles, zebra
+  table rows — may keep their light tint; those are design blocks, not page bands.)
 - CONTENT FLOW: let sections FLOW and fill each page — do NOT force every section
   onto its own page (that leaves lonely, half-empty pages, e.g. a one-line
   "Verdict" alone). Only start a new page for a genuinely major division or when
@@ -433,7 +444,10 @@ HOW TO BUILD (the pipeline):
   SPLIT across a page boundary or torn from its values (wrap it in .keep), a chart
   split from its caption/insight, orphaned KPI tiles, lonely near-empty pages, content
   bleed/cut-off, mis-centred cover, invisible/low-contrast text, accent overused,
-  and unreadable charts. Iterate at least once; "it rendered" is NOT "well designed".
+  a TINTED BACKGROUND BAND floating inside the margins on an interior page (a header/
+  masthead/section strip with a gap above it or edges not reaching the paper — it must
+  be full-bleed like the cover, or a hairline rule with no fill), and unreadable
+  charts. Iterate at least once; "it rendered" is NOT "well designed".
 - DOCX (only when asked): generate from the same content with the docx library —
   clean and editable, but say up front it won't be as richly designed as the PDF.
 
