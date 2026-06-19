@@ -13,14 +13,16 @@ test('report prompt enforces an explicit English / single-output-language rule',
   assert.match(p, /Chinese|foreign-script/i);
 });
 
-test('report prompt: sections start a new page AND fill it (no stranded headings, no half-empty pages)', () => {
+test('report prompt: natural flow, ≥60% page fill, no stranded headings or orphan lines', () => {
   const p = buildSystemPrompt(reportSession, '/tmp', '');
-  // top-level sections start a new page via class="section" (break-before:page)
-  assert.match(p, /class="section"/);
-  assert.match(p, /break-before:\s*page/i);
-  // and must still fill the page — the ~70% floor + merge thin sections
-  assert.match(p, /70%/);
-  assert.match(p, /merge/i);
+  // natural flow (NOT forced section breaks) + the ≥60% page-fill floor
+  assert.match(p, /NATURAL FLOW/);
+  assert.match(p, /60%/);
+  // anti-orphan heading mechanic + orphan/widow line control
+  assert.match(p, /\.lede/);
+  assert.match(p, /orphans|widows/i);
+  // no stranded heading / no orphan line guidance present
+  assert.match(p, /STRANDED HEADING/i);
 });
 
 test('report prompt still carries the hard-won page-mechanics rules (none dropped in the trim)', () => {

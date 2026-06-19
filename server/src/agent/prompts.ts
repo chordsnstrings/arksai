@@ -370,24 +370,23 @@ GET THE FIRST RENDER RIGHT (this is the whole game — a clean first render mean
 automated design review passes immediately instead of churning expensive revise rounds;
 the four defects below are EXACTLY what the gate catches, so eliminate them BEFORE you
 render, every time):
-  1. EACH TOP-LEVEL SECTION STARTS A NEW PAGE, AND FILLS IT. Every major section begins at
-     the TOP of a fresh page — wrap it in <section class="section"> (which carries
-     break-before:page) so its heading is NEVER stranded at the bottom of a page with its
-     table/figure pushed past the break (the exact defect: a heading + intro sitting above a
-     big empty gap while the table jumped to the next page). Wrap the heading + its opening
-     paragraph in <div class="lede"> so they stay together at the page top. THEN FILL THE
-     PAGE ~85–100%: a section that is only a heading + one short paragraph (or a heading +
-     a 4-tile KPI band) is TOO THIN to justify its own page and will leave it half-empty —
-     give that section real substance (narrative + a table/figure/cards), or MERGE two thin
-     sections into ONE section that then fills its page. MECHANICAL RULE — apply
-     class="section" (the page break) ONLY to a block you are confident fills ≥70% of a page
-     on its own. If a block won't (a lone heading + paragraph, a heading + just a 3–4 tile
-     band, a short conclusion), DO NOT give it class="section" — let it FLOW continuously
-     right after the previous section on the same page (no break, it becomes a sub-section
-     under a sub-heading). So: substantial sections break to a fresh page; thin blocks flow.
-     SUB-headings WITHIN a section FLOW on the same page — never break before sub-headings.
-     Before you render, mentally walk each page: every page that DID break should run
-     ~85–100% full; if it would be under ~70%, that block should have flowed, not broken.
+  1. NATURAL FLOW — FILL EVERY PAGE ≥60%, NEVER STRAND A HEADING OR A LINE. Content flows
+     continuously like a well-made human document; do NOT force each section onto its own page
+     (forcing breaks is what strands a 2-line remainder or a lone disclaimer on a near-blank
+     page — a real defect). A new section heading simply continues after the previous section's
+     last paragraph on the SAME page when there's room. TWO hard rules:
+     (a) NO STRANDED HEADING: wrap every heading + kicker + its opening paragraph in
+     <div class="lede"> (break-inside:avoid) so a heading can NEVER sit alone at a page bottom
+     with its body pushed past the break — the heading and its lede always travel together.
+     (b) NO NEAR-EMPTY PAGE, NO ORPHAN LINE: every page must be at LEAST ~60% full (only the
+     final page may be shorter). A page may carry a whole PARAGRAPH over to the next page, but
+     NEVER just one or two lines — condense, tighten, or pull content up so no page ends with a
+     sliver and no page begins with an orphan (orphans/widows:3 helps, but design for it: think
+     "how would a human lay this out" — no awkward near-empty pages). If a section is thin, give
+     it real substance or let it sit with its neighbours; if content overflows by a few lines,
+     tighten the prose so it fits rather than spilling. Use class="break" ONLY for a deliberate
+     major division, rarely. Before you render, mentally walk each page: is any page < ~60%
+     full, or does any page hold just a stranded line/heading? then condense and reflow.
   2. CHARTS FILL THEIR ROW. Every render_chart SVG goes in a FULL-MEASURE <figure
      class="fig"> on its OWN row (the full text width) — NEVER inside a narrow column,
      a 2-up grid cell, or a small card, or the axis labels collide and it reads as a
@@ -535,9 +534,8 @@ render, every time):
     .bleed.light  { background:var(--surface) }           /* edge-to-edge light field, ink type */
     .cover { } /* the COVER is simply the first full-bleed page → use class="cover bleed dark|accent|light" */
     .toc { page-break-after: always }                /* a Contents page, if used, is its OWN page */
-    .section { break-before: page }                   /* EVERY top-level section starts a new page (heading at the page top, never stranded). Wrap each major section: <section class="section"> … </section>. Do NOT put this on sub-headings. */
-    .bleed + .section, .cover + .section { break-before: avoid } /* CRITICAL: the section RIGHT AFTER the cover must NOT double-break — the cover already ended its page, so a second break-before here makes a BLANK page. This neutralises it. */
-    .break { break-before: page }                    /* legacy manual break — prefer .section for section starts */
+    .section { }                                      /* sections FLOW continuously — NO forced page break (forcing one strands near-empty trailing pages). Headings never strand because of .lede (break-inside:avoid) below. */
+    .break { break-before: page }                    /* a DELIBERATE major divider ONLY — use rarely, never on every section */
     thead { display: table-header-group }             /* repeat table headers */
     /* ATOMIC blocks — these may NEVER split across a page. .keep / .fig are the
        catch-all: wrap ANY chart (incl. CSS bar-lists), figure, legend, stat band,
@@ -578,26 +576,23 @@ render, every time):
   leaves a WHITE FRAME (a tinted box inside a white border); the field must come from .bleed.
   (Contained blocks — callouts, KPI tiles, zebra rows — keep their own subtle light tint;
   those are intentional content elements, not page backgrounds.)
-- SECTION = PAGE: every top-level section starts a NEW page (wrap it in
-  <section class="section">, break-before:page) so its heading sits at the top of a clean
-  page and is never stranded at a page bottom with its content pushed past the break. Do
-  NOT break before SUB-headings — those flow within the section's page.
-  TWO MECHANICAL RULES that prevent blank/near-empty pages (both were real defects):
-  (a) THE FIRST SECTION AFTER THE COVER must still use class="section" but the CSS
-  ".bleed + .section { break-before: avoid }" neutralises its break — do NOT add any extra
-  page-break before it, and do NOT insert an empty element between the cover and it, or you
-  get a BLANK page 2.
-  (b) SIZE EACH SECTION TO FILL ABOUT ONE PAGE (or a clean two) — NEVER let a section run
-  just past a page so a lone callout/paragraph/table spills onto an otherwise-empty next
-  page. If the content slightly overflows, TIGHTEN it to fit one page; if it needs more than
-  one page, give it enough substance to fill the second too. A small block (a callout, a
-  short table) that won't fit the space left must NOT strand on a near-empty page — keep it
-  with the section by trimming above it.
-  THEN each section must FILL its page ~85–100%: if a section is too thin to fill a page
-  (just a heading + a paragraph, or a heading + a KPI band), give it real substance OR merge
-  two thin sections into one — never let a section's page end below ~70% full. ENFORCE the
-  anti-orphan mechanically: wrap each section's heading + kicker + opening paragraph in one
-  <div class="lede"> (break-inside:avoid) so the heading + its lede travel together.
+- NATURAL FLOW, EVERY PAGE ≥60% FULL (like a human-made document — NO forced section breaks):
+  content flows continuously; a new section heading follows the previous section's last
+  paragraph on the SAME page when there's room. Do NOT force each section onto its own page —
+  that is exactly what strands a 2-line remainder or a lone disclaimer on a near-blank page.
+  THREE rules:
+  (a) NO STRANDED HEADING: wrap each heading + kicker + opening paragraph in one
+  <div class="lede"> (break-inside:avoid) so a heading can NEVER sit alone at a page bottom —
+  it and its lede always move together. (This solves the original stranded-heading defect
+  WITHOUT forcing breaks.)
+  (b) NO NEAR-EMPTY PAGE: every page must be at LEAST ~60% full (only the FINAL page may be
+  shorter). Never let a section run just a few lines past a page boundary — TIGHTEN/condense
+  the prose so it fits, or add substance, so no page ends with a sliver.
+  (c) NO ORPHAN LINE: a page may carry a whole PARAGRAPH to the next page, but NEVER just one
+  or two lines (orphans/widows:3 helps; also design for it). A trailing disclaimer/callout
+  must sit at the END of the last content page, never alone on its own page.
+  Use class="break" ONLY for a deliberate major division, rarely. Walk every page mentally
+  before rendering: any page < ~60% full, or holding a stranded line/heading → condense + reflow.
 - ATOMIC VISUALS — NO CONTENT BLEED (the other recurring bug): a chart, CSS bar-list,
   figure, legend, stat band, or image is ONE indivisible unit — wrap EACH in <figure
   class="fig"> (or class="keep") so it can NEVER split across a page. A visual that
