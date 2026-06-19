@@ -384,6 +384,10 @@ export class AgentRun {
 
     try {
       const maxIterations = config.maxIterations;
+      // Hard per-run TOKEN budget — the backstop against a runaway loop quietly billing
+      // six figures (the "1.8M tokens for a simple report" incident). The deadline fix
+      // removes the main amplifier; this guarantees a ceiling regardless. Env-overridable.
+      const maxRunTokens = Number(process.env.MAX_RUN_TOKENS || '800000') || 800_000;
       const STALL_LIMIT = 6;
       const EMPTY_RETRY_LIMIT = 2; // a thinking model that truncates mid-reasoning gets a couple of nudged retries
       const STREAM_RETRY_LIMIT = 2; // a connection dropped MID-response (premature close) gets a couple of fresh retries
@@ -392,11 +396,15 @@ export class AgentRun {
       let emptyRetries = 0;
       let streamRetries = 0;
       let iteration = 0;
-      let stopReason: 'natural' | 'ceiling' | 'stall' | null = null;
+      let stopReason: 'natural' | 'ceiling' | 'stall' | 'budget' | null = null;
       while (!this.abort.signal.aborted) {
         iteration++;
         if (iteration > maxIterations) {
           stopReason = 'ceiling';
+          break;
+        }
+        if (this.usage.totalTokens > maxRunTokens) {
+          stopReason = 'budget';
           break;
         }
         truncateContext(context);
@@ -612,6 +620,12 @@ export class AgentRun {
         const msg = `I got stuck repeating the same step and want to avoid spinning — could you give me a steer on what to do next? Tell me a bit more and I’ll pick it right back up.`;
         this.emit({ type: 'run_error', runId: this.runId, message: msg });
         liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
+      } else if (stopReason === 'budget') {
+        finalStatus = 'error';
+        const msg = `This task used an unusually large amount of processing (over the per-run safety budget), so I stopped to avoid runaway cost. Your work so far is saved. This usually means the request looped — tell me to continue and I’ll resume more efficiently.`;
+        this.emit({ type: 'run_error', runId: this.runId, message: msg });
+        liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
+        console.warn(`[budget] run ${this.runId} hit the token budget (${this.usage.totalTokens} tokens) — session ${this.session.id}`);
       }
     } catch (err: any) {
       if (this.abort.signal.aborted) {
