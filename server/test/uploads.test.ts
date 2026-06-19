@@ -57,18 +57,24 @@ test('contentDisposition: CR/LF and quotes in a filename cannot inject a header'
   assert.doesNotMatch(h.match(/filename="([^"]*)"/)![1], /["]/); // quote neutralized
 });
 
-test('buildUploadNote: a data file points the agent at its extracted sidecar', () => {
+test('buildUploadNote: a spreadsheet routes to read_spreadsheet (NOT a lossy text sidecar)', () => {
   const note = buildUploadNote(['uploads/q1.xlsx'], true)!;
   assert.match(note, /the user just uploaded/);
   assert.match(note, /uploads\/q1\.xlsx/);
-  assert.match(note, /uploads\/q1\.xlsx\.extracted\.txt/);
+  assert.match(note, /read_spreadsheet/);
+  assert.doesNotMatch(note, /extracted\.txt/); // spreadsheets are read structurally, not extracted
   assert.match(note, /do NOT ask the user to paste or re-upload/i);
 });
 
-test('buildUploadNote: csv/pdf/docx are all treated as extractable documents', () => {
-  for (const f of ['uploads/data.csv', 'uploads/report.pdf', 'uploads/brief.docx']) {
+test('buildUploadNote: pdf/docx → extracted sidecar; csv/xls/xlsx → read_spreadsheet', () => {
+  for (const f of ['uploads/report.pdf', 'uploads/brief.docx']) {
     const note = buildUploadNote([f], true)!;
     assert.match(note, new RegExp(`${f.replace(/[.]/g, '\\.')}\\.extracted\\.txt`));
+  }
+  for (const f of ['uploads/data.csv', 'uploads/model.xls', 'uploads/book.xlsx']) {
+    const note = buildUploadNote([f], true)!;
+    assert.match(note, /read_spreadsheet/);
+    assert.doesNotMatch(note, /extracted\.txt/);
   }
 });
 
@@ -106,8 +112,13 @@ test('buildUploadNote: a plain/unknown file is read directly with read_file', ()
 });
 
 test('buildUploadNote: a mixed batch surfaces every kind in one note', () => {
-  const note = buildUploadNote(['uploads/model.xlsx', 'uploads/logo.png', 'uploads/readme.md'], true)!;
-  assert.match(note, /model\.xlsx\.extracted\.txt/); // doc → sidecar
+  const note = buildUploadNote(
+    ['uploads/model.xlsx', 'uploads/brief.pdf', 'uploads/logo.png', 'uploads/readme.md'],
+    true,
+  )!;
+  assert.match(note, /model\.xlsx/); // spreadsheet → read_spreadsheet
+  assert.match(note, /read_spreadsheet/);
+  assert.match(note, /brief\.pdf\.extracted\.txt/); // doc → sidecar
   assert.match(note, /logo\.png/); // image
   assert.match(note, /see_image/);
   assert.match(note, /readme\.md/); // other → read_file

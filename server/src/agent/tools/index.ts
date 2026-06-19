@@ -26,6 +26,7 @@ import { extractPaletteTool } from './palette';
 import { validatePaletteTool } from './validatePalette';
 import { computeFinancialsTool } from './computeFinancials';
 import { dependencyAuditorTool } from './dependencyAuditor';
+import { readSpreadsheetTool } from './spreadsheet';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -70,6 +71,7 @@ export const ALL_TOOLS: ToolDef[] = [
   validatePaletteTool,
   computeFinancialsTool,
   dependencyAuditorTool,
+  readSpreadsheetTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,
@@ -96,6 +98,7 @@ const REPORT_TOOLS = new Set([
   'validate_palette',
   'compute_financials',
   'dependency_auditor',
+  'read_spreadsheet',
   'switch_mode',
   'fetch_data',
   'send_webhook',

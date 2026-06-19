@@ -129,26 +129,19 @@ test('htmlToText strips scripts/styles and tags', async () => {
   assert.doesNotMatch(out, /color:red/);
 });
 
-test('extractText reads xlsx sheets and ignores unknown formats', async () => {
+test('extractText: spreadsheets are NOT text-extracted (read_spreadsheet handles them); unknown formats are null', async () => {
   const XLSX = await import('xlsx');
-  const { extractText } = await import('../src/lib/extract');
+  const { extractText, EXTRACTABLE, SPREADSHEET } = await import('../src/lib/extract');
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(
-    wb,
-    XLSX.utils.aoa_to_sheet([
-      ['Task', 'Owner'],
-      ['Build API', 'Sam'],
-    ]),
-    'Plan',
-  );
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Task', 'Owner'], ['Build API', 'Sam']]), 'Plan');
   const file = path.join(ws, 'plan.xlsx');
   XLSX.writeFile(wb, file);
 
-  const text = await extractText(file);
-  assert.ok(text);
-  assert.match(text!, /Sheet: Plan/);
-  assert.match(text!, /Build API,Sam/);
-
+  // No lossy CSV sidecar for spreadsheets — they route to read_spreadsheet instead.
+  assert.equal(await extractText(file), null);
+  assert.ok(SPREADSHEET.has('.xlsx') && !EXTRACTABLE.has('.xlsx'));
+  // Prose docs still extract; unknown formats are null.
+  assert.ok(EXTRACTABLE.has('.pdf') && EXTRACTABLE.has('.docx'));
   assert.equal(await extractText(path.join(ws, 'src', 'a.ts')), null);
 });
 
