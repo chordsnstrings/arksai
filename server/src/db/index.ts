@@ -274,6 +274,27 @@ async function migrate() {
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_analytics_digests_gen ON analytics_digests(generated_at)`);
 
+  // Ad-platform connectors — per-ORG OAuth links to Meta/Google/TikTok ad accounts.
+  // Tokens are stored ENCRYPTED (AES-256-GCM); never plaintext. One row per connected
+  // ad account. Org-scoped: an org only ever sees its own connectors.
+  await q(`CREATE TABLE IF NOT EXISTS connectors(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    account_name TEXT,
+    access_token_enc TEXT NOT NULL,
+    refresh_token_enc TEXT,
+    expires_at ${INT},
+    scopes TEXT,
+    status TEXT NOT NULL,
+    created_by TEXT,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_connectors_org ON connectors(org_id)`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_connectors_uniq ON connectors(org_id, provider, account_id)`);
+
   // Small global key/value store (e.g. the operator's chosen display name — the operator
   // logs in via APP_PASSWORD and has no users row, so it can't live on a user).
   await q(`CREATE TABLE IF NOT EXISTS app_settings(

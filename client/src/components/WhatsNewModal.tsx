@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.3';
+export const WHATS_NEW_VERSION = '2026-06-19.4';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'Ask for a song and ArksAI now works like a Suno expert: richer style direction and structured lyrics (with vocal cues), plus controls for vocal gender, how closely to follow the style, and styles to avoid. It also drafts lyrics on their own (no audio), extends a track to make it longer, and covers an existing song in a new style.',
   },
   {
-    title: 'No more model picking — it just routes itself',
-    body: 'ArksAI now runs entirely on the MiniMax engine and chooses the right model for each request automatically (top-quality for designed/complex work, fast for quick turns). No model menu to fiddle with — just describe what you want. Power users can still force a model with /model.',
+    title: 'Connect your ad accounts',
+    body: 'Org admins can now connect Meta (Facebook/Instagram), Google Ads, and TikTok Ads under Settings → Connections. Once connected, just ask — ArksAI pulls your live ad numbers straight into dashboards and reports. Tokens are encrypted and scoped to your organization. (An operator sets up each platform app once; see CONNECTORS.md.)',
   },
 ];
 

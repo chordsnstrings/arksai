@@ -88,6 +88,7 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 ## Day-to-day capabilities
 - Recurring/scheduled tasks — a durable server scheduler (daily/weekly/interval) that fires a fresh session even with the browser closed; managed via a Schedules dialog. Times are read in **your local timezone** (captured from your browser, DST-correct), so "daily 08:00" fires at 08:00 where you are — not on the server's clock.
 - Data in — `fetch_data` pulls a public CSV/JSON/published-Sheet URL (SSRF-guarded).
+- **Ad-platform connectors (Meta · Google Ads · TikTok)** — org admins connect their ad accounts under **Settings → Connections** (OAuth); the agent then pulls **live** performance via `fetch_ads` straight into dashboards and reports (spend/impressions/clicks/ctr/conversions, by campaign/ad/day). Per-org, OAuth tokens stored **encrypted** (AES-256-GCM) and never exposed to the model; auto-refreshed on expiry; each provider gates on its app credentials. Reusable adapter framework (one interface per platform). Operator setup in `CONNECTORS.md`.
 - Deliver out — `send_webhook` posts a result to a Slack/Zapier/Discord hook.
 
 ## Visual identity & theming

@@ -19,6 +19,7 @@ import { generateDocTool } from './docx';
 import { generatePptxTool } from './pptx';
 import { switchModeTool, submitPlanTool } from './mode';
 import { fetchDataTool } from './data';
+import { fetchAdsTool } from './ads';
 import { sendWebhookTool } from './outbound';
 import { generateComplianceFileTool } from './compliance';
 import { extractPaletteTool } from './palette';
@@ -59,6 +60,7 @@ export const ALL_TOOLS: ToolDef[] = [
   switchModeTool,
   submitPlanTool,
   fetchDataTool,
+  fetchAdsTool,
   sendWebhookTool,
   generateComplianceFileTool,
   extractPaletteTool,

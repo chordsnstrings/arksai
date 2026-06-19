@@ -96,6 +96,22 @@ export const config = {
   minimaxVideoCost: Number(process.env.MINIMAX_VIDEO_COST || '0.43') || 0.43,
   appPassword: process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
+  // Public base URL of this app — used to build OAuth redirect URIs for ad-platform
+  // connectors (must be HTTPS and registered in each provider's app). Defaults to the
+  // live host; override per environment.
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL || 'https://arksai.studio').replace(/\/$/, ''),
+  // Key used to encrypt connector OAuth tokens at rest (AES-256-GCM). Any string;
+  // it's hashed to 32 bytes. MUST be set in production — without it connectors are
+  // disabled so tokens are never stored in plaintext.
+  connectorEncKey: process.env.CONNECTOR_ENC_KEY || '',
+  // Ad-platform connector apps (each connector lights up only when its creds are set).
+  metaAppId: process.env.META_APP_ID || '',
+  metaAppSecret: process.env.META_APP_SECRET || '',
+  googleAdsClientId: process.env.GOOGLE_ADS_CLIENT_ID || '',
+  googleAdsClientSecret: process.env.GOOGLE_ADS_CLIENT_SECRET || '',
+  googleAdsDeveloperToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN || '',
+  tiktokClientKey: process.env.TIKTOK_CLIENT_KEY || '',
+  tiktokClientSecret: process.env.TIKTOK_CLIENT_SECRET || '',
   // Scheduled analytics digest: how often a platform snapshot is taken (hours), and an
   // optional webhook (Slack/Zapier/…) the digest is pushed to. Digests are always stored
   // in-app for the operator regardless; the webhook is opt-in.
@@ -145,5 +161,10 @@ export function secretValues(): string[] {
     config.sunoApiKey,
     config.minimaxApiKey,
     config.analyticsDigestWebhook,
+    config.metaAppSecret,
+    config.googleAdsClientSecret,
+    config.googleAdsDeveloperToken,
+    config.tiktokClientSecret,
+    config.connectorEncKey,
   ].filter((s) => s && s.length >= 6);
 }

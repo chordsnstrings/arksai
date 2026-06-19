@@ -95,6 +95,12 @@ export const api = {
   setName: (name: string) =>
     request<{ ok: true; name: string | null }>('/api/auth/name', { method: 'POST', body: JSON.stringify({ name }) }),
   listModels: () => request<{ models: ModelInfo[] }>('/api/models').then((r) => r.models),
+  // Ad-platform connectors (Settings → Connections)
+  connectorsAvailable: () =>
+    request<{ enabled: boolean; providers: { provider: string; label: string }[] }>('/api/connectors/available'),
+  listConnectors: () =>
+    request<{ connectors: { id: string; provider: string; accountId: string; accountName: string | null; status: string }[] }>('/api/connectors').then((r) => r.connectors),
+  deleteConnector: (id: string) => request<{ ok: true }>(`/api/connectors/${id}`, { method: 'DELETE' }),
   listSessions: () => request<SessionMeta[]>('/api/sessions'),
   createSession: (body: CreateSessionRequest) =>
     request<SessionMeta>('/api/sessions', { method: 'POST', body: JSON.stringify(body) }),

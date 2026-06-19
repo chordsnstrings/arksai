@@ -1708,3 +1708,15 @@ button { font-family: inherit; cursor: pointer; }
 .wn-list .wn-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-top: 7px; }
 .wn-list strong { font-size: 14px; }
 .wn-list p { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+
+/* Ad-platform connections (Settings → Connections) */
+.conn-panel { margin-top: 6px; }
+.conn-intro { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin: 4px 0 12px; }
+.conn-note { font-size: 13px; background: var(--surface); border: 1px solid var(--line, #e7e2d8); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
+.conn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.conn-row { border: 1px solid var(--line, #e7e2d8); border-radius: 10px; padding: 12px 14px; }
+.conn-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.conn-head .send-btn { text-decoration: none; padding: 5px 12px; font-size: 13px; }
+.conn-accounts { list-style: none; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--line, #e7e2d8); display: flex; flex-direction: column; gap: 6px; }
+.conn-accounts li { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+.conn-accounts li.conn-bad span { color: #b4452f; }

@@ -125,7 +125,7 @@ export async function deleteOrg(orgId: string): Promise<{
     await q('DELETE FROM project_members WHERE project_id = $1', [pid]).catch(() => {});
     await q('DELETE FROM project_files WHERE project_id = $1', [pid]).catch(() => {});
   }
-  for (const tbl of ['sessions', 'projects', 'deployments', 'schedules', 'custom_commands', 'invites', 'analytics_events', 'analytics_digests']) {
+  for (const tbl of ['sessions', 'projects', 'deployments', 'schedules', 'custom_commands', 'invites', 'analytics_events', 'analytics_digests', 'connectors']) {
     await q(`DELETE FROM ${tbl} WHERE org_id = $1`, [orgId]).catch(() => {});
   }
   await q('DELETE FROM org_profiles WHERE org_id = $1', [orgId]).catch(() => {});
