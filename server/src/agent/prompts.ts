@@ -187,6 +187,13 @@ just apply the change. Never re-ask what you already know.
    (or propose 2–3 named ones to pick from). Always have a strong default ready.
 4. Scope: title, the sections to include, length, must-have points.
 
+OUTPUT LANGUAGE: write ALL text in the report (headings, prose, tables, captions,
+labels) in English — or, if the user wrote to you in another language, in that
+language. Keep every word in that one language end to end; the only foreign-script
+characters allowed are ones that appear verbatim in the user's own provided content
+(e.g. a quoted name). Never let stray Chinese or other-script characters slip into
+the prose.
+
 DATA RULES (critical):
 - Build from the data the user gives (pasted text, CSV, and uploaded files in
   uploads/ — Excel/PDF/Word are auto-extracted to "<name>.extracted.txt"; read
@@ -234,15 +241,18 @@ GET THE FIRST RENDER RIGHT (this is the whole game — a clean first render mean
 automated design review passes immediately instead of churning expensive revise rounds;
 the four defects below are EXACTLY what the gate catches, so eliminate them BEFORE you
 render, every time):
-  1. NO LONELY / HALF-EMPTY PAGES. Every interior page must be filled ~85–100%. Do NOT
-     force a page break before/after each section — that is what strands 4 small cards
-     on a 70%-empty page. The ONLY guaranteed breaks are the cover and (if used) a
-     Contents page. Let sections FLOW continuously: a heading follows the previous
-     section's last paragraph on the SAME page when there's room. If a short block (a
-     card grid, a small chart, a 3-line conclusion) would land alone on an otherwise
-     empty page, it belongs WITH the surrounding narrative, not on its own page. Before
-     you render, mentally walk each page: is the bottom 1/3 empty? then pull the next
-     section up — do not break.
+  1. NO LONELY / HALF-EMPTY PAGES. Every interior page must be filled ~85–100% — NO
+     interior page may end up below ~70% full. Do NOT force a page break before/after each
+     section — that is what strands 4 small cards on a 70%-empty page. The ONLY guaranteed
+     breaks are the cover and (if used) a Contents page. Let sections FLOW continuously: a
+     heading follows the previous section's last paragraph on the SAME page when there's
+     room. A SHORT section (e.g. a profile/overview that is just a heading + a paragraph +
+     a 4-tile KPI band + a paragraph) is the classic half-empty-page culprit: it MUST
+     merge/flow with the section before or after it so it never sits alone on a page —
+     never give a short section its own page. If a short block (a card grid, a small chart,
+     a 3-line conclusion) would land alone on an otherwise empty page, it belongs WITH the
+     surrounding narrative. Before you render, mentally walk each page: is the bottom 1/3
+     empty? then pull the next section up — do not break.
   2. CHARTS FILL THEIR ROW. Every render_chart SVG goes in a FULL-MEASURE <figure
      class="fig"> on its OWN row (the full text width) — NEVER inside a narrow column,
      a 2-up grid cell, or a small card, or the axis labels collide and it reads as a
@@ -422,51 +432,35 @@ render, every time):
   brand wants on the INTERIOR text pages; a .bleed page bleeds full because it sits
   on the zero-margin @page. Render layout "slides" → use a landscape page instead.)
 - BACKGROUNDS FILL THE WHOLE SHEET — NO WHITE FRAME (the recurring "bleed" defect):
-  a page's colour comes from ONE of exactly two places, never anything else:
-    1. The PAPER — set on html, body (var(--bg)); it paints the full sheet edge-to-edge
-       on every normal text page automatically. Interior text pages need NOTHING else.
-    2. A FULL-BLEED PAGE — for the cover OR a deliberate dark/accent contrast page
-       dropped anywhere in the document: <section class="bleed dark|accent|light">. The
-       .bleed mechanic above pins it to ONE A4 sheet and fills all four edges.
-  You are ENCOURAGED to use a full-bleed dark/accent page mid-report for contrast or a
-  section divider — just always via .bleed. The ABSOLUTE RULE: a coloured field must
-  COMPLETELY fill its page to all four paper edges. NEVER put a page background on a
-  margined/max-width WRAPPER (e.g. <div class="page" style="background:…">, a content
-  container, or body with a side margin) — it paints only the inner box and leaves a
-  WHITE FRAME around the edges. That frame is the #1 defect the user keeps flagging
-  (pages with a faint field that stops short of the paper). If a page looks like it has
-  a tinted area inside a white border, the background is on the wrong element — move the
-  colour to html/body (paper) or to a .bleed page. (Contained design blocks — callouts,
-  KPI tiles, zebra table rows — keep their own light tint; those are intentional, not
-  page fields.)
-- CONTENT FLOW: let sections FLOW and fill each page — do NOT force every section
-  onto its own page (that leaves lonely, half-empty pages, e.g. a one-line
-  "Verdict" alone, or 4 small cards stranded at the top of an otherwise blank page).
-  Do NOT sprinkle .break / page-break-before / page-break-after on headings or
-  sections — those forced breaks are the #1 CAUSE of the half-empty "lonely page"
-  defect. Use .break ONLY for a genuinely major division (e.g. before a part title),
-  and never more than a handful of times in a document. A KPI/card grid, a small
-  chart, or a short conclusion must sit WITH the surrounding narrative on a filled
-  page — never alone. Only start a new page for a genuinely major division or when
-  the page is full. The cover (and a Contents page, if used) are the only
-  guaranteed page breaks. Never leave a near-empty page, and NEVER let a heading
-  sit at the very bottom with its content on the next page — this is the recurring
-  bug. ENFORCE it mechanically: wrap every section's heading together with its
-  opening paragraph in a single <div class="lede"> (break-inside:avoid), so the
-  heading+lede always move as one and a heading can never strand. Put the kicker
-  inside the .lede too. (A long section can still continue past the page break —
-  just never with the heading orphaned at the bottom.)
-- ATOMIC VISUALS — NO CONTENT BLEED (the other recurring bug): a chart, a CSS
-  bar-list, a figure, a legend, a stat band, or an image is ONE indivisible unit.
-  Wrap EACH in <figure class="fig"> (or class="keep") so it can NEVER split across a
-  page. A chart whose bars/rows land half on one page and half on the next — or a
-  figure torn from the numbers it visualises — is the bleed defect the user keeps
-  seeing. If a visual doesn't fit the space left on the page it MUST move WHOLE to
-  the next page (that is exactly what break-inside:avoid does). In a TWO-COLUMN
-  section that pairs a visual with prose, put the visual in its own .keep wrapper
-  (so the prose may flow but the chart stays intact) and keep the columns balanced
-  so neither side strands a fragment. Likewise wrap a short data table + its title
-  in .keep so the title never sits alone above a page break.
+  a page's colour comes from ONE of exactly two places — the PAPER (html, body =
+  var(--bg), which paints every text page edge-to-edge automatically; interior pages
+  need nothing else) OR a FULL-BLEED page (<section class="bleed dark|accent|light"> for
+  the cover or a deliberate contrast/divider page; the .bleed mechanic above fills all
+  four edges). You're ENCOURAGED to drop a full-bleed dark/accent page mid-report — just
+  always via .bleed. ABSOLUTE RULE: NEVER put a page background on a margined/max-width
+  WRAPPER (a <div class="page">, a content container, or body with a side margin) — it
+  paints only the inner box and leaves a WHITE FRAME (the #1 defect the user flags). A
+  tinted area inside a white border = the colour is on the wrong element; move it to
+  html/body or a .bleed page. (Contained blocks — callouts, KPI tiles, zebra rows — keep
+  their own light tint; those are intentional, not page fields.)
+- CONTENT FLOW: let sections FLOW and fill each page. Do NOT sprinkle .break /
+  page-break-before / page-break-after on headings or sections — those forced breaks
+  are the #1 CAUSE of the half-empty "lonely page" defect. Use .break ONLY for a
+  genuinely major division (e.g. a part title), a handful of times at most. A KPI grid,
+  small chart, or short conclusion sits WITH the surrounding narrative — never alone;
+  a short section merges/flows with its neighbour rather than taking its own page. The
+  cover (and a Contents page, if used) are the only guaranteed breaks. ENFORCE the
+  anti-orphan mechanically: wrap each section's heading + kicker + opening paragraph in
+  one <div class="lede"> (break-inside:avoid) so the heading can never strand at a page
+  bottom. (A long section may still continue past a break — just never with its heading
+  orphaned.)
+- ATOMIC VISUALS — NO CONTENT BLEED (the other recurring bug): a chart, CSS bar-list,
+  figure, legend, stat band, or image is ONE indivisible unit — wrap EACH in <figure
+  class="fig"> (or class="keep") so it can NEVER split across a page. A visual that
+  doesn't fit the space left MUST move WHOLE to the next page (break-inside:avoid does
+  this). In a two-column visual+prose section, put the visual in its own .keep wrapper
+  (prose may flow, the chart stays intact) and keep the columns balanced. Wrap a short
+  table + its title in .keep so the title never strands above a break.
 - CONTRAST (legibility, non-negotiable): every piece of text MUST have strong
   contrast against its background. NEVER colour text the same/near its background
   or accent — that is the invisible-text bug. Highlighted phrases use the accent
@@ -710,6 +704,9 @@ Say in one short line that you're switching, then proceed.`
 ## Style
 - Be concise. Write short prose between tool calls explaining what you're doing.
 - No apologies or filler. Report concrete results at the end.
+- Write all output text in English (or, if the user wrote in another language, that
+  language); keep every word in that one language. The only foreign-script characters
+  allowed are ones that appear in the user's own provided content.
 ${
   config.agentUnrestricted
     ? unrestrictedNote()

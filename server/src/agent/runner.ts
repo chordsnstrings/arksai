@@ -157,12 +157,83 @@ export function isTransientApiError(err: any): boolean {
   );
 }
 
+// Tool calls that PRODUCE the deliverable. Once one of these has run, the raw research
+// tool-results from EARLIER turns are no longer needed verbatim — their data is already
+// baked into the rendered HTML/spec, and the QC/revise turns work off the rendered pages,
+// not the scraped sources. So we stub those stale research dumps to stop re-paying for
+// them on every subsequent turn (the ~820k-token report blowup).
+const DELIVERABLE_PRODUCERS = new Set([
+  'render_report',
+  'generate_spreadsheet',
+  'generate_doc',
+  'generate_pptx',
+  'render_chart',
+]);
+// Tools whose RAW output is large research data, safe to stub once it's been used.
+const RESEARCH_TOOLS = new Set(['web_search', 'web_fetch', 'fetch_data']);
+const RESEARCH_STUB = '[research results — used in the report, trimmed to save context]';
+
+/** Map every tool_call_id → the tool name that produced it (from assistant turns). */
+function toolNameById(context: any[]): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const msg of context) {
+    if (msg?.role === 'assistant' && Array.isArray(msg.tool_calls)) {
+      for (const tc of msg.tool_calls) if (tc?.id && tc.function?.name) m.set(tc.id, tc.function.name);
+    }
+  }
+  return m;
+}
+
+/**
+ * Once a deliverable has been produced, stub the RAW research tool-results from EARLIER
+ * turns so they aren't re-sent at full size on every QC/revise turn. PURE + conservative:
+ *  - only stubs tool messages whose producing tool was a RESEARCH tool (web_search/web_fetch/
+ *    fetch_data) and whose body is large (>200 chars);
+ *  - only stubs ones that appear BEFORE the most recent deliverable-producing tool call —
+ *    so the report HTML/spec, the user's brief, the system prompt and recent turns are never
+ *    touched. The report's actual content is fully preserved; this only drops scraped sources.
+ * Returns true if anything was stubbed. Exported for testing.
+ */
+export function trimStaleResearch(context: any[]): boolean {
+  const names = toolNameById(context);
+  // Find the index of the LAST assistant turn that produced a deliverable.
+  let lastDeliverableIdx = -1;
+  for (let i = 0; i < context.length; i++) {
+    const msg = context[i];
+    if (msg?.role === 'assistant' && Array.isArray(msg.tool_calls)) {
+      if (msg.tool_calls.some((tc: any) => DELIVERABLE_PRODUCERS.has(tc?.function?.name))) {
+        lastDeliverableIdx = i;
+      }
+    }
+  }
+  if (lastDeliverableIdx < 0) return false; // no deliverable yet → keep all research verbatim
+  let changed = false;
+  for (let i = 0; i < lastDeliverableIdx; i++) {
+    const msg = context[i];
+    if (
+      msg?.role === 'tool' &&
+      typeof msg.content === 'string' &&
+      msg.content.length > 200 &&
+      msg.content !== RESEARCH_STUB &&
+      RESEARCH_TOOLS.has(names.get(msg.tool_call_id) ?? '')
+    ) {
+      msg.content = RESEARCH_STUB;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 /**
  * Keep the context under the model window for long-running sessions:
- * first shrink old tool outputs, then drop the oldest messages entirely
- * (long chats have no tool output to shrink).
+ * first stub stale research dumps (already baked into the deliverable), then shrink
+ * remaining old tool outputs, then drop the oldest messages entirely (long chats have
+ * no tool output to shrink).
  */
 function truncateContext(context: any[]) {
+  // Always run the targeted research-trim first — it's the primary token sink for reports
+  // (it makes the QC/revise turns cheap), and it's safe regardless of the total size.
+  trimStaleResearch(context);
   if (estimateTokens(context) < CONTEXT_TOKEN_BUDGET) return;
   for (const msg of context) {
     if (msg.role === 'tool' && typeof msg.content === 'string' && msg.content.length > 200) {
@@ -628,17 +699,35 @@ export class AgentRun {
           orgId: this.session.orgId, sessionId: this.session.id,
         });
       } else if (stopReason === 'budget') {
-        finalStatus = 'error';
-        const msg = `This task used an unusually large amount of processing (over the per-run safety budget), so I stopped to avoid runaway cost. Your work so far is saved. This usually means the request looped — tell me to continue and I’ll resume more efficiently.`;
-        this.emit({ type: 'run_error', runId: this.runId, message: msg });
-        liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
-        console.warn(`[budget] run ${this.runId} hit the token budget (${this.usage.totalTokens} tokens) — session ${this.session.id}`);
-        void recordIncident({
-          kind: 'cost_spike', severity: 'high', signature: `budget ${this.session.mode}`,
-          title: `Run exceeded the token budget (${this.usage.totalTokens} tokens) in ${this.session.mode} mode`,
-          context: { mode: this.session.mode, model: this.activeModel, task: this.session.task, tokens: this.usage.totalTokens },
-          orgId: this.session.orgId, sessionId: this.session.id,
-        });
+        // GRACEFUL CAP: a good deliverable may already be on disk (the recurring "error with a
+        // hidden good PDF" — a report hits the token budget AFTER a clean PDF was rendered). If
+        // one exists, COMPLETE the run normally (the finally block then auto-opens it + fires the
+        // completion card) and add only a soft INFO note — never hand the user an error over a
+        // finished file. Only show the hard budget error when NOTHING was produced.
+        const produced = await this.newestDeliverable(dir, ['.pdf', '.pptx', '.docx', '.xlsx']).catch(() => null);
+        if (produced) {
+          finalStatus = 'done';
+          liveItems.push({
+            kind: 'system',
+            id: randomUUID(),
+            level: 'info',
+            text: `This one took a bit more processing than usual. Your document is ready below.`,
+            ts: Date.now(),
+          });
+          console.warn(`[budget] run ${this.runId} hit the token budget (${this.usage.totalTokens} tokens) but a deliverable was produced — completing normally — session ${this.session.id}`);
+        } else {
+          finalStatus = 'error';
+          const msg = `This task used an unusually large amount of processing (over the per-run safety budget), so I stopped to avoid runaway cost. Your work so far is saved. This usually means the request looped — tell me to continue and I’ll resume more efficiently.`;
+          this.emit({ type: 'run_error', runId: this.runId, message: msg });
+          liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
+          console.warn(`[budget] run ${this.runId} hit the token budget (${this.usage.totalTokens} tokens) — session ${this.session.id}`);
+          void recordIncident({
+            kind: 'cost_spike', severity: 'high', signature: `budget ${this.session.mode}`,
+            title: `Run exceeded the token budget (${this.usage.totalTokens} tokens) in ${this.session.mode} mode`,
+            context: { mode: this.session.mode, model: this.activeModel, task: this.session.task, tokens: this.usage.totalTokens },
+            orgId: this.session.orgId, sessionId: this.session.id,
+          });
+        }
       }
     } catch (err: any) {
       if (this.abort.signal.aborted) {
