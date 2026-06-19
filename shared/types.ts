@@ -39,22 +39,26 @@ export function phaseFloor(phase: ProgressPhase): number {
 export function phaseCeiling(phase: ProgressPhase): number {
   return PHASE_BANDS[phase]?.ceil ?? 100;
 }
-/** Any DeepSeek model id. The selectable list is fetched live from /api/models. */
+/** A selectable model id. The lineup is MiniMax-backed (Auto / Max / Flash). */
 export type ModelId = string;
 
 export const SESSION_MODES: SessionMode[] = ['chat', 'plan', 'code', 'report'];
 
-export const DEFAULT_MODEL = 'deepseek-v4-flash';
-/** Used when the live model list can't be fetched. */
-export const FALLBACK_MODEL_IDS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
-/** Kept for older imports; the live list supersedes it. */
-export const MODELS: ModelId[] = FALLBACK_MODEL_IDS;
+/** Default: the orchestrator picks the concrete MiniMax model per task. */
+export const DEFAULT_MODEL = 'arksai-auto';
 
 /** Virtual model: the orchestrator picks the concrete model per task. */
 export const AUTO_MODEL = 'arksai-auto';
-/** Branded id for the MiniMax LLM engine (routable + directly selectable). */
+/** MiniMax M3 — the top-quality, multimodal brain. */
 export const MAX_MODEL = 'arksai-max';
+/** MiniMax M2.7-highspeed — the fast/cheap tier. */
+export const FAST_MODEL = 'arksai-flash';
 export const isAutoModel = (id: string): boolean => id === AUTO_MODEL;
+
+/** The full selectable lineup (all MiniMax-backed). */
+export const FALLBACK_MODEL_IDS = [AUTO_MODEL, MAX_MODEL, FAST_MODEL];
+/** Kept for older imports. */
+export const MODELS: ModelId[] = FALLBACK_MODEL_IDS;
 
 export interface ModelPricing {
   label: string;
@@ -70,29 +74,28 @@ export interface ModelInfo extends ModelPricing {
 }
 
 /**
- * DeepSeek pricing in USD per 1M tokens, matching the live platform exactly,
- * including the cache-hit input tier. Source:
- * https://api-docs.deepseek.com/quick_start/pricing. Update if it changes.
+ * MiniMax pricing in USD per 1M tokens. M3 (verified June 2026, current promo):
+ * $0.30 input / $1.20 output, $0.06 cached input. Source:
+ * https://devtk.ai/en/models/minimax-m3/ + the MiniMax console. Update if it changes.
  */
 const DEFAULT_PRICING: ModelPricing = {
   label: 'unknown',
-  inputCacheHitPerM: 0.0028,
-  inputCacheMissPerM: 0.14,
-  outputPerM: 0.28,
+  inputCacheHitPerM: 0.06,
+  inputCacheMissPerM: 0.3,
+  outputPerM: 1.2,
 };
 // UI labels are ArksAI-branded (the underlying provider/model id is internal).
-// As we add other engines (e.g. music via Suno), they get ArksAI labels here too.
+// All three tiers are MiniMax-backed. As we add other engines (e.g. music via
+// Suno), they get ArksAI labels here too.
 export const KNOWN_MODELS: Record<string, ModelPricing> = {
-  'deepseek-v4-flash': { label: 'ArksAI Flash', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
-  'deepseek-v4-pro': { label: 'ArksAI Pro', inputCacheHitPerM: 0.003625, inputCacheMissPerM: 0.435, outputPerM: 0.87 },
-  // Orchestrated options. 'arksai-auto' is virtual (cost is computed against the
-  // concrete model the router actually used). 'arksai-max' = MiniMax LLM;
-  // pricing is an estimate until validated against MiniMax billing.
-  'arksai-auto': { label: 'ArksAI Auto', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
-  'arksai-max': { label: 'ArksAI Max', inputCacheHitPerM: 0.2, inputCacheMissPerM: 0.2, outputPerM: 1.1 },
-  // legacy aliases
-  'deepseek-chat': { label: 'ArksAI Flash', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
-  'deepseek-reasoner': { label: 'ArksAI Flash (reasoning)', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
+  // 'arksai-auto' is virtual (cost is computed against the concrete model the
+  // router actually used → M3 or Flash). Priced like M3 as a neutral placeholder.
+  'arksai-auto': { label: 'ArksAI Auto', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.3, outputPerM: 1.2 },
+  // ArksAI Max = MiniMax M3 (verified current promo pricing).
+  'arksai-max': { label: 'ArksAI Max', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.3, outputPerM: 1.2 },
+  // ArksAI Flash = MiniMax M2.7-highspeed (fast/cheap tier). Output priced lower
+  // than M3 as an ESTIMATE — validate against MiniMax billing and tune.
+  'arksai-flash': { label: 'ArksAI Flash', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.2, outputPerM: 0.6 },
 };
 
 export function pricingFor(model: string): ModelPricing {
@@ -111,7 +114,7 @@ export interface CostTokens {
   completion: number;
 }
 
-/** Cost in USD mirroring DeepSeek billing, accounting for cached input tokens. */
+/** Cost in USD mirroring MiniMax billing, accounting for cached input tokens. */
 export function computeCost(model: string, t: CostTokens): number {
   const p = pricingFor(model);
   const hit = t.cacheHit ?? 0;

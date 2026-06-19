@@ -80,18 +80,18 @@ test('spreadsheet toCell converts formula specs and leaves plain values', () => 
   assert.equal(toCell('='), '='); // too short to be a formula
 });
 
-test('computeCost matches DeepSeek cache-aware billing', async () => {
+test('computeCost matches MiniMax cache-aware billing', async () => {
   const { computeCost } = await import('../../shared/types');
-  // v4-pro: cacheHit $0.003625/M, cacheMiss $0.435/M, output $0.87/M
-  const c = computeCost('deepseek-v4-pro', { cacheHit: 768, cacheMiss: 100, completion: 17 });
-  assert.ok(Math.abs(c - (768e-6 * 0.003625 + 100e-6 * 0.435 + 17e-6 * 0.87)) < 1e-12);
+  // arksai-max (M3): cacheHit $0.06/M, cacheMiss $0.30/M, output $1.20/M
+  const c = computeCost('arksai-max', { cacheHit: 768, cacheMiss: 100, completion: 17 });
+  assert.ok(Math.abs(c - (768e-6 * 0.06 + 100e-6 * 0.3 + 17e-6 * 1.2)) < 1e-12);
   // when only a prompt total is given, it's billed entirely as cache-miss
-  const c2 = computeCost('deepseek-v4-flash', { prompt: 1000, completion: 0 });
-  assert.ok(Math.abs(c2 - 1000e-6 * 0.14) < 1e-12);
+  const c2 = computeCost('arksai-max', { prompt: 1000, completion: 0 });
+  assert.ok(Math.abs(c2 - 1000e-6 * 0.3) < 1e-12);
   // cache hits are far cheaper than misses
   assert.ok(
-    computeCost('deepseek-v4-flash', { cacheHit: 1000, completion: 0 }) <
-      computeCost('deepseek-v4-flash', { cacheMiss: 1000, completion: 0 }),
+    computeCost('arksai-max', { cacheHit: 1000, completion: 0 }) <
+      computeCost('arksai-max', { cacheMiss: 1000, completion: 0 }),
   );
 });
 

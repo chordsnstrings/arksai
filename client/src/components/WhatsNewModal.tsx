@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.2';
+export const WHATS_NEW_VERSION = '2026-06-19.3';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'Ask for a song and ArksAI now works like a Suno expert: richer style direction and structured lyrics (with vocal cues), plus controls for vocal gender, how closely to follow the style, and styles to avoid. It also drafts lyrics on their own (no audio), extends a track to make it longer, and covers an existing song in a new style.',
   },
   {
-    title: 'It keeps going when an engine has a bad day',
-    body: 'If the connection to the default engine drops mid-reply (a "premature close"), ArksAI now reconnects, then — if it still can\'t reach it — automatically fails over to a second engine to finish your request, instead of showing a scary error. Tested live: a full stock research report that used to fail now completes end-to-end.',
+    title: 'No more model picking — it just routes itself',
+    body: 'ArksAI now runs entirely on the MiniMax engine and chooses the right model for each request automatically (top-quality for designed/complex work, fast for quick turns). No model menu to fiddle with — just describe what you want. Power users can still force a model with /model.',
   },
 ];
 

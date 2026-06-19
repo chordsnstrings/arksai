@@ -56,8 +56,6 @@ export const config = {
     process.env.CLIENT_DIST ||
     [path.join(repoRoot, 'client', 'dist')].find((p) => fs.existsSync(p)) ||
     path.join(repoRoot, 'client', 'dist'),
-  deepseekApiKey: process.env.DEEPSEEK_API_KEY || '',
-  deepseekBaseUrl: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
   githubToken: process.env.GITHUB_TOKEN || '',
   serperApiKey: process.env.SERPER_API_KEY || '',
   braveApiKey: process.env.BRAVE_API_KEY || '',
@@ -126,8 +124,8 @@ export function validateConfig() {
       console.warn('[config] APP_PASSWORD not set — using dev default "arksai". Set it in .env.');
     }
   }
-  if (!config.deepseekApiKey) {
-    const msg = 'DEEPSEEK_API_KEY is not set — agent runs will fail until it is provided.';
+  if (!config.minimaxApiKey) {
+    const msg = 'MINIMAX_API_KEY is not set — agent runs will fail until it is provided (MiniMax is the LLM engine).';
     if (isProd) problems.push(msg);
     else console.warn(`[config] ${msg}`);
   }
@@ -140,7 +138,6 @@ export function validateConfig() {
 /** Secret values that must never appear in tool output sent to the model/UI. */
 export function secretValues(): string[] {
   return [
-    config.deepseekApiKey,
     config.githubToken,
     config.appPassword,
     config.serperApiKey,

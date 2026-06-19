@@ -1,4 +1,3 @@
-import OpenAI from 'openai';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,7 +16,7 @@ import { crawlSiteTool, saveOrgProfileTool } from './tools/onboarding';
 import { extractPaletteTool } from './tools/palette';
 import { track } from '../analytics/track';
 import { ToolError, type ToolCtx } from './tools/common';
-import { generateTitle } from './titleGen';
+import { deriveTitle } from './titleGen';
 import { makeThinkFilter } from './thinkFilter';
 import { Usage } from './usage';
 import { checkLabel, detectStartCommand, verifyProject } from './verify';
@@ -27,9 +26,9 @@ import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 import { escalateModel, resolveProvider, selectModel } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
-import { isAutoModel, MAX_MODEL, phaseFloor, phaseCeiling, type ProgressPhase } from '../../../shared/types';
+import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, type ProgressPhase } from '../../../shared/types';
 
-const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
+const CONTEXT_TOKEN_BUDGET = 50_000; // generous headroom under MiniMax's large context window
 const PREVIEW_CHARS = 700;
 const MAX_DESIGN_ROUNDS = 2; // bounded internal design-critique iterations
 const REPORT_MAX_DESIGN_ROUNDS = 2; // report mode: quality-first revise cap (deterministic pre-check keeps rounds cheap)
@@ -196,57 +195,29 @@ export class AgentRun {
   private planSubmitted = false; // set by submit_plan; ends the turn awaiting the user's nod
   private planResolved = false; // this run answers a pending plan → plan→code is allowed
   private planApproved = false; // this run is the user's "Approve & build" → must build, not re-plan
-  private client: OpenAI; // DeepSeek (also used for title gen)
-  private minimaxClient: OpenAI | null = null;
   private minimaxAvailable = !!config.minimaxApiKey;
   // Set once M3 has stalled on this run; subsequent MiniMax turns use the faster
-  // fallback coding model instead (the user's "M3, but fall back if slow" choice).
+  // model instead (the user's "M3, but fall back if slow" choice).
   private minimaxFellBack = false;
-  // Set once DeepSeek connections have hard-failed on this run (e.g. the egress path to
-  // api.deepseek.com cutting every response body) → fail over to MiniMax for the rest of
-  // the run so the user still gets an answer instead of a dead "Premature close".
-  private deepseekFellBack = false;
   // The concrete model the orchestrator is using right now (resolved from the
   // session model, which may be the virtual 'arksai-auto').
   private activeModel = '';
   private activeApiModel = '';
   private activePricingId = '';
-  private activeClient!: OpenAI;
 
-  constructor(private session: SessionMeta) {
-    this.client = new OpenAI({
-      apiKey: config.deepseekApiKey || 'missing-key',
-      baseURL: config.deepseekBaseUrl,
-    });
-  }
+  constructor(private session: SessionMeta) {}
 
-  private clientFor(provider: 'deepseek' | 'minimax'): OpenAI {
-    if (provider === 'minimax') {
-      if (!this.minimaxClient) {
-        this.minimaxClient = new OpenAI({
-          apiKey: config.minimaxApiKey || 'missing-key',
-          baseURL: config.minimaxBaseUrl,
-          timeout: 180_000, // M3 can be slow — bound a hung request so the DeepSeek fallback can fire
-        });
-      }
-      return this.minimaxClient;
-    }
-    return this.client;
-  }
-
-  /** Point the run at a concrete model (resolving provider + real API id). */
+  /** Point the run at a concrete model (resolving the real MiniMax API id). */
   private setActiveModel(modelId: string) {
     const r = resolveProvider(modelId);
     this.activeModel = modelId;
     this.activeApiModel = r.apiModel;
     this.activePricingId = r.pricingId;
-    this.activeClient = this.clientFor(r.provider);
   }
 
   /** When falling back M3 → DeepSeek mid-conversation, drop M3's reasoning_content from the
-   *  history: it's M3/Anthropic-specific and DeepSeek's thinking mode 400s on it ("reasoning_content
-   *  must be passed back"). The objects are shared with `context` (same refs), so this cleans both.
-   *  DeepSeek then thinks fresh going forward (its own reasoning_content accumulates validly). */
+   *  history before switching models: it's M3-specific and a different model can reject it.
+   *  The objects are shared with `context` (same refs), so this cleans both. */
   private dropM3Reasoning(msgs: any[]) {
     for (const m of msgs ?? []) if (m && m.role === 'assistant' && 'reasoning_content' in m) delete m.reasoning_content;
   }
@@ -278,10 +249,9 @@ export class AgentRun {
   /** A stronger model the current mode demands, or null. Reports + non-trivial
    *  visual code builds shouldn't run on the cheapest brain. */
   private floorModel(): string | null {
-    if (this.activeModel !== 'deepseek-v4-flash') return null;
-    const strong = this.minimaxAvailable ? MAX_MODEL : 'deepseek-v4-pro';
-    if (this.session.mode === 'report') return strong;
-    if (this.session.mode === 'code' && this.taskProfile?.isVisual && this.taskProfile.tier !== 'light') return strong;
+    if (this.activeModel !== FAST_MODEL) return null;
+    if (this.session.mode === 'report') return MAX_MODEL;
+    if (this.session.mode === 'code' && this.taskProfile?.isVisual && this.taskProfile.tier !== 'light') return MAX_MODEL;
     return null;
   }
 
@@ -421,9 +391,6 @@ export class AgentRun {
       let stallCount = 0;
       let emptyRetries = 0;
       let streamRetries = 0;
-      // Set when streaming keeps dropping deterministically (a proxy idle-cutting the
-      // chunked SSE) → fetch the next turn as ONE buffered (non-streaming) response.
-      let forceNonStream = false;
       let iteration = 0;
       let stopReason: 'natural' | 'ceiling' | 'stall' | null = null;
       while (!this.abort.signal.aborted) {
@@ -442,41 +409,16 @@ export class AgentRun {
         const stripThink = makeThinkFilter();
 
         try {
-        const createParams = {
+        const stream = await this.createCompletionWithRetry({
           model: this.activeApiModel,
           messages: [
             { role: 'system', content: systemContent },
             ...context,
           ],
           tools: schemas.length ? (schemas as any) : undefined,
-        };
-        if (forceNonStream && resolveProvider(this.activeModel).provider === 'deepseek') {
-          // BUFFERED fallback: one non-streaming request returns the whole reply at once,
-          // which survives a proxy that idle-cuts a long-lived chunked SSE stream.
-          // NB: do NOT send stream_options here — DeepSeek 400s on it when stream:false;
-          // a non-streaming response carries `usage` natively.
-          const resp: any = await this.activeClient.chat.completions.create(
-            { ...createParams, stream: false } as any,
-            { signal: this.abort.signal },
-          );
-          const choice = resp?.choices?.[0];
-          finishReason = choice?.finish_reason ?? '';
-          const msg: any = choice?.message ?? {};
-          if (msg.reasoning_content) reasoning += msg.reasoning_content;
-          if (msg.content) {
-            const visible = stripThink(msg.content);
-            if (visible) {
-              text += visible;
-              this.emit({ type: 'assistant_delta', runId: this.runId, text: visible });
-            }
-          }
-          (msg.tool_calls ?? []).forEach((tc: any, i: number) => {
-            toolCalls[i] = { id: tc.id ?? '', name: tc.function?.name ?? '', args: tc.function?.arguments ?? '' };
-          });
-          if (resp?.usage) this.accrueUsage(resp.usage);
-          forceNonStream = false; // next turn returns to streaming
-        } else {
-        const stream = await this.createCompletionWithRetry({ ...createParams, stream: true, stream_options: { include_usage: true } });
+          stream: true,
+          stream_options: { include_usage: true },
+        });
         for await (const chunk of stream) {
           const choice = chunk.choices?.[0];
           if (choice?.finish_reason) finishReason = choice.finish_reason;
@@ -497,76 +439,26 @@ export class AgentRun {
           }
           if (chunk.usage) this.accrueUsage(chunk.usage);
         }
-        }
         } catch (err: any) {
-          // M3 over-buffered/stalled this turn → fall back to the RELIABLE DeepSeek workhorse
-          // and redo the turn (once). NOT to another MiniMax model: M2.7-highspeed always-thinks
-          // and stalls AGAIN on tool-use turns, so the run would hang then die with nothing built
-          // (the operator's 9-min code-build hang). deepseek-v4-pro finishes; the verify/report
-          // gates guard quality. Mirrors the fetch-time hard-failure fallback (createCompletionWithRetry).
-          if (err?.minimaxStall && !this.minimaxFellBack && !this.abort.signal.aborted && resolveProvider(this.activeModel).provider === 'minimax') {
+          // M3 over-buffered/stalled this turn → switch to the faster MiniMax model (Flash /
+          // M2.7-highspeed) and redo the turn (once). minimaxFellBack also makes
+          // createMinimaxStream pick the fast model for the rest of the run.
+          if (err?.minimaxStall && !this.minimaxFellBack && !this.abort.signal.aborted) {
             this.minimaxFellBack = true;
-            if (this.deepseekFellBack) {
-              // DeepSeek is unreachable on this run (we already failed over FROM it) — do NOT
-              // bounce an M3 stall back onto a dead engine (that ping-pong was killing the run
-              // mid-report). Stay on MiniMax; minimaxFellBack now routes to the faster model.
-              sysInfo(`↳ Switching to faster mode to finish.`);
-            } else {
-              // Fall back to the NON-THINKING DeepSeek model: a thinking model (v4-pro) 400s when
-              // continuing M3's history ("reasoning_content … must be passed back"), but the
-              // non-thinking model imposes no such rule and reliably finishes. Strip M3's
-              // reasoning_content too so the history is a clean, standard tool-use transcript.
-              this.setActiveModel('deepseek-chat');
-              this.dropM3Reasoning(context);
-              sysInfo(`↳ ArksAI Max was slow — switching to ArksAI Flash to finish reliably.`);
-            }
+            this.dropM3Reasoning(context);
+            this.setActiveModel(FAST_MODEL);
+            sysInfo(`↳ ArksAI Max was slow — switching to ArksAI Flash to finish reliably.`);
             continue;
           }
-          // The provider connection dropped (e.g. a "premature close" / terminated
-          // socket — common when an upstream resets a stale keep-alive). Nothing is
-          // committed to the context until a turn completes, so redo the turn on a
-          // fresh connection (bounded) instead of failing the run with a scary error.
-          // Emit turn_reset first so any partial assistant text/tool output already
-          // streamed to the UI is discarded — the retry then renders cleanly with no
-          // doubled text (the model had only emitted a preamble like "Let me research…").
+          // The connection dropped mid-reply (a "premature close" / terminated socket).
+          // Nothing is committed to the context until a turn completes, so redo the turn
+          // (bounded) instead of failing the run. turn_reset clears any partial output so
+          // the retry renders cleanly with no doubled text.
           if (isTransientApiError(err) && !this.abort.signal.aborted && streamRetries < STREAM_RETRY_LIMIT) {
             streamRetries++;
             this.emit({ type: 'turn_reset', runId: this.runId });
             sysInfo(`↳ The connection dropped — reconnecting (${streamRetries}/${STREAM_RETRY_LIMIT}).`);
             await new Promise((r) => setTimeout(r, 400 * streamRetries));
-            continue;
-          }
-          // Streaming kept dropping at the same point — this is deterministic, not a blip
-          // (e.g. a proxy idle-cutting the chunked SSE while a thinking model reasons). One
-          // BUFFERED non-streaming attempt returns the whole reply in a single response,
-          // which gets past that. DeepSeek only (MiniMax has its own adapter/fallback).
-          if (
-            isTransientApiError(err) &&
-            !this.abort.signal.aborted &&
-            !forceNonStream &&
-            resolveProvider(this.activeModel).provider === 'deepseek'
-          ) {
-            forceNonStream = true;
-            this.emit({ type: 'turn_reset', runId: this.runId });
-            sysInfo(`↳ The connection keeps dropping — fetching the reply in one piece instead.`);
-            continue;
-          }
-          // Both streaming AND buffered DeepSeek attempts failed → DeepSeek is unreachable
-          // from here right now (the egress path to api.deepseek.com cutting every response
-          // body). Fail OVER to MiniMax (which is reachable) so the run still completes,
-          // instead of dying with "Premature close". Mirror of the MiniMax→DeepSeek fallback.
-          if (
-            isTransientApiError(err) &&
-            !this.abort.signal.aborted &&
-            !this.deepseekFellBack &&
-            this.minimaxAvailable &&
-            resolveProvider(this.activeModel).provider === 'deepseek'
-          ) {
-            this.deepseekFellBack = true;
-            forceNonStream = false; // MiniMax uses its own streaming adapter
-            this.setActiveModel(MAX_MODEL);
-            this.emit({ type: 'turn_reset', runId: this.runId });
-            sysInfo(`↳ Couldn’t reach the default engine — switching to ArksAI Max to finish.`);
             continue;
           }
           throw err;
@@ -868,46 +760,32 @@ export class AgentRun {
     });
   }
 
-  /** Retry transient API failures (network blips, 429/5xx) with backoff. Uses
-   *  whatever model the orchestrator is currently on; if a MiniMax call fails
-   *  with a hard error (its endpoint/tool-calling is unvalidated), fall back to
-   *  DeepSeek Pro once so the run keeps going. */
+  /** Retry transient API failures (network blips, 429/5xx) with backoff. All models are
+   *  MiniMax, served via the ANTHROPIC-compatible endpoint (not the OpenAI one): on the
+   *  OpenAI surface M3's thinking is forced ON and unbounded — it reasons for minutes and
+   *  never emits a tool call (the spreadsheet hang); on /anthropic/v1/messages thinking is
+   *  OFF by default, so it acts immediately. createMinimaxStream translates our OpenAI-shaped
+   *  loop to/from the Anthropic wire format so the rest of the loop is unchanged. If M3 (Max)
+   *  hard-fails, fall back once to the fast model (Flash) so the run keeps going. */
   private async createCompletionWithRetry(params: any): Promise<AsyncIterable<any>> {
     const delays = [2000, 4000, 8000];
     let triedFallback = false;
     for (let attempt = 0; ; attempt++) {
       try {
-        // MiniMax M3 goes through the ANTHROPIC-compatible endpoint, not the OpenAI one.
-        // Why it matters (verified live): on the OpenAI surface (/v1) M3's thinking is forced
-        // ON and unbounded — it reasons for minutes and never emits a tool call (0 tool calls
-        // in 150s on a real agent prompt), which our token budget then truncates into a silent
-        // empty turn (the spreadsheet hang). Every documented thinking-control knob
-        // (reasoning_effort, thinking, enable_thinking, chat_template_kwargs) is IGNORED there.
-        // On the Anthropic surface (/anthropic/v1/messages) M3 thinking is OFF by default, so
-        // it acts immediately — it called generate_spreadsheet in ~2.8s in the same scenario.
-        // We translate our OpenAI-shaped loop to/from the Anthropic wire format (see
-        // createMinimaxStream) so nothing else in the agent loop changes.
-        if (resolveProvider(this.activeModel).provider === 'minimax') {
-          return await this.createMinimaxStream(params);
-        }
-        return (await this.activeClient.chat.completions.create(
-          { ...params, model: this.activeApiModel } as any,
-          { signal: this.abort.signal },
-        )) as unknown as AsyncIterable<any>;
+        return await this.createMinimaxStream(params);
       } catch (err) {
         if (this.abort.signal.aborted) throw err;
-        // Hard failure on MiniMax → fall back to DeepSeek Pro and retry once.
+        // Hard failure on M3 → fall back to the fast MiniMax model once and retry.
         if (!isTransientApiError(err) && this.activeModel === MAX_MODEL && !triedFallback) {
           triedFallback = true;
-          // Non-thinking DeepSeek finishes reliably when inheriting M3's history (a thinking
-          // model 400s on it). params.messages share object refs with context → also cleans it.
-          this.setActiveModel('deepseek-chat');
+          this.minimaxFellBack = true;
           this.dropM3Reasoning(params.messages);
+          this.setActiveModel(FAST_MODEL);
           const note: TimelineItem = {
             kind: 'system',
             id: randomUUID(),
             level: 'info',
-            text: '↳ MiniMax was unavailable — falling back to ArksAI Flash.',
+            text: '↳ Switching to ArksAI Flash to finish.',
             ts: Date.now(),
           };
           this.emit({ type: 'timeline_item', item: note });
@@ -1033,7 +911,7 @@ export class AgentRun {
       clearTimeout(totalTimer);
       const detail = await resp.text().catch(() => '');
       // Carry the HTTP status so the retry/fallback classifier treats 429/5xx as
-      // transient (retry on M3) and 4xx as hard (fall back to DeepSeek Pro).
+      // transient (retry) and 4xx as hard (M3 → fast model fallback).
       const err: any = new Error(`MiniMax (Anthropic) ${resp.status}: ${detail.slice(0, 300)}`);
       err.status = resp.status;
       throw err;
@@ -1251,27 +1129,19 @@ export class AgentRun {
       this.warnIfDesignGateSkipped(review, sys);
       // Bounded revise for documents (up to 2 — the deterministic checks are cheap). A weak
       // first model often botches a formula model (hard-coded or EMPTY cells) or leaves a thin
-      // deliverable; re-prompting the SAME weak model rarely fixes it, so in Auto mode bring in
-      // a STRONGER, reliable model (DeepSeek Pro — strong + doesn't stall like M3) to redo it.
+      // deliverable; re-prompting the SAME model rarely fixes it, so in Auto mode bring in the
+      // other MiniMax tier to redo it.
       if (defects.length && this.designRounds < 2) {
         this.designRounds++;
-        // Bring in a different, reliable model to redo a flagged document (re-prompting the
-        // same model rarely fixes a hard-coded/empty deliverable). From M3 (whose first-pass
-        // spreadsheets are often hard-coded), hand off to NON-thinking deepseek-chat — strip
-        // M3's reasoning_content first (a thinking model rejects it), and chat carries NO such
-        // requirement, so this never errors the revise. From a weaker DeepSeek, escalate to Pro
-        // (strong at formulas; the proven path). Both keep the run completing.
-        if (isAutoModel(this.session.model)) {
-          if (this.activeModel === MAX_MODEL) {
-            // Round 1 off M3 → non-thinking chat (safe handoff; a 2nd round then goes to Pro).
-            this.dropM3Reasoning(context);
-            this.setActiveModel('deepseek-chat');
-            sys('info', '↳ Bringing in ArksAI Flash to fix the document.');
-          } else if (this.activeModel !== 'deepseek-v4-pro') {
-            // Any weaker DeepSeek (flash/chat, incl. after an M3 fallback) → Pro (proven for formulas).
-            this.setActiveModel('deepseek-v4-pro');
-            sys('info', '↳ Bringing in ArksAI Pro to get the document right.');
-          }
+        // Bring in a different model to redo a flagged document (re-prompting the same model
+        // rarely fixes a hard-coded/empty deliverable). M3's first-pass spreadsheets are often
+        // hard-coded, and the fast coding model (Flash / M2.7-highspeed) is strong at structured
+        // formula output — so hand M3 → Flash (strip M3's reasoning_content first).
+        if (isAutoModel(this.session.model) && this.activeModel === MAX_MODEL) {
+          this.dropM3Reasoning(context);
+          this.minimaxFellBack = true;
+          this.setActiveModel(FAST_MODEL);
+          sys('info', '↳ Bringing in ArksAI Flash to fix the document.');
         }
         // A formula/empty-model failure needs a CONCRETE how-to, not just "fix it".
         const formulaIssue = defects.some((d) => /formula|hard-?cod|typed.?in|empty/i.test(d));
@@ -1626,9 +1496,7 @@ export class AgentRun {
   }
 
   private async generateTitleAsync(userText: string) {
-    // Always use the non-thinking alias: v4 models default to thinking mode and
-    // would spend the small token budget on reasoning, returning an empty title.
-    const title = await generateTitle(this.client, 'deepseek-chat', userText);
+    const title = deriveTitle(userText);
     if (!title) return;
     await store.updateSession(this.session.id, { title });
     bus.sessionChanged((await store.getSession(this.session.id))!);
