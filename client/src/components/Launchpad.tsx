@@ -138,16 +138,7 @@ export function Launchpad({ onAdvanced }: { onAdvanced: () => void }) {
     try {
       session = await api.createSession({ mode, model, task });
       if (attach && attach.length) {
-        const form = new FormData();
-        for (const f of attach) form.append('files', f, f.name);
-        const res = await fetch(`/api/sessions/${session.id}/upload`, { method: 'POST', body: form, credentials: 'same-origin' });
-        if (!res.ok) {
-          let message = res.statusText;
-          try {
-            message = (await res.json()).error ?? message;
-          } catch {}
-          throw new Error(message);
-        }
+        await api.uploadSessionFiles(session.id, attach); // retries a transient deploy/restart blip
       }
     } catch (e: any) {
       // Failed before we opened the chat — stay on the Launchpad and surface it.

@@ -292,18 +292,9 @@ export function Composer({
   const uploadFiles = async (files: FileList | File[]) => {
     const list = [...files];
     if (list.length === 0 || uploading) return;
-    const form = new FormData();
-    for (const file of list) form.append('files', file, file.name);
     setUploading(true);
     try {
-      const res = await fetch(`/api/sessions/${meta.id}/upload`, { method: 'POST', body: form, credentials: 'same-origin' });
-      if (!res.ok) {
-        let message = res.statusText;
-        try {
-          message = (await res.json()).error ?? message;
-        } catch {}
-        throw new Error(message);
-      }
+      await api.uploadSessionFiles(meta.id, list); // retries a transient deploy/restart blip
       // Seamless: surface what's attached and focus the box so the user just types
       // the request — the agent is told about these files automatically on the next run.
       setAttached((prev) => [...prev, ...list.map((f) => f.name)]);

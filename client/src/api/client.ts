@@ -159,6 +159,38 @@ export const api = {
   },
   deleteProjectFile: (id: string, fileId: string) =>
     request<{ ok: true }>(`/api/projects/${id}/files/${fileId}`, { method: 'DELETE' }),
+  // Session file upload with a small retry on TRANSIENT network failures only. A
+  // deploy/restart blip (or a flaky connection) surfaces in the browser as a rejected
+  // fetch ("Failed to fetch"); we retry those with backoff so the user never sees it. A
+  // real HTTP error (413 over-limit, 404 no session) is an ApiError → thrown immediately,
+  // never retried. Shared by the Composer + Launchpad attach paths.
+  uploadSessionFiles: async (id: string, files: FileList | File[]) => {
+    const form = new FormData();
+    for (const f of Array.from(files)) form.append('files', f, f.name);
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(`/api/sessions/${id}/upload`, {
+          method: 'POST',
+          body: form,
+          credentials: 'same-origin',
+        });
+        if (!res.ok) {
+          let message = res.statusText;
+          try {
+            message = ((await res.json()) as any).error ?? message;
+          } catch {}
+          throw new ApiError(res.status, message);
+        }
+        return (await res.json()) as { ok: true; files: { name: string; size: number }[] };
+      } catch (err) {
+        if (err instanceof ApiError) throw err; // server responded → not transient
+        lastErr = err;
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error('Upload failed — please try again.');
+  },
   setProjectVisibility: (id: string, visibility: 'org' | 'private') =>
     request<{ ok: true; visibility: string }>(`/api/projects/${id}/visibility`, {
       method: 'PATCH',
