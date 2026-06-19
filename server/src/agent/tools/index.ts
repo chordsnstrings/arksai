@@ -23,6 +23,8 @@ import { fetchAdsTool } from './ads';
 import { sendWebhookTool } from './outbound';
 import { generateComplianceFileTool } from './compliance';
 import { extractPaletteTool } from './palette';
+import { validatePaletteTool } from './validatePalette';
+import { computeFinancialsTool } from './computeFinancials';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -64,6 +66,8 @@ export const ALL_TOOLS: ToolDef[] = [
   sendWebhookTool,
   generateComplianceFileTool,
   extractPaletteTool,
+  validatePaletteTool,
+  computeFinancialsTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,
@@ -87,6 +91,8 @@ const REPORT_TOOLS = new Set([
   'generate_doc',
   'generate_pptx',
   'extract_palette',
+  'validate_palette',
+  'compute_financials',
   'switch_mode',
   'fetch_data',
   'send_webhook',
