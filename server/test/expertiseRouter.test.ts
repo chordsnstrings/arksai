@@ -13,6 +13,12 @@ import { TASK_TRIGGERS, DEPARTMENT_TRIGGERS, expertiseFor } from '../src/agent/e
  * counts, since the persona is still the right expertise family).
  */
 const BENCHMARK: { prompt: string; expect: string }[] = [
+  // Real-world phrasings found during live validation (locked so live == unit forever)
+  { prompt: 'draft an NDA for a contractor', expect: 'legal.nda' },
+  { prompt: 'I need a power of attorney', expect: 'legal.poa' },
+  { prompt: 'help me write a resignation policy', expect: 'people.policy' },
+  { prompt: 'build a pitch deck for my coffee startup', expect: 'sales.pitchdeck' },
+  { prompt: 'competitor teardown of Notion vs us', expect: 'marketing.competitor' },
   // Finance
   { prompt: 'make me a monthly budget for a family of four in Dubai', expect: 'finance.budget' },
   { prompt: 'cash-flow forecast for next 12 months', expect: 'finance.cashflow' },

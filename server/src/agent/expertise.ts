@@ -245,7 +245,7 @@ export const TASK_TRIGGERS: Record<string, string[]> = {
   // ---- People / HR ----
   'people.jd': ['job description', 'jd', 'hiring for', 'job posting', 'job ad', 'role description'],
   'people.offer': ['offer letter', 'job offer', 'employment offer', 'offer of employment'],
-  'people.policy': ['hr policy', 'company policy', 'workplace policy', 'leave policy', 'remote work policy'],
+  'people.policy': ['hr policy', 'company policy', 'workplace policy', 'leave policy', 'remote work policy', 'resignation policy', 'write a policy', 'attendance policy', 'staff policy', 'policy document'],
   'people.handbook': ['employee handbook', 'staff handbook', 'company handbook'],
   'people.training': ['training guide', 'sop', 'standard operating procedure', 'how-to guide', 'training manual'],
   'people.survey': ['engagement survey', 'employee survey', 'pulse survey', 'staff survey'],
