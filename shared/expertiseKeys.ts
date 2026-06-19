@@ -102,6 +102,12 @@ export const EXPERTISE_KEYS = [
   'engineering.runbook',
   'engineering.designdoc',
   'engineering.statusreport',
+  // engineering — developer tier (harvested from claude-skills)
+  'engineering.schema',
+  'engineering.apidesign',
+  'engineering.apitests',
+  'engineering.codereview',
+  'engineering.depaudit',
   // bi
   'bi.dashboard',
   'bi.explorer',

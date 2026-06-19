@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.12';
+export const WHATS_NEW_VERSION = '2026-06-19.13';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Numbers right, colours readable',
-    body: 'Two new built-in checks make the work even more trustworthy. ArksAI now computes every derived financial figure — discounted cash flow, ratios, budget variance, forecasts — instead of hand-typing them, and it validates any brand palette for accessible contrast before building, auto-correcting any colour where text would be hard to read.',
+    title: 'A developer tier for the Engineering team',
+    body: 'The Engineering function goes deep: database schema design (ERD + DDL + migrations), API design & review (REST conventions, versioning, error shapes, a design score), an API test suite (happy-path, edge, auth matrix, contract checks), structured code review (severity-tagged with concrete fixes), and a dependency audit powered by a new offline auditor that flags floating ranges, duplicates, and missing lockfiles — honestly noting it can\'t see live CVEs. Every result is a designed, typography-first document, not a raw dump.',
   },
 ];
 

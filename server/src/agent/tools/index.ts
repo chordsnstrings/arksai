@@ -25,6 +25,7 @@ import { generateComplianceFileTool } from './compliance';
 import { extractPaletteTool } from './palette';
 import { validatePaletteTool } from './validatePalette';
 import { computeFinancialsTool } from './computeFinancials';
+import { dependencyAuditorTool } from './dependencyAuditor';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
@@ -68,6 +69,7 @@ export const ALL_TOOLS: ToolDef[] = [
   extractPaletteTool,
   validatePaletteTool,
   computeFinancialsTool,
+  dependencyAuditorTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,
@@ -93,6 +95,7 @@ const REPORT_TOOLS = new Set([
   'extract_palette',
   'validate_palette',
   'compute_financials',
+  'dependency_auditor',
   'switch_mode',
   'fetch_data',
   'send_webhook',
