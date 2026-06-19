@@ -241,18 +241,20 @@ GET THE FIRST RENDER RIGHT (this is the whole game — a clean first render mean
 automated design review passes immediately instead of churning expensive revise rounds;
 the four defects below are EXACTLY what the gate catches, so eliminate them BEFORE you
 render, every time):
-  1. NO LONELY / HALF-EMPTY PAGES. Every interior page must be filled ~85–100% — NO
-     interior page may end up below ~70% full. Do NOT force a page break before/after each
-     section — that is what strands 4 small cards on a 70%-empty page. The ONLY guaranteed
-     breaks are the cover and (if used) a Contents page. Let sections FLOW continuously: a
-     heading follows the previous section's last paragraph on the SAME page when there's
-     room. A SHORT section (e.g. a profile/overview that is just a heading + a paragraph +
-     a 4-tile KPI band + a paragraph) is the classic half-empty-page culprit: it MUST
-     merge/flow with the section before or after it so it never sits alone on a page —
-     never give a short section its own page. If a short block (a card grid, a small chart,
-     a 3-line conclusion) would land alone on an otherwise empty page, it belongs WITH the
-     surrounding narrative. Before you render, mentally walk each page: is the bottom 1/3
-     empty? then pull the next section up — do not break.
+  1. EACH TOP-LEVEL SECTION STARTS A NEW PAGE, AND FILLS IT. Every major section begins at
+     the TOP of a fresh page — wrap it in <section class="section"> (which carries
+     break-before:page) so its heading is NEVER stranded at the bottom of a page with its
+     table/figure pushed past the break (the exact defect: a heading + intro sitting above a
+     big empty gap while the table jumped to the next page). Wrap the heading + its opening
+     paragraph in <div class="lede"> so they stay together at the page top. THEN FILL THE
+     PAGE ~85–100%: a section that is only a heading + one short paragraph (or a heading +
+     a 4-tile KPI band) is TOO THIN to justify its own page and will leave it half-empty —
+     give that section real substance (narrative + a table/figure/cards), or MERGE two thin
+     sections into ONE section that then fills its page. Balance the content so NO section's
+     page ends below ~70% full. SUB-headings WITHIN a section FLOW on the same page — do NOT
+     break before sub-headings (only top-level sections break). Before you render, mentally
+     walk each page: every page after the cover should open with a section heading and run
+     ~85–100% full; if a section can't fill a page, it shouldn't be its own section.
   2. CHARTS FILL THEIR ROW. Every render_chart SVG goes in a FULL-MEASURE <figure
      class="fig"> on its OWN row (the full text width) — NEVER inside a narrow column,
      a 2-up grid cell, or a small card, or the axis labels collide and it reads as a
@@ -400,7 +402,8 @@ render, every time):
     .bleed.light  { background:var(--surface) }           /* edge-to-edge light field, ink type */
     .cover { } /* the COVER is simply the first full-bleed page → use class="cover bleed dark|accent|light" */
     .toc { page-break-after: always }                /* a Contents page, if used, is its OWN page */
-    .break { break-before: page }                    /* apply DELIBERATELY for a major division — NOT on every heading */
+    .section { break-before: page }                   /* EVERY top-level section starts a new page (heading at the page top, never stranded). The FIRST section after the cover already starts fresh; wrap each major section: <section class="section"> … </section>. Do NOT put this on sub-headings. */
+    .break { break-before: page }                    /* legacy manual break — prefer .section for section starts */
     thead { display: table-header-group }             /* repeat table headers */
     /* ATOMIC blocks — these may NEVER split across a page. .keep / .fig are the
        catch-all: wrap ANY chart (incl. CSS bar-lists), figure, legend, stat band,
@@ -441,17 +444,16 @@ render, every time):
   leaves a WHITE FRAME (a tinted box inside a white border); the field must come from .bleed.
   (Contained blocks — callouts, KPI tiles, zebra rows — keep their own subtle light tint;
   those are intentional content elements, not page backgrounds.)
-- CONTENT FLOW: let sections FLOW and fill each page. Do NOT sprinkle .break /
-  page-break-before / page-break-after on headings or sections — those forced breaks
-  are the #1 CAUSE of the half-empty "lonely page" defect. Use .break ONLY for a
-  genuinely major division (e.g. a part title), a handful of times at most. A KPI grid,
-  small chart, or short conclusion sits WITH the surrounding narrative — never alone;
-  a short section merges/flows with its neighbour rather than taking its own page. The
-  cover (and a Contents page, if used) are the only guaranteed breaks. ENFORCE the
-  anti-orphan mechanically: wrap each section's heading + kicker + opening paragraph in
-  one <div class="lede"> (break-inside:avoid) so the heading can never strand at a page
-  bottom. (A long section may still continue past a break — just never with its heading
-  orphaned.)
+- SECTION = PAGE: every top-level section starts a NEW page (wrap it in
+  <section class="section">, break-before:page) so its heading sits at the top of a clean
+  page and is never stranded at a page bottom with its content pushed past the break. Do
+  NOT break before SUB-headings — those flow within the section's page. THEN each section
+  must FILL its page ~85–100%: if a section is too thin to fill a page (just a heading + a
+  paragraph, or a heading + a KPI band), give it real substance OR merge two thin sections
+  into one — never let a section's page end below ~70% full. A long section naturally
+  continues onto further pages. ENFORCE the anti-orphan mechanically too: wrap each
+  section's heading + kicker + opening paragraph in one <div class="lede">
+  (break-inside:avoid) so the heading + its lede always travel together to the page top.
 - ATOMIC VISUALS — NO CONTENT BLEED (the other recurring bug): a chart, CSS bar-list,
   figure, legend, stat band, or image is ONE indivisible unit — wrap EACH in <figure
   class="fig"> (or class="keep") so it can NEVER split across a page. A visual that

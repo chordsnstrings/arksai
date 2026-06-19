@@ -13,12 +13,14 @@ test('report prompt enforces an explicit English / single-output-language rule',
   assert.match(p, /Chinese|foreign-script/i);
 });
 
-test('report prompt reinforces the no-half-empty-interior-page rule (short sections merge)', () => {
+test('report prompt: sections start a new page AND fill it (no stranded headings, no half-empty pages)', () => {
   const p = buildSystemPrompt(reportSession, '/tmp', '');
-  // the ~70% floor and the "short section must merge/flow" guidance
+  // top-level sections start a new page via class="section" (break-before:page)
+  assert.match(p, /class="section"/);
+  assert.match(p, /break-before:\s*page/i);
+  // and must still fill the page — the ~70% floor + merge thin sections
   assert.match(p, /70%/);
-  assert.match(p, /merge\/flow/i);
-  assert.match(p, /profile\/overview/i);
+  assert.match(p, /merge/i);
 });
 
 test('report prompt still carries the hard-won page-mechanics rules (none dropped in the trim)', () => {
