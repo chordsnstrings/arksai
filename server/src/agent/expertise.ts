@@ -294,7 +294,7 @@ export const TASK_TRIGGERS: Record<string, string[]> = {
 
   // ---- Legal (UAE) ----
   'legal.contract': ['contract', 'commercial contract', 'service agreement', 'draft a contract', 'agreement'],
-  'legal.nda': ['nda', 'non-disclosure', 'confidentiality agreement', 'non disclosure agreement'],
+  'legal.nda': ['nda', 'non-disclosure', 'confidentiality agreement', 'non disclosure agreement', 'draft an nda', 'draft nda', 'create an nda', 'need an nda', 'nda agreement'],
   'legal.employment': ['employment contract', 'employment agreement', 'staff contract', 'labour contract'],
   'legal.poa': ['power of attorney', 'poa', 'authorise someone', 'proxy authority'],
   'legal.corporate': ['moa', 'shareholders agreement', 'articles of association', 'memorandum of association', 'shareholder agreement'],
