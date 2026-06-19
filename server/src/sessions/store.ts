@@ -113,6 +113,7 @@ const COLUMN: Record<string, string> = {
   repoUrl: 'repo_url',
   repoName: 'repo_name',
   projectId: 'project_id',
+  task: 'task',
 };
 
 export async function updateSession(id: string, patch: Partial<SessionMeta>) {

@@ -159,12 +159,18 @@ const TASK: Record<string, string> = {
   ...LEGAL_TASKS,
 };
 
-/** The expert-standards block for a task key, or null if unknown / no task. */
+/**
+ * The expert-standards block for a task key (e.g. "finance.cashflow"), or for a bare
+ * DEPARTMENT id (e.g. "finance") which returns the persona only — the persona-level
+ * fallback used by the auto-router when it can identify the department but not the
+ * exact task. Returns null if unknown / no task.
+ */
 export function expertiseFor(taskKey: string | null | undefined): string | null {
   if (!taskKey) return null;
-  const dept = taskKey.split('.')[0];
+  // Bare department id (no dot, or a "<dept>" that's a known persona) → persona only.
+  const dept = taskKey.includes('.') ? taskKey.split('.')[0] : taskKey;
   const persona = DEPARTMENT[dept];
-  const task = TASK[taskKey];
+  const task = taskKey.includes('.') ? TASK[taskKey] : undefined;
   if (!persona && !task) return null;
   return (
     `## Expert standards for this task — follow these for an optimum result\n` +
@@ -172,3 +178,134 @@ export function expertiseFor(taskKey: string | null | undefined): string | null 
     `\nAesthetics AND correctness take priority: the result must look genuinely professional and be right.`
   );
 }
+
+// ---------------------------------------------------------------------------
+// Trigger phrases for the DETERMINISTIC auto-expertise router (Phase 1).
+//
+// A free-form message (no department "play" picked → session.task is null) is matched
+// against these to silently select the right expertise. Picked plays always win — this
+// only fills the null case. Keep phrases lowercase; multi-word phrases are stronger
+// signals than single keywords (the router length-weights them).
+// ---------------------------------------------------------------------------
+
+/** Broad department-level words → a persona-only fallback when no task is confident. */
+export const DEPARTMENT_TRIGGERS: Record<string, string[]> = {
+  marketing: ['marketing', 'campaign', 'brand', 'advert', 'advertising', 'social media', 'audience', 'copywriting', 'go to market'],
+  sales: ['sales', 'sell', 'prospect', 'lead gen', 'close the deal', 'buyer', 'revenue', 'crm', 'quota'],
+  finance: ['finance', 'financial', 'accounting', 'money', 'profit', 'revenue forecast', 'p&l', 'fp&a', 'investor'],
+  people: ['hr', 'human resources', 'people team', 'employee', 'hiring', 'recruiting', 'onboarding', 'workplace'],
+  engineering: ['engineering', 'software', 'developer', 'codebase', 'technical', 'backend', 'frontend', 'devops', 'architecture'],
+  bi: ['analytics', 'data analysis', 'business intelligence', 'metrics', 'reporting dashboard', 'kpi', 'data viz'],
+  tax: ['tax', 'vat', 'corporate tax', 'fta', 'emaratax', 'excise', 'wps', 'e-invoice', 'compliance filing'],
+  legal: ['legal', 'lawyer', 'attorney', 'contract law', 'lawsuit', 'litigation', 'court', 'statute', 'clause'],
+};
+
+/**
+ * Per-task trigger phrases. Keys map 1:1 to the TASK map (every department task +
+ * the spread TAX/LEGAL task keys). ~3–8 strong, natural phrasings each.
+ */
+export const TASK_TRIGGERS: Record<string, string[]> = {
+  // ---- Marketing ----
+  'marketing.landing': ['landing page', 'landing site', 'lead capture page', 'signup page', 'conversion page', 'sales page'],
+  'marketing.emailkit': ['marketing email', 'email campaign', 'newsletter', 'email blast', 'drip email', 'email template'],
+  'marketing.creative': ['ad creative', 'social post', 'instagram ad', 'social graphic', 'banner ad', 'ad image', 'social media creative', 'facebook ad'],
+  'marketing.blog': ['blog post', 'article', 'write a blog', 'seo article', 'content piece'],
+  'marketing.brief': ['campaign brief', 'creative brief', 'marketing brief'],
+  'marketing.eventsite': ['event page', 'waitlist page', 'rsvp page', 'event landing'],
+  'marketing.perfreport': ['marketing report', 'campaign performance', 'performance report', 'channel performance'],
+  'marketing.competitor': ['competitor', 'vs us', 'teardown', 'competitive analysis', 'competitor analysis', 'compare with competitors'],
+  'marketing.audience': ['audience research', 'target audience', 'market research', 'buyer persona', 'audience brief', 'customer persona'],
+  'marketing.calendar': ['content calendar', 'social calendar', 'posting schedule', 'editorial calendar'],
+  'marketing.tracker': ['campaign tracker', 'track campaigns', 'marketing tracker'],
+
+  // ---- Sales ----
+  'sales.pitchdeck': ['pitch deck', 'investor deck', 'raise money', 'fundraising deck', 'startup deck', 'pitch presentation'],
+  'sales.pricing': ['pricing page', 'pricing one-pager', 'pricing tiers', 'price sheet', 'pricing sheet'],
+  'sales.proposal': ['sales proposal', 'business proposal', 'client proposal', 'write a proposal'],
+  'sales.casestudy': ['case study', 'customer success story', 'success story'],
+  'sales.outreach': ['cold outreach', 'cold email', 'outreach sequence', 'sales email', 'prospecting email', 'cold emails'],
+  'sales.accountbrief': ['account brief', 'account research', 'prospect research', 'company brief'],
+  'sales.battlecard': ['battlecard', 'sales battlecard', 'competitive battlecard', 'objection handling card'],
+  'sales.roi': ['roi calculator', 'roi tool', 'savings calculator', 'value calculator'],
+  'sales.accountplan': ['account plan', 'strategic account plan', 'key account plan'],
+  'sales.pipeline': ['sales pipeline', 'pipeline tracker', 'deal tracker', 'track deals'],
+
+  // ---- Finance ----
+  'finance.boarddeck': ['board deck', 'board presentation', 'board meeting deck'],
+  'finance.investorupdate': ['investor update', 'monthly investor update', 'update to investors'],
+  'finance.strategymemo': ['strategy memo', 'strategic memo', 'business memo', 'should we', 'go no go'],
+  'finance.kpidashboard': ['kpi dashboard', 'finance dashboard', 'financial dashboard', 'metrics dashboard'],
+  'finance.variance': ['variance report', 'budget vs actual', 'budget versus actual', 'variance analysis'],
+  'finance.model': ['financial model', 'projection model', 'revenue model', '3 statement model', 'build a model'],
+  'finance.cashflow': ['cash flow', 'cashflow', 'runway', 'cash forecast', 'cash flow forecast', 'cash flow projection'],
+  'finance.scenario': ['scenario model', 'sensitivity analysis', 'best worst case', 'what-if model', 'scenario analysis'],
+  'finance.budget': ['budget', 'monthly budget', 'track expenses', 'spending plan', 'household budget', 'family budget', 'annual budget'],
+  'finance.expenses': ['expense tracker', 'track spending', 'expense log', 'expense sheet'],
+
+  // ---- People / HR ----
+  'people.jd': ['job description', 'jd', 'hiring for', 'job posting', 'job ad', 'role description'],
+  'people.offer': ['offer letter', 'job offer', 'employment offer', 'offer of employment'],
+  'people.policy': ['hr policy', 'company policy', 'workplace policy', 'leave policy', 'remote work policy'],
+  'people.handbook': ['employee handbook', 'staff handbook', 'company handbook'],
+  'people.training': ['training guide', 'sop', 'standard operating procedure', 'how-to guide', 'training manual'],
+  'people.survey': ['engagement survey', 'employee survey', 'pulse survey', 'staff survey'],
+  'people.peopledash': ['hr dashboard', 'people dashboard', 'headcount dashboard', 'people analytics'],
+  'people.onboardingportal': ['onboarding portal', 'new hire portal', 'welcome portal'],
+  'people.onboardingchecklist': ['onboarding checklist', 'new hire checklist', 'new employee checklist'],
+  'people.teamtracker': ['team tracker', 'staff tracker', 'team roster'],
+  'people.runbook': ['hr runbook', 'people ops runbook', 'process runbook'],
+
+  // ---- Engineering ----
+  'engineering.internaltool': ['internal tool', 'internal app', 'admin tool', 'ops tool', 'workflow tool'],
+  'engineering.prototype': ['prototype', 'mvp', 'proof of concept', 'quick prototype', 'working demo'],
+  'engineering.admin': ['admin panel', 'crud app', 'admin dashboard', 'management interface', 'back office'],
+  'engineering.docssite': ['docs site', 'documentation site', 'developer docs', 'product docs site'],
+  'engineering.engmetrics': ['engineering metrics', 'dev metrics', 'cycle time', 'deployment metrics'],
+  'engineering.datadash': ['data dashboard', 'metrics app', 'live dashboard'],
+  'engineering.api': ['build an api', 'rest api', 'api endpoint', 'automation script', 'webhook handler'],
+  'engineering.techdoc': ['technical documentation', 'tech doc', 'api docs', 'technical spec'],
+  'engineering.runbook': ['ops runbook', 'incident runbook', 'deployment runbook'],
+  'engineering.designdoc': ['design doc', 'prd', 'product requirements', 'technical design document', 'rfc'],
+  'engineering.statusreport': ['status report', 'engineering update', 'sprint report', 'project status'],
+
+  // ---- BI & Analytics ----
+  'bi.dashboard': ['dashboard', 'bi dashboard', 'build a dashboard', 'analytics dashboard', 'sales dashboard'],
+  'bi.explorer': ['data explorer', 'self serve analytics', 'interactive report', 'explore the data'],
+  'bi.reviewdeck': ['business review', 'qbr', 'mbr', 'quarterly review deck', 'monthly business review'],
+  'bi.datadict': ['metric dictionary', 'data dictionary', 'metric definitions', 'metrics glossary'],
+  'bi.adhoc': ['ad hoc analysis', 'analyze this data', 'data analysis', 'analyse these numbers', 'one-off analysis'],
+  'bi.cohort': ['cohort analysis', 'retention analysis', 'cohort retention', 'retention curve'],
+  'bi.insight': ['insight narrative', 'what changed', 'data story', 'key insights', 'data storytelling'],
+  'bi.forecast': ['forecast', 'predict', 'projection', 'what-if forecast', 'demand forecast'],
+  'bi.scorecard': ['scorecard', 'kpi scorecard', 'okr scorecard', 'metrics scorecard'],
+  'bi.digest': ['weekly digest', 'metrics digest', 'recurring report', 'scheduled report'],
+  'bi.alert': ['kpi alert', 'metric alert', 'threshold alert', 'monitor a metric', 'alert when'],
+
+  // ---- Tax & Compliance (UAE) ----
+  'tax.tax_invoice': ['tax invoice', 'uae tax invoice', 'vat invoice', 'compliant invoice'],
+  'tax.einvoice': ['e-invoice', 'einvoice', 'pint ae', 'peppol invoice', 'electronic invoice', 'e invoicing'],
+  'tax.vat_return': ['vat return', 'vat 201', 'file vat', 'vat filing'],
+  'tax.ct_return': ['corporate tax', 'corporate tax return', 'ct return', 'corp tax computation', '9% tax'],
+  'tax.readiness': ['compliance readiness', 'tax readiness', 'compliance assessment', 'compliance gap'],
+  'tax.guided': ['guided filing', 'filing wizard', 'walk me through filing', 'help me file my taxes', 'guide me through the filing'],
+  'tax.wps': ['wps', 'wages protection system', 'salary file', 'sif file', 'payroll file'],
+  'tax.excise_return': ['excise return', 'excise tax', 'excise filing'],
+  'tax.faf': ['faf', 'fta audit file', 'vat audit file'],
+
+  // ---- Legal (UAE) ----
+  'legal.contract': ['contract', 'commercial contract', 'service agreement', 'draft a contract', 'agreement'],
+  'legal.nda': ['nda', 'non-disclosure', 'confidentiality agreement', 'non disclosure agreement'],
+  'legal.employment': ['employment contract', 'employment agreement', 'staff contract', 'labour contract'],
+  'legal.poa': ['power of attorney', 'poa', 'authorise someone', 'proxy authority'],
+  'legal.corporate': ['moa', 'shareholders agreement', 'articles of association', 'memorandum of association', 'shareholder agreement'],
+  'legal.resolution': ['board resolution', 'shareholder resolution', 'company resolution', 'board minutes'],
+  'legal.notice': ['legal notice', 'letter before action', 'demand letter', 'cease and desist', 'notice letter'],
+  'legal.policereport': ['police report', 'criminal complaint', 'file a complaint', 'report to police', 'file a police case'],
+  'legal.opinion': ['legal opinion', 'legal memo', 'memorandum of advice', 'legal advice memo', 'is it legal'],
+  'legal.review': ['contract review', 'review this contract', 'review a contract', 'redline', 'review agreement'],
+  'legal.forensic': ['legal forensic audit', 'forensic legal', 'fraud investigation report'],
+  'legal.compliance': ['legal compliance audit', 'ubo compliance', 'aml compliance', 'compliance audit'],
+  'legal.dispute': ['dispute brief', 'litigation strategy', 'legal dispute', 'lawsuit strategy'],
+  'legal.licensing': ['business licence', 'licensing advisory', 'free zone vs mainland', 'which jurisdiction', 'trade licence'],
+  'legal.calendar': ['legal calendar', 'compliance calendar', 'filing tracker', 'legal deadlines tracker'],
+};

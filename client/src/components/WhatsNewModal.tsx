@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.6';
+export const WHATS_NEW_VERSION = '2026-06-19.7';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Research reports finish reliably',
-    body: 'Big research reports used to occasionally stop with an error even though a good PDF was already made. Fixed two ways: once the document is rendered, the raw web-research it was built from is trimmed from memory so the design-polish passes are far lighter — and if a report ever does run long, it now simply delivers the finished file (with a quick "this took a bit more processing" note) instead of showing an error.',
-  },
-  {
-    title: 'Cleaner pages, one language',
-    body: 'No interior page is left half-empty anymore — short sections flow together to fill the page — and every report is written end to end in one language (yours), so no stray characters slip into the text.',
+    title: 'It now knows your craft from the first message',
+    body: 'You no longer have to pick a department to get expert work. Just type what you want — "make me a monthly budget", "write a job description for a backend engineer", "draft an NDA", "a pitch deck for my coffee startup" — and ArksAI silently brings the right professional standards (FP&A rigor, inclusive HR, RevOps, brand-growth, UAE tax & legal, and more) to the very first reply. Picking a department still works exactly as before.',
   },
 ];
 

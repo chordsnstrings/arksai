@@ -27,6 +27,7 @@ import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 import { escalateModel, resolveProvider, selectModel } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
+import { routeExpertise } from './expertiseRouter';
 import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, type ProgressPhase } from '../../../shared/types';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // generous headroom under MiniMax's large context window
@@ -261,6 +262,7 @@ export class AgentRun {
   private engineCostUsd = 0; // external-engine spend this run (e.g. Suno)
   private accruedCostUsd = 0; // model spend this run, summed per concrete model
   private taskProfile!: TaskProfile; // classified at run start; drives design context + gating
+  private autoExpertiseApplied = false; // true once the auto-router has set this.session.task (never overwrites a picked play)
   private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
   private progressPhase: ProgressPhase = 'understanding';
   private pendingMode: SessionMode | null = null; // set by switch_mode; applied between tool batches
@@ -296,6 +298,32 @@ export class AgentRun {
 
   interrupt() {
     this.abort.abort();
+  }
+
+  /**
+   * Auto-expertise (Phase 1): when the user just typed and no department play set
+   * session.task, deterministically infer the right expert standards from the trigger
+   * tables and apply them for this run (and the rest of the session). NEVER overwrites
+   * an explicit picked-play task. Gated on config.autoExpertise; chat/code/report only.
+   * Logs the inferred {task, confidence, source} as analytics metadata (never message text).
+   */
+  private applyAutoExpertise(userText: string) {
+    if (!config.autoExpertise) return;
+    if (this.session.task) return; // an explicit play (or an already-applied inference) wins
+    if (this.session.mode === 'plan') return; // plan is a gate, not a deliverable; routes on the build turn
+    const route = routeExpertise(userText, this.session.mode);
+    const inferred = route.taskKey ?? route.department;
+    if (!inferred) return;
+    this.session.task = inferred; // in-memory for this session object → survives turns + switch_mode
+    this.autoExpertiseApplied = true;
+    // Persist so a fresh runner (a later turn) keeps the expertise without re-routing.
+    void store.updateSession(this.session.id, { task: inferred }).catch(() => {});
+    track('expertise_selected', {
+      orgId: this.session.orgId,
+      userId: (this.session as any).createdBy ?? null,
+      sessionId: this.session.id,
+      props: { task: inferred, confidence: route.confidence, source: route.source },
+    });
   }
 
   /**
@@ -425,6 +453,13 @@ export class AgentRun {
     // Classify the task once → drives the design context, gating visual QC, and
     // the quality model floor.
     this.taskProfile = classifyTask(userText, this.session.mode);
+
+    // Auto-expertise (Phase 1): if the user just TYPED (no department play picked →
+    // session.task falsy), deterministically select the right expert standards from the
+    // trigger tables so expertiseFor (inside buildSystemPrompt) injects them. A picked
+    // play (an explicit task) ALWAYS wins and is never overwritten. The inferred task is
+    // stored on the session object so it survives subsequent turns + a switch_mode.
+    this.applyAutoExpertise(userText);
 
     // Memory: global (every session) + this repo's project memory + an optional
     // ARKS.md in the workspace. Kept around so a mode switch can rebuild the prompt.

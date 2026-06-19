@@ -6,7 +6,7 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 
 > **Maintenance:** keep this file current — every shipped change that adds, removes, or
 > meaningfully alters a feature should update this list in the same commit.
-> _Last updated: 2026-06-17._
+> _Last updated: 2026-06-19._
 
 ---
 
@@ -72,6 +72,7 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 - Department-aware studio — Marketing, Sales, Finance/Strategy, HR·People & Ops, Engineering, BI & Analytics, Tax & Compliance (UAE), and Legal (UAE). Pick your function and ArksAI is **ready with that team's skills** (its persona/standards load on the session). Each task is an **example you tap to open a fresh chat already specialized for it** — no canned prompt is fired; the chat just waits for you, and your first message names it. Or type your own brief in the box.
 - ~70-task catalog grouped **Create / Analyze / Operate**, each a ready-to-run brief in the right mode.
 - Per-task expert standards (server-side) — a department persona (FP&A rigor, inclusive HR, RevOps, brand-growth, senior-eng, BI/analytics, UAE tax manager) + research-backed standards injected per task.
+- **Auto-selected expertise (zero-pick)** — you no longer have to pick a department to get expert standards: a free-form message ("make me a monthly budget", "write a job description", "draft an NDA", "build a cash-flow forecast") is read by a fast, deterministic trigger-based router that silently loads the right expertise (the exact task standard when it's confident, else the department persona). A picked play always wins; if nothing matches, it stays the general agent — so it's purely additive. (Off-switch: `EXPERTISE_AUTOROUTE=false`.)
 - **Marketing makes finished creatives (image + crisp text + logo)** — a `generate_creative` capability produces a ready-to-post **PNG/JPEG**: it generates an on-brand, text-free AI background with reserved negative space, uses **M3 vision to pick the calmest zone + the text colour that reads there**, then composites the headline/subhead/**check-marked feature list**/CTA as **pixel-perfect type** (HTML/CSS, never the image model's garbled lettering) plus the **user's uploaded logo** (or a tasteful top-left "LOGO" placeholder) if provided, with a contrast scrim and a vision QC + auto-correct pass. It also **scrubs any copy the model put into the imagery prompt** (literal headline/CTA, quoted strings, "text that says…") so the background can't come back with garbled lettering, and re-generates with a hard no-text directive if text still leaks in. The dedicated **Ad & social creative** play, the email/social kit, and landing/event heroes all use it at channel sizes (1:1 / 4:5 / 9:16 / 16:9 / 1.91:1); graceful CSS/SVG fallback when unkeyed. The agent **asks for your logo first** (or uses a clean placeholder), and social creatives bake in **high-conversion tactics** (a benefit hook, one clear CTA, truthful proof/specifics, thumbnail-legible type) — kept **separate from email**, which is optimized for the inbox instead.
 
 ## UAE Legal

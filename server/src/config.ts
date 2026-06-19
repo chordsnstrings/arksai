@@ -127,6 +127,10 @@ export const config = {
   // Gating visual design-critique loop (needs a vision model). On by default;
   // set AGENT_DESIGN_GATE=false to disable (e.g. keyless dev).
   designGate: process.env.AGENT_DESIGN_GATE !== 'false',
+  // Auto-expertise router (Phase 1): a free-form message with no picked play
+  // deterministically selects the right expert standards. ON by default; kill
+  // switch EXPERTISE_AUTOROUTE=false for instant rollback to the generic agent.
+  autoExpertise: process.env.EXPERTISE_AUTOROUTE !== 'false',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
   maxIterations: intEnv('MAX_ITERATIONS', 200),
   // When true the agent's shell inherits the FULL process environment (so it
