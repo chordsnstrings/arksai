@@ -1653,6 +1653,13 @@ export async function* anthropicSseToOpenAI(
     }
     const { done, value } = read;
     if (done) break;
+    // Streaming has started, so the TOTAL-turn timer has done its job (it guards the
+    // headers wait + initial server-side buffering). From here the IDLE timer governs:
+    // a steadily-streaming but LONG generation — e.g. a big report's HTML streamed as
+    // render_report's tool args over several minutes — must NOT be killed just for being
+    // long; only a genuine mid-stream SILENCE (idleMs) should trip. (The heavy-generator
+    // accelerator below still arms its own shorter timer for M3 on the primary model.)
+    clearTimeout(totalTimer);
     arm(); // reset idle timer on activity
     buf += decoder.decode(value, { stream: true });
     const lines = buf.split('\n');
