@@ -445,11 +445,12 @@ export class AgentRun {
             ...context,
           ],
           tools: schemas.length ? (schemas as any) : undefined,
-          stream_options: { include_usage: true },
         };
         if (forceNonStream && resolveProvider(this.activeModel).provider === 'deepseek') {
           // BUFFERED fallback: one non-streaming request returns the whole reply at once,
           // which survives a proxy that idle-cuts a long-lived chunked SSE stream.
+          // NB: do NOT send stream_options here — DeepSeek 400s on it when stream:false;
+          // a non-streaming response carries `usage` natively.
           const resp: any = await this.activeClient.chat.completions.create(
             { ...createParams, stream: false } as any,
             { signal: this.abort.signal },
@@ -471,7 +472,7 @@ export class AgentRun {
           if (resp?.usage) this.accrueUsage(resp.usage);
           forceNonStream = false; // next turn returns to streaming
         } else {
-        const stream = await this.createCompletionWithRetry({ ...createParams, stream: true });
+        const stream = await this.createCompletionWithRetry({ ...createParams, stream: true, stream_options: { include_usage: true } });
         for await (const chunk of stream) {
           const choice = chunk.choices?.[0];
           if (choice?.finish_reason) finishReason = choice.finish_reason;
