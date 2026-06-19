@@ -250,11 +250,15 @@ render, every time):
      PAGE ~85–100%: a section that is only a heading + one short paragraph (or a heading +
      a 4-tile KPI band) is TOO THIN to justify its own page and will leave it half-empty —
      give that section real substance (narrative + a table/figure/cards), or MERGE two thin
-     sections into ONE section that then fills its page. Balance the content so NO section's
-     page ends below ~70% full. SUB-headings WITHIN a section FLOW on the same page — do NOT
-     break before sub-headings (only top-level sections break). Before you render, mentally
-     walk each page: every page after the cover should open with a section heading and run
-     ~85–100% full; if a section can't fill a page, it shouldn't be its own section.
+     sections into ONE section that then fills its page. MECHANICAL RULE — apply
+     class="section" (the page break) ONLY to a block you are confident fills ≥70% of a page
+     on its own. If a block won't (a lone heading + paragraph, a heading + just a 3–4 tile
+     band, a short conclusion), DO NOT give it class="section" — let it FLOW continuously
+     right after the previous section on the same page (no break, it becomes a sub-section
+     under a sub-heading). So: substantial sections break to a fresh page; thin blocks flow.
+     SUB-headings WITHIN a section FLOW on the same page — never break before sub-headings.
+     Before you render, mentally walk each page: every page that DID break should run
+     ~85–100% full; if it would be under ~70%, that block should have flowed, not broken.
   2. CHARTS FILL THEIR ROW. Every render_chart SVG goes in a FULL-MEASURE <figure
      class="fig"> on its OWN row (the full text width) — NEVER inside a narrow column,
      a 2-up grid cell, or a small card, or the axis labels collide and it reads as a
