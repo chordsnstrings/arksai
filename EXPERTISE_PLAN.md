@@ -218,6 +218,22 @@ paths; sync tests green. → proceed.
 
 **Iterate loop:** any dropped nuance → restore from the migration diff → re-test that play.
 
+**Phase 2 notes (shipped 2026-06-19):** Implemented the **low-risk path** the plan calls for —
+a single source of truth for the KEY SET + departments (`shared/expertiseKeys.ts`:
+`EXPERTISE_KEYS` + `DEPARTMENT_IDS`) that both sides reference (the client `Play.key`/
+`Department.id` are now compiler-typed `ExpertiseKey`/`DepartmentId` against it; the server
+`expertise.ts` references it and a module-load guard requires a persona per registered dept),
+plus cross-file **sync tests** (`server/test/expertiseRegistry.test.ts`, 15 assertions:
+every registered key ⇒ a play + a standard + triggers; no orphan standards/triggers/plays;
+every dept ⇒ persona + triggers; no trigger collisions; counts agree). The bodies (standard
+prose, trigger phrases, play copy) stay in place. **DEFERRED (deliberately, per the plan's "if
+full code-generation is too invasive, don't"):** full client/server *generation* from one
+manifest — the typed registry + bidirectional sync tests already make drift impossible at low
+risk, so generation would add complexity without changing the guarantee. Authoring recipe lives
+in `EXPERTISE_AUTHORING.md`. **Zero behavior change:** `expertiseFor`/`routeExpertise` outputs
+unchanged; all 330 tests + typecheck + build green; verified the sync test FAILS when a
+standard, a trigger, or a play is removed (then restored).
+
 ---
 
 ## PHASE 3 — Personal / everyday expertise family ("everyone")

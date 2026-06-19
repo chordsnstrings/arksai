@@ -6,12 +6,16 @@
  * good. Researched from professional best-practice sources. Aesthetics + quality
  * always take priority.
  *
- * Keys are "<departmentId>.<task>" and must match the `key` on each play in
- * client/src/lib/departments.ts.
+ * Keys are "<departmentId>.<task>". The canonical key set + department list live in
+ * `shared/expertiseKeys.ts` (the single source of truth) — both this file and the
+ * client play catalog derive from it. The sync test (server/test/expertiseRegistry.test.ts)
+ * fails the build if any registered key is missing a TASK standard or TASK_TRIGGERS here,
+ * or if either map carries a key that isn't registered. See EXPERTISE_AUTHORING.md to add one.
  */
 
 import { TAX_PERSONA, TAX_TASKS } from './compliance/uae';
 import { LEGAL_PERSONA, LEGAL_TASKS } from './legal/uae';
+import { DEPARTMENT_IDS } from '../../../shared/expertiseKeys';
 
 // ---- Department persona / cross-cutting rigor ----
 const DEPARTMENT: Record<string, string> = {
@@ -31,6 +35,15 @@ const DEPARTMENT: Record<string, string> = {
   tax: TAX_PERSONA,
   legal: LEGAL_PERSONA,
 };
+
+// Single-source-of-truth guard: every registered department MUST have a persona here.
+// A registered department with no persona would silently leave the auto-router with no
+// fallback voice — this throws loudly at module load (and the sync test asserts it too).
+for (const dept of DEPARTMENT_IDS) {
+  if (!DEPARTMENT[dept]) {
+    throw new Error(`expertise.ts: registered department "${dept}" has no persona in DEPARTMENT`);
+  }
+}
 
 // ---- Reusable archetype standards (research-backed) ----
 const FIN_SHEET =
@@ -158,6 +171,17 @@ const TASK: Record<string, string> = {
   // Legal (UAE) — persona + per-play standards live in legal/uae.ts
   ...LEGAL_TASKS,
 };
+
+/**
+ * The set of task keys that carry an expert-standards block (TASK + the spread
+ * TAX/LEGAL keys). Exported so the registry sync test can assert it matches the
+ * shared registry exactly — no standard without a registered key, no registered
+ * key without a standard.
+ */
+export const TASK_KEYS: string[] = Object.keys(TASK);
+
+/** The set of department ids that carry a persona. */
+export const DEPARTMENT_KEYS: string[] = Object.keys(DEPARTMENT);
 
 /**
  * The expert-standards block for a task key (e.g. "finance.cashflow"), or for a bare

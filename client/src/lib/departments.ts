@@ -1,5 +1,6 @@
 import type { SessionMode } from '@shared/types';
 import { AUTO_MODEL } from '@shared/types';
+import type { DepartmentId, ExpertiseKey } from '@shared/expertiseKeys';
 
 /**
  * The department-aware catalog. ArksAI for companies: each corporate function
@@ -7,6 +8,13 @@ import { AUTO_MODEL } from '@shared/types';
  * its real day-to-day work, grouped by the kind of work — Create / Analyze /
  * Operate. Pure data so adding tasks/departments — or promoting them to per-org
  * templates later — is trivial.
+ *
+ * The set of play keys + department ids is the single source of truth in
+ * `shared/expertiseKeys.ts` — `Play.key` and `Department.id` are typed against it,
+ * so the COMPILER rejects a play key that isn't registered, and a server-side sync
+ * test fails the build if a registered key has no play here (or no server standard /
+ * triggers). Adding an expertise: register the key in shared/expertiseKeys.ts, then
+ * add the play, the standard, and the triggers. See EXPERTISE_AUTHORING.md.
  */
 
 export type Category = 'create' | 'analyze' | 'operate';
@@ -18,8 +26,11 @@ export const CATEGORIES: { id: Category; label: string; blurb: string }[] = [
 ];
 
 export interface Play {
-  /** Stable "<deptId>.<task>" key → server injects expert standards for it. */
-  key: string;
+  /**
+   * Stable "<deptId>.<task>" key → server injects expert standards for it.
+   * Typed against the shared registry, so an unregistered key is a compile error.
+   */
+  key: ExpertiseKey;
   title: string;
   blurb: string;
   /** A real, ready-to-run brief sent as the first message. */
@@ -32,7 +43,8 @@ export interface Play {
 }
 
 export interface Department {
-  id: string;
+  /** Department id from the shared registry — an unregistered id is a compile error. */
+  id: DepartmentId;
   name: string;
   /** One-line value statement shown on the tile. */
   blurb: string;

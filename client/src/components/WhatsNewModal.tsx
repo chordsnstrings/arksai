@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.7';
+export const WHATS_NEW_VERSION = '2026-06-19.8';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'It now knows your craft from the first message',
-    body: 'You no longer have to pick a department to get expert work. Just type what you want — "make me a monthly budget", "write a job description for a backend engineer", "draft an NDA", "a pitch deck for my coffee startup" — and ArksAI silently brings the right professional standards (FP&A rigor, inclusive HR, RevOps, brand-growth, UAE tax & legal, and more) to the very first reply. Picking a department still works exactly as before.',
+    title: 'Every expertise, kept consistent under the hood',
+    body: 'We unified the catalog of professional skills behind a single source of truth, with automated checks that guarantee each one is complete — the right play, the right standards, and the right understanding of how you phrase it. The upshot for you: more reliable expert output, and new skills can be added safely without anything slipping through the cracks. Nothing changes in how you use it.',
   },
 ];
 
