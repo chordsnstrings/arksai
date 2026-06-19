@@ -12,6 +12,7 @@ export interface MusicOptions {
   vocalGender?: 'm' | 'f';
   styleWeight?: number;
   weirdnessConstraint?: number;
+  audioWeight?: number;
   negativeTags?: string;
 }
 
@@ -24,8 +25,14 @@ export interface MusicResult {
 const POLL_MS = 8000;
 const DEADLINE_MS = 300_000; // up to 5 min — newer models render longer (up to ~8-min songs)
 
-// Per the sunoapi.org docs (verify on the Droplet; conservative if unsure).
-export const SUNO_LIMITS = { nonCustomPrompt: 500, customLyrics: 5000, style: 1000, title: 80, negativeTags: 200 };
+// Verified against the live sunoapi.org docs. The style budget is MODEL-DEPENDENT:
+// V4 (legacy) caps style at 200 chars; V4_5 / V4_5PLUS / V4_5ALL / V5 allow 1000.
+export const SUNO_LIMITS = { nonCustomPrompt: 500, customLyrics: 5000, style: 1000, styleV4: 200, title: 80, negativeTags: 200 };
+/** Max style length for a given model id (V4/legacy = 200, modern = 1000). */
+export function styleLimit(model: string | undefined): number {
+  const m = String(model || '').toUpperCase();
+  return m === 'V4' || m === 'V3_5' || m === 'V3' ? SUNO_LIMITS.styleV4 : SUNO_LIMITS.style;
+}
 const cut = (s: string | undefined, n: number) => (s == null ? s : String(s).slice(0, n));
 const unit = (n: number) => Math.max(0, Math.min(1, n));
 
@@ -48,14 +55,15 @@ function base() {
 export function buildGenerateBody(opts: MusicOptions): Record<string, unknown> {
   const customMode = !!(opts.style && opts.title);
   const instrumental = !!opts.instrumental;
+  const model = opts.model || config.sunoModel;
   const body: Record<string, unknown> = {
     customMode,
     instrumental,
-    model: opts.model || config.sunoModel,
+    model,
     callBackUrl: config.sunoCallbackUrl,
   };
   if (customMode) {
-    body.style = cut(opts.style, SUNO_LIMITS.style);
+    body.style = cut(opts.style, styleLimit(model));
     body.title = cut(opts.title, SUNO_LIMITS.title);
     if (!instrumental && opts.prompt?.trim()) body.prompt = cut(opts.prompt, SUNO_LIMITS.customLyrics);
   } else {
@@ -64,6 +72,7 @@ export function buildGenerateBody(opts: MusicOptions): Record<string, unknown> {
   if (opts.vocalGender === 'm' || opts.vocalGender === 'f') body.vocalGender = opts.vocalGender;
   if (typeof opts.styleWeight === 'number') body.styleWeight = unit(opts.styleWeight);
   if (typeof opts.weirdnessConstraint === 'number') body.weirdnessConstraint = unit(opts.weirdnessConstraint);
+  if (typeof opts.audioWeight === 'number') body.audioWeight = unit(opts.audioWeight);
   if (opts.negativeTags) body.negativeTags = cut(opts.negativeTags, SUNO_LIMITS.negativeTags);
   return body;
 }
@@ -154,15 +163,16 @@ export interface ExtendOptions {
 /** Pure: build the POST /api/v1/generate/extend body. */
 export function buildExtendBody(opts: ExtendOptions): Record<string, unknown> {
   const hasParams = !!(opts.style || opts.title || opts.prompt);
+  const model = opts.model || config.sunoModel;
   const body: Record<string, unknown> = {
     audioId: opts.audioId,
     defaultParamFlag: hasParams, // true → use the params below; false → inherit from the source
-    model: opts.model || config.sunoModel,
+    model,
     callBackUrl: config.sunoCallbackUrl,
   };
   if (typeof opts.continueAt === 'number') body.continueAt = opts.continueAt;
   if (opts.prompt) body.prompt = cut(opts.prompt, SUNO_LIMITS.customLyrics);
-  if (opts.style) body.style = cut(opts.style, SUNO_LIMITS.style);
+  if (opts.style) body.style = cut(opts.style, styleLimit(model));
   if (opts.title) body.title = cut(opts.title, SUNO_LIMITS.title);
   return body;
 }
@@ -221,14 +231,15 @@ export interface CoverOptions {
 /** Pure: build the POST /api/v1/upload-and-cover-audio body. */
 export function buildCoverBody(opts: CoverOptions): Record<string, unknown> {
   const customMode = !!(opts.style && opts.title);
+  const model = opts.model || config.sunoModel;
   const body: Record<string, unknown> = {
     uploadUrl: opts.uploadUrl,
     customMode,
     instrumental: !!opts.instrumental,
-    model: opts.model || config.sunoModel,
+    model,
     callBackUrl: config.sunoCallbackUrl,
   };
-  if (opts.style) body.style = cut(opts.style, SUNO_LIMITS.style);
+  if (opts.style) body.style = cut(opts.style, styleLimit(model));
   if (opts.title) body.title = cut(opts.title, SUNO_LIMITS.title);
   if (opts.prompt && !opts.instrumental) body.prompt = cut(opts.prompt, SUNO_LIMITS.customLyrics);
   return body;

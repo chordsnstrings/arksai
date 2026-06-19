@@ -5,7 +5,7 @@ import type { ToolDef } from './common';
 // Current sunoapi.org model ids (newest→legacy). The DEFAULT is config-driven
 // (config.sunoModel) so the operator can set SUNO_MODEL to the best confirmed id
 // on the Droplet without a code change; the enum just lets the agent pick.
-const MODEL_ENUM = ['V5', 'V4_5PLUS', 'V4_5', 'V4', 'V3_5'];
+const MODEL_ENUM = ['V5', 'V4_5PLUS', 'V4_5ALL', 'V4_5', 'V4'];
 
 export const generateMusicTool: ToolDef = {
   name: 'generate_music',
@@ -50,6 +50,7 @@ export const generateMusicTool: ToolDef = {
       vocalGender: { type: 'string', enum: ['m', 'f'], description: 'Preferred vocal gender' },
       styleWeight: { type: 'number', description: 'How strongly to follow the style, 0–1' },
       weirdnessConstraint: { type: 'number', description: 'Creativity/experimentation, 0–1' },
+      audioWeight: { type: 'number', description: 'Audio-consistency weight vs other controls, 0–1' },
       negativeTags: { type: 'string', description: 'Styles to EXCLUDE, comma-separated (e.g. "heavy metal, aggressive")' },
     },
     required: ['prompt'],
@@ -68,6 +69,7 @@ export const generateMusicTool: ToolDef = {
         vocalGender: args.vocalGender === 'm' || args.vocalGender === 'f' ? args.vocalGender : undefined,
         styleWeight: typeof args.styleWeight === 'number' ? args.styleWeight : undefined,
         weirdnessConstraint: typeof args.weirdnessConstraint === 'number' ? args.weirdnessConstraint : undefined,
+        audioWeight: typeof args.audioWeight === 'number' ? args.audioWeight : undefined,
         negativeTags: args.negativeTags ? String(args.negativeTags) : undefined,
       },
       ctx.repoDir,

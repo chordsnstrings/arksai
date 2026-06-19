@@ -57,6 +57,13 @@ test('buildGenerateBody: enforces char limits and passes optional controls', () 
   assert.equal(String(b.negativeTags).length, SUNO_LIMITS.negativeTags);
 });
 
+test('buildGenerateBody: style limit is model-dependent (V4=200, modern=1000)', () => {
+  const v4 = buildGenerateBody({ prompt: '[Verse]\nx', style: 's'.repeat(2000), title: 'T', model: 'V4' });
+  assert.equal(String(v4.style).length, SUNO_LIMITS.styleV4); // legacy V4 caps style at 200
+  const v5 = buildGenerateBody({ prompt: '[Verse]\nx', style: 's'.repeat(2000), title: 'T', model: 'V5' });
+  assert.equal(String(v5.style).length, SUNO_LIMITS.style); // 1000 on modern models
+});
+
 test('buildGenerateBody: non-custom prompt capped at 500', () => {
   const b = buildGenerateBody({ prompt: 'p'.repeat(900) });
   assert.equal(String(b.prompt).length, SUNO_LIMITS.nonCustomPrompt);
