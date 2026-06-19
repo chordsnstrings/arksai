@@ -417,6 +417,9 @@ export class AgentRun {
       let stallCount = 0;
       let emptyRetries = 0;
       let streamRetries = 0;
+      // Set when streaming keeps dropping deterministically (a proxy idle-cutting the
+      // chunked SSE) → fetch the next turn as ONE buffered (non-streaming) response.
+      let forceNonStream = false;
       let iteration = 0;
       let stopReason: 'natural' | 'ceiling' | 'stall' | null = null;
       while (!this.abort.signal.aborted) {
@@ -435,16 +438,40 @@ export class AgentRun {
         const stripThink = makeThinkFilter();
 
         try {
-        const stream = await this.createCompletionWithRetry({
+        const createParams = {
           model: this.activeApiModel,
           messages: [
             { role: 'system', content: systemContent },
             ...context,
           ],
           tools: schemas.length ? (schemas as any) : undefined,
-          stream: true,
           stream_options: { include_usage: true },
-        });
+        };
+        if (forceNonStream && resolveProvider(this.activeModel).provider === 'deepseek') {
+          // BUFFERED fallback: one non-streaming request returns the whole reply at once,
+          // which survives a proxy that idle-cuts a long-lived chunked SSE stream.
+          const resp: any = await this.activeClient.chat.completions.create(
+            { ...createParams, stream: false } as any,
+            { signal: this.abort.signal },
+          );
+          const choice = resp?.choices?.[0];
+          finishReason = choice?.finish_reason ?? '';
+          const msg: any = choice?.message ?? {};
+          if (msg.reasoning_content) reasoning += msg.reasoning_content;
+          if (msg.content) {
+            const visible = stripThink(msg.content);
+            if (visible) {
+              text += visible;
+              this.emit({ type: 'assistant_delta', runId: this.runId, text: visible });
+            }
+          }
+          (msg.tool_calls ?? []).forEach((tc: any, i: number) => {
+            toolCalls[i] = { id: tc.id ?? '', name: tc.function?.name ?? '', args: tc.function?.arguments ?? '' };
+          });
+          if (resp?.usage) this.accrueUsage(resp.usage);
+          forceNonStream = false; // next turn returns to streaming
+        } else {
+        const stream = await this.createCompletionWithRetry({ ...createParams, stream: true });
         for await (const chunk of stream) {
           const choice = chunk.choices?.[0];
           if (choice?.finish_reason) finishReason = choice.finish_reason;
@@ -463,27 +490,8 @@ export class AgentRun {
             if (tc.function?.name) slot.name += tc.function.name;
             if (tc.function?.arguments) slot.args += tc.function.arguments;
           }
-          if (chunk.usage) {
-            const u: any = chunk.usage;
-            this.usage.add(u);
-            // Cost is computed per concrete model so Auto mode blends correctly.
-            const hit = u.prompt_cache_hit_tokens ?? 0;
-            const miss = u.prompt_cache_miss_tokens ?? Math.max(0, (u.prompt_tokens ?? 0) - hit);
-            this.accruedCostUsd += computeCost(this.activePricingId, {
-              cacheHit: hit,
-              cacheMiss: miss,
-              completion: u.completion_tokens ?? 0,
-            });
-            this.emit({
-              type: 'usage_update',
-              totalTokens: this.usage.totalTokens,
-              promptTokens: this.usage.promptTokens,
-              completionTokens: this.usage.completionTokens,
-              cacheHitTokens: this.usage.cacheHitTokens,
-              cacheMissTokens: this.usage.cacheMissTokens,
-              costUsd: this.accruedCostUsd,
-            });
-          }
+          if (chunk.usage) this.accrueUsage(chunk.usage);
+        }
         }
         } catch (err: any) {
           // M3 over-buffered/stalled this turn → fall back to the RELIABLE DeepSeek workhorse
@@ -514,6 +522,21 @@ export class AgentRun {
             this.emit({ type: 'turn_reset', runId: this.runId });
             sysInfo(`↳ The connection dropped — reconnecting (${streamRetries}/${STREAM_RETRY_LIMIT}).`);
             await new Promise((r) => setTimeout(r, 400 * streamRetries));
+            continue;
+          }
+          // Streaming kept dropping at the same point — this is deterministic, not a blip
+          // (e.g. a proxy idle-cutting the chunked SSE while a thinking model reasons). One
+          // BUFFERED non-streaming attempt returns the whole reply in a single response,
+          // which gets past that. DeepSeek only (MiniMax has its own adapter/fallback).
+          if (
+            isTransientApiError(err) &&
+            !this.abort.signal.aborted &&
+            !forceNonStream &&
+            resolveProvider(this.activeModel).provider === 'deepseek'
+          ) {
+            forceNonStream = true;
+            this.emit({ type: 'turn_reset', runId: this.runId });
+            sysInfo(`↳ The connection keeps dropping — fetching the reply in one piece instead.`);
             continue;
           }
           throw err;
@@ -791,6 +814,28 @@ export class AgentRun {
       if (finalMeta) bus.sessionChanged(finalMeta);
       bus.clear(sessionId);
     }
+  }
+
+  /** Fold a usage chunk into the running totals + stream a cost update (per concrete
+   *  model, so Auto mode blends correctly). Shared by the streaming + buffered paths. */
+  private accrueUsage(u: any) {
+    this.usage.add(u);
+    const hit = u.prompt_cache_hit_tokens ?? 0;
+    const miss = u.prompt_cache_miss_tokens ?? Math.max(0, (u.prompt_tokens ?? 0) - hit);
+    this.accruedCostUsd += computeCost(this.activePricingId, {
+      cacheHit: hit,
+      cacheMiss: miss,
+      completion: u.completion_tokens ?? 0,
+    });
+    this.emit({
+      type: 'usage_update',
+      totalTokens: this.usage.totalTokens,
+      promptTokens: this.usage.promptTokens,
+      completionTokens: this.usage.completionTokens,
+      cacheHitTokens: this.usage.cacheHitTokens,
+      cacheMissTokens: this.usage.cacheMissTokens,
+      costUsd: this.accruedCostUsd,
+    });
   }
 
   /** Retry transient API failures (network blips, 429/5xx) with backoff. Uses
