@@ -1,6 +1,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toAnthropicMessages, mapAnthropicStop, anthropicSseToOpenAI, AgentRun } from '../src/agent/runner';
+import { toAnthropicMessages, mapAnthropicStop, anthropicSseToOpenAI, AgentRun, isTransientApiError } from '../src/agent/runner';
+
+test('isTransientApiError: recognizes the premature-close / mid-stream drop class', () => {
+  // undici wraps a mid-stream socket drop as `TypeError: terminated` with the real
+  // reason on .cause — both shapes must be treated as transient (→ retry the turn).
+  assert.equal(isTransientApiError(new TypeError('terminated')), true);
+  assert.equal(isTransientApiError({ message: 'terminated', cause: { code: 'ERR_STREAM_PREMATURE_CLOSE' } }), true);
+  assert.equal(isTransientApiError({ message: 'Premature close' }), true);
+  assert.equal(isTransientApiError({ cause: { code: 'UND_ERR_SOCKET', message: 'other side closed' } }), true);
+  assert.equal(isTransientApiError({ message: 'fetch failed', cause: { code: 'ECONNRESET' } }), true);
+  assert.equal(isTransientApiError({ status: 503 }), true);
+});
+
+test('isTransientApiError: does NOT retry auth/bad-request or a clean stop', () => {
+  assert.equal(isTransientApiError({ status: 401 }), false);
+  assert.equal(isTransientApiError({ status: 400, message: 'invalid request' }), false);
+  assert.equal(isTransientApiError(new Error('some unrelated logic error')), false);
+});
 
 test('toAnthropicMessages: system is hoisted, user becomes a text block', () => {
   const { system, messages } = toAnthropicMessages([

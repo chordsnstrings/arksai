@@ -144,12 +144,15 @@ function pickPreviewDoc(items: TimelineItem[]): { path: string; kind: 'pdf' | 's
 }
 
 /** Transient network/provider failures worth retrying; never auth errors. */
-function isTransientApiError(err: any): boolean {
+export function isTransientApiError(err: any): boolean {
   const status = err?.status ?? err?.response?.status;
   if (status === 401 || status === 400) return false;
   if (status === 429 || (status >= 500 && status < 600)) return true;
-  const msg = String(err?.message ?? err);
-  return /resolve|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|fetch failed|socket hang up|network|private\/reserved IP/i.test(
+  // Inspect the wrapped cause too: undici reports a mid-stream socket drop as
+  // `TypeError: terminated` with the real reason (ERR_STREAM_PREMATURE_CLOSE /
+  // UND_ERR_SOCKET / ECONNRESET) on err.cause.
+  const msg = `${err?.message ?? err} ${err?.code ?? ''} ${err?.cause?.code ?? ''} ${err?.cause?.message ?? ''}`;
+  return /resolve|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|fetch failed|socket hang up|network|private\/reserved IP|premature close|premature_close|ERR_STREAM_PREMATURE_CLOSE|terminated|other side closed|UND_ERR/i.test(
     msg,
   );
 }
@@ -409,9 +412,11 @@ export class AgentRun {
       const maxIterations = config.maxIterations;
       const STALL_LIMIT = 6;
       const EMPTY_RETRY_LIMIT = 2; // a thinking model that truncates mid-reasoning gets a couple of nudged retries
+      const STREAM_RETRY_LIMIT = 2; // a connection dropped MID-response (premature close) gets a couple of fresh retries
       let stallSig = '';
       let stallCount = 0;
       let emptyRetries = 0;
+      let streamRetries = 0;
       let iteration = 0;
       let stopReason: 'natural' | 'ceiling' | 'stall' | null = null;
       while (!this.abort.signal.aborted) {
@@ -495,6 +500,19 @@ export class AgentRun {
             this.setActiveModel('deepseek-chat');
             this.dropM3Reasoning(context);
             sysInfo(`↳ ArksAI Max was slow — switching to ArksAI Flash to finish reliably.`);
+            continue;
+          }
+          // The provider connection dropped (e.g. a "premature close" / terminated
+          // socket — common when an upstream resets a stale keep-alive). Nothing was
+          // committed to the context yet, so redo the turn on a fresh connection
+          // (bounded) instead of failing the whole run with a scary error. Only retry
+          // when NOTHING visible streamed yet (the dominant stale-socket case drops on
+          // the first read) so the user never sees doubled text in the same bubble.
+          const nothingStreamed = !text.trim() && toolCalls.filter(Boolean).length === 0;
+          if (isTransientApiError(err) && nothingStreamed && !this.abort.signal.aborted && streamRetries < STREAM_RETRY_LIMIT) {
+            streamRetries++;
+            sysInfo(`↳ The connection dropped — reconnecting (${streamRetries}/${STREAM_RETRY_LIMIT}).`);
+            await new Promise((r) => setTimeout(r, 400 * streamRetries));
             continue;
           }
           throw err;
