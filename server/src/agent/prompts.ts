@@ -297,11 +297,14 @@ HOW TO BUILD (the pipeline):
       .cols { column-count:2; column-gap:9mm; column-rule:1px solid var(--line) }
       .masthead { display:flex; justify-content:space-between; font:.66em var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line); padding-bottom:1.5mm; margin-bottom:6mm }
 - COVER — design a STRIKING cover; it sets the whole impression. The cover is a
-  FULL-BLEED canvas: a background FIELD that runs edge-to-edge to the paper (NO white
-  side gutters — a centred title inset in a narrow column is the wrong, weak look),
-  with a TYPOGRAPHY-LED foreground composed top→bottom to fill the page. No imagery is
-  needed — scale, weight, the accent and hairlines do the work. Structure it as THREE
-  vertical zones so justify-content:space-between distributes them across the FULL height:
+  FULL-BLEED page (build it with class="cover bleed dark|accent|light" — the .bleed
+  mechanic below): a background FIELD that runs edge-to-edge to the paper on ALL FOUR
+  sides (NO white frame, NO white side gutters — a centred title inset in a narrow column
+  is the wrong, weak look), pinned to EXACTLY ONE A4 sheet (it must NOT spill onto a
+  second page — a half-empty dark continuation page is a defect we saw; keep the cover
+  content within the one page). TYPOGRAPHY-LED foreground composed top→bottom to FILL the
+  page. No imagery is needed — scale, weight, the accent and hairlines do the work.
+  Structure it as THREE vertical zones so justify-content:space-between distributes them across the FULL height:
   (a) the MASTHEAD at top, (b) the HERO block — kicker + title + thesis + KPI band — wrapped
   in a SINGLE middle <div>, (c) the METADATA FOOTER at the bottom. Wrapping the middle
   elements as one zone is what prevents the cover from clustering everything at the top and
@@ -326,8 +329,8 @@ HOW TO BUILD (the pipeline):
     6. A METADATA FOOTER pinned to the bottom — coverage window · data source ·
        prepared-by/for · date, + a "CONFIDENTIAL" chip when apt — over a hairline,
        justify-content:space-between so it spans the measure.
-  BACKGROUND FIELD — pick one to fit the brand, ALWAYS full-bleed (the .cover CSS
-  below gives you the bleed mechanic; add the class):
+  BACKGROUND FIELD — pick one to fit the brand, ALWAYS full-bleed (the .bleed CSS
+  below is the mechanic; add class="cover bleed dark|accent|light"):
     • DARK ink — deep near-black (#15140f / #101216), light type, accent on the title
       line + KPI figures. The default for finance/BI/markets and bold, data-confident
       briefs (this is the "full-screen background" most briefs want).
@@ -342,18 +345,23 @@ HOW TO BUILD (the pipeline):
   nothing may bleed across a page break). Put the MARGINS ON @page, never on a
   fixed-width padded container, and size the cover to the printable height:
     @page { size: A4; margin: 20mm 26mm }            /* GENEROUS newspaper-style side gutters; repeats every page */
-    @page cover { margin: 0 }                        /* the COVER page bleeds — ZERO margin = full canvas */
-    /* TRUE FULL-BLEED cover via a NAMED PAGE: the cover lives on its own zero-margin
-       page so its background field runs to the PAPER EDGE on all four sides (no white
-       frame), while every interior page keeps the @page margins above. The cover
-       supplies its OWN padding. (Do NOT use negative margins — that left a white frame.) */
-    html, body { background: var(--bg) }             /* interior pages stay light; the cover paints its own field */
-    .cover { page: cover; min-height: 100vh; padding: 26mm 28mm; box-sizing: border-box;
+    @page bleed { margin: 0 }                        /* full-bleed pages: ZERO margin = the whole sheet */
+    html, body { background: var(--bg) }             /* the PAPER colour — paints the FULL sheet, edge-to-edge, on every text page (never put a page background on a margined wrapper — that is the white-frame "bleed" defect) */
+    /* FULL-BLEED PAGE — the ONE reusable mechanic for ANY page that should be a solid
+       colour field: the cover, OR a dark/accent "divider" page dropped MID-document for
+       contrast. It is pinned to EXACTLY ONE A4 sheet (height:100vh on its own zero-margin
+       page) and CLIPS overflow, so the field reaches all four paper edges (no white frame)
+       and can NEVER spill onto a second page. Content sits on its OWN generous padding.
+       Use it: <section class="bleed dark"> … </section>. (Do NOT use min-height — that lets
+       it grow past one page; do NOT use negative margins — that leaves a white frame.) */
+    .bleed { page: bleed; box-sizing: border-box; height: 100vh; width: 100%;
+             padding: 24mm 26mm; overflow: hidden;
              display:flex; flex-direction:column; justify-content:space-between;
-             page-break-after: always }              /* COVER IS ITS OWN PAGE — nothing shares it */
-    .cover.dark   { background:#15140f; color:#f3efe6 }   /* light type; accent for the title line + KPIs */
-    .cover.accent { background:var(--accent); color:#fff }
-    .cover.light  { background:var(--surface) }           /* edge-to-edge light field, ink type */
+             break-before: page; break-after: page } /* isolated — nothing shares the page */
+    .bleed.dark   { background:#15140f; color:#f3efe6 }   /* light type; accent for the title line + KPIs */
+    .bleed.accent { background:var(--accent); color:#fff }
+    .bleed.light  { background:var(--surface) }           /* edge-to-edge light field, ink type */
+    .cover { } /* the COVER is simply the first full-bleed page → use class="cover bleed dark|accent|light" */
     .toc { page-break-after: always }                /* a Contents page, if used, is its OWN page */
     .break { break-before: page }                    /* apply DELIBERATELY for a major division — NOT on every heading */
     thead { display: table-header-group }             /* repeat table headers */
@@ -379,19 +387,26 @@ HOW TO BUILD (the pipeline):
     tbody td+td, thead th+th { border-left:1px solid var(--surface) }/* column variation */
     tbody td { border-bottom:1px solid var(--line) }
   (Keep the side margins WIDE — 24–28mm — for the editorial/newspaper feel the
-  brand wants on the INTERIOR pages; the COVER bleeds full because it sits on the
-  zero-margin @page cover. Render layout "slides" → use a landscape page instead.)
-- INTERIOR BACKGROUNDS — CLEAN LIKE THE COVER, NEVER A FLOATING BAND: a tinted
-  page-wide background FIELD belongs ONLY to the cover (and, if you truly need one,
-  a deliberate full-page section divider) — and it MUST run FULL-BLEED to the paper
-  edge via the named zero-margin @page mechanic, EXACTLY like the cover. NEVER paint
-  a tinted rectangle (running header/masthead band, section-title strip, page-top
-  banner) that floats INSIDE the @page margins — it leaves an ugly gap above/around
-  it and edges that don't reach the paper (the grey header-box defect). Running
-  headers/mastheads on interior pages are TYPE + a hairline RULE only — NO fill.
-  If a section needs a coloured field, give it its OWN full-bleed page (the cover
-  mechanic), not an inline band. (Contained elements — callouts, KPI tiles, zebra
-  table rows — may keep their light tint; those are design blocks, not page bands.)
+  brand wants on the INTERIOR text pages; a .bleed page bleeds full because it sits
+  on the zero-margin @page. Render layout "slides" → use a landscape page instead.)
+- BACKGROUNDS FILL THE WHOLE SHEET — NO WHITE FRAME (the recurring "bleed" defect):
+  a page's colour comes from ONE of exactly two places, never anything else:
+    1. The PAPER — set on html, body (var(--bg)); it paints the full sheet edge-to-edge
+       on every normal text page automatically. Interior text pages need NOTHING else.
+    2. A FULL-BLEED PAGE — for the cover OR a deliberate dark/accent contrast page
+       dropped anywhere in the document: <section class="bleed dark|accent|light">. The
+       .bleed mechanic above pins it to ONE A4 sheet and fills all four edges.
+  You are ENCOURAGED to use a full-bleed dark/accent page mid-report for contrast or a
+  section divider — just always via .bleed. The ABSOLUTE RULE: a coloured field must
+  COMPLETELY fill its page to all four paper edges. NEVER put a page background on a
+  margined/max-width WRAPPER (e.g. <div class="page" style="background:…">, a content
+  container, or body with a side margin) — it paints only the inner box and leaves a
+  WHITE FRAME around the edges. That frame is the #1 defect the user keeps flagging
+  (pages with a faint field that stops short of the paper). If a page looks like it has
+  a tinted area inside a white border, the background is on the wrong element — move the
+  colour to html/body (paper) or to a .bleed page. (Contained design blocks — callouts,
+  KPI tiles, zebra table rows — keep their own light tint; those are intentional, not
+  page fields.)
 - CONTENT FLOW: let sections FLOW and fill each page — do NOT force every section
   onto its own page (that leaves lonely, half-empty pages, e.g. a one-line
   "Verdict" alone). Only start a new page for a genuinely major division or when
@@ -444,10 +459,11 @@ HOW TO BUILD (the pipeline):
   SPLIT across a page boundary or torn from its values (wrap it in .keep), a chart
   split from its caption/insight, orphaned KPI tiles, lonely near-empty pages, content
   bleed/cut-off, mis-centred cover, invisible/low-contrast text, accent overused,
-  a TINTED BACKGROUND BAND floating inside the margins on an interior page (a header/
-  masthead/section strip with a gap above it or edges not reaching the paper — it must
-  be full-bleed like the cover, or a hairline rule with no fill), and unreadable
-  charts. Iterate at least once; "it rendered" is NOT "well designed".
+  ANY page whose background field does NOT reach all four paper edges — a tinted area
+  sitting inside a WHITE FRAME/border (the background is on a margined wrapper; move it
+  to html/body or a .bleed page so it fills completely), the COVER (or any .bleed
+  page) SPILLING onto a second, half-empty page (it must be exactly one page), and
+  unreadable charts. Iterate at least once; "it rendered" is NOT "well designed".
 - DOCX (only when asked): generate from the same content with the docx library —
   clean and editable, but say up front it won't be as richly designed as the PDF.
 
