@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'Ask for a song and ArksAI now works like a Suno expert: richer style direction and structured lyrics (with vocal cues), plus controls for vocal gender, how closely to follow the style, and styles to avoid. It also drafts lyrics on their own (no audio), extends a track to make it longer, and covers an existing song in a new style.',
   },
   {
-    title: 'No more "premature close" in chat',
-    body: 'Fixed an intermittent error where a dropped connection mid-reply (a "premature close") would fail the whole message. ArksAI now quietly reconnects and continues, instead of surfacing a scary error. The same hardening covers published apps and the live preview.',
+    title: 'It keeps going when an engine has a bad day',
+    body: 'If the connection to the default engine drops mid-reply (a "premature close"), ArksAI now reconnects, then — if it still can\'t reach it — automatically fails over to a second engine to finish your request, instead of showing a scary error. Tested live: a full stock research report that used to fail now completes end-to-end.',
   },
 ];
 
