@@ -48,7 +48,9 @@ export const DESIGN_RUBRIC_PROMPT =
   'this rubric: typography-FIRST (a real modular scale, strong but quiet hierarchy, a refined font pairing, ' +
   'readable measure), spacing & alignment (consistent rhythm on a grid, generous whitespace, not cramped or ' +
   'sparsely empty), visual hierarchy, colour (a DISTINCTIVE confident palette — flag the generic default ' +
-  'blue/indigo-on-white "AI look" — ONE accent used sparingly, strong AA contrast), component polish & ' +
+  'blue/indigo-on-white "AI look" — ONE accent used sparingly), LEGIBILITY (flag ANY text you struggle to ' +
+  'read — washed-out muted/secondary text that nearly vanishes into the background, or light text on a busy ' +
+  'image/photo with no scrim; every line of copy must be clearly readable), component polish & ' +
   'considered states, and overall "does this look like a top-tier product a senior designer shipped, not a template". ' +
   'Respond EXACTLY in this format and nothing else:\n' +
   'First line: "VERDICT: PASS" if it already looks genuinely well-designed, or "VERDICT: REVISE" if a ' +
@@ -244,11 +246,83 @@ export async function browserSmokeTest(
       }
     }
 
+    // LEGIBLE TEXT (deterministic, no vision): every block of text must contrast with its
+    // background. Muted/secondary text is fine for hierarchy, but washed-out near-background
+    // text (a recurring defect) is illegible — measure WCAG contrast on real text vs its
+    // solid background and flag anything clearly under the legibility floor.
+    let contrastIssues: string[] = [];
+    if (!blank) {
+      try {
+        contrastIssues = (await page.evaluate(() => {
+          const d: any = (globalThis as any).document;
+          const w: any = globalThis as any;
+          const parse = (s: string) => {
+            const m = String(s).match(/rgba?\(([^)]+)\)/);
+            if (!m) return null;
+            const p = m[1].split(',').map((x: string) => parseFloat(x));
+            return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+          };
+          const lum = (c: any) => {
+            const f = (v: number) => {
+              v /= 255;
+              return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+            };
+            return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+          };
+          const ratio = (a: any, b: any) => {
+            const l1 = lum(a),
+              l2 = lum(b);
+            return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+          };
+          const bgOf = (el: any): any => {
+            let e = el;
+            while (e) {
+              const cs = w.getComputedStyle(e);
+              if (cs.backgroundImage && cs.backgroundImage !== 'none') return null; // over an image — can't measure
+              const bg = parse(cs.backgroundColor);
+              if (bg && bg.a > 0.5) return bg;
+              e = e.parentElement;
+            }
+            return { r: 255, g: 255, b: 255, a: 1 };
+          };
+          const bad: string[] = [];
+          const els = d.querySelectorAll('p,li,span,a,button,h1,h2,h3,h4,h5,h6,small,label,td,th,blockquote,figcaption');
+          for (const el of els) {
+            let direct = '';
+            for (const n of el.childNodes) if (n.nodeType === 3) direct += n.textContent;
+            direct = direct.trim();
+            if (direct.length < 15) continue; // only leaf elements with real text
+            const cs = w.getComputedStyle(el);
+            if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.35) continue;
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 10 || rect.height < 6) continue;
+            const fg = parse(cs.color);
+            if (!fg || fg.a < 0.4) continue;
+            const bg = bgOf(el);
+            if (!bg) continue; // text over an image — vision review handles those
+            const cr = ratio(fg, bg);
+            const size = parseFloat(cs.fontSize) || 16;
+            const large = size >= 24 || (size >= 18.66 && parseInt(cs.fontWeight) >= 600);
+            const floor = large ? 3.0 : 4.5;
+            if (cr < floor - 0.5)
+              bad.push(`"${direct.slice(0, 38)}…" — contrast ${cr.toFixed(1)}:1 (needs ≥${floor}:1, ${size}px)`);
+            if (bad.length >= 4) break;
+          }
+          return bad;
+        })) as string[];
+      } catch {
+        /* best-effort */
+      }
+    }
+    const contrastIssue = contrastIssues.length
+      ? `Illegible text — these blocks don't contrast with their background (muted text taken too far). Use a readable ink for ALL text (muted ≈ 55–65% black, never a near-background tint); every text must meet WCAG AA (4.5:1 body, 3:1 large). Offenders:\n  - ${contrastIssues.join('\n  - ')}`
+      : '';
+
     const docFailed = !resp || resp.status() >= 400;
     const ce = dedupe(consoleErrors);
     const pe = dedupe(pageErrors);
     const fr = dedupe(failedRequests);
-    const hardFail = docFailed || blank || pe.length > 0 || fr.length > 0 || !!responsiveIssue;
+    const hardFail = docFailed || blank || pe.length > 0 || fr.length > 0 || !!responsiveIssue || !!contrastIssue;
 
     // True visual judgment: if vision is configured, actually LOOK at the page
     // (the text-only model can't). For visual tasks run the DESIGN RUBRIC (gating
@@ -296,6 +370,7 @@ export async function browserSmokeTest(
     if (pe.length) lines.push(`✗ Uncaught JS errors:\n  - ${pe.join('\n  - ')}`);
     if (fr.length) lines.push(`✗ Failed requests (same-origin):\n  - ${fr.join('\n  - ')}`);
     if (responsiveIssue) lines.push(`✗ ${responsiveIssue}`);
+    if (contrastIssue) lines.push(`✗ ${contrastIssue}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
     if (leaked.length) lines.push(`⚠ Value leaked into the UI:\n  - ${leaked.join('\n  - ')}`);
     if (interacted) lines.push('• Interaction pass ran (seeded inputs, submitted a form, clicked primary actions).');

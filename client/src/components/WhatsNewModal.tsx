@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.18';
+export const WHATS_NEW_VERSION = '2026-06-19.19';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Higher-quality, responsive output by default',
-    body: 'Everything ArksAI builds is held to a stricter bar: typography-first and minimal, a distinctive palette that\'s contrast-checked for accessibility, purposeful micro-animations, and a deterministic mobile check that fails (and revises) any layout that overflows on a phone — so results look genuinely designed and work on every screen.',
+    title: 'Always-legible designs',
+    body: 'Every text block is now contrast-checked against its background: a muted tone is fine for secondary copy, but washed-out text that vanishes into the background is caught and the design is automatically revised — so headlines and body alike stay readable.',
   },
   {
-    title: 'Publishing is more robust',
-    body: 'Apps the builder placed in a subfolder now publish correctly, React/Vite apps reliably build to a fast static site, and a failed build shows a clean "being prepared" page with the actual error to fix — instead of a broken link.',
+    title: 'Your published link, one tap away',
+    body: 'Once an app is published the Publish button shows it\'s Live and surfaces the shareable link to open or copy — you only republish when you\'ve actually changed the app.',
   },
 ];
 

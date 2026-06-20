@@ -40,6 +40,15 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
   }, [meta.id]);
 
   const fullUrl = (u: string) => `${window.location.origin}${u}`;
+  // The session's CURRENT live link (running + not expired). Once it exists the user just
+  // shares it — no need to republish unless they've changed the app.
+  const liveDep = deps.find((d) => d.status === 'running' && (!d.expiresAt || d.expiresAt > Date.now())) || null;
+  const liveUrl = latest || liveDep?.url || '';
+  const copy = (u: string) => {
+    navigator.clipboard?.writeText(fullUrl(u));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
 
   const publish = async () => {
     setBusy(true);
@@ -80,45 +89,54 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog wide" onClick={(e) => e.stopPropagation()}>
         <h2>Publish & share</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 0 }}>
-          Publish a <strong>24-hour preview link</strong> anyone can open and share — no login needed to view. It
-          auto-deletes after 24 hours; re-publish any time to refresh the window.
-        </p>
 
-        <button className="send-btn" onClick={publish} disabled={busy} style={{ alignSelf: 'flex-start' }}>
-          {busy ? PUB_PHASES[phase] : '🚀 Publish 24-hour preview'}
-        </button>
-
-        {latest && (
-          <div style={{ marginTop: 8 }}>
-            <div style={{ color: 'var(--green, #16a34a)', fontSize: 12, marginBottom: 4 }}>
-              ✓ Verified live — the public URL renders cleanly.
-            </div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>
-              Live for 24 hours · share with anyone · re-publish to refresh.
+        {liveUrl ? (
+          /* PUBLISHED → lead with the live link; sharing it, not re-publishing, is the default. */
+          <div
+            style={{
+              background: 'var(--bg-elev)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              padding: '10px 12px',
+            }}
+          >
+            <div style={{ color: 'var(--green, #16a34a)', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+              ✓ Live — anyone can open this link, no login needed.
             </div>
             <div className="kb-row">
               <span className="kb-name">
-                <a href={fullUrl(latest)} target="_blank" rel="noreferrer">
-                  {fullUrl(latest)}
+                <a href={fullUrl(liveUrl)} target="_blank" rel="noreferrer">
+                  {fullUrl(liveUrl)}
                 </a>
               </span>
-              <a className="canvas-btn" href={fullUrl(latest)} target="_blank" rel="noreferrer">
+              <a className="canvas-btn" href={fullUrl(liveUrl)} target="_blank" rel="noreferrer">
                 Open
               </a>
-              <button
-                className="canvas-btn"
-                onClick={() => {
-                  navigator.clipboard?.writeText(fullUrl(latest));
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1800);
-                }}
-              >
+              <button className="canvas-btn" onClick={() => copy(liveUrl)}>
                 {copied ? 'Copied ✓' : 'Copy'}
               </button>
             </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 6 }}>
+              {liveDep?.expiresAt ? `${expiresLabel(liveDep.expiresAt)} · ` : ''}You don't need to publish again unless
+              you change the app.
+            </div>
           </div>
+        ) : (
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 0 }}>
+            Publish a <strong>24-hour preview link</strong> anyone can open and share — no login needed to view. It
+            auto-deletes after 24 hours.
+          </p>
         )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+          <button className={liveUrl ? 'cancel' : 'send-btn'} onClick={publish} disabled={busy}>
+            {busy ? PUB_PHASES[phase] : liveUrl ? '↻ Republish (after changes)' : '🚀 Publish 24-hour preview'}
+          </button>
+          {liveUrl && !busy && (
+            <span style={{ color: 'var(--text-faint)', fontSize: 12 }}>Only needed if you've updated the app.</span>
+          )}
+        </div>
+
         {error && (
           <div style={{ color: 'var(--red)', fontSize: 13, whiteSpace: 'pre-wrap', marginTop: 6 }}>{error}</div>
         )}

@@ -31,6 +31,13 @@ Start from the bundled design system; do not hand-roll mediocre CSS.
 - TYPOGRAPHY (the backbone): a real modular type scale (≈1.25), generous
   line-height (~1.5 body), a comfortable measure (~60–75 chars), and a strong but
   quiet hierarchy (display → headings → body → caption). One refined font pairing.
+  LEGIBILITY IS NON-NEGOTIABLE: build hierarchy with SIZE/WEIGHT/SPACE, not by making
+  text disappear. EVERY text — including muted/secondary/captions — must contrast
+  clearly with its background and pass WCAG AA (4.5:1 body, 3:1 large). "Muted" means a
+  readable ink at ~55–65% black (e.g. #555–#6b7280 on a light bg), NEVER a washed-out
+  near-background tint you can barely see (a recurring failure). Text over an image or a
+  coloured block needs a scrim/overlay so it stays readable. Run validate_palette to
+  confirm — if any text fails, darken it until it passes; do not ship illegible copy.
 - COLOR: a DISTINCTIVE, confident, cohesive palette — NOT the generic default
   blue/indigo-on-white "AI look". A near-black ink, soft surfaces, and ONE characterful
   accent used sparingly (~5–10%, for emphasis/primary actions), not on everything; pick
