@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { repoRoot } from '../../config';
 import { resolveInWorkspace, type ToolDef } from './common';
+import { ICON_NAMES } from './icons';
 
 const UI_KIT_DIR = path.join(repoRoot, 'server', 'assets', 'ui-kit');
 const FONTS_DIR = path.join(repoRoot, 'server', 'assets', 'report-fonts');
@@ -71,8 +72,10 @@ export const addUiKitTool: ToolDef = {
       `PATTERNS (.hero/.hero-split/.hero-center .features .bento .stat-band .pricing .testimonials .cta[.is-accent] ` +
       `.logos .split .footer). COMPOSE these blocks into a bespoke page — never output a generic centered-hero ` +
       `template. MOTION: add [data-reveal] (scroll-in) and .animate-in (entrance); use ONE signature moment per page ` +
-      `(a gradient .cta.is-accent, a .bento, or a hero visual), restraint elsewhere. Icons: inline a symbol's ` +
-      `<path>s from ${destRel}/icons.svg (external <use href> does NOT render reliably).`
+      `(a gradient .cta.is-accent, a .bento, or a hero visual), restraint elsewhere.\n` +
+      `ICONS (${ICON_NAMES.length} curated Lucide line icons in ${destRel}/icons.svg — use these, don't hand-roll SVGs): ` +
+      `in a browser reference one with <svg class="ico" width="24" height="24"><use href="${destRel}/icons.svg#NAME"/></svg> ` +
+      `— symbols stroke with currentColor so set the icon's CSS \`color\` to recolour it. Available: ${ICON_NAMES.join(', ')}.`
     );
   },
 };

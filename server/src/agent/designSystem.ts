@@ -66,8 +66,15 @@ Start from the bundled design system; do not hand-roll mediocre CSS.
   (entrance) and the spring easings; ONE signature motion moment, restraint elsewhere;
   ALWAYS respect prefers-reduced-motion.
 - POLISH: aligned to a grid, consistent component sizing, rounded corners + soft
-  elevation where appropriate, accessible contrast, real icons (inline SVG line
-  icons), no clip-art/emoji as UI.
+  elevation where appropriate, accessible contrast, no clip-art/emoji as UI.
+- ICONS: use the bundled icon set, don't hand-roll SVGs or use emoji. add_ui_kit /
+  add_fonts install icons.svg — a curated 120+ Lucide line-icon library covering
+  brand/lifestyle (coffee, leaf, gift, heart, sparkles…), nature/weather, comms
+  (mail, send, phone, bell…), commerce (shopping-cart, tag, wallet…), data/charts,
+  people, media, UI/nav, places and tech. Pick the icon that actually fits the
+  content; recolour via CSS color (the symbols stroke with currentColor). In a
+  browser: <svg class="ico"><use href="ui-kit/icons.svg#coffee"/></svg>. Keep icons
+  consistent in size/stroke and use them as quiet section markers, not decoration.
 - SELF-CRITIQUE: before finishing, LOOK at your rendered output and critique it
   like a design director — fix weak hierarchy, off-grid spacing, low contrast,
   missing states, or anything that looks unfinished. Iterate until it's genuinely

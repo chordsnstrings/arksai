@@ -618,8 +618,10 @@ render, every time):
   NO faux logo — never a decorative icon, emoji, or filled-accent badge standing in
   for one; it is carried by the full-bleed field + display type (see "COVER"). CRITICAL: INLINE
   the SVG markup directly (an external <use href="icons.svg#..."> does NOT render
-  in the PDF). add_fonts installs icons.svg as a SOURCE — read it and copy the
-  icon's inner <path>s into an inline element, e.g.:
+  in the PDF). add_fonts installs icons.svg — a curated 120+ Lucide line set (brand/
+  lifestyle, comms, commerce, data, people, places, tech…) — as a SOURCE: read it,
+  pick the symbol whose id fits the section, and copy that symbol's inner <path>s
+  into an inline element, e.g.:
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
          style="color:var(--accent)"><path d="…"/></svg>

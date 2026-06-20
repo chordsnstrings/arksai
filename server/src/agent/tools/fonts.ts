@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { repoRoot } from '../../config';
 import { resolveInWorkspace, type ToolDef } from './common';
+import { ICON_NAMES } from './icons';
 
 const FONTS_DIR = path.join(repoRoot, 'server', 'assets', 'report-fonts');
 
@@ -46,8 +47,9 @@ export const addFontsTool: ToolDef = {
       `<link rel="stylesheet" href="${destRel}/fonts.css"> (or @import). Keep ${destRel}/ in (or under) the directory ` +
       `your app serves — if you serve public/, install it there — or root-absolute paths 404 and fonts won't load. ` +
       `Families: "Inter" (sans/body), "Source Serif 4" (serif display), "Space Grotesk" (modern display). Also ` +
-      `${destRel}/icons.svg — a Lucide line-icon source: read it and INLINE an icon's inner <path>s into your HTML ` +
-      `(an external <use href> does NOT render in the PDF). Pick a font pairing for the brand and use icons for section markers/KPIs.`
+      `${destRel}/icons.svg — a curated ${ICON_NAMES.length}-icon Lucide line set: read it and INLINE an icon's inner <path>s into your HTML ` +
+      `(an external <use href> does NOT render in the PDF). Pick a font pairing for the brand and use icons for section markers/KPIs. ` +
+      `Available icons include: ${ICON_NAMES.join(', ')}.`
     );
   },
 };
