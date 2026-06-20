@@ -78,6 +78,15 @@ test('buildUploadNote: pdf/docx → extracted sidecar; csv/xls/xlsx → read_spr
   }
 });
 
+test('buildUploadNote: a .pptx routes to read_presentation (NOT read_file, NOT a text sidecar)', () => {
+  const note = buildUploadNote(['uploads/deck.pptx'], true)!;
+  assert.match(note, /uploads\/deck\.pptx/);
+  assert.match(note, /read_presentation/);
+  assert.match(note, /slide/i); // mentions reading every slide
+  assert.doesNotMatch(note, /extracted\.txt/); // not extracted to a sidecar
+  assert.doesNotMatch(note, /read with read_file/); // not the generic read_file fallback
+});
+
 test('buildUploadNote: an image routes to see_image when vision is available', () => {
   const note = buildUploadNote(['uploads/photo.png'], true)!;
   assert.match(note, /see_image/);
@@ -113,14 +122,30 @@ test('buildUploadNote: a plain/unknown file is read directly with read_file', ()
 
 test('buildUploadNote: a mixed batch surfaces every kind in one note', () => {
   const note = buildUploadNote(
-    ['uploads/model.xlsx', 'uploads/brief.pdf', 'uploads/logo.png', 'uploads/readme.md'],
+    ['uploads/model.xlsx', 'uploads/brief.pdf', 'uploads/deck.pptx', 'uploads/logo.png', 'uploads/readme.md'],
     true,
   )!;
   assert.match(note, /model\.xlsx/); // spreadsheet → read_spreadsheet
   assert.match(note, /read_spreadsheet/);
   assert.match(note, /brief\.pdf\.extracted\.txt/); // doc → sidecar
+  assert.match(note, /deck\.pptx/); // presentation → read_presentation
+  assert.match(note, /read_presentation/);
   assert.match(note, /logo\.png/); // image
   assert.match(note, /see_image/);
   assert.match(note, /readme\.md/); // other → read_file
   assert.match(note, /read with read_file/);
+});
+
+test('buildUploadNote: multiple files / kinds steer the agent to process EVERY one', () => {
+  // multiple files, multiple kinds → explicit "do not stop after the first"
+  const multi = buildUploadNote(
+    ['uploads/a.xlsx', 'uploads/b.xlsx', 'uploads/photo1.png', 'uploads/photo2.png'],
+    true,
+  )!;
+  assert.match(multi, /every slide of each deck/);
+  assert.match(multi, /do not stop after the first/i);
+  assert.match(multi, /LOOK at every image/);
+  // a single file → no over-broad "process every one" appendix
+  const single = buildUploadNote(['uploads/only.xlsx'], true)!;
+  assert.doesNotMatch(single, /do not stop after the first/i);
 });
