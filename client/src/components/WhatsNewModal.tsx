@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-20.4';
+export const WHATS_NEW_VERSION = '2026-06-20.5';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A much bigger design palette',
-    body: 'Builds can now draw on 13 colour themes and 7 hand-picked font pairings (premium Fraunces, elegant Playfair, modern Outfit & more) — chosen independently and matched to your brand and audience, so every design has the right personality.',
+    title: 'A studio-grade design library',
+    body: 'Builds can now draw on 8 complete “design kits” (one-pick looks like boutique, ledger, gazette, bloom), 23 colour themes and 13 font pairings — from 15 self-hosted typefaces (Fraunces, Playfair, Instrument Serif, Sora, Newsreader & more) — matched to your brand and audience so every design gets the right personality.',
   },
   {
-    title: 'Buttons stay legible on hover',
-    body: 'The legibility check now also hovers every button and link and re-checks contrast — so a control whose background changes on hover but whose text colour doesn’t (making the label vanish) is caught and fixed, not just the resting state.',
+    title: 'Shareable, great-looking links',
+    body: 'arksai.studio now has per-team pages and a real link-preview card, so sharing a link (Reddit, X, WhatsApp, Slack) shows a polished preview — plus answer-engine-friendly SEO.',
   },
 ];
 

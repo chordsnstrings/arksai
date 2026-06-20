@@ -64,13 +64,15 @@ export const addUiKitTool: ToolDef = {
       `CRITICAL: keep the kit in (or under) the directory your app serves — if you serve a subfolder like public/, ` +
       `install it there (dest "public/ui-kit"). Root-absolute "/${destRel}/..." 404s when served from a subdir — ` +
       `the #1 cause of an unstyled, failed deploy.\n` +
-      `THEME (colour personality): <html data-theme="aurora"> — pick ONE of 13: ` +
-      `aurora·emerald·sunset·mono·editorial·noir·ocean·plum·coral·teal·gold·forest·slatepro; ` +
-      `add " dark" for dark mode; override --accent for an exact brand colour.\n` +
-      `TYPE (font pairing, independent of colour): <html data-theme="gold" data-type="grand"> — pick ONE of 7: ` +
-      `geometric (Space Grotesk+Inter, default) · editorial (Source Serif 4+Inter) · grand (Fraunces+Work Sans) · ` +
-      `fashion (Playfair+Work Sans) · startup (Outfit+DM Sans) · press (Outfit+Spectral serif body) · humanist (DM Sans). ` +
-      `Offer the user a quick combined look (colour + pairing) with a strong default; match it to the brand/audience.\n` +
+      `DESIGN KIT (fastest — a complete vetted look in one token): <html data-kit="boutique"> — pick ONE of 8: ` +
+      `linear (crisp SaaS) · boutique (warm luxury) · studio (bold creative) · ledger (serious finance/legal) · ` +
+      `bloom (friendly wellness) · gazette (editorial magazine) · pulse (energetic tech) · terra (natural/organic). ` +
+      `Each bundles palette+radius+shadow+fonts; still override --accent for an exact brand colour.\n` +
+      `OR mix-and-match — THEME (colour, 23): <html data-theme="aurora"> from aurora·emerald·sunset·mono·editorial·` +
+      `noir·ocean·plum·coral·teal·gold·forest·slatepro·crimson·sky·amber·rose·sand·midnight·cocoa·mint·steel·lime ` +
+      `(add " dark" for dark mode); + TYPE (font pairing, 13): <html data-type="grand"> from geometric·editorial·` +
+      `grand·fashion·startup·press·humanist·chic·contemporary·tech·journal·warm·clean. ` +
+      `Offer the user ONE quick curated look (a kit, or a colour+pairing) with a strong default matched to the brand/audience.\n` +
       `BUILD WITH the tokens (--accent/--ink/--surface/--s-*/--t-*/--r-*/--shadow-*/--ease*; the type scale is ` +
       `already fluid/responsive); COMPONENTS (.btn .card .field .input .switch .segmented .tabs .table .badge ` +
       `.alert .avatar .progress .kpi .price .quote .menu dialog .accordion .toast — all with states); and SECTION ` +

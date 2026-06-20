@@ -11,27 +11,47 @@ const fontsCss = fs.readFileSync(path.join(FONTS, 'fonts.css'), 'utf8');
 const COLOR_THEMES = [
   'aurora', 'emerald', 'sunset', 'mono', 'editorial', 'noir', 'ocean',
   'plum', 'coral', 'teal', 'gold', 'forest', 'slatepro',
+  'crimson', 'sky', 'amber', 'rose', 'sand', 'midnight', 'cocoa', 'mint', 'steel', 'lime',
 ];
-const TYPE_PAIRINGS = ['geometric', 'editorial', 'grand', 'fashion', 'startup', 'press', 'humanist'];
+const TYPE_PAIRINGS = [
+  'geometric', 'editorial', 'grand', 'fashion', 'startup', 'press', 'humanist',
+  'chic', 'contemporary', 'tech', 'journal', 'warm', 'clean',
+];
+const DESIGN_KITS = ['linear', 'boutique', 'studio', 'ledger', 'bloom', 'gazette', 'pulse', 'terra'];
 const NEW_FONT_FILES = [
   'fraunces-600.woff2', 'playfair-600.woff2', 'outfit-600.woff2',
   'worksans-400.woff2', 'worksans-600.woff2', 'dmsans-400.woff2', 'dmsans-600.woff2', 'spectral-400.woff2',
+  'instrumentserif-400.woff2', 'bricolage-600.woff2', 'sora-600.woff2', 'jakarta-400.woff2',
+  'jakarta-600.woff2', 'lora-400.woff2', 'manrope-600.woff2', 'newsreader-400.woff2',
 ];
 
-test('themes.css defines an ample set of colour personalities (13)', () => {
+test('themes.css defines an ample set of colour personalities (23)', () => {
   for (const t of COLOR_THEMES) {
     assert.ok(themes.includes(`[data-theme~='${t}']`), `missing colour theme: ${t}`);
   }
-  assert.ok(COLOR_THEMES.length >= 13);
+  assert.ok(COLOR_THEMES.length >= 23);
 });
 
-test('themes.css defines the typography pairings via data-type', () => {
+test('themes.css defines the typography pairings via data-type (13)', () => {
   for (const p of TYPE_PAIRINGS) {
     assert.ok(themes.includes(`[data-type='${p}']`), `missing type pairing: ${p}`);
   }
+  assert.ok(TYPE_PAIRINGS.length >= 13);
   // each pairing must set a display family
   assert.match(themes, /\[data-type='grand'\][^}]*--font-display:\s*'Fraunces'/);
-  assert.match(themes, /\[data-type='fashion'\][^}]*--font-display:\s*'Playfair Display'/);
+  assert.match(themes, /\[data-type='chic'\][^}]*--font-display:\s*'Instrument Serif'/);
+});
+
+test('themes.css defines complete design kits via data-kit (8)', () => {
+  for (const k of DESIGN_KITS) {
+    assert.ok(themes.includes(`[data-kit='${k}']`), `missing design kit: ${k}`);
+    // each kit must set accent + a display font (a complete look)
+    const m = themes.match(new RegExp(`\\[data-kit='${k}'\\]\\s*\\{([^}]*)\\}`));
+    assert.ok(m, `no block for kit ${k}`);
+    assert.match(m[1], /--accent:\s*#[0-9a-fA-F]{6}/, `kit ${k} missing accent`);
+    assert.match(m[1], /--font-display:/, `kit ${k} missing font-display`);
+  }
+  assert.ok(DESIGN_KITS.length >= 8);
 });
 
 test('every new theme has valid hex accents (no stray characters)', () => {
