@@ -41,6 +41,11 @@ const REPORT_MAX_DESIGN_ROUNDS = 2; // report mode: quality-first revise cap (de
 // structured output well). Env-tunable via MINIMAX_HEAVY_TOOL_DEADLINE_MS.
 const HEAVY_GENERATORS = new Set(['generate_spreadsheet', 'generate_pptx', 'generate_doc']);
 
+// How many slow M3 turns we tolerate (each finished on the fast model for that turn only)
+// before giving up on M3 for the rest of the run. Quality-first: M3 references cells more
+// accurately on a financial model, so we keep returning to it. Env-tunable.
+const MAX_MINIMAX_STALLS = Math.max(1, Number(process.env.MINIMAX_MAX_STALLS || '3') || 3);
+
 /**
  * Global concurrency limiter for MiniMax (Anthropic-endpoint) streams. M3 buffers a
  * turn's output server-side, and under CONCURRENCY it STARVES the contending streams —
@@ -335,9 +340,17 @@ export class AgentRun {
   private planResolved = false; // this run answers a pending plan → plan→code is allowed
   private planApproved = false; // this run is the user's "Approve & build" → must build, not re-plan
   private minimaxAvailable = !!config.minimaxApiKey;
-  // Set once M3 has stalled on this run; subsequent MiniMax turns use the faster
-  // model instead (the user's "M3, but fall back if slow" choice).
+  // Set once M3 has stalled REPEATEDLY on this run; subsequent MiniMax turns use the
+  // faster model instead (the user's "M3, but fall back if slow" choice).
   private minimaxFellBack = false;
+  // Quality-first stall handling: a single slow M3 turn finishes on the fast model for
+  // THAT turn only (forceFastThisTurn), then the run returns to M3 — because each staged
+  // step (e.g. one spreadsheet sheet) is small, so M3 stays accurate on the next one.
+  // Only after MAX_MINIMAX_STALLS do we give up on M3 for the rest of the run (the weaker
+  // fast model makes more cross-reference errors on a financial model, so we keep M3 where
+  // we can). Counts stalls across the run.
+  private minimaxStalls = 0;
+  private forceFastThisTurn = false;
   // The concrete model the orchestrator is using right now (resolved from the
   // session model, which may be the virtual 'arksai-auto').
   private activeModel = '';
@@ -641,10 +654,20 @@ export class AgentRun {
           // M2.7-highspeed) and redo the turn (once). minimaxFellBack also makes
           // createMinimaxStream pick the fast model for the rest of the run.
           if (err?.minimaxStall && !this.minimaxFellBack && !this.abort.signal.aborted) {
-            this.minimaxFellBack = true;
-            this.dropM3Reasoning(context);
-            this.setActiveModel(FAST_MODEL);
-            sysInfo(`↳ ArksAI Max was slow — switching to ArksAI Flash to finish reliably.`);
+            this.minimaxStalls++;
+            if (this.minimaxStalls >= MAX_MINIMAX_STALLS) {
+              // Repeatedly slow → give up on M3 for the rest of the run.
+              this.minimaxFellBack = true;
+              this.dropM3Reasoning(context);
+              this.setActiveModel(FAST_MODEL);
+              sysInfo(`↳ ArksAI Max keeps running long — finishing the rest on ArksAI Flash.`);
+            } else {
+              // One slow step → finish JUST this turn on the fast model, then return to Max.
+              // Keep M3's reasoning + active model so the next (small, staged) turn runs on Max,
+              // which references cells more accurately than the fast model.
+              this.forceFastThisTurn = true;
+              sysInfo(`↳ That step ran long — finishing it on ArksAI Flash, then back to ArksAI Max.`);
+            }
             continue;
           }
           // The connection dropped mid-reply (a "premature close" / terminated socket).
@@ -1075,8 +1098,11 @@ export class AgentRun {
     // that favoured M3 doesn't hold for real document generation — M2.7 both completes AND is
     // higher quality here.)
     const isLegal = !!this.session.task?.startsWith('legal.');
-    const useFast = this.minimaxFellBack || this.session.mode === 'report' || isLegal;
+    const useFast = this.minimaxFellBack || this.forceFastThisTurn || this.session.mode === 'report' || isLegal;
     const model = useFast ? config.minimaxFallbackModel : this.activeApiModel;
+    // One-turn override is consumed here: the NEXT turn returns to Max (this.activeApiModel
+    // is untouched, so only this stalled step ran on the fast model).
+    this.forceFastThisTurn = false;
     const body: Record<string, unknown> = { model, max_tokens: 64000, system, messages, stream: true };
     if (tools.length) body.tools = tools;
     // fetch has NO built-in timeout, and M3 can be slow to even send response headers on a

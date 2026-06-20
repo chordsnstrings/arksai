@@ -387,6 +387,148 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
   return { isModel: false, reason: '' };
 }
 
+// A first-cell text that's acting as a SECTION DIVIDER inside a sheet's data — these shift
+// every following row down and corrupt absolute formula references. Catches em-dash/rule
+// wrappers ("—— REVENUE ——", "════"), a "Section N" label, or an ALL-CAPS phrase
+// ("SPACE & LEASE", "REVENUE DRIVERS", "COST OF GOODS SOLD").
+const SECTION_LABEL_RE =
+  /^[\s—–=]*[—–=]{2,}[\s\S]*$|[—–=]{2,}[\s—–=]*$|^\s*section\b/i;
+const ALLCAPS_SECTION_RE = /^[A-Z][A-Z0-9 &/().,'’-]{5,}$/;
+
+/**
+ * Flag plain-text / dash section-divider rows inside a sheet (the cause we saw live: an
+ * interior label-only row like "SPACE & LEASE" or "—— REVENUE ——" pushed the data rows
+ * down so the model's =Assumptions!$B$N references landed on the wrong cells → 0s and wrong
+ * totals). A section row = an INTERIOR row (not the header, not the last row) whose first
+ * cell is one of those labels and which carries NO numeric cells. Pure; one defect per sheet.
+ */
+export function detectSectionRows(wb: any): string[] {
+  const out: string[] = [];
+  const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
+  for (const name of names) {
+    const sh = wb?.Sheets?.[name];
+    if (!sh) continue;
+    // group cells by row: first text label + whether the row has any numbers
+    const rows = new Map<number, { label?: string; labelCol: number; hasNum: boolean }>();
+    let maxRow = 1;
+    for (const addr of Object.keys(sh)) {
+      if (addr[0] === '!') continue;
+      const p = parseAddr(addr);
+      if (!p) continue;
+      maxRow = Math.max(maxRow, p.row);
+      let r = rows.get(p.row);
+      if (!r) { r = { labelCol: Infinity, hasNum: false }; rows.set(p.row, r); }
+      const c = sh[addr];
+      if (c?.t === 'n' && typeof c?.v === 'number') r.hasNum = true;
+      const isText = (c?.t === 's' || c?.t === 'str') && typeof c?.v === 'string' && c.v.trim();
+      if (isText && p.col < r.labelCol) { r.labelCol = p.col; r.label = String(c.v).trim(); }
+    }
+    const sheetHasNums = [...rows.values()].some((r) => r.hasNum);
+    if (!sheetHasNums) continue; // a pure text sheet isn't a calc grid
+    let hit = '';
+    for (const [rn, r] of rows) {
+      if (rn <= 1 || rn >= maxRow) continue; // skip header + last row
+      if (r.hasNum || !r.label) continue; // a divider carries no numbers
+      if (SECTION_LABEL_RE.test(r.label) || ALLCAPS_SECTION_RE.test(r.label)) { hit = r.label.slice(0, 40); break; }
+    }
+    if (hit)
+      out.push(
+        `Sheet "${name}" has a section/divider row ("${hit}…") sitting inside the data — REMOVE it. ` +
+          `A label-only row pushes every following row down, so absolute references like Assumptions!$B$5 point ` +
+          `at the wrong cell (this is what made rent/occupancy read 0 and totals wrong). Keep ONE header on row 1, ` +
+          `data from row 2 with no divider rows; put a section name in the tab name or a separate sheet.`,
+      );
+  }
+  return out;
+}
+
+const SANITY_DERIVED_RE = DERIVED_LABEL_RE; // a derived row reading 0 is a broken reference
+const median = (xs: number[]): number => {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+/**
+ * Numeric SANITY gate (pure): catch numbers that CAN'T be right even though the file is
+ * formula-driven and renders — the live failure mode (a cross-sheet formula that landed on
+ * the wrong cell: a rate/% cell instead of a value, or a row shifted by a divider). Reads the
+ * SheetJS workbook's computed values. Conservative to avoid false positives:
+ *  1) OUTLIER — in a "money column" (≥70% of cells ≥ 100), a value ≥ 200× the column median
+ *     (and ≥ 1000 absolute) → almost certainly a mis-reference (e.g. a 140,000,000 POS fee).
+ *  2) RATE-LEAK — in a money column, a cell with 0 < |v| < 1 → a rate/percent leaked into a
+ *     money cell (e.g. revenue showing 0.30 instead of 6,000).
+ *  3) DERIVED-ZERO — a Total/Net/Balance/… row that's ALL zero while the sheet has real
+ *     numbers → a broken reference produced 0 (e.g. Annual Rent / Occupancy Cost = 0).
+ * Assumptions/driver/input sheets are skipped (they legitimately hold rates + mixed scales).
+ */
+export function auditNumericSanity(wb: any): string[] {
+  const findings: string[] = [];
+  const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
+  for (const name of names) {
+    if (MODEL_SHEET_RE.test(name)) continue;
+    const sh = wb?.Sheets?.[name];
+    if (!sh) continue;
+    const cols = new Map<number, { v: number; addr: string }[]>();
+    const rows = new Map<number, { label?: string; labelCol: number; nums: number[] }>();
+    let sheetHasNonzero = false;
+    for (const addr of Object.keys(sh)) {
+      if (addr[0] === '!') continue;
+      const p = parseAddr(addr);
+      if (!p) continue;
+      const c = sh[addr];
+      if (c?.t === 'n' && typeof c?.v === 'number') {
+        (cols.get(p.col) ?? cols.set(p.col, []).get(p.col)!).push({ v: c.v, addr });
+        let r = rows.get(p.row);
+        if (!r) { r = { labelCol: Infinity, nums: [] }; rows.set(p.row, r); }
+        r.nums.push(c.v);
+        if (c.v !== 0) sheetHasNonzero = true;
+      } else {
+        const isText = (c?.t === 's' || c?.t === 'str') && typeof c?.v === 'string' && c.v.trim();
+        if (isText) {
+          let r = rows.get(p.row);
+          if (!r) { r = { labelCol: Infinity, nums: [] }; rows.set(p.row, r); }
+          if (p.col < r.labelCol) { r.labelCol = p.col; r.label = String(c.v).trim(); }
+        }
+      }
+    }
+    const outliers: string[] = [];
+    const leaks: string[] = [];
+    for (const list of cols.values()) {
+      if (list.length < 4) continue;
+      const mags = list.map((x) => Math.abs(x.v));
+      // Judge "money column" among NON-TRIVIAL cells (|v|≥1) so the very leaks/zeros we're
+      // hunting don't drag the column below the threshold and hide themselves.
+      const money = mags.filter((m) => m >= 1);
+      if (money.length < 3) continue;
+      if (money.filter((m) => m >= 100).length / money.length < 0.7) continue; // only real money columns
+      const med = median(money);
+      for (const { v, addr } of list) {
+        const a = Math.abs(v);
+        if (a >= 1000 && med > 0 && a >= 200 * med) outliers.push(`${addr}=${Math.round(v).toLocaleString()}`);
+        else if (a > 0 && a < 1) leaks.push(`${addr}=${v}`);
+      }
+    }
+    const zeroRows: string[] = [];
+    if (sheetHasNonzero)
+      for (const r of rows.values())
+        if (r.label && SANITY_DERIVED_RE.test(r.label) && r.nums.length >= 1 && r.nums.every((n) => n === 0))
+          zeroRows.push(r.label.slice(0, 28));
+    const parts: string[] = [];
+    if (outliers.length) parts.push(`absurd value(s) ${outliers.slice(0, 4).join(', ')} (a mis-referenced formula)`);
+    if (leaks.length) parts.push(`money cell(s) ${leaks.slice(0, 4).join(', ')} under 1 — a rate/% leaked in where a value belongs`);
+    if (zeroRows.length) parts.push(`derived row(s) "${[...new Set(zeroRows)].slice(0, 4).join('", "')}" computing to 0`);
+    if (parts.length)
+      findings.push(
+        `Sheet "${name}" has numbers that can't be right: ${parts.join('; ')}. Re-check each cell's formula — ` +
+          `it is almost certainly pointing at the WRONG cell (a rate/% cell or a row shifted by a divider) instead ` +
+          `of the intended Assumptions/schedule value. Fix the reference so the number is realistic; recompute.`,
+      );
+  }
+  return findings.slice(0, 4);
+}
+
 // ---------------------------------------------------------------- main
 
 export async function checkDeliverable(abs: string, kind: DeliverableKind, signal: AbortSignal): Promise<DeliverableQC> {
@@ -430,6 +572,13 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
       }
       // Banner/separator rows shift cells down and corrupt formula references — flag them.
       seedDefects.push(...detectBannerRows(wb));
+      // Plain-text/dash SECTION rows do the same row-shift damage — flag them too.
+      seedDefects.push(...detectSectionRows(wb));
+      // NUMERIC SANITY: a formula-driven model that still shows impossible numbers (a 140M
+      // line, a money cell < 1, a Total computing to 0) — a mis-referenced formula. The
+      // vision gate renders the computed value and can rationalise it, so this deterministic
+      // read of the values catches it even with no vision egress.
+      seedDefects.push(...auditNumericSanity(wb));
       if (seedDefects.length) {
         base.designVerdict = 'revise';
         base.designDefects = [...seedDefects];

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-20.10';
+export const WHATS_NEW_VERSION = '2026-06-20.11';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Big, detailed spreadsheets that just work',
-    body: 'Granular models — like a 3-year, month-by-month CAPEX & OPEX plan across separate sheets — now build sheet by sheet, so even large, complex spreadsheets reliably finish and come back complete instead of stalling. Every formula is kept live and connected across sheets, so changing one assumption flows through.',
+    title: 'Spreadsheet numbers you can trust',
+    body: 'Big financial models now get a sanity check before delivery: a figure that can’t be right — a wildly oversized total, a percentage that landed where a dollar value belongs, or a total that comes out as zero — is caught and sent back to be fixed, along with any section divider rows that quietly throw a model’s formulas off. So a detailed model isn’t just complete and good-looking, the maths holds up.',
   },
   {
-    title: 'Cleaner, finance-grade formatting',
-    body: 'Totals and roll-up rows are automatically bolded and ruled so a model reads like a real financial statement, and every cell shows its number in the preview — no more blanks where a formula used to disappear.',
+    title: 'Keeps the best model on the job',
+    body: 'When one step of a long build runs slow, we now finish just that step on a faster model and return to the strongest one for the rest — so detailed models stay accurate instead of dropping to a weaker model for the whole build.',
   },
 ];
 

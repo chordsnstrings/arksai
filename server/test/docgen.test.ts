@@ -8,7 +8,7 @@ import { generateSpreadsheetTool, coerceNumeric } from '../src/agent/tools/excel
 import { generateDocTool } from '../src/agent/tools/docx';
 import { generatePptxTool } from '../src/agent/tools/pptx';
 import { iconSvg, hasIcon, ICON_NAMES } from '../src/agent/tools/icons';
-import { auditFormulaModel, detectEmptyPages, detectUnderfilledPages, detectBannerRows } from '../src/agent/deliverableCheck';
+import { auditFormulaModel, detectEmptyPages, detectUnderfilledPages, detectBannerRows, detectSectionRows, auditNumericSanity } from '../src/agent/deliverableCheck';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-docgen-'));
 const ctx = (): ToolCtx => ({
@@ -267,6 +267,67 @@ test('detectBannerRows flags a box-drawing banner row but not clean data', async
   XLSX.utils.book_append_sheet(clean, XLSX.utils.aoa_to_sheet([['Item', 'Jan'], ['Revenue', 100], ['COGS', 28]]), 'S');
   assert.deepEqual(detectBannerRows(clean), []);
   assert.deepEqual(detectBannerRows(null), []);
+});
+
+test('detectSectionRows flags plain-text/dash divider rows that shift references', async () => {
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.utils.book_new();
+  // an interior ALL-CAPS divider + an em-dash divider, with real data around them
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([
+      ['Item', 'M1', 'M2'],
+      ['Walk-in revenue', 58500, 58500],
+      ['REVENUE DRIVERS', '', ''], // ALL-CAPS divider
+      ['B2B revenue', 6000, 6000],
+      ['—— COST OF GOODS SOLD ——', '', ''], // em-dash divider
+      ['COGS', 16000, 16000],
+    ]),
+    'PnL',
+  );
+  const hits = detectSectionRows(wb);
+  assert.equal(hits.length, 1);
+  assert.match(hits[0], /PnL/);
+  assert.match(hits[0], /section\/divider row/);
+
+  // clean sheet (header + data only) → no false positive
+  const clean = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(clean, XLSX.utils.aoa_to_sheet([['Item', 'M1'], ['Rent', 2775], ['Total', 2775]]), 'S');
+  assert.deepEqual(detectSectionRows(clean), []);
+  assert.deepEqual(detectSectionRows(null), []);
+});
+
+test('auditNumericSanity flags impossible numbers, not legitimate ones', async () => {
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.utils.book_new();
+  // A money column (mostly thousands) with: a 140M outlier, a 0.30 rate-leak, and a Total row = 0
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([
+      ['Line', 'M1', 'M2', 'M3', 'M4'],
+      ['Rent', 2775, 2775, 2775, 2775],
+      ['POS fee', 140400000, 1460, 1460, 1460], // absurd outlier
+      ['B2B revenue', 0.3, 0.3, 0.3, 0.3], // rate leaked into a money column
+      ['Marketing', 8000, 8000, 8000, 8000],
+      ['Total occupancy', 0, 0, 0, 0], // derived row computing to 0
+    ]),
+    'OPEX',
+  );
+  const hits = auditNumericSanity(wb);
+  assert.equal(hits.length, 1);
+  assert.match(hits[0], /140,400,000|absurd/);
+  assert.match(hits[0], /under 1|rate/);
+  assert.match(hits[0], /Total occupancy|0/);
+
+  // An assumptions sheet with legit rates + mixed scales → never flagged
+  const asum = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(asum, XLSX.utils.aoa_to_sheet([['Driver', 'Value'], ['Rent', 185], ['Growth', 0.004], ['COGS %', 0.28]]), 'Assumptions');
+  assert.deepEqual(auditNumericSanity(asum), []);
+  // a clean money sheet → no false positive
+  const clean = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(clean, XLSX.utils.aoa_to_sheet([['Line', 'M1', 'M2', 'M3', 'M4'], ['Rent', 2775, 2775, 2775, 2775], ['Staff', 18000, 18100, 18200, 18300]]), 'S');
+  assert.deepEqual(auditNumericSanity(clean), []);
+  assert.deepEqual(auditNumericSanity(null), []);
 });
 
 test('generate_doc writes a valid docx (zip/OOXML)', async () => {
