@@ -24,6 +24,7 @@ import { registerOrgRoutes } from './routes/orgs';
 import { registerAnalyticsRoutes } from './routes/analytics';
 import { registerConnectorRoutes } from './routes/connectors';
 import { registerIncidentRoutes } from './routes/incidents';
+import { isMarketingRoute, renderMarketingHtml } from './seo/marketingMeta';
 
 export async function buildApp() {
   const app = Fastify({ logger: { level: config.isProd ? 'warn' : 'info' } });
@@ -90,6 +91,13 @@ export async function buildApp() {
     await app.register(fastifyStatic, { root: config.clientDist });
     app.setNotFoundHandler((req, reply) => {
       if (req.method === 'GET' && !req.url.startsWith('/api/')) {
+        // For public MARKETING routes, inject per-route <title>/description/OpenGraph
+        // so a shared link (Reddit, X, WhatsApp, Slack, Google) previews correctly —
+        // crawlers don't run the SPA's JS. App routes fall through to the plain shell.
+        if (isMarketingRoute(req.url)) {
+          const html = renderMarketingHtml(req.url);
+          if (html) return reply.type('text/html').send(html);
+        }
         return reply.sendFile('index.html');
       }
       reply.code(404).send({ error: 'Not found' });

@@ -9,6 +9,7 @@ import { MemoryDialog } from './components/MemoryDialog';
 import { Composer } from './components/Composer';
 import { CostBar } from './components/CostBar';
 import { Landing } from './components/Landing';
+import { VerticalPage, verticalSlugs } from './components/VerticalPage';
 import { Launchpad } from './components/Launchpad';
 import { LoginScreen } from './components/LoginScreen';
 import { InviteAccept } from './components/InviteAccept';
@@ -178,14 +179,16 @@ export default function App() {
   if (inviteMatch) return <InviteAccept token={decodeURIComponent(inviteMatch[1])} />;
   const isOperatorPath = path === '/operator' || path === '/operator/';
 
+  const forMatch = path.match(/^\/for\/([a-z-]+)\/?$/);
+
   if (authed === null) return null;
   if (!authed) {
     if (isOperatorPath) return <OperatorLogin />;
-    return showLogin ? (
-      <LoginScreen onBack={() => setShowLogin(false)} />
-    ) : (
-      <Landing onSignIn={() => setShowLogin(true)} />
-    );
+    if (showLogin) return <LoginScreen onBack={() => setShowLogin(false)} />;
+    // Public per-vertical marketing pages (shareable, server-side OG meta).
+    if (forMatch && verticalSlugs().includes(forMatch[1]))
+      return <VerticalPage slug={forMatch[1]} onSignIn={() => setShowLogin(true)} />;
+    return <Landing onSignIn={() => setShowLogin(true)} />;
   }
 
   // First-run: an org admin whose org hasn't been onboarded gets the agent-driven,

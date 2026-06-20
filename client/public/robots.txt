@@ -1,0 +1,36 @@
+# ArksAI — https://arksai.studio
+# AI for UAE businesses. Crawlers and AI assistants are welcome.
+
+User-agent: *
+Allow: /
+# Published user previews are transient (24h) and not for indexing.
+Disallow: /apps/
+# App surfaces behind auth carry no public content.
+Disallow: /api/
+Disallow: /s/
+Disallow: /operator
+Disallow: /invite/
+
+# Explicitly welcome answer-engine / LLM crawlers (LLM SEO).
+User-agent: GPTBot
+Allow: /
+User-agent: OAI-SearchBot
+Allow: /
+User-agent: ChatGPT-User
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: Claude-Web
+Allow: /
+User-agent: anthropic-ai
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+User-agent: Applebot-Extended
+Allow: /
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://arksai.studio/sitemap.xml
