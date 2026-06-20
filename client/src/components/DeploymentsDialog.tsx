@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Deployment, SessionMeta } from '@shared/types';
 import { api } from '../api/client';
 import { useEscClose } from '../hooks/useEscClose';
+import { openExternal } from '../lib/openExternal';
 
 /** "expires in 23h 12m" countdown for the 24h-preview window. */
 function expiresLabel(ms?: number | null): string {
@@ -105,13 +106,20 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
             </div>
             <div className="kb-row">
               <span className="kb-name">
-                <a href={fullUrl(liveUrl)} target="_blank" rel="noreferrer">
+                <a
+                  href={fullUrl(liveUrl)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openExternal(fullUrl(liveUrl));
+                  }}
+                  rel="noreferrer"
+                >
                   {fullUrl(liveUrl)}
                 </a>
               </span>
-              <a className="canvas-btn" href={fullUrl(liveUrl)} target="_blank" rel="noreferrer">
+              <button className="canvas-btn" onClick={() => openExternal(fullUrl(liveUrl))}>
                 Open
-              </a>
+              </button>
               <button className="canvas-btn" onClick={() => copy(liveUrl)}>
                 {copied ? 'Copied ✓' : 'Copy'}
               </button>
@@ -151,7 +159,14 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
               <div key={d.id} className="kb-row">
                 <span className={`status-dot ${d.status === 'running' ? 'idle' : 'error'}`} />
                 <span className="kb-name">
-                  <a href={fullUrl(d.url)} target="_blank" rel="noreferrer">
+                  <a
+                    href={fullUrl(d.url)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      openExternal(fullUrl(d.url));
+                    }}
+                    rel="noreferrer"
+                  >
                     {d.slug}
                   </a>{' '}
                   <span style={{ color: 'var(--text-faint)' }}>

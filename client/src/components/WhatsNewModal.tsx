@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.19';
+export const WHATS_NEW_VERSION = '2026-06-20.1';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Always-legible designs',
-    body: 'Every text block is now contrast-checked against its background: a muted tone is fine for secondary copy, but washed-out text that vanishes into the background is caught and the design is automatically revised — so headlines and body alike stay readable.',
+    title: 'Sharper legibility checks',
+    body: 'The contrast gate now also reads copy placed directly in section bands and cards (not just paragraphs), and catches borderline-low-contrast text and buttons — so washed-out sections get caught and fixed before you ever see them.',
   },
   {
-    title: 'Your published link, one tap away',
-    body: 'Once an app is published the Publish button shows it\'s Live and surfaces the shareable link to open or copy — you only republish when you\'ve actually changed the app.',
+    title: 'Published links open in your browser',
+    body: 'From the installed app, opening a published link now hands off to your real browser instead of taking over the app window — so you keep your ArksAI session and can switch back any time.',
   },
 ];
 

@@ -286,16 +286,23 @@ export async function browserSmokeTest(
             return { r: 255, g: 255, b: 255, a: 1 };
           };
           const bad: string[] = [];
-          const els = d.querySelectorAll('p,li,span,a,button,h1,h2,h3,h4,h5,h6,small,label,td,th,blockquote,figcaption');
+          const seen: Record<string, boolean> = {};
+          // Include <div> — copy is often placed directly in a div (heroes, cards, bands),
+          // and that text was the gap the legibility gate kept missing.
+          const els = d.querySelectorAll(
+            'p,li,span,a,button,h1,h2,h3,h4,h5,h6,small,label,td,th,blockquote,figcaption,div,strong,em,dt,dd,summary',
+          );
           for (const el of els) {
             let direct = '';
             for (const n of el.childNodes) if (n.nodeType === 3) direct += n.textContent;
             direct = direct.trim();
-            if (direct.length < 15) continue; // only leaf elements with real text
+            if (direct.length < 12) continue; // only leaf elements with real direct text
             const cs = w.getComputedStyle(el);
-            if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.35) continue;
+            if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.4) continue;
             const rect = el.getBoundingClientRect();
             if (rect.width < 10 || rect.height < 6) continue;
+            // Only judge text actually in the viewport's first ~3 screens (visible, real copy).
+            if (rect.bottom < 0 || rect.top > 3000) continue;
             const fg = parse(cs.color);
             if (!fg || fg.a < 0.4) continue;
             const bg = bgOf(el);
@@ -304,9 +311,15 @@ export async function browserSmokeTest(
             const size = parseFloat(cs.fontSize) || 16;
             const large = size >= 24 || (size >= 18.66 && parseInt(cs.fontWeight) >= 600);
             const floor = large ? 3.0 : 4.5;
-            if (cr < floor - 0.5)
-              bad.push(`"${direct.slice(0, 38)}…" — contrast ${cr.toFixed(1)}:1 (needs ≥${floor}:1, ${size}px)`);
-            if (bad.length >= 4) break;
+            // Tighter slack (0.25) so borderline-illegible copy is caught, not waved through;
+            // 0.5 used to let washed-out text and low-contrast CTAs pass.
+            if (cr < floor - 0.25) {
+              const key = direct.slice(0, 38);
+              if (seen[key]) continue;
+              seen[key] = true;
+              bad.push(`"${key}…" — contrast ${cr.toFixed(1)}:1 (needs ≥${floor}:1, ${size}px)`);
+            }
+            if (bad.length >= 6) break;
           }
           return bad;
         })) as string[];
