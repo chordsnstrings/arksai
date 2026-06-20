@@ -700,10 +700,30 @@ button { font-family: inherit; cursor: pointer; }
   align-items: center;
   gap: 8px;
   padding: 9px 12px;
+  /* PWA: keep the row (and the ✕) clear of a notch / rounded screen edge */
+  padding-right: max(12px, env(safe-area-inset-right));
+  flex-wrap: nowrap;
   border-bottom: 1px solid var(--border-soft);
 }
 .canvas-head .spacer { flex: 1; }
-.canvas-tabs { display: inline-flex; gap: 2px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+/* The middle controls (port pills, port input, Load/Refresh) take the free space and
+   SCROLL horizontally if they don't fit — instead of overflowing the row and shoving the
+   ✕ close button off the right edge of the screen (the PWA bug). */
+.canvas-head-mid {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.canvas-head-mid::-webkit-scrollbar { display: none; }
+.canvas-head-mid > * { flex: 0 0 auto; }
+/* The tabs may shrink; the close button never does and stays visible at the right. */
+.canvas-tabs { flex: 0 1 auto; min-width: 0; display: inline-flex; gap: 2px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.canvas-head > .canvas-close { flex: 0 0 auto; }
 .canvas-tabs button { background: none; border: none; color: var(--text-muted); font-size: 12px; padding: 4px 12px; border-radius: 6px; }
 .canvas-tabs button.on { background: var(--accent); color: #fff; font-weight: 600; }
 .canvas-portlbl { color: var(--text-faint); font-size: 12px; font-family: var(--mono); }
