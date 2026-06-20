@@ -46,11 +46,10 @@ export const addFontsTool: ToolDef = {
       `Installed fonts + icons into ${destRel}/. Link RELATIVE to your HTML (NOT root-absolute "/${destRel}/..."): ` +
       `<link rel="stylesheet" href="${destRel}/fonts.css"> (or @import). Keep ${destRel}/ in (or under) the directory ` +
       `your app serves — if you serve public/, install it there — or root-absolute paths 404 and fonts won't load. ` +
-      `Families — body/sans: "Inter", "DM Sans", "Work Sans", "Plus Jakarta Sans", "Manrope"; ` +
-      `serif: "Source Serif 4", "Spectral", "Lora", "Newsreader"; display: "Space Grotesk", "Fraunces", ` +
-      `"Playfair Display", "Outfit", "Sora", "Bricolage Grotesque", "Instrument Serif". Pick a display+body ` +
-      `pairing that fits the brand (Fraunces/Playfair/Instrument Serif = premium·elegant; Outfit/Sora/DM Sans = ` +
-      `modern·tech; Source Serif 4/Newsreader = editorial; Manrope/Plus Jakarta = clean product). Also ` +
+      `Families (clean modern + refined serif — house style is minimal·muted) — body/sans: "Inter", "DM Sans", ` +
+      `"Plus Jakarta Sans", "Manrope"; serif: "Source Serif 4", "Lora", "Newsreader"; display: "Space Grotesk", ` +
+      `"Fraunces", "Outfit", "Sora". Pick a restrained display+body pairing that fits the brand (Fraunces = warm·premium; ` +
+      `Outfit/Sora/DM Sans = modern; Source Serif 4/Newsreader = editorial; Manrope/Plus Jakarta = clean product). Also ` +
       `${destRel}/icons.svg — a curated ${ICON_NAMES.length}-icon Lucide line set: read it and INLINE an icon's inner <path>s into your HTML ` +
       `(an external <use href> does NOT render in the PDF). Pick a font pairing for the brand and use icons for section markers/KPIs. ` +
       `Available icons include: ${ICON_NAMES.join(', ')}.`

@@ -64,15 +64,15 @@ export const addUiKitTool: ToolDef = {
       `CRITICAL: keep the kit in (or under) the directory your app serves — if you serve a subfolder like public/, ` +
       `install it there (dest "public/ui-kit"). Root-absolute "/${destRel}/..." 404s when served from a subdir — ` +
       `the #1 cause of an unstyled, failed deploy.\n` +
-      `DESIGN KIT (fastest — a complete vetted look in one token): <html data-kit="boutique"> — pick ONE of 8: ` +
-      `linear (crisp SaaS) · boutique (warm luxury) · studio (bold creative) · ledger (serious finance/legal) · ` +
-      `bloom (friendly wellness) · gazette (editorial magazine) · pulse (energetic tech) · terra (natural/organic). ` +
-      `Each bundles palette+radius+shadow+fonts; still override --accent for an exact brand colour.\n` +
-      `OR mix-and-match — THEME (colour, 23): <html data-theme="aurora"> from aurora·emerald·sunset·mono·editorial·` +
-      `noir·ocean·plum·coral·teal·gold·forest·slatepro·crimson·sky·amber·rose·sand·midnight·cocoa·mint·steel·lime ` +
-      `(add " dark" for dark mode); + TYPE (font pairing, 13): <html data-type="grand"> from geometric·editorial·` +
-      `grand·fashion·startup·press·humanist·chic·contemporary·tech·journal·warm·clean. ` +
-      `Offer the user ONE quick curated look (a kit, or a colour+pairing) with a strong default matched to the brand/audience.\n` +
+      `House style is MINIMAL · MODERN · MUTED — soft desaturated accents, light layouts, type-first. ` +
+      `DESIGN KIT (fastest — a complete vetted look in one token): <html data-kit="minimal"> — pick ONE of 5: ` +
+      `minimal (clean modern SaaS) · paper (refined serif) · linen (warm editorial) · calm (quiet wellness) · ` +
+      `harbor (corporate clean). Each bundles a muted palette+radius+shadow+fonts; still override --accent for a brand colour.\n` +
+      `OR mix-and-match — THEME (muted colour, 10): <html data-theme="slate"> from slate·ink·indigo·ocean·sage·teal·` +
+      `clay·stone·plum·olive (add " dark" for dark mode); + TYPE (font pairing, 8): <html data-type="editorial"> from ` +
+      `geometric·editorial·clean·startup·tech·journal·warm·humanist. ` +
+      `Offer the user ONE quick curated look (a kit, or a colour+pairing) with a strong default matched to the brand/audience. ` +
+      `Keep it restrained — one quiet accent used ~5–10%, never a loud/saturated fill.\n` +
       `BUILD WITH the tokens (--accent/--ink/--surface/--s-*/--t-*/--r-*/--shadow-*/--ease*; the type scale is ` +
       `already fluid/responsive); COMPONENTS (.btn .card .field .input .switch .segmented .tabs .table .badge ` +
       `.alert .avatar .progress .kpi .price .quote .menu dialog .accordion .toast — all with states); and SECTION ` +

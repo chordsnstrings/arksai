@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-20.5';
+export const WHATS_NEW_VERSION = '2026-06-20.6';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A studio-grade design library',
-    body: 'Builds can now draw on 8 complete “design kits” (one-pick looks like boutique, ledger, gazette, bloom), 23 colour themes and 13 font pairings — from 15 self-hosted typefaces (Fraunces, Playfair, Instrument Serif, Sora, Newsreader & more) — matched to your brand and audience so every design gets the right personality.',
+    title: 'A cleaner, calmer design house style',
+    body: 'We tightened the design library to a curated, all-muted set — 5 complete kits, 10 soft colour themes and 8 clean type pairings — and removed the loud, high-contrast looks. Every build now leans minimal, modern and restrained by default, so designs feel more considered.',
   },
   {
     title: 'Shareable, great-looking links',
