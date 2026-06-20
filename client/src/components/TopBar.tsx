@@ -23,34 +23,34 @@ export function TopBar({ meta }: { meta: SessionMeta }) {
   };
   return (
     <header className="topbar">
-      {meta.repoName ? (
-        <>
-          <span className="repo">{meta.repoName} /</span>
-          <span className="title">{meta.title}</span>
-        </>
-      ) : (
-        <span className="title">{meta.title}</span>
-      )}
-      <span className={`mode-chip mc-${meta.mode}`} title="ArksAI moves into the right skill (chat, planning, building, report, images…) automatically.">
-        {MODE_CHIP[meta.mode] ?? 'Chat'}
-      </span>
-      <span className="spacer" />
-      {meta.branch && <span className="pill">⎇ {meta.branch}</span>}
-      {meta.diffStat && (
-        <span className="pill">
-          <span className="add">{meta.diffStat.split(' ')[0]}</span>
-          <span className="del">{meta.diffStat.split(' ')[1]}</span>
+      <div className="topbar-title">
+        {meta.repoName && <span className="repo">{meta.repoName} /</span>}
+        <span className="title" title={meta.title}>{meta.title}</span>
+      </div>
+      <div className="topbar-actions">
+        <span className={`mode-chip mc-${meta.mode}`} title="ArksAI moves into the right skill (chat, planning, building, report, images…) automatically.">
+          {MODE_CHIP[meta.mode] ?? 'Chat'}
         </span>
-      )}
-      <button className="canvas-toggle" onClick={copyLink} title="Copy a shareable link to this chat">
-        {copied ? '✓ Copied' : '🔗 Link'}
-      </button>
-      <button className="canvas-toggle" onClick={() => setShowDeploy(true)} title="Publish this app to a live URL">
-        🚀 Publish
-      </button>
-      <button className={`canvas-toggle ${canvasOpen ? 'on' : ''}`} onClick={() => toggleCanvas()}>
-        ▦ Canvas
-      </button>
+        {meta.branch && <span className="pill">⎇ {meta.branch}</span>}
+        {meta.diffStat && (
+          <span className="pill">
+            <span className="add">{meta.diffStat.split(' ')[0]}</span>
+            <span className="del">{meta.diffStat.split(' ')[1]}</span>
+          </span>
+        )}
+        <button className="canvas-toggle" onClick={copyLink} title="Copy a shareable link to this chat">
+          <span className="ct-ico">🔗</span>
+          <span className="ct-label">{copied ? '✓ Copied' : 'Link'}</span>
+        </button>
+        <button className="canvas-toggle" onClick={() => setShowDeploy(true)} title="Publish this app to a live URL">
+          <span className="ct-ico">🚀</span>
+          <span className="ct-label">Publish</span>
+        </button>
+        <button className={`canvas-toggle ${canvasOpen ? 'on' : ''}`} onClick={() => toggleCanvas()} title="Toggle the canvas preview">
+          <span className="ct-ico">▦</span>
+          <span className="ct-label">Canvas</span>
+        </button>
+      </div>
       {showDeploy && <DeploymentsDialog meta={meta} onClose={() => setShowDeploy(false)} />}
     </header>
   );

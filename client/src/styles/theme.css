@@ -381,15 +381,43 @@ button { font-family: inherit; cursor: pointer; }
 .topbar {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 10px;
-  padding: 13px 24px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--border-soft);
-  min-height: 52px;
+  height: 48px;
+  min-height: 48px;
+  flex: 0 0 48px;
+  overflow: hidden;
   background: linear-gradient(var(--bg), transparent);
 }
-.topbar .repo { color: var(--text-faint); }
-.topbar .title { font-weight: 600; }
-.topbar .spacer { flex: 1; }
+/* Title is the ONLY flexible item — it shrinks and ellipsises on one line. */
+.topbar .topbar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+}
+.topbar .repo { color: var(--text-faint); white-space: nowrap; flex: 0 0 auto; }
+.topbar .title {
+  font-weight: 600;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Chips + buttons stay on one row, never shrink, never wrap. */
+.topbar .topbar-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topbar .topbar-actions > * { flex: 0 0 auto; }
+.canvas-toggle .ct-ico { display: inline-block; }
+.canvas-toggle .ct-label { margin-left: 5px; }
 /* read-only "current skill" chip — ArksAI sets it itself as it routes the request */
 .mode-chip {
   font-family: var(--label);
@@ -1059,8 +1087,13 @@ button { font-family: inherit; cursor: pointer; }
 
   /* Hamburger is always available on mobile; never reserve desktop space. */
   .nav-open-btn { display: inline-flex !important; }
-  .topbar { padding-left: 56px !important; padding-right: 14px; min-height: 50px; }
-  .app.nav-closed .topbar { padding-left: 56px; }
+  /* Bar stays a slim, fixed-height single row; the title shrinks, buttons go icon-only. */
+  .topbar { padding-left: 56px !important; padding-right: 12px; height: 46px; min-height: 46px; flex: 0 0 46px; gap: 7px; }
+  .app.nav-closed .topbar { padding-left: 56px !important; }
+  .topbar .topbar-actions { gap: 6px; }
+  .topbar .canvas-toggle { padding: 4px 8px; }
+  .topbar .canvas-toggle .ct-label { display: none; }
+  .topbar .canvas-toggle .ct-ico { margin: 0; }
 
   /* Tighter padding everywhere. */
   .chat { padding: 16px 0; }
