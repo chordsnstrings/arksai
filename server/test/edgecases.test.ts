@@ -53,6 +53,21 @@ test('xlsx: a formula referencing a missing cell + a circular formula do not cra
   assert.doesNotMatch(r, /^Error/);
 });
 
+test('xlsx: a blank spacer row does NOT fail validation (off-by-one trap)', async () => {
+  // SheetJS trims the trailing blank row, so re-read count = sent − 1. The old strict check
+  // failed here forever and drove the model off the tool. Must succeed now.
+  const r = await run(generateSpreadsheetTool, {
+    output: 'spacer.xlsx',
+    sheets: [{
+      name: 'A',
+      columns: [{ header: 'Item' }, { header: 'Val', type: 'number' }],
+      rows: [['Rent', 100], ['Utilities', 50], ['', ''], ['Total', { f: 'SUM(B2:B3)' }]],
+    }],
+  });
+  assert.doesNotMatch(r, /^Error/, r);
+  assert.match(r, /Generated/);
+});
+
 test('xlsx: STAGED build — append adds sheets, preserves prior ones, resolves cross-sheet formulas', async () => {
   // Stage 1: the Assumptions driver sheet.
   const r1 = await run(generateSpreadsheetTool, {

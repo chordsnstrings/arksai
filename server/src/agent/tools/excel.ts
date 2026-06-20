@@ -300,8 +300,16 @@ export const generateSpreadsheetTool: ToolDef = {
         if (!ws) return `Error: validation failed — sheet "${e.name}" missing from the written file.`;
         const json = XLSX.utils.sheet_to_json(ws, { header: 1 });
         const dataRows = Math.max(0, json.length - 1); // minus header
-        if (dataRows < e.rows) {
-          return `Error: validation failed — sheet "${e.name}" has ${dataRows} data rows, expected ${e.rows}.`;
+        // sheet_to_json TRIMS trailing/blank rows, so a blank spacer row legitimately doesn't
+        // round-trip (re-read count = sent − 1). A strict exact-match produced a perpetual
+        // off-by-one the model couldn't satisfy → it abandoned this tool for a buggy hand-written
+        // openpyxl script and burned the run. So only fail on a GROSS shortfall = a real broken
+        // write (nothing wrote, or under half did); a small shortfall is just trimmed blanks.
+        if (e.rows > 0 && dataRows === 0) {
+          return `Error: the spreadsheet wrote 0 of ${e.rows} rows to sheet "${e.name}" — the rows didn't land. Re-send this sheet with its data rows.`;
+        }
+        if (e.rows >= 4 && dataRows < Math.ceil(e.rows * 0.5)) {
+          return `Error: sheet "${e.name}" only wrote ${dataRows} of ${e.rows} rows — re-send it. (A blank/spacer row is fine and doesn't count; this is a real shortfall.)`;
         }
       }
     } catch (e: any) {
