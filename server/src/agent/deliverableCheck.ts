@@ -450,71 +450,79 @@ const median = (xs: number[]): number => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
+// A row whose label is legitimately a RATIO / PERCENT / RATE (so a 0<v<1 value is correct,
+// not a leaked rate) — exempt from the rate-leak check.
+const RATIO_LABEL_RE = /margin|ratio|%|percent|\brate\b|growth|yield|markup|discount|share|utilis|utiliz|effective|\btax\b|\bvat\b|multiple|per\s|index|factor/i;
+// A row whose label is a MONEY line — a 0<v<1 here is almost certainly a leaked rate.
+const MONEY_LABEL_RE = /revenue|sales|cogs|\bcost|rent|salar|wage|payroll|\bfee|expense|lease|utilit|insuranc|marketing|inventory|capex|opex|purchase|spend|\bprice|deposit|income|cash|ebitda|profit|payment|amount/i;
+// A row whose label is a roll-up TOTAL — legitimately much larger than line items, so it's
+// exempt from the per-row OUTLIER check (an annual total in a monthly grid isn't "absurd").
+const TOTAL_LABEL_RE = /\b(total|subtotal|sum|grand|annual|year|3[- ]?yr|cumulative)\b/i;
+// Freeform KPI/dashboard sheets show ratios + headline numbers in tile layouts, so the
+// row-label heuristic doesn't apply — skip them (the real errors live in the schedule sheets).
+const SKIP_SHEET_RE = /dashboard|cover|\bkpi\b|overview|snapshot|chart/i;
+
 /**
  * Numeric SANITY gate (pure): catch numbers that CAN'T be right even though the file is
- * formula-driven and renders — the live failure mode (a cross-sheet formula that landed on
- * the wrong cell: a rate/% cell instead of a value, or a row shifted by a divider). Reads the
- * SheetJS workbook's computed values. Conservative to avoid false positives:
- *  1) OUTLIER — in a "money column" (≥70% of cells ≥ 100), a value ≥ 200× the column median
- *     (and ≥ 1000 absolute) → almost certainly a mis-reference (e.g. a 140,000,000 POS fee).
- *  2) RATE-LEAK — in a money column, a cell with 0 < |v| < 1 → a rate/percent leaked into a
- *     money cell (e.g. revenue showing 0.30 instead of 6,000).
- *  3) DERIVED-ZERO — a Total/Net/Balance/… row that's ALL zero while the sheet has real
- *     numbers → a broken reference produced 0 (e.g. Annual Rent / Occupancy Cost = 0).
+ * formula-driven and renders — the live failure mode (a cross-sheet formula that landed on the
+ * wrong cell). Reads the SheetJS computed values. Calibrated against a known-BROKEN model (must
+ * fire) AND a known-GOOD one (must stay quiet), so it doesn't cause needless revise churn:
+ *  1) OUTLIER — ROW-WISE: a line item's own periods are the baseline; a cell ≥ 200× the row's
+ *     median (and ≥ 1000 abs) is a mis-reference (a 140,000,000 POS fee among ~1,500 siblings).
+ *     Row-wise (not column-wise) so a legitimately large annual-total COLUMN isn't flagged.
+ *     Total/roll-up rows are skipped (a total is meant to dwarf the lines).
+ *  2) RATE-LEAK — a cell 0 < |v| < 1 on a MONEY-labelled row (revenue/cost/rent/fee…) that is
+ *     NOT a ratio/%/margin row → a rate/percent leaked where a value belongs (revenue = 0.30).
+ *  3) DERIVED-ZERO — a Total/Net/Balance row that's ALL zero while the sheet has real numbers.
  * Assumptions/driver/input sheets are skipped (they legitimately hold rates + mixed scales).
  */
 export function auditNumericSanity(wb: any): string[] {
   const findings: string[] = [];
   const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
   for (const name of names) {
-    if (MODEL_SHEET_RE.test(name)) continue;
+    if (MODEL_SHEET_RE.test(name) || SKIP_SHEET_RE.test(name)) continue;
     const sh = wb?.Sheets?.[name];
     if (!sh) continue;
-    const cols = new Map<number, { v: number; addr: string }[]>();
-    const rows = new Map<number, { label?: string; labelCol: number; nums: number[] }>();
+    const rows = new Map<number, { label?: string; labelCol: number; cells: { col: number; v: number; addr: string }[] }>();
     let sheetHasNonzero = false;
     for (const addr of Object.keys(sh)) {
       if (addr[0] === '!') continue;
       const p = parseAddr(addr);
       if (!p) continue;
       const c = sh[addr];
+      let r = rows.get(p.row);
+      if (!r) { r = { labelCol: Infinity, cells: [] }; rows.set(p.row, r); }
       if (c?.t === 'n' && typeof c?.v === 'number') {
-        (cols.get(p.col) ?? cols.set(p.col, []).get(p.col)!).push({ v: c.v, addr });
-        let r = rows.get(p.row);
-        if (!r) { r = { labelCol: Infinity, nums: [] }; rows.set(p.row, r); }
-        r.nums.push(c.v);
+        r.cells.push({ col: p.col, v: c.v, addr });
         if (c.v !== 0) sheetHasNonzero = true;
       } else {
         const isText = (c?.t === 's' || c?.t === 'str') && typeof c?.v === 'string' && c.v.trim();
-        if (isText) {
-          let r = rows.get(p.row);
-          if (!r) { r = { labelCol: Infinity, nums: [] }; rows.set(p.row, r); }
-          if (p.col < r.labelCol) { r.labelCol = p.col; r.label = String(c.v).trim(); }
-        }
+        if (isText && p.col < r.labelCol) { r.labelCol = p.col; r.label = String(c.v).trim(); }
       }
     }
     const outliers: string[] = [];
     const leaks: string[] = [];
-    for (const list of cols.values()) {
-      if (list.length < 4) continue;
-      const mags = list.map((x) => Math.abs(x.v));
-      // Judge "money column" among NON-TRIVIAL cells (|v|≥1) so the very leaks/zeros we're
-      // hunting don't drag the column below the threshold and hide themselves.
-      const money = mags.filter((m) => m >= 1);
-      if (money.length < 3) continue;
-      if (money.filter((m) => m >= 100).length / money.length < 0.7) continue; // only real money columns
-      const med = median(money);
-      for (const { v, addr } of list) {
-        const a = Math.abs(v);
-        if (a >= 1000 && med > 0 && a >= 200 * med) outliers.push(`${addr}=${Math.round(v).toLocaleString()}`);
-        else if (a > 0 && a < 1) leaks.push(`${addr}=${v}`);
-      }
-    }
     const zeroRows: string[] = [];
-    if (sheetHasNonzero)
-      for (const r of rows.values())
-        if (r.label && SANITY_DERIVED_RE.test(r.label) && r.nums.length >= 1 && r.nums.every((n) => n === 0))
-          zeroRows.push(r.label.slice(0, 28));
+    for (const r of rows.values()) {
+      const isTotal = !!r.label && TOTAL_LABEL_RE.test(r.label);
+      const isRatio = !!r.label && RATIO_LABEL_RE.test(r.label);
+      const isMoney = !!r.label && MONEY_LABEL_RE.test(r.label);
+      // (1) row-wise outlier — skip total rows (a total legitimately dwarfs the lines)
+      if (!isTotal && r.cells.length >= 4) {
+        const mags = r.cells.map((x) => Math.abs(x.v)).filter((m) => m > 0);
+        const med = median(mags);
+        if (med > 0)
+          for (const { v, addr } of r.cells)
+            if (Math.abs(v) >= 1000 && Math.abs(v) >= 200 * med) outliers.push(`${addr}=${Math.round(v).toLocaleString()}`);
+      }
+      // (2) rate-leak — a money line (not a ratio) whose WHOLE row (≥4 cells) is sub-1: a real
+      // leaked rate (revenue 0.30 across every month), not a stray ratio/per-unit cell.
+      if (isMoney && !isRatio && r.cells.length >= 4 && r.cells.every((c) => Math.abs(c.v) > 0 && Math.abs(c.v) < 1))
+        for (const { v, addr } of r.cells) leaks.push(`${addr}=${v}`);
+      // (3) derived row computing to all-zero
+      if (sheetHasNonzero && r.label && SANITY_DERIVED_RE.test(r.label) && !isRatio && r.cells.length >= 1 && r.cells.every((c) => c.v === 0))
+        zeroRows.push(r.label.slice(0, 28));
+    }
     const parts: string[] = [];
     if (outliers.length) parts.push(`absurd value(s) ${outliers.slice(0, 4).join(', ')} (a mis-referenced formula)`);
     if (leaks.length) parts.push(`money cell(s) ${leaks.slice(0, 4).join(', ')} under 1 — a rate/% leaked in where a value belongs`);
