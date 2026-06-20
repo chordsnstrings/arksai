@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { detectSpaBuild } from '../src/deploy/publish';
+import { detectSpaBuild, findAppRoot } from '../src/deploy/publish';
 import { rewriteHtml } from '../src/routes/deployments';
 
 function pkgDir(pkg: any): string {
@@ -35,6 +35,31 @@ test('detectSpaBuild: null when there is no build script, no SPA bundler, or no 
   assert.equal(detectSpaBuild(pkgDir({ scripts: { start: 'node server.js' }, dependencies: { vite: '5' } })), null); // no build script
   assert.equal(detectSpaBuild(pkgDir({ scripts: { build: 'tsc' }, dependencies: { lodash: '4' } })), null); // build but not a SPA bundler
   assert.equal(detectSpaBuild(fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-nopkg-'))), null); // no package.json
+});
+
+test('findAppRoot: an app built in a subdir (todo-app/) is found, not the empty root', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-approot-'));
+  fs.writeFileSync(path.join(root, 'README.md'), '# notes'); // root has no app marker
+  const sub = path.join(root, 'todo-app');
+  fs.mkdirSync(sub);
+  fs.writeFileSync(path.join(sub, 'package.json'), '{}');
+  assert.equal(findAppRoot(root), sub);
+});
+
+test('findAppRoot: returns the root itself when the app IS at the root', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-approot2-'));
+  fs.writeFileSync(path.join(root, 'index.html'), '<html></html>');
+  assert.equal(findAppRoot(root), root);
+});
+
+test('findAppRoot: nested two levels (client/) still found; bare dir → itself', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-approot3-'));
+  const sub = path.join(root, 'apps', 'web');
+  fs.mkdirSync(sub, { recursive: true });
+  fs.writeFileSync(path.join(sub, 'package.json'), '{}');
+  assert.equal(findAppRoot(root), sub);
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-approot4-'));
+  assert.equal(findAppRoot(bare), bare); // nothing to find → root
 });
 
 test('rewriteHtml: injects <base>, rewrites root-absolute attrs, and shims fetch/XHR to the app prefix', () => {

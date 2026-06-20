@@ -8,7 +8,7 @@ import { browserSmokeTest } from '../agent/uiCheck';
 import { config } from '../config';
 import { repoDir } from '../sessions/workspace';
 import * as store from '../sessions/store';
-import { deploymentRegistry, deploymentDir } from './registry';
+import { deploymentRegistry, deploymentDir, deploymentsRoot } from './registry';
 import type { Deployment, DeploymentKind } from '../../../shared/types';
 
 /** A published deployment plus the result of smoke-testing its live public URL. */
@@ -63,6 +63,41 @@ function findBuildOutput(dest: string): string | null {
   return SPA_OUT_DIRS.find((d) => fs.existsSync(path.join(dest, d, 'index.html'))) ?? null;
 }
 
+const APP_MARKERS = [
+  'package.json', 'index.html', 'server.js', 'app.js', 'main.js', 'main.py', 'app.py', 'server.py', 'wsgi.py', 'requirements.txt', 'go.mod',
+];
+function hasAppMarker(dir: string): boolean {
+  return APP_MARKERS.some((f) => fs.existsSync(path.join(dir, f)));
+}
+
+/**
+ * Agents frequently build the app in a SUBDIRECTORY (todo-app/, client/, frontend/, app/)
+ * rather than the workspace root — in which case publishing the root serves an empty dir →
+ * 404 (the "publish is broken" the agent then hallucinates about). Find the real app root:
+ * the workspace root if it has app markers, else the shallowest subdir (≤2 levels) that does.
+ */
+export function findAppRoot(dest: string): string {
+  if (hasAppMarker(dest)) return dest;
+  const skip = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'out', 'uploads', '.cache', '__pycache__']);
+  let level = [dest];
+  for (let depth = 0; depth < 2; depth++) {
+    const next: string[] = [];
+    for (const d of level) {
+      let subs: string[] = [];
+      try {
+        subs = fs
+          .readdirSync(d, { withFileTypes: true })
+          .filter((e) => e.isDirectory() && !skip.has(e.name))
+          .map((e) => path.join(d, e.name));
+      } catch {}
+      for (const s of subs) if (hasAppMarker(s)) return s;
+      next.push(...subs);
+    }
+    level = next;
+  }
+  return dest;
+}
+
 async function uniqueSlug(base: string): Promise<string> {
   let s = base;
   let n = 1;
@@ -106,6 +141,19 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   );
   if (!snap.ok) throw new Error(`snapshot failed: ${snap.output.slice(-300)}`);
 
+  // If the app actually lives in a subdir (todo-app/, client/, …), RE-ROOT the snapshot so
+  // build/run/serve all work from `dest` — otherwise we'd serve an empty root and 404.
+  const appRoot = findAppRoot(dest);
+  if (appRoot !== dest) {
+    const tmp = `${dest}.approot`;
+    const q = (s: string) => JSON.stringify(s);
+    const r = await execBash(
+      `rm -rf ${q(tmp)} && cp -a ${q(appRoot)} ${q(tmp)} && rm -rf ${q(dest)} && mv ${q(tmp)} ${q(dest)}`,
+      { cwd: deploymentsRoot(), timeoutMs: 60_000 },
+    ).catch(() => null);
+    if (!r?.ok) console.warn(`[deploy] re-root from ${path.relative(dest, appRoot)} failed for ${slug}`);
+  }
+
   let kind: DeploymentKind = 'static';
   let port: number | null = null;
   let status: Deployment['status'] = 'running';
@@ -126,6 +174,9 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     if (built?.ok && out) {
       kind = 'static';
       staticDir = out; // serve the built dist/ as static files
+      // Reclaim disk: a static SPA only needs its built output, not the ~hundreds-of-MB
+      // node_modules / source. (Disk is the Droplet's real constraint, not RAM.)
+      await execBash(`rm -rf ${JSON.stringify(path.join(dest, 'node_modules'))}`, { cwd: dest, timeoutMs: 60_000 }).catch(() => null);
     } else {
       status = 'error'; // build failed or produced no index.html — better an honest error than a broken dev-server link
       kind = 'static';
