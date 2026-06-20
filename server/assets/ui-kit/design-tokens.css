@@ -13,7 +13,7 @@
   --elevated: #ffffff;
   --ink: #14161b;
   --ink-soft: #3a3d44;
-  --muted: #6b7280;
+  --muted: #5b616e; /* secondary text — muted but kept ≥5.5:1 on light/warm bgs (legible) */
   --line: #e8e7e3;
   --line-strong: #d7d6d1;
   --accent: #44566a;

@@ -85,6 +85,11 @@ export const generateSpreadsheetTool: ToolDef = {
     '(formula + cached result, so the preview and first open show the number) or as a "=B2*C2" string; totals via =SUM(...). ' +
     'A finance/cash-flow/budget/forecast/model sheet that hard-codes its totals, balances or growth WILL BE REJECTED by the ' +
     'automated review and sent back to you. ' +
+    'CLEAN CALC STRUCTURE (so your formula references are correct): the COLUMNS are row 1 and DATA starts at row 2 — ' +
+    'do NOT put a decorative title/banner/section row (e.g. "── CASH FLOW ──" or a merged caption) INSIDE a sheet\'s ' +
+    'rows: it shifts every cell down and breaks absolute references like Assumptions!$B$4 (a recurring bug — REVENUE ends ' +
+    'up pointing at the wrong row). Put the sheet title in the TAB NAME, keep one clean header row, and reference cells by ' +
+    'their real position (header=row1, first data=row2). ' +
     'DESIGN STANDARDS (judged like a finance pro): make it FORMULA-DRIVEN — never hard-code a derived number ' +
     '(totals via SUM, ratios/growth as formulas) so changing an assumption flows through; lead with a Summary/KPI ' +
     'sheet; give every column an explicit type (currency/percent/date) so numbers align and format consistently; ' +

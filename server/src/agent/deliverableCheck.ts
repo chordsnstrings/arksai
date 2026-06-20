@@ -293,6 +293,40 @@ function parseAddr(addr: string): { col: number; row: number } | null {
  * a numeric grid. Plain data tables (no derived rows, no assumptions sheet) are never flagged.
  * Pure + synchronous so it's trivially unit-testable. Takes an already-parsed SheetJS workbook.
  */
+/**
+ * Detect decorative banner/separator rows INSIDE a sheet's data (e.g. a cell like
+ * "── CASH FLOW (AED) ──" or "═══════"). These shift every row down and break the
+ * model's absolute formula references (REVENUE ends up pointing at the wrong row — a
+ * recurring bug). Unambiguous: only flags real box-drawing / long-dash runs, never
+ * legitimate data. Pure + exported for tests. Returns one defect line per sheet hit.
+ */
+export function detectBannerRows(wb: any): string[] {
+  const out: string[] = [];
+  const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
+  const banner = /[─━═]{3,}|[—–]{4,}|^[\s_*=~-]{8,}$/; // box-drawing run, long em/en-dash run, or a rule of -/=/_
+  for (const name of names) {
+    const sh = wb?.Sheets?.[name];
+    if (!sh) continue;
+    let hit = '';
+    for (const addr of Object.keys(sh)) {
+      if (addr[0] === '!') continue;
+      const v = sh[addr]?.v;
+      if (typeof v === 'string' && banner.test(v.trim())) {
+        hit = v.trim().slice(0, 40);
+        break;
+      }
+    }
+    if (hit) {
+      out.push(
+        `Sheet "${name}" has a decorative banner/separator row ("${hit}…") inside its data — REMOVE it: it pushes every ` +
+          `row down and breaks absolute formula references (e.g. REVENUE pointing at the wrong Assumptions row). Keep the ` +
+          `column headers as row 1 and data from row 2; put the title in the tab name, not a banner row.`,
+      );
+    }
+  }
+  return out;
+}
+
 export function auditFormulaModel(wb: any): { isModel: boolean; reason: string } {
   let formulas = 0;
   let numericTotal = 0;
@@ -393,6 +427,10 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
             `so changing one assumption flows through. Keep the same structure and styling; include the cached result ` +
             `"v" so the preview shows numbers.`,
         );
+      }
+      // Banner/separator rows shift cells down and corrupt formula references — flag them.
+      seedDefects.push(...detectBannerRows(wb));
+      if (seedDefects.length) {
         base.designVerdict = 'revise';
         base.designDefects = [...seedDefects];
       }

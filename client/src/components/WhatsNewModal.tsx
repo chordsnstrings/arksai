@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-20.7';
+export const WHATS_NEW_VERSION = '2026-06-20.8';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Spreadsheets always show their numbers',
-    body: 'Formula-driven sheets (cash-flow, budgets, models) now compute and store every result as they’re built, so the preview shows real numbers instead of blank cells — even before you open the file in Excel.',
+    title: 'More accurate financial models',
+    body: 'Spreadsheets now keep a clean calculation structure (a decorative title row inside a sheet used to shift cells and make formulas reference the wrong row). That pattern is caught and corrected, so your totals and balances point at the right numbers.',
   },
   {
-    title: 'No more half-empty report pages',
-    body: 'Reports are now checked page-by-page for under-filled pages: a short section that used to strand a mostly-blank page is caught and the layout reflows so every page is properly filled.',
+    title: 'Cleaner document previews & secondary text',
+    body: 'Document previews now read with proper editorial typography, secondary/“muted” text is a touch darker so it stays clearly legible on warm backgrounds, and generated workspaces no longer clutter the file list with build/dependency folders.',
   },
 ];
 

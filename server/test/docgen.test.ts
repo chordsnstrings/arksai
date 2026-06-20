@@ -8,7 +8,7 @@ import { generateSpreadsheetTool, coerceNumeric } from '../src/agent/tools/excel
 import { generateDocTool } from '../src/agent/tools/docx';
 import { generatePptxTool } from '../src/agent/tools/pptx';
 import { iconSvg, hasIcon, ICON_NAMES } from '../src/agent/tools/icons';
-import { auditFormulaModel, detectEmptyPages, detectUnderfilledPages } from '../src/agent/deliverableCheck';
+import { auditFormulaModel, detectEmptyPages, detectUnderfilledPages, detectBannerRows } from '../src/agent/deliverableCheck';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-docgen-'));
 const ctx = (): ToolCtx => ({
@@ -247,6 +247,26 @@ test('detectUnderfilledPages exempts the cover and the final page, passes full p
   assert.deepEqual(detectUnderfilledPages([1.0, 0.85, 0.9, 0.88]), []);
   // a blank (near-empty) page is left to detectEmptyPages, not double-flagged here.
   assert.deepEqual(detectUnderfilledPages([1.0, 0.02, 0.9]), []);
+});
+
+test('detectBannerRows flags a box-drawing banner row but not clean data', async () => {
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([['── CASH FLOW (AED) ──────────', '', ''], ['Line', 'Jan', 'Feb'], ['Revenue', 100, 110]]),
+    'Cash Flow',
+  );
+  const hits = detectBannerRows(wb);
+  assert.equal(hits.length, 1);
+  assert.match(hits[0], /Cash Flow/);
+  assert.match(hits[0], /banner\/separator/);
+
+  // clean sheet → no false positive
+  const clean = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(clean, XLSX.utils.aoa_to_sheet([['Item', 'Jan'], ['Revenue', 100], ['COGS', 28]]), 'S');
+  assert.deepEqual(detectBannerRows(clean), []);
+  assert.deepEqual(detectBannerRows(null), []);
 });
 
 test('generate_doc writes a valid docx (zip/OOXML)', async () => {
