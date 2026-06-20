@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.14';
+export const WHATS_NEW_VERSION = '2026-06-19.15';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Excel files are now read fully and accurately',
-    body: 'Upload a multi-sheet workbook and ArksAI sees every sheet — names, dimensions, headers and exact values — instead of a lossy text dump that could silently drop sheets. Quick questions are answered straight from a complete overview; for totals, P&L, pivots or charts it crunches the raw file with Python. No more "it only looked at the first sheet".',
+    title: 'Upload anything — it just works',
+    body: 'Excel workbooks are read sheet-by-sheet (every sheet, exact values — no more "it only saw the first one"), PowerPoint decks are read slide-by-slide with speaker notes, and dropping several files at once (spreadsheets + images + a deck) makes ArksAI work through every one. Quick questions answer from a complete overview; heavy number-crunching goes to Python.',
   },
   {
-    title: 'A developer tier for the Engineering team',
-    body: 'Database schema design (ERD + DDL + migrations), API design & review, an API test suite, structured code review, and a dependency audit (flags floating ranges, duplicates, missing lockfiles) — every result a designed, typography-first document, not a raw dump. Plus expert helpers across the board: WCAG-AA palette validation and computed DCF / ratios / variance / forecasts so numbers are calculated, never guessed.',
+    title: 'Make an image like one you upload',
+    body: 'Give ArksAI a reference image and ask for one "like this" — it looks at the subject, style, composition and palette and generates from that, carrying a person\'s likeness across when it should.',
   },
 ];
 
