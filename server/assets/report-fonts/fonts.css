@@ -15,3 +15,23 @@
 @font-face{font-family:'Source Serif 4';font-weight:600;font-style:normal;font-display:swap;src:url('source-serif-600.woff2') format('woff2')}
 @font-face{font-family:'Space Grotesk';font-weight:500;font-style:normal;font-display:swap;src:url('space-grotesk-500.woff2') format('woff2')}
 @font-face{font-family:'Space Grotesk';font-weight:700;font-style:normal;font-display:swap;src:url('space-grotesk-700.woff2') format('woff2')}
+
+/*
+ * Extended type library — more display + body options so the agent can pick the
+ * RIGHT pairing per brand/audience (apply a named pairing via <html data-type="…">,
+ * see themes.css). All SIL Open Font License, latin subset, self-hosted.
+ *   • Fraunces (serif display)        — warm, expressive — premium / editorial / hospitality
+ *   • Playfair Display (serif display)— high-contrast, elegant — fashion / luxury / beauty
+ *   • Outfit (sans display)           — geometric, confident — tech / startup / product
+ *   • Work Sans (sans)                — clean grotesque body/UI — modern, friendly
+ *   • DM Sans (sans)                  — geometric humanist body/UI — product, calm
+ *   • Spectral (serif body)           — refined serif for long-form reading
+ */
+@font-face{font-family:'Fraunces';font-weight:600;font-style:normal;font-display:swap;src:url('fraunces-600.woff2') format('woff2')}
+@font-face{font-family:'Playfair Display';font-weight:600;font-style:normal;font-display:swap;src:url('playfair-600.woff2') format('woff2')}
+@font-face{font-family:'Outfit';font-weight:600;font-style:normal;font-display:swap;src:url('outfit-600.woff2') format('woff2')}
+@font-face{font-family:'Work Sans';font-weight:400;font-style:normal;font-display:swap;src:url('worksans-400.woff2') format('woff2')}
+@font-face{font-family:'Work Sans';font-weight:600;font-style:normal;font-display:swap;src:url('worksans-600.woff2') format('woff2')}
+@font-face{font-family:'DM Sans';font-weight:400;font-style:normal;font-display:swap;src:url('dmsans-400.woff2') format('woff2')}
+@font-face{font-family:'DM Sans';font-weight:600;font-style:normal;font-display:swap;src:url('dmsans-600.woff2') format('woff2')}
+@font-face{font-family:'Spectral';font-weight:400;font-style:normal;font-display:swap;src:url('spectral-400.woff2') format('woff2')}

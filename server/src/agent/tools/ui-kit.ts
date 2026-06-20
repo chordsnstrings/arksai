@@ -64,8 +64,13 @@ export const addUiKitTool: ToolDef = {
       `CRITICAL: keep the kit in (or under) the directory your app serves — if you serve a subfolder like public/, ` +
       `install it there (dest "public/ui-kit"). Root-absolute "/${destRel}/..." 404s when served from a subdir — ` +
       `the #1 cause of an unstyled, failed deploy.\n` +
-      `THEME: <html data-theme="aurora"> — pick ONE personality (aurora·emerald·sunset·mono·editorial·noir·ocean) ` +
-      `and offer the user a quick choice; add " dark" for dark mode; override --accent for a brand.\n` +
+      `THEME (colour personality): <html data-theme="aurora"> — pick ONE of 13: ` +
+      `aurora·emerald·sunset·mono·editorial·noir·ocean·plum·coral·teal·gold·forest·slatepro; ` +
+      `add " dark" for dark mode; override --accent for an exact brand colour.\n` +
+      `TYPE (font pairing, independent of colour): <html data-theme="gold" data-type="grand"> — pick ONE of 7: ` +
+      `geometric (Space Grotesk+Inter, default) · editorial (Source Serif 4+Inter) · grand (Fraunces+Work Sans) · ` +
+      `fashion (Playfair+Work Sans) · startup (Outfit+DM Sans) · press (Outfit+Spectral serif body) · humanist (DM Sans). ` +
+      `Offer the user a quick combined look (colour + pairing) with a strong default; match it to the brand/audience.\n` +
       `BUILD WITH the tokens (--accent/--ink/--surface/--s-*/--t-*/--r-*/--shadow-*/--ease*; the type scale is ` +
       `already fluid/responsive); COMPONENTS (.btn .card .field .input .switch .segmented .tabs .table .badge ` +
       `.alert .avatar .progress .kpi .price .quote .menu dialog .accordion .toast — all with states); and SECTION ` +

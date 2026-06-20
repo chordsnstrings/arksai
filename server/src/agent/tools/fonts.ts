@@ -46,7 +46,10 @@ export const addFontsTool: ToolDef = {
       `Installed fonts + icons into ${destRel}/. Link RELATIVE to your HTML (NOT root-absolute "/${destRel}/..."): ` +
       `<link rel="stylesheet" href="${destRel}/fonts.css"> (or @import). Keep ${destRel}/ in (or under) the directory ` +
       `your app serves — if you serve public/, install it there — or root-absolute paths 404 and fonts won't load. ` +
-      `Families: "Inter" (sans/body), "Source Serif 4" (serif display), "Space Grotesk" (modern display). Also ` +
+      `Families: "Inter" + "DM Sans" + "Work Sans" (sans/body), "Source Serif 4" + "Spectral" (serif), and the ` +
+      `display faces "Space Grotesk", "Fraunces", "Playfair Display" and "Outfit". Pick a display+body pairing ` +
+      `that fits the brand (e.g. Fraunces+Work Sans = premium; Playfair+Work Sans = elegant; Outfit+DM Sans = modern; ` +
+      `Source Serif 4+Inter = editorial). Also ` +
       `${destRel}/icons.svg — a curated ${ICON_NAMES.length}-icon Lucide line set: read it and INLINE an icon's inner <path>s into your HTML ` +
       `(an external <use href> does NOT render in the PDF). Pick a font pairing for the brand and use icons for section markers/KPIs. ` +
       `Available icons include: ${ICON_NAMES.join(', ')}.`

@@ -11,11 +11,14 @@ feel considered on the FIRST result — the user will NOT iterate to fix taste.
 Start from the bundled design system; do not hand-roll mediocre CSS.
 
 - STYLE (one quick choice, then automatic): EARLY in a visual build, briefly offer
-  2–4 curated named looks (the ui-kit themes) — each with a one-line vibe + hex
-  swatches — with a strong, gorgeous DEFAULT pre-selected. Let the user pick ONE
-  (or accept the default), then proceed fully automatically — do NOT ask further
-  design questions or make them iterate. If brand colors/logo are already in the
-  project or memory, use those and skip the question.
+  2–4 curated named looks — each a COLOUR theme + a FONT pairing (the ui-kit ships 13
+  colour themes incl. aurora/emerald/sunset/plum/coral/teal/gold/forest/slatepro and 7
+  type pairings via data-type: geometric/editorial/grand/fashion/startup/press/humanist)
+  — each with a one-line vibe + hex swatches, a strong gorgeous DEFAULT pre-selected.
+  Match the pairing to the audience (Fraunces/Playfair = premium·elegant, Outfit/DM Sans
+  = modern·tech, Source Serif = editorial). Let the user pick ONE (or accept the default),
+  then proceed fully automatically — do NOT ask further design questions or make them
+  iterate. If brand colors/logo are already in the project or memory, use those and skip.
 - FOUNDATION: call add_ui_kit to install the design tokens + component patterns
   (and add_fonts for embedded type). Link the tokens CSS first and build with the
   CSS variables (color, type scale, spacing, radius, shadow, motion). Never leave

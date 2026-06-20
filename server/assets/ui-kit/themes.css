@@ -4,13 +4,29 @@
  * The agent OFFERS one (Aurora is the gorgeous default). Apply on <html>:
  *   <html data-theme="aurora">   ·   add dark: <html data-theme="aurora dark">
  *
- *  • aurora    — indigo · rounded · soft         — modern SaaS (DEFAULT)
- *  • emerald   — green  · rounded · calm          — fintech / health
- *  • sunset    — amber  · extra-rounded · warm     — consumer / marketing
- *  • mono      — slate  · sharp · minimal shadow   — B2B / internal / technical
- *  • editorial — rose   · serif display            — magazine / portfolio
- *  • noir      — graphite · tight · premium         — luxury / premium brand
- *  • ocean     — blue   · rounded · corporate        — enterprise
+ *  • aurora    — indigo · rounded · soft          — modern SaaS (DEFAULT)
+ *  • emerald   — green  · rounded · calm           — fintech / health
+ *  • sunset    — amber  · extra-rounded · warm      — consumer / marketing
+ *  • mono      — slate  · sharp · minimal shadow    — B2B / internal / technical
+ *  • editorial — rose   · serif display             — magazine / portfolio
+ *  • noir      — graphite · tight · premium          — luxury / premium brand
+ *  • ocean     — blue   · rounded · corporate         — enterprise
+ *  • plum      — violet · rounded · creative          — agencies / events / media
+ *  • coral     — warm red-pink · friendly             — consumer / wellness / food
+ *  • teal      — deep teal · calm · trustworthy        — health / education / public
+ *  • gold      — bronze/gold · premium · warm dark      — luxury / real-estate / hospitality
+ *  • forest    — deep green · grounded · natural         — sustainability / outdoors / farm
+ *  • slatepro  — corporate blue-grey · sharp · serious    — enterprise / legal / finance
+ *
+ * TYPOGRAPHY PAIRINGS — pick independently of colour via <html data-type="…">
+ * (e.g. <html data-theme="gold" data-type="grand">). Each remaps display+body:
+ *  • geometric (default) — Space Grotesk display · Inter body   — modern, crisp
+ *  • editorial           — Source Serif 4 display · Inter body   — authored, classic
+ *  • grand               — Fraunces display · Work Sans body     — premium, warm
+ *  • fashion             — Playfair Display · Work Sans body     — elegant, high-contrast
+ *  • startup             — Outfit display · DM Sans body         — geometric, confident
+ *  • press               — Outfit display · Spectral serif body  — magazine reading
+ *  • humanist            — DM Sans display · DM Sans body         — soft, single-family
  */
 [data-theme~='aurora']    { --accent: #4f46e5; --accent-2: #7c74f2; --accent-tint: #eef0fe; --accent-ink: #fff; }
 [data-theme~='emerald']   { --accent: #0f9d6e; --accent-2: #34c79a; --accent-tint: #e6f7f0; --accent-ink: #fff; }
@@ -19,6 +35,12 @@
 [data-theme~='editorial'] { --accent: #b03a5b; --accent-2: #d06a86; --accent-tint: #f8e9ee; --accent-ink: #fff; --font-display: 'Source Serif 4', Georgia, serif; --measure: 62ch; }
 [data-theme~='noir']      { --accent: #1b1d22; --accent-2: #3a3d44; --accent-tint: #ededee; --accent-ink: #fff; --r-sm: 4px; --r-md: 7px; --r-lg: 12px; }
 [data-theme~='ocean']     { --accent: #2563eb; --accent-2: #5b8def; --accent-tint: #e8f0fe; --accent-ink: #fff; }
+[data-theme~='plum']      { --accent: #7c3aed; --accent-2: #a571f5; --accent-tint: #f1ebfe; --accent-ink: #fff; --r-md: 12px; --r-lg: 18px; }
+[data-theme~='coral']     { --accent: #e1495b; --accent-2: #f47e88; --accent-tint: #fdecee; --accent-ink: #fff; --r-md: 14px; --r-lg: 22px; --r-xl: 30px; }
+[data-theme~='teal']      { --accent: #0d7d8c; --accent-2: #34a9b5; --accent-tint: #e3f4f6; --accent-ink: #fff; }
+[data-theme~='gold']      { --accent: #9a7223; --accent-2: #caa14a; --accent-tint: #f6efdf; --accent-ink: #fff; --r-sm: 5px; --r-md: 8px; --r-lg: 13px; }
+[data-theme~='forest']    { --accent: #2f6f4f; --accent-2: #4f9670; --accent-tint: #e6f1ea; --accent-ink: #fff; }
+[data-theme~='slatepro']  { --accent: #34506b; --accent-2: #5a7a96; --accent-tint: #eaeff4; --accent-ink: #fff; --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-xl: 14px; }
 
 /* editorial: serif display headings */
 [data-theme~='editorial'] h1,
@@ -28,3 +50,14 @@
 /* noir: extra-tight premium display */
 [data-theme~='noir'] h1,
 [data-theme~='noir'] .display { letter-spacing: var(--track-tight); }
+
+/* ── TYPOGRAPHY PAIRINGS (data-type) — remap display + body families ───────── */
+[data-type='geometric'] { --font-display: 'Space Grotesk', var(--font-sans); --font-sans: 'Inter', system-ui, sans-serif; }
+[data-type='editorial'] { --font-display: 'Source Serif 4', Georgia, serif; --font-sans: 'Inter', system-ui, sans-serif; --measure: 64ch; }
+[data-type='grand']     { --font-display: 'Fraunces', Georgia, serif; --font-sans: 'Work Sans', system-ui, sans-serif; }
+[data-type='fashion']   { --font-display: 'Playfair Display', Georgia, serif; --font-sans: 'Work Sans', system-ui, sans-serif; --track-tight: -0.01em; }
+[data-type='startup']   { --font-display: 'Outfit', system-ui, sans-serif; --font-sans: 'DM Sans', system-ui, sans-serif; }
+[data-type='press']     { --font-display: 'Outfit', system-ui, sans-serif; --font-sans: 'Spectral', Georgia, serif; --measure: 68ch; }
+[data-type='humanist']  { --font-display: 'DM Sans', system-ui, sans-serif; --font-sans: 'DM Sans', system-ui, sans-serif; }
+/* The chosen display family drives every heading + .display, the body family the rest. */
+[data-type] h1, [data-type] h2, [data-type] h3, [data-type] .hero h1, [data-type] .display { font-family: var(--font-display); }
