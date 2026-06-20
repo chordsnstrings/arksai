@@ -88,6 +88,22 @@ export class Semaphore {
 const MINIMAX_MAX_CONCURRENCY = Math.max(1, Number(process.env.MINIMAX_MAX_CONCURRENCY || '3') || 3);
 const minimaxLimiter = new Semaphore(MINIMAX_MAX_CONCURRENCY);
 
+// When a turn runs long (quality-first: we let the best model finish a big generation),
+// the user should KNOW it's working — with a bit of personality, not a dry spinner. One
+// of these is shown when a turn passes ~55s; they reassure (it's not stuck) AND smile.
+const SLOW_LINES = [
+  'Still cooking — this one’s a big batch. Good things, slow oven. 🍞',
+  'Hang tight — the model’s doing real work back here, not thinking about lunch.',
+  'Bigger build, bigger brain. Letting it finish properly beats rushing it.',
+  'Still on it — lots of numbers and pixels being wrangled behind the scenes.',
+  'Quality over quick: we’re building the good version, not the flimsy fast one.',
+  'Deep in the zone. 🎧 Give it a beat — this is the worth-it kind of slow.',
+  'Brewing something detailed. ☕ Large outputs take a moment; it’s not stuck.',
+  'Working hard, not hardly working — a meaty build is in progress.',
+  'Measuring twice, cutting once. Almost there in spirit.',
+  'Still going strong — the careful pass takes a little longer, promise it’s alive.',
+];
+
 interface AccToolCall {
   id: string;
   name: string;
@@ -312,7 +328,8 @@ export class AgentRun {
   private autoExpertiseApplied = false; // true once the auto-router has set this.session.task (never overwrites a picked play)
   private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
   private progressPhase: ProgressPhase = 'understanding';
-  private notifiedSlow = false; // emitted the one-time "this is taking longer" reassurance?
+  private slowLineIdx = Math.floor(Math.random() * SLOW_LINES.length); // rotate the funny "still working" lines
+  private lastSlowAt = 0; // cooldown so long multi-turn builds vary the line without spamming
   private pendingMode: SessionMode | null = null; // set by switch_mode; applied between tool batches
   private planSubmitted = false; // set by submit_plan; ends the turn awaiting the user's nod
   private planResolved = false; // this run answers a pending plan → plan→code is allowed
@@ -1081,9 +1098,13 @@ export class AgentRun {
     // generation rather than bail to a weaker model, so a turn can legitimately run ~1–2min —
     // the user should KNOW it's working, not wonder if it hung). Fires once per run.
     const slowNotice = setTimeout(() => {
-      if (this.notifiedSlow || this.abort.signal.aborted) return;
-      this.notifiedSlow = true;
-      this.emitProgress(this.progressPhase, 'Still working — this is a larger build, hang tight…');
+      if (this.abort.signal.aborted) return;
+      // Cooldown so a multi-turn big build varies the line instead of repeating every turn.
+      if (Date.now() - this.lastSlowAt < 60_000) return;
+      this.lastSlowAt = Date.now();
+      const line = SLOW_LINES[this.slowLineIdx % SLOW_LINES.length];
+      this.slowLineIdx++;
+      this.emitProgress(this.progressPhase, line);
     }, 55_000);
     let release: () => void;
     try {
