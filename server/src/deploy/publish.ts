@@ -158,6 +158,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   let port: number | null = null;
   let status: Deployment['status'] = 'running';
   let staticDir: string | null = null;
+  let buildError: string | undefined; // surfaced to the agent so a failed publish says WHY
 
   const spa = detectSpaBuild(dest);
   const startCmd = spa ? null : detectStartCommand(dest);
@@ -180,8 +181,11 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     } else {
       status = 'error'; // build failed or produced no index.html — better an honest error than a broken dev-server link
       kind = 'static';
-      if (!inst?.ok) console.warn(`[deploy] SPA install issues for ${slug}: ${String(inst?.output ?? '').slice(-200)}`);
-      if (!built?.ok) console.warn(`[deploy] SPA build failed for ${slug}: ${String(built?.output ?? '').slice(-300)}`);
+      const tail = (s?: string) => String(s ?? '').slice(-700).trim();
+      buildError = !built?.ok
+        ? `The app's production build failed (\`npm run build\`). Read this error, fix it in the app, and republish:\n\n${tail(built?.output) || tail(inst?.output) || '(no output captured)'}`
+        : `The build ran but produced no index.html in dist/ (or build/out/public). Make the build output a static site (a Vite/CRA build should write dist/index.html).`;
+      console.warn(`[deploy] SPA build failed for ${slug}: ${tail(built?.output) || tail(inst?.output)}`);
     }
   } else if (startCmd) {
     kind = /python|wsgi/.test(startCmd) ? 'python' : 'node';
@@ -228,8 +232,8 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   // broken link. On a hard failure mark it errored and hand the defect back to
   // the agent to fix + republish. Bounded + best-effort (degrades to a pass if
   // Playwright/Chromium is unavailable, e.g. in a bare sandbox).
-  let verifyDetail: string | undefined;
-  let verifyOk = true;
+  let verifyDetail: string | undefined = buildError; // a failed SPA build → hand the build error back to the agent
+  let verifyOk = !buildError;
   if (status !== 'error') {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 30_000);
