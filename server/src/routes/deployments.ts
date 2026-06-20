@@ -115,6 +115,25 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
       return reply.send(res.body);
     }
 
+    // A SPA whose production build FAILED has no dist/ — serving the raw root would ship
+    // unbuilt source (a 200 that doesn't run). Show a clean notice instead of broken source.
+    if (dep.status === 'error' && !dep.staticDir && fs.existsSync(path.join(deploymentDir(slug), 'package.json'))) {
+      return reply
+        .code(503)
+        .type('text/html')
+        .send(
+          `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+            `<title>Preview being prepared</title>` +
+            `<div style="min-height:100vh;display:grid;place-items:center;margin:0;background:#f7f6f3;` +
+            `font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#1a1a1a">` +
+            `<div style="max-width:30rem;padding:2rem;text-align:center">` +
+            `<div style="font-size:2rem;margin-bottom:.5rem">⏳</div>` +
+            `<h1 style="font:600 1.4rem/1.3 Georgia,serif;margin:0 0 .5rem">This preview is being prepared</h1>` +
+            `<p style="margin:0;color:#555;line-height:1.6">The app's build hit a snag and the author is fixing it. ` +
+            `Check back in a moment.</p></div></div>`,
+        );
+    }
+
     // Static: serve a file from the snapshot dir (or a built SPA's dist/ subdir).
     const root = dep.staticDir ? path.join(deploymentDir(slug), dep.staticDir) : deploymentDir(slug);
     let relPath = rest || 'index.html';

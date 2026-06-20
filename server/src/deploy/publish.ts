@@ -51,10 +51,16 @@ export function detectSpaBuild(dir: string): { build: string } | null {
   const names = Object.keys({ ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) });
   // A runtime server must keep running — never static-build it.
   if (names.some((n) => /^(next|nuxt|@nestjs\/|express|fastify|koa|@remix-run\/|@sveltejs\/kit|h3|hono)/.test(n))) return null;
-  const isSpa = names.some((n) =>
+  const isSpaDep = names.some((n) =>
     /^(vite|react-scripts|@vue\/cli-service|parcel|@angular\/cli|@craco\/craco|@parcel\/core)$/.test(n),
   );
-  return isSpa ? { build: 'npm run build' } : null;
+  // Also catch a Vite/CRA/Parcel app by its config file or build-script command, since the
+  // dep can land in either deps/devDeps under varied names — so SPAs reliably build→static
+  // instead of slipping to the dev-server path.
+  const hasViteConfig = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs'].some((f) => fs.existsSync(path.join(dir, f)));
+  const scriptsBlob = JSON.stringify(pkg.scripts ?? {});
+  const isSpaScript = /\b(vite build|react-scripts build|parcel build|vue-cli-service build|ng build)\b/.test(scriptsBlob);
+  return isSpaDep || hasViteConfig || isSpaScript ? { build: 'npm run build' } : null;
 }
 
 /** Where a SPA build dropped its output (first dir that actually has an index.html). */

@@ -24,6 +24,16 @@ test('detectSpaBuild: CRA / Vue-CLI / Parcel also build', () => {
   }
 });
 
+test('detectSpaBuild: a Vite app is caught by its config file or build-script too (not just the dep name)', () => {
+  // vite.config present, dep name not matched
+  const d1 = pkgDir({ scripts: { build: 'tsc && vite build' }, devDependencies: {} });
+  fs.writeFileSync(path.join(d1, 'vite.config.ts'), 'export default {}');
+  assert.ok(detectSpaBuild(d1), 'vite.config.ts should mark it a SPA build');
+  // build script names the bundler
+  const d2 = pkgDir({ scripts: { build: 'react-scripts build' }, dependencies: {} });
+  assert.ok(detectSpaBuild(d2), 'a react-scripts build script should mark it a SPA build');
+});
+
 test('detectSpaBuild: a real runtime server is NOT static-built (keeps the run-a-process path)', () => {
   for (const dep of ['next', 'nuxt', 'express', 'fastify', '@nestjs/core', '@remix-run/node']) {
     const d = pkgDir({ scripts: { build: 'build', start: 'start' }, dependencies: { [dep]: '1' } });

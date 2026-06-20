@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.17';
+export const WHATS_NEW_VERSION = '2026-06-19.18';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Publish any app to a 24-hour link',
-    body: 'Publishing now works for every app type, not just static pages: a React/Vite app is built and served from its dist/, and Node/Python apps run behind the proxy with their /api/… calls, assets, and websockets correctly mapped under the share URL — so the app actually works in the browser, not just loads. Every share link lives for 24 hours.',
+    title: 'Higher-quality, responsive output by default',
+    body: 'Everything ArksAI builds is held to a stricter bar: typography-first and minimal, a distinctive palette that\'s contrast-checked for accessibility, purposeful micro-animations, and a deterministic mobile check that fails (and revises) any layout that overflows on a phone — so results look genuinely designed and work on every screen.',
   },
   {
-    title: 'A slimmer top bar',
-    body: 'The bar at the top of a chat is now a compact single line — a long app title shortens with "…" instead of stacking down the screen, especially on mobile.',
+    title: 'Publishing is more robust',
+    body: 'Apps the builder placed in a subfolder now publish correctly, React/Vite apps reliably build to a fast static site, and a failed build shows a clean "being prepared" page with the actual error to fix — instead of a broken link.',
   },
 ];
 

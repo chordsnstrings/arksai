@@ -31,9 +31,14 @@ Start from the bundled design system; do not hand-roll mediocre CSS.
 - TYPOGRAPHY (the backbone): a real modular type scale (≈1.25), generous
   line-height (~1.5 body), a comfortable measure (~60–75 chars), and a strong but
   quiet hierarchy (display → headings → body → caption). One refined font pairing.
-- COLOR: light, restrained, cohesive — a near-black ink, soft surfaces, and ONE
-  accent used sparingly (~5–10%, for emphasis/primary actions), not on everything.
-  Dark theme only if it fits the product. Always ensure strong contrast (WCAG AA).
+- COLOR: a DISTINCTIVE, confident, cohesive palette — NOT the generic default
+  blue/indigo-on-white "AI look". A near-black ink, soft surfaces, and ONE characterful
+  accent used sparingly (~5–10%, for emphasis/primary actions), not on everything; pick
+  an accent with real personality that suits the product, then build neutrals that
+  harmonise with it. Dark theme only if it fits. Contrast is non-negotiable: call
+  validate_palette on your chosen colours BEFORE building and apply the corrected colour
+  it returns for ANY pair that fails — body text + links must pass WCAG AA (4.5:1).
+  Tasteful AND high-contrast, never muddy or low-contrast.
 - BRAND & LOGO (do this for EVERY deliverable — web, deck, doc or report): if the
   user uploaded a LOGO, build the identity FROM it — call extract_palette on the logo
   to read its real colours, use the dominant brand colour as the accent (nudge it for

@@ -45,9 +45,11 @@ const VISION_PROMPT =
 
 export const DESIGN_RUBRIC_PROMPT =
   'You are a senior design director reviewing a screenshot of a UI a junior built. Judge it against ' +
-  'this rubric: typography (clear scale & hierarchy, readable), spacing & alignment (consistent rhythm, ' +
-  'on a grid, not cramped or sparsely empty), visual hierarchy, colour (restrained, strong contrast, ' +
-  'accent used sparingly), component polish & states, and overall "does this look professionally designed". ' +
+  'this rubric: typography-FIRST (a real modular scale, strong but quiet hierarchy, a refined font pairing, ' +
+  'readable measure), spacing & alignment (consistent rhythm on a grid, generous whitespace, not cramped or ' +
+  'sparsely empty), visual hierarchy, colour (a DISTINCTIVE confident palette — flag the generic default ' +
+  'blue/indigo-on-white "AI look" — ONE accent used sparingly, strong AA contrast), component polish & ' +
+  'considered states, and overall "does this look like a top-tier product a senior designer shipped, not a template". ' +
   'Respond EXACTLY in this format and nothing else:\n' +
   'First line: "VERDICT: PASS" if it already looks genuinely well-designed, or "VERDICT: REVISE" if a ' +
   'competent designer would change something.\n' +
@@ -215,11 +217,38 @@ export async function browserSmokeTest(
       }
     }
 
+    // RESPONSIVE (deterministic, no vision): a real product must not overflow
+    // horizontally on a phone. Render at 390px wide and measure content vs viewport;
+    // a layout wider than the screen is a hard responsiveness defect. Reset to desktop
+    // after so the visual design review (below) still sees the desktop composition.
+    let responsiveIssue = '';
+    if (!blank) {
+      try {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.waitForTimeout(450);
+        const ov: any = await page
+          .evaluate(() => {
+            const d: any = (globalThis as any).document;
+            const w: any = globalThis as any;
+            const sw = Math.max(d?.documentElement?.scrollWidth || 0, d?.body?.scrollWidth || 0);
+            return { scrollW: sw, innerW: w.innerWidth || 390 };
+          })
+          .catch(() => ({ scrollW: 0, innerW: 390 }));
+        const over = Math.round((ov.scrollW || 0) - (ov.innerW || 390));
+        if (over > 24)
+          responsiveIssue = `Not responsive — horizontal overflow at 390px: content is ${over}px wider than the screen (the user has to scroll sideways on a phone). Fix with max-width:100%, flex-wrap, fluid units, image/table containers (overflow-x:auto on the container, not the page), and no fixed pixel widths wider than the viewport.`;
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.waitForTimeout(250);
+      } catch {
+        /* best-effort */
+      }
+    }
+
     const docFailed = !resp || resp.status() >= 400;
     const ce = dedupe(consoleErrors);
     const pe = dedupe(pageErrors);
     const fr = dedupe(failedRequests);
-    const hardFail = docFailed || blank || pe.length > 0 || fr.length > 0;
+    const hardFail = docFailed || blank || pe.length > 0 || fr.length > 0 || !!responsiveIssue;
 
     // True visual judgment: if vision is configured, actually LOOK at the page
     // (the text-only model can't). For visual tasks run the DESIGN RUBRIC (gating
@@ -266,6 +295,7 @@ export async function browserSmokeTest(
     if (blank) lines.push('✗ The page rendered blank (no visible content).');
     if (pe.length) lines.push(`✗ Uncaught JS errors:\n  - ${pe.join('\n  - ')}`);
     if (fr.length) lines.push(`✗ Failed requests (same-origin):\n  - ${fr.join('\n  - ')}`);
+    if (responsiveIssue) lines.push(`✗ ${responsiveIssue}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
     if (leaked.length) lines.push(`⚠ Value leaked into the UI:\n  - ${leaked.join('\n  - ')}`);
     if (interacted) lines.push('• Interaction pass ran (seeded inputs, submitted a form, clicked primary actions).');
