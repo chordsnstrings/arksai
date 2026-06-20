@@ -334,90 +334,107 @@ export async function browserSmokeTest(
     // INTERACTION-STATE LEGIBILITY (deterministic): a button/link whose background
     // changes on :hover but whose text colour does NOT (or vice-versa) goes
     // unreadable in the hover state — a real, reported defect the static pass can't
-    // see. Actually hover each interactive control (real mouse → :hover + CSS vars
-    // resolve) and re-measure WCAG contrast of the hovered text vs its hovered bg.
+    // see. Hover each control (real mouse → :hover + CSS vars resolve), measure WCAG
+    // contrast at REST and on HOVER, and flag only a genuine hover REGRESSION (hover
+    // ends below AA *and* is meaningfully worse than rest) — so we catch the
+    // vanishing label without re-flagging resting low-contrast (the static pass's job).
     let hoverIssues: string[] = [];
     if (!blank && !signal.aborted) {
+      // Kill transitions/animations so each hovered state is measured at its FINAL
+      // value, not mid-fade (a mid-transition read gives false numbers).
+      await page.addStyleTag({ content: '*{transition-duration:0s !important;animation-duration:0s !important}' }).catch(() => {});
+      // Measures the element's text-vs-background WCAG contrast in its current state.
+      const measure = (el: any) => {
+        const w: any = globalThis as any;
+        const parse = (s: string) => {
+          const m = String(s).match(/rgba?\(([^)]+)\)/);
+          if (!m) return null;
+          const p = m[1].split(',').map((x: string) => parseFloat(x));
+          return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+        };
+        const lum = (c: any) => {
+          const f = (v: number) => {
+            v /= 255;
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+          };
+          return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+        };
+        const ratio = (a: any, b: any) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+        const bgOf = (node: any): any => {
+          let e = node;
+          while (e) {
+            const cs = w.getComputedStyle(e);
+            if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
+            const bg = parse(cs.backgroundColor);
+            if (bg && bg.a > 0.5) return bg;
+            e = e.parentElement;
+          }
+          return { r: 255, g: 255, b: 255, a: 1 };
+        };
+        const cs = w.getComputedStyle(el);
+        const fg = parse(cs.color);
+        if (!fg || fg.a < 0.4) return null;
+        const bg = bgOf(el);
+        if (!bg) return null;
+        const size = parseFloat(cs.fontSize) || 16;
+        const large = size >= 24 || (size >= 18.66 && parseInt(cs.fontWeight) >= 600);
+        return { cr: Math.round(ratio(fg, bg) * 10) / 10, floor: large ? 3.0 : 4.5 };
+      };
       try {
         const handles = await page.$$(
           'a,button,[role="button"],input[type="submit"],input[type="button"],summary,.btn,.cta,.button',
         );
         let checked = 0;
+        const seenTxt: Record<string, boolean> = {};
         for (const h of handles) {
-          if (checked >= 16 || hoverIssues.length >= 4 || signal.aborted) break;
+          if (checked >= 24 || hoverIssues.length >= 5 || signal.aborted) break;
+          // No vertical cap — scrollIntoViewIfNeeded brings a deep control (e.g. a
+          // subscribe button low on the page) into view to hover it. Filter by
+          // visibility + a sane size; skip logos/wordmarks (exempt from text contrast);
+          // dedupe identical labels (footer link lists).
           const info = (await h
             .evaluate((el: any) => {
               const w: any = globalThis as any;
               const cs = w.getComputedStyle(el);
               if (cs.visibility === 'hidden' || cs.display === 'none' || el.offsetParent === null) return null;
               const r = el.getBoundingClientRect();
-              if (r.width < 16 || r.height < 10 || r.top > 2600 || r.bottom < 0) return null;
+              if (r.width < 16 || r.height < 10) return null;
+              const cls = String(el.className || '');
+              if (/\b(brand|logo|wordmark)\b/i.test(cls) || el.querySelector('img,svg[role="img"]')) return null;
               const txt = String(el.innerText || el.value || '').trim();
-              if (txt.length < 2) return null;
+              if (txt.length < 2 || txt.length > 60) return null; // a real control label, not a whole card
               return { txt: txt.slice(0, 38) };
             })
             .catch(() => null)) as { txt: string } | null;
           if (!info) continue;
+          if (seenTxt[info.txt]) continue;
+          seenTxt[info.txt] = true;
           checked++;
+          const rest = (await h.evaluate(measure).catch(() => null)) as { cr: number; floor: number } | null;
           try {
             await h.scrollIntoViewIfNeeded({ timeout: 600 });
             await h.hover({ timeout: 700, force: true });
           } catch {
             continue;
           }
-          await page.waitForTimeout(70); // let the hover transition settle
-          const res = (await h
-            .evaluate((el: any) => {
-              const w: any = globalThis as any;
-              const parse = (s: string) => {
-                const m = String(s).match(/rgba?\(([^)]+)\)/);
-                if (!m) return null;
-                const p = m[1].split(',').map((x: string) => parseFloat(x));
-                return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
-              };
-              const lum = (c: any) => {
-                const f = (v: number) => {
-                  v /= 255;
-                  return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-                };
-                return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
-              };
-              const ratio = (a: any, b: any) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
-              const bgOf = (node: any): any => {
-                let e = node;
-                while (e) {
-                  const cs = w.getComputedStyle(e);
-                  if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
-                  const bg = parse(cs.backgroundColor);
-                  if (bg && bg.a > 0.5) return bg;
-                  e = e.parentElement;
-                }
-                return { r: 255, g: 255, b: 255, a: 1 };
-              };
-              const cs = w.getComputedStyle(el);
-              const fg = parse(cs.color);
-              if (!fg || fg.a < 0.4) return null;
-              const bg = bgOf(el);
-              if (!bg) return null;
-              const cr = ratio(fg, bg);
-              const size = parseFloat(cs.fontSize) || 16;
-              const large = size >= 24 || (size >= 18.66 && parseInt(cs.fontWeight) >= 600);
-              const floor = large ? 3.0 : 4.5;
-              return { cr: Math.round(cr * 10) / 10, floor };
-            })
-            .catch(() => null)) as { cr: number; floor: number } | null;
-          if (res && res.cr < res.floor - 0.25)
-            hoverIssues.push(`"${info.txt}…" on hover — contrast ${res.cr.toFixed(1)}:1 (needs ≥${res.floor}:1)`);
+          await page.waitForTimeout(60);
+          const hov = (await h.evaluate(measure).catch(() => null)) as { cr: number; floor: number } | null;
           try {
             await page.mouse.move(2, 2); // un-hover before the next control
           } catch {}
+          // Flag a true hover regression: the hovered label ends below AA AND lost
+          // meaningful contrast versus its resting state (so the hover is what broke it).
+          if (hov && rest && hov.cr < hov.floor - 0.25 && hov.cr < rest.cr - 0.5)
+            hoverIssues.push(
+              `"${info.txt}…" — contrast drops to ${hov.cr.toFixed(1)}:1 on hover (was ${rest.cr.toFixed(1)}:1 at rest; needs ≥${hov.floor}:1)`,
+            );
         }
       } catch {
         /* best-effort */
       }
     }
     const hoverIssue = hoverIssues.length
-      ? `Illegible on hover — these controls lose contrast in their hover state (the background changes but the text colour doesn't, or vice-versa), so the label disappears when a user points at it. Set BOTH the hover background AND the hover text colour together and keep WCAG AA (4.5:1 body, 3:1 large) in EVERY state — default, hover, focus, active. Offenders:\n  - ${hoverIssues.join('\n  - ')}`
+      ? `Illegible on hover — these controls lose contrast in their hover state (the background changes but the text colour doesn't, or vice-versa), so the label gets hard to read when a user points at it. Set BOTH the hover background AND the hover text colour together and keep WCAG AA (4.5:1 body, 3:1 large) in EVERY state — default, hover, focus, active. Offenders:\n  - ${hoverIssues.join('\n  - ')}`
       : '';
 
     const docFailed = !resp || resp.status() >= 400;
