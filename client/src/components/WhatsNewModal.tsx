@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-20.9';
+export const WHATS_NEW_VERSION = '2026-06-20.10';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'No more long builds hanging',
-    body: 'We tracked down a rare hang on big builds to the AI model being starved when several builds ran at once. Builds are now paced so that can’t happen, a stalled turn is detected and recovered automatically, and if a turn is just genuinely large you’ll see a “still working, hang tight” note instead of silence.',
+    title: 'Big, detailed spreadsheets that just work',
+    body: 'Granular models — like a 3-year, month-by-month CAPEX & OPEX plan across separate sheets — now build sheet by sheet, so even large, complex spreadsheets reliably finish and come back complete instead of stalling. Every formula is kept live and connected across sheets, so changing one assumption flows through.',
   },
   {
-    title: 'Quality kept first on big outputs',
-    body: 'For large spreadsheets, decks and reports we now let the best model finish its work rather than handing off to a faster, weaker one — so detailed financial models and documents come back more complete and accurate.',
+    title: 'Cleaner, finance-grade formatting',
+    body: 'Totals and roll-up rows are automatically bolded and ruled so a model reads like a real financial statement, and every cell shows its number in the preview — no more blanks where a formula used to disappear.',
   },
 ];
 

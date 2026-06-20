@@ -133,9 +133,16 @@ function docToolsSlice(): string {
   sidecar "<file>.extracted.txt" next to the original — read that with
   read_file instead of trying to parse the binary. To CREATE a deliverable:
   • Spreadsheet (.xlsx) → use generate_spreadsheet (styled + validated for you:
-    branded header, number/date formats, zebra, frozen header). It supports
-    FORMULAS — pass cells like "=B2*C2" (or {f,v}) so models are formula-driven and
-    one assumption flows through. Don't hand-write an exceljs script.
+    branded header, number/date formats, zebra, frozen header, bold total rows). It
+    supports FORMULAS — pass cells like "=B2*C2" (or {f,v}) so models are
+    formula-driven and one assumption flows through. Don't hand-write an exceljs or
+    openpyxl script (a value-dumping script is rejected by the model gate). For a
+    LARGE / granular model (e.g. a 3-year MONTH-BY-MONTH CAPEX+OPEX, many sheets),
+    build it in STAGES so it never stalls: first call = the "Assumptions" sheet (all
+    drivers), then call again with append:true to add ONE sheet at a time (CAPEX,
+    OPEX, Personnel, Summary…), each referencing Assumptions with cross-sheet
+    formulas (=Assumptions!$B$2). Ground the drivers in REAL figures (research rents,
+    salaries, equipment costs) — never invent them.
   • Editable document (.docx) → use generate_doc (typographic, brand accent,
     real tables). For a print-locked, richly designed PDF use render_report.
   • Slide deck (.pptx) → use generate_pptx (editorial 16:9, designed cover, charts

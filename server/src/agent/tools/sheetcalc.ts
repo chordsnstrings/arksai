@@ -132,16 +132,28 @@ export function recalcWorkbook(wbExcel: any): void {
     // 2) Recompute.
     recalc(wb);
     // 3) Write computed results back onto the real ExcelJS formula cells.
+    //    CRITICAL: ExcelJS DROPS a formula cell that has no `result` — it writes an EMPTY
+    //    cell and the formula string is LOST (verified). So EVERY formula cell must carry a
+    //    result. We use the recomputed value when we have one; otherwise we keep whatever the
+    //    model supplied; and as a last resort we stamp 0 so the formula survives (Excel/Sheets
+    //    recalculates on open regardless, so a placeholder only affects the static preview).
     wbExcel.eachSheet((ws: any) => {
       const grid = wb.get(ws.name);
       if (!grid) return;
       ws.eachRow({ includeEmpty: false }, (row: any, rn: number) => {
         row.eachCell({ includeEmpty: false }, (cell: any, cn: number) => {
-          const f = formulaOf(cell.value);
+          const cur = cell.value;
+          const f = formulaOf(cur);
           if (!f) return;
           const computed = grid.get(colLet(colOf(cell, cn)) + rn);
+          const existing =
+            cur && typeof cur === 'object' && typeof (cur as any).result === 'number' && Number.isFinite((cur as any).result)
+              ? (cur as any).result
+              : undefined;
           if (computed && typeof computed.v === 'number' && Number.isFinite(computed.v)) {
             cell.value = { formula: f, result: computed.v };
+          } else if (existing === undefined) {
+            cell.value = { formula: f, result: 0 }; // keep the formula alive (ExcelJS would drop it with no result)
           }
         });
       });

@@ -67,6 +67,95 @@ function toRow(r: any): any {
   return r;
 }
 
+/** A row whose first-column label reads as a roll-up — bolded + top-ruled so models scan like finance. */
+const TOTAL_ROW_RE = /\b(total|subtotal|grand total|net|gross|closing|opening|ending|balance|ebitda|profit|surplus|deficit|cumulative|runway)\b/i;
+
+function firstCellLabel(cell: any): string {
+  if (typeof cell === 'string') return cell;
+  if (cell && typeof cell === 'object') {
+    if (typeof cell.text === 'string') return cell.text; // exceljs rich/formula cell
+    if (Array.isArray(cell.richText)) return cell.richText.map((p: any) => p?.text || '').join('');
+  }
+  return '';
+}
+
+/**
+ * Build ONE worksheet into the workbook with the full ArksAI styling pass: branded frozen
+ * header, typed number/date formats, zebra banding, auto widths, auto-filter, and — for
+ * finance — bold/ruled total rows. Pulled out so the fresh build AND the incremental
+ * (append) path share identical styling, and so a large model assembled sheet-by-sheet still
+ * looks designed, not like a raw script dump.
+ */
+function buildSheet(wb: any, s: any, accentArgb: string): { name: string; rows: number } {
+  const name = String(s.name || 'Sheet').slice(0, 31);
+  const cols: ColSpec[] = Array.isArray(s.columns) ? s.columns : [];
+  const rows: any[] = Array.isArray(s.rows) ? s.rows : [];
+  const ws = wb.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] });
+
+  ws.columns = cols.map((c, i) => ({
+    header: c.header,
+    key: c.key || c.header || `c${i}`,
+    width: c.width && c.width > 0 ? c.width : Math.min(40, Math.max(12, String(c.header || '').length + 4)),
+  }));
+
+  // Header styling — branded, bold, readable.
+  const head = ws.getRow(1);
+  head.height = 22;
+  head.eachCell((cell: any) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: accentArgb } };
+    cell.alignment = { vertical: 'middle', horizontal: 'left' };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } } };
+  });
+
+  // Data rows (cells may be literal values OR formulas — see toCell/toRow).
+  for (const r of rows) ws.addRow(toRow(r));
+
+  // Number/date formats + right-align numerics.
+  cols.forEach((c, i) => {
+    const fmt = c.type ? NUM_FMT[c.type] : undefined;
+    const col = ws.getColumn(i + 1);
+    if (fmt) col.numFmt = fmt;
+    if (c.type && c.type !== 'text' && c.type !== 'date') col.alignment = { horizontal: 'right' };
+  });
+
+  // Zebra banding.
+  ws.eachRow((row: any, n: number) => {
+    if (n > 1 && n % 2 === 1) {
+      row.eachCell((cell: any) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F5' } };
+      });
+    }
+  });
+
+  // Total/roll-up rows: bold + a hairline top rule so a model reads like a real statement.
+  ws.eachRow((row: any, n: number) => {
+    if (n === 1) return;
+    if (!TOTAL_ROW_RE.test(firstCellLabel(row.getCell(1).value))) return;
+    row.eachCell((cell: any) => {
+      cell.font = { ...(cell.font || {}), bold: true };
+      cell.border = { ...(cell.border || {}), top: { style: 'thin', color: { argb: 'FFB8B8B0' } } };
+    });
+  });
+
+  // Auto width refinement.
+  cols.forEach((_c, i) => {
+    const col = ws.getColumn(i + 1);
+    if (_c.width && _c.width > 0) return;
+    let max = String(cols[i]?.header || '').length;
+    col.eachCell({ includeEmpty: false }, (cell: any) => {
+      const len = String(cell.value ?? '').length;
+      if (len > max) max = len;
+    });
+    col.width = Math.min(48, Math.max(12, max + 3));
+  });
+
+  if (cols.length) {
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+  }
+  return { name, rows: rows.length };
+}
+
 /**
  * Generate a styled, validated .xlsx spreadsheet from a high-level spec — so a
  * non-technical user gets a genuinely designed sheet (branded header, number/
@@ -94,11 +183,19 @@ export const generateSpreadsheetTool: ToolDef = {
     '(totals via SUM, ratios/growth as formulas) so changing an assumption flows through; lead with a Summary/KPI ' +
     'sheet; give every column an explicit type (currency/percent/date) so numbers align and format consistently; ' +
     'keep the accent restrained; no orphan/empty columns. The output is auto re-opened, formula-error-checked, and ' +
-    'design-reviewed — a broken or sloppy sheet is sent back to you to fix.',
+    'design-reviewed — a broken or sloppy sheet is sent back to you to fix. ' +
+    'LARGE / GRANULAR MODELS (e.g. a 3-year MONTH-BY-MONTH CAPEX+OPEX with many line items, or any model with many ' +
+    'sheets) — BUILD IT IN STAGES, do NOT cram every sheet into one huge call (that is slow and can stall): make the ' +
+    'FIRST call with the "Assumptions" sheet (all drivers — rents, salaries, unit costs, growth/escalation %), then call ' +
+    'AGAIN with "append": true to add ONE more sheet each time (e.g. CAPEX schedule, then OPEX schedule, then Personnel, ' +
+    'then a Summary/P&L), each referencing the earlier sheets with cross-sheet formulas (=Assumptions!$B$2). Append keeps ' +
+    'the SAME file, preserves prior sheets, restyles, and re-checks the whole workbook; re-sending a sheet name REPLACES it. ' +
+    'This is how you reliably ship a big, detailed, formula-driven model without one giant payload.',
   parameters: {
     type: 'object',
     properties: {
-      output: { type: 'string', description: 'Output filename, e.g. "sales.xlsx". Default data.xlsx.' },
+      output: { type: 'string', description: 'Output filename, e.g. "sales.xlsx". Default data.xlsx. For a staged build, keep the SAME filename across calls.' },
+      append: { type: 'boolean', description: 'When true, ADD these sheets to the existing file (same output name) instead of overwriting — for building a large multi-sheet model one sheet at a time. A sheet whose name already exists is replaced. Default false (fresh file).' },
       accent: { type: 'string', description: 'Header accent colour as hex (e.g. "#4f46e5"). Use the brand accent if known.' },
       sheets: {
         type: 'array',
@@ -161,72 +258,34 @@ export const generateSpreadsheetTool: ToolDef = {
     }
 
     const accentArgb = toArgb(args.accent, 'FF4F46E5');
+    const append = args.append === true;
     const expected: { name: string; rows: number }[] = [];
+    let totalSheets = 0;
     try {
       const wb = new ExcelJS.Workbook();
       wb.creator = 'ArksAI';
+      // Incremental build: load the existing file so we ADD to it (a large model assembled
+      // one sheet per call). Cross-sheet formulas to earlier sheets then resolve in recalc.
+      if (append && fs.existsSync(absOut)) {
+        try {
+          await wb.xlsx.readFile(absOut);
+        } catch {
+          /* unreadable prior file → start fresh rather than fail the whole build */
+        }
+      }
       for (const s of sheets) {
         const name = String(s.name || 'Sheet').slice(0, 31);
-        const cols: ColSpec[] = Array.isArray(s.columns) ? s.columns : [];
-        const rows: any[] = Array.isArray(s.rows) ? s.rows : [];
-        const ws = wb.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] });
-
-        ws.columns = cols.map((c, i) => ({
-          header: c.header,
-          key: c.key || c.header || `c${i}`,
-          width: c.width && c.width > 0 ? c.width : Math.min(40, Math.max(12, String(c.header || '').length + 4)),
-        }));
-
-        // Header styling — branded, bold, readable.
-        const head = ws.getRow(1);
-        head.height = 22;
-        head.eachCell((cell: any) => {
-          cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: accentArgb } };
-          cell.alignment = { vertical: 'middle', horizontal: 'left' };
-          cell.border = { bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } } };
-        });
-
-        // Data rows (cells may be literal values OR formulas — see toCell/toRow).
-        for (const r of rows) ws.addRow(toRow(r));
-
-        // Number/date formats + right-align numerics.
-        cols.forEach((c, i) => {
-          const fmt = c.type ? NUM_FMT[c.type] : undefined;
-          const col = ws.getColumn(i + 1);
-          if (fmt) col.numFmt = fmt;
-          if (c.type && c.type !== 'text' && c.type !== 'date') col.alignment = { horizontal: 'right' };
-        });
-
-        // Zebra banding + auto width refinement.
-        ws.eachRow((row: any, n: number) => {
-          if (n > 1 && n % 2 === 1) {
-            row.eachCell((cell: any) => {
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F5' } };
-            });
-          }
-        });
-        cols.forEach((_c, i) => {
-          const col = ws.getColumn(i + 1);
-          if (_c.width && _c.width > 0) return;
-          let max = String(cols[i]?.header || '').length;
-          col.eachCell({ includeEmpty: false }, (cell: any) => {
-            const len = String(cell.value ?? '').length;
-            if (len > max) max = len;
-          });
-          col.width = Math.min(48, Math.max(12, max + 3));
-        });
-
-        if (cols.length) {
-          ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
-        }
-        expected.push({ name, rows: rows.length });
+        // Re-sending a sheet name replaces it (so a corrected stage overwrites cleanly).
+        const prior = wb.getWorksheet(name);
+        if (prior) wb.removeWorksheet(prior.id);
+        expected.push(buildSheet(wb, s, accentArgb));
       }
       // AUTHORITATIVE pass: compute + cache every formula cell's result on the BUILT
       // workbook (real coordinates), so the in-app preview never shows blank formula
       // cells — even when the model's structure defeated the pre-write recalc.
       recalcWorkbook(wb);
       await wb.xlsx.writeFile(absOut);
+      totalSheets = wb.worksheets.length;
     } catch (e: any) {
       return `Error: failed to build the spreadsheet — ${e?.message ?? e}`;
     }
@@ -251,6 +310,12 @@ export const generateSpreadsheetTool: ToolDef = {
 
     const sz = fs.existsSync(absOut) ? fs.statSync(absOut).size : 0;
     const total = expected.reduce((n, e) => n + e.rows, 0);
-    return `Generated ${finalName} (${Math.round(sz / 1024)} KB) — ${expected.length} sheet(s), ${total} data row(s), styled and validated. Offered as a download; the canvas can preview it.`;
+    const sheetNote = append
+      ? `added ${expected.length} sheet(s) (${total} data row(s)), ${totalSheets} sheet(s) now in the workbook`
+      : `${expected.length} sheet(s), ${total} data row(s)`;
+    const more = append
+      ? ' Call again with append:true to add the next sheet, or stop here if the model is complete.'
+      : '';
+    return `Generated ${finalName} (${Math.round(sz / 1024)} KB) — ${sheetNote}, styled and validated. Offered as a download; the canvas can preview it.${more}`;
   },
 };
