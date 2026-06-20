@@ -351,6 +351,7 @@ async function migrate() {
     'schedules:org_id TEXT',
     'schedules:tz TEXT',
     `deployments:expires_at ${INT}`,
+    'deployments:static_dir TEXT',
   ]) {
     const cut = spec.indexOf(':');
     const table = spec.slice(0, cut);

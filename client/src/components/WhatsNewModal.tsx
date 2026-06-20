@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-19.15';
+export const WHATS_NEW_VERSION = '2026-06-19.16';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Upload anything — it just works',
-    body: 'Excel workbooks are read sheet-by-sheet (every sheet, exact values — no more "it only saw the first one"), PowerPoint decks are read slide-by-slide with speaker notes, and dropping several files at once (spreadsheets + images + a deck) makes ArksAI work through every one. Quick questions answer from a complete overview; heavy number-crunching goes to Python.',
+    title: 'Publish any app to a 24-hour link',
+    body: 'Publishing now works for every app type, not just static pages: a React/Vite app is built and served from its dist/, and Node/Python apps run behind the proxy with their /api/… calls, assets, and websockets correctly mapped under the share URL — so the app actually works in the browser, not just loads. Every share link lives for 24 hours.',
   },
   {
-    title: 'Make an image like one you upload',
-    body: 'Give ArksAI a reference image and ask for one "like this" — it looks at the subject, style, composition and palette and generates from that, carrying a person\'s likeness across when it should.',
+    title: 'Cleaner share links',
+    body: 'Published apps get shorter, readable URLs at /apps/<name>/, and re-publishing keeps the same link instead of drifting to -2 / -3.',
   },
 ];
 

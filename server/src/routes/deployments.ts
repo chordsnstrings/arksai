@@ -26,12 +26,25 @@ const MIME: Record<string, string> = {
   '.txt': 'text/plain',
 };
 
-/** Rewrite root-absolute asset URLs + inject <base> so an app served under a
- *  /apps/<slug>/ prefix loads its assets correctly. (Same idea as the preview proxy.) */
-function rewriteHtml(html: string, prefix: string): string {
+/** Rewrite root-absolute asset URLs + inject <base> AND a runtime fetch/XHR shim so an app
+ *  served under a /apps/<slug>/ prefix loads its assets AND its API calls correctly. The
+ *  <base> + attribute rewrite fix HTML-declared URLs; the shim fixes root-absolute
+ *  fetch('/api/…') / XHR / WebSocket calls in JS, which otherwise resolve against the bare
+ *  origin (arksai.studio/api/…) and 404 — the #1 reason published server apps looked broken. */
+export function rewriteHtml(html: string, prefix: string): string {
   let out = html.replace(/\b(src|href)=("|')\/(?!\/)/gi, `$1=$2${prefix}`);
-  if (/<head[^>]*>/i.test(out)) out = out.replace(/<head([^>]*)>/i, `<head$1><base href="${prefix}">`);
-  else out = `<base href="${prefix}">` + out;
+  // Runs before the app's own scripts (deferred module scripts execute after this inline one),
+  // so patched fetch/XHR/WebSocket are in place by the time the app makes its first request.
+  const shim =
+    `<base href="${prefix}">` +
+    `<script>(function(){var B=${JSON.stringify(prefix)};` +
+    `function fx(u){try{return (typeof u==="string"&&u.charAt(0)==="/"&&u.charAt(1)!=="/")?B+u.slice(1):u;}catch(e){return u;}}` +
+    `var f=window.fetch;if(f)window.fetch=function(i,o){if(typeof i==="string")i=fx(i);else if(i&&i.url){try{i=new Request(fx(i.url),i);}catch(e){}}return f.call(this,i,o);};` +
+    `var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){var a=[m,fx(u)].concat([].slice.call(arguments,2));return x.apply(this,a);};` +
+    `var W=window.WebSocket;if(W){window.WebSocket=function(u,p){try{if(typeof u==="string"&&/^wss?:\\/\\/[^/]+\\//.test(u)){u=u.replace(/^(wss?:\\/\\/[^/]+)\\//,function(_,h){return h+B;});}}catch(e){}return p===undefined?new W(u):new W(u,p);};window.WebSocket.prototype=W.prototype;}` +
+    `})();</script>`;
+  if (/<head[^>]*>/i.test(out)) out = out.replace(/<head([^>]*)>/i, `<head$1>${shim}`);
+  else out = shim + out;
   return out;
 }
 
@@ -102,8 +115,8 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
       return reply.send(res.body);
     }
 
-    // Static: serve a file from the snapshot dir.
-    const root = deploymentDir(slug);
+    // Static: serve a file from the snapshot dir (or a built SPA's dist/ subdir).
+    const root = dep.staticDir ? path.join(deploymentDir(slug), dep.staticDir) : deploymentDir(slug);
     let relPath = rest || 'index.html';
     let abs: string;
     try {

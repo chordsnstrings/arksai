@@ -20,13 +20,47 @@ export const PREVIEW_TTL_MS = 24 * 60 * 60 * 1000;
 const JANITOR_MS = 5 * 60 * 1000; // sweep cadence
 
 function slugify(name: string): string {
-  return (
-    (name || 'app')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'app'
+  let s = (name || 'app')
+    .toLowerCase()
+    // strip leading instruction filler so a title like "Code task: create a … app" → "app"
+    .replace(/^\s*code task:?\s*/, '')
+    .replace(/^\s*(please\s+)?(create|build|make|design|generate|write)\s+(me\s+)?(a|an|the)?\s*/, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  // cap to the first few words so the public URL stays short and readable
+  s = s.split('-').filter(Boolean).slice(0, 5).join('-').slice(0, 40);
+  return s || 'app';
+}
+
+/**
+ * A built single-page-app framework (Vite/CRA/Vue-CLI/Parcel/Angular) → we BUILD it and
+ * static-serve the output, NEVER run its dev server (Vite ignores PORT and binds 5173, so
+ * `npm run dev` under our port allocator 502s). Returns null for a real runtime server
+ * (Express/Next/Nuxt/Nest/etc.) — those keep the run-a-process path.
+ */
+export function detectSpaBuild(dir: string): { build: string } | null {
+  const pkgPath = path.join(dir, 'package.json');
+  if (!fs.existsSync(pkgPath)) return null;
+  let pkg: any;
+  try {
+    pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!pkg?.scripts?.build) return null;
+  const names = Object.keys({ ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) });
+  // A runtime server must keep running — never static-build it.
+  if (names.some((n) => /^(next|nuxt|@nestjs\/|express|fastify|koa|@remix-run\/|@sveltejs\/kit|h3|hono)/.test(n))) return null;
+  const isSpa = names.some((n) =>
+    /^(vite|react-scripts|@vue\/cli-service|parcel|@angular\/cli|@craco\/craco|@parcel\/core)$/.test(n),
   );
+  return isSpa ? { build: 'npm run build' } : null;
+}
+
+/** Where a SPA build dropped its output (first dir that actually has an index.html). */
+const SPA_OUT_DIRS = ['dist', 'build', 'out', 'public'];
+function findBuildOutput(dest: string): string | null {
+  return SPA_OUT_DIRS.find((d) => fs.existsSync(path.join(dest, d, 'index.html'))) ?? null;
 }
 
 async function uniqueSlug(base: string): Promise<string> {
@@ -72,12 +106,33 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   );
   if (!snap.ok) throw new Error(`snapshot failed: ${snap.output.slice(-300)}`);
 
-  const startCmd = detectStartCommand(dest);
   let kind: DeploymentKind = 'static';
   let port: number | null = null;
   let status: Deployment['status'] = 'running';
+  let staticDir: string | null = null;
 
-  if (startCmd) {
+  const spa = detectSpaBuild(dest);
+  const startCmd = spa ? null : detectStartCommand(dest);
+
+  if (spa) {
+    // BUILD the SPA (needs devDeps → full install), then static-serve its output. This is
+    // the most common ArksAI output (React/Vite); running its dev server under the proxy 502s.
+    const install = fs.existsSync(path.join(dest, 'package-lock.json'))
+      ? 'npm ci --no-audit --no-fund'
+      : 'npm install --no-audit --no-fund';
+    const inst = await execBash(install, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
+    const built = await execBash(spa.build, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
+    const out = findBuildOutput(dest);
+    if (built?.ok && out) {
+      kind = 'static';
+      staticDir = out; // serve the built dist/ as static files
+    } else {
+      status = 'error'; // build failed or produced no index.html — better an honest error than a broken dev-server link
+      kind = 'static';
+      if (!inst?.ok) console.warn(`[deploy] SPA install issues for ${slug}: ${String(inst?.output ?? '').slice(-200)}`);
+      if (!built?.ok) console.warn(`[deploy] SPA build failed for ${slug}: ${String(built?.output ?? '').slice(-300)}`);
+    }
+  } else if (startCmd) {
     kind = /python|wsgi/.test(startCmd) ? 'python' : 'node';
     if (kind === 'node' && fs.existsSync(path.join(dest, 'package.json'))) {
       const install = fs.existsSync(path.join(dest, 'package-lock.json'))
@@ -114,6 +169,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     port,
     orgId: session.orgId, // inherit the publishing session's org → scoped, manageable
     expiresAt: Date.now() + PREVIEW_TTL_MS, // 24h preview — the janitor deletes it after
+    staticDir, // a built SPA serves from its dist/ subdir
   });
 
   // POST-PUBLISH verification — smoke-test the REAL public URL the user will

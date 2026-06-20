@@ -366,6 +366,8 @@ export interface Deployment {
   updatedAt: number;
   /** When this preview auto-expires (ms epoch). null = no expiry (legacy/permanent). */
   expiresAt?: number | null;
+  /** For a built SPA framework (Vite/CRA/…): the built-output subdir to static-serve (e.g. "dist"). null = serve the deployment root. */
+  staticDir?: string | null;
   /** Result of the post-publish smoke test (present on the publish response only). */
   verifyDetail?: string;
 }
