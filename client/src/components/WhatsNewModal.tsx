@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-20.8';
+export const WHATS_NEW_VERSION = '2026-06-20.9';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'More accurate financial models',
-    body: 'Spreadsheets now keep a clean calculation structure (a decorative title row inside a sheet used to shift cells and make formulas reference the wrong row). That pattern is caught and corrected, so your totals and balances point at the right numbers.',
+    title: 'No more long builds hanging',
+    body: 'We tracked down a rare hang on big builds to the AI model being starved when several builds ran at once. Builds are now paced so that can’t happen, a stalled turn is detected and recovered automatically, and if a turn is just genuinely large you’ll see a “still working, hang tight” note instead of silence.',
   },
   {
-    title: 'Cleaner document previews & secondary text',
-    body: 'Document previews now read with proper editorial typography, secondary/“muted” text is a touch darker so it stays clearly legible on warm backgrounds, and generated workspaces no longer clutter the file list with build/dependency folders.',
+    title: 'Quality kept first on big outputs',
+    body: 'For large spreadsheets, decks and reports we now let the best model finish its work rather than handing off to a faster, weaker one — so detailed financial models and documents come back more complete and accurate.',
   },
 ];
 

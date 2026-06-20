@@ -41,6 +41,53 @@ const REPORT_MAX_DESIGN_ROUNDS = 2; // report mode: quality-first revise cap (de
 // structured output well). Env-tunable via MINIMAX_HEAVY_TOOL_DEADLINE_MS.
 const HEAVY_GENERATORS = new Set(['generate_spreadsheet', 'generate_pptx', 'generate_doc']);
 
+/**
+ * Global concurrency limiter for MiniMax (Anthropic-endpoint) streams. M3 buffers a
+ * turn's output server-side, and under CONCURRENCY it STARVES the contending streams —
+ * they get keepalive pings (so gaps stay tiny and the idle timer never trips) but
+ * produce NO content for minutes (the "900s hang"). Empirically: 1–3 concurrent M3
+ * streams complete cleanly, 4 degrade, 6 starve. So we cap concurrent streams; excess
+ * turns queue. FIFO; abort-aware so an interrupted run never holds a slot. Env-tunable.
+ */
+export class Semaphore {
+  private avail: number;
+  private waiters: Array<{ resolve: () => void; signal?: AbortSignal; onAbort?: () => void }> = [];
+  constructor(n: number) {
+    this.avail = Math.max(1, n);
+  }
+  async acquire(signal?: AbortSignal): Promise<() => void> {
+    if (signal?.aborted) throw new Error('aborted before acquiring MiniMax slot');
+    if (this.avail > 0) {
+      this.avail--;
+    } else {
+      await new Promise<void>((resolve, reject) => {
+        const w: { resolve: () => void; signal?: AbortSignal; onAbort?: () => void } = { resolve, signal };
+        w.onAbort = () => {
+          const i = this.waiters.indexOf(w);
+          if (i >= 0) this.waiters.splice(i, 1); // never granted a slot → nothing to return
+          reject(new Error('aborted while queued for a MiniMax slot'));
+        };
+        if (signal) signal.addEventListener('abort', w.onAbort, { once: true });
+        this.waiters.push(w);
+      });
+    }
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const next = this.waiters.shift();
+      if (next) {
+        if (next.signal && next.onAbort) next.signal.removeEventListener('abort', next.onAbort);
+        next.resolve(); // hand the slot directly to the next waiter (avail stays consumed)
+      } else {
+        this.avail++;
+      }
+    };
+  }
+}
+const MINIMAX_MAX_CONCURRENCY = Math.max(1, Number(process.env.MINIMAX_MAX_CONCURRENCY || '3') || 3);
+const minimaxLimiter = new Semaphore(MINIMAX_MAX_CONCURRENCY);
+
 interface AccToolCall {
   id: string;
   name: string;
@@ -265,6 +312,7 @@ export class AgentRun {
   private autoExpertiseApplied = false; // true once the auto-router has set this.session.task (never overwrites a picked play)
   private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
   private progressPhase: ProgressPhase = 'understanding';
+  private notifiedSlow = false; // emitted the one-time "this is taking longer" reassurance?
   private pendingMode: SessionMode | null = null; // set by switch_mode; applied between tool batches
   private planSubmitted = false; // set by submit_plan; ends the turn awaiting the user's nod
   private planResolved = false; // this run answers a pending plan → plan→code is allowed
@@ -1025,6 +1073,32 @@ export class AgentRun {
     const PRIMARY_MS = Number(process.env.MINIMAX_TURN_DEADLINE_MS || '150000') || 150_000;
     const FAST_MS = Number(process.env.MINIMAX_FAST_DEADLINE_MS || '240000') || 240_000;
     const totalMs = useFast ? FAST_MS : PRIMARY_MS;
+    // Acquire a global concurrency slot BEFORE arming the turn deadline (so time spent
+    // queued doesn't eat the deadline). This caps concurrent M3 streams so they can't
+    // starve each other server-side (the root cause of the hang). Released when the
+    // stream is fully consumed / errors / aborts.
+    // One-time "this is taking longer" reassurance (quality-first: we let M3 finish a big
+    // generation rather than bail to a weaker model, so a turn can legitimately run ~1–2min —
+    // the user should KNOW it's working, not wonder if it hung). Fires once per run.
+    const slowNotice = setTimeout(() => {
+      if (this.notifiedSlow || this.abort.signal.aborted) return;
+      this.notifiedSlow = true;
+      this.emitProgress(this.progressPhase, 'Still working — this is a larger build, hang tight…');
+    }, 55_000);
+    let release: () => void;
+    try {
+      release = await minimaxLimiter.acquire(this.abort.signal);
+    } catch (e) {
+      clearTimeout(slowNotice); // never granted a slot (aborted while queued) — don't leak the timer
+      throw e;
+    }
+    let releasedSlot = false;
+    const releaseSlot = () => {
+      if (releasedSlot) return;
+      releasedSlot = true;
+      clearTimeout(slowNotice);
+      release();
+    };
     const ac = new AbortController();
     // `trip` is set by the stream adapter once streaming starts; it REJECTS the in-flight
     // read so a stall unblocks the loop even if ac.abort() doesn't propagate to a hung socket
@@ -1076,6 +1150,7 @@ export class AgentRun {
       ]);
     } catch (e: any) {
       clearTimeout(totalTimer);
+      releaseSlot(); // free the concurrency slot on a failed/aborted request
       if (stall.tripped || e?.minimaxStall) {
         const err: any = new Error(`MiniMax (${model}) stalled — no response within ${totalMs / 1000}s.`);
         err.minimaxStall = true; // → the loop falls back to the faster model
@@ -1085,6 +1160,7 @@ export class AgentRun {
     }
     if (!resp.ok || !resp.body) {
       clearTimeout(totalTimer);
+      releaseSlot();
       const detail = await resp.text().catch(() => '');
       // Carry the HTTP status so the retry/fallback classifier treats 429/5xx as
       // transient (retry) and 4xx as hard (M3 → fast model fallback).
@@ -1093,11 +1169,17 @@ export class AgentRun {
       throw err;
     }
     // Idle backstop ≥ the total deadline so a still-streaming-but-slow turn isn't cut off
-    // before its patience window (M3 gaps run 24–76s; the total deadline governs).
-    // On the PRIMARY model (M3, code mode), a heavy structured-output tool call gets a SHORT
-    // deadline once it starts streaming — M3 over-buffers these, so we'd rather fall back to
-    // the fast model in ~30s than wait the full 150s. (No effect once useFast is set.)
-    const heavyMs = Number(process.env.MINIMAX_HEAVY_TOOL_DEADLINE_MS || '30000') || 30_000;
+    // before its patience window. The idle is now CONTENT-based (pings don't reset it), so a
+    // genuine no-output stall trips it while a healthy big generation streams through.
+    // HEAVY-TOOL EAGER FALLBACK — DISABLED BY DEFAULT (quality-first). We used to bail a
+    // heavy generate_* off M3 after 30s, but bake-offs show M3 finishes a large 3-statement
+    // model in ~107s with genuinely formula-driven, domain-aware output (higher quality than
+    // the fast fallback, which DeepSeek-max can't even complete). With the concurrency limiter
+    // preventing the starvation that the 30s timer was guarding against, M3 completes well
+    // inside the 150s content-idle window — so let it finish. Set MINIMAX_HEAVY_TOOL_DEADLINE_MS
+    // to a positive value to re-enable the eager fallback if ever needed.
+    const heavyEnv = process.env.MINIMAX_HEAVY_TOOL_DEADLINE_MS;
+    const heavyMs = heavyEnv !== undefined ? Math.max(0, Number(heavyEnv) || 0) : 0;
     return anthropicSseToOpenAI(resp.body as any, {
       controller: ac,
       idleMs: Math.max(totalMs, 120_000),
@@ -1106,6 +1188,7 @@ export class AgentRun {
       isPrimary: !useFast,
       heavyNames: HEAVY_GENERATORS,
       heavyMs,
+      onDone: releaseSlot, // free the concurrency slot when the stream is fully consumed
     });
   }
 
@@ -1751,6 +1834,7 @@ export async function* anthropicSseToOpenAI(
     isPrimary?: boolean;
     heavyNames?: Set<string>;
     heavyMs?: number;
+    onDone?: () => void;
   },
 ): AsyncIterable<any> {
   const reader = body.getReader();
@@ -1836,7 +1920,11 @@ export async function* anthropicSseToOpenAI(
     // long; only a genuine mid-stream SILENCE (idleMs) should trip. (The heavy-generator
     // accelerator below still arms its own shorter timer for M3 on the primary model.)
     clearTimeout(totalTimer);
-    arm(); // reset idle timer on activity
+    // NOTE: do NOT re-arm the idle timer on every raw chunk. M3, when STARVED under
+    // concurrency, sends keepalive *pings* with no content — re-arming on those would
+    // (and did) let a no-progress stream hang forever. We re-arm ONLY on real content
+    // (text / tool-args / thinking deltas + a block start) below, so a ping-only stall
+    // trips the idle backstop and falls back. (Initial arm() above starts the window.)
     buf += decoder.decode(value, { stream: true });
     const lines = buf.split('\n');
     buf = lines.pop() || '';
@@ -1860,6 +1948,7 @@ export async function* anthropicSseToOpenAI(
           break;
         }
         case 'content_block_start': {
+          arm(); // real progress (a block began) → reset the content idle window
           const cb = ev.content_block;
           if (cb?.type === 'tool_use') {
             // Heavy structured generator on the PRIMARY model → shorten the deadline. M3
@@ -1881,6 +1970,9 @@ export async function* anthropicSseToOpenAI(
         }
         case 'content_block_delta': {
           const d = ev.delta;
+          // Real content → reset the idle window (pings/keepalives do NOT, so a starved
+          // ping-only stream still trips the backstop and falls back).
+          if (d?.type === 'text_delta' || d?.type === 'thinking_delta' || d?.type === 'input_json_delta') arm();
           if (d?.type === 'text_delta') yield { choices: [{ delta: { content: d.text } }] };
           else if (d?.type === 'thinking_delta') yield { choices: [{ delta: { reasoning_content: d.thinking } }] };
           else if (d?.type === 'input_json_delta')
@@ -1907,5 +1999,6 @@ export async function* anthropicSseToOpenAI(
     clearTimeout(idleTimer);
     clearTimeout(totalTimer);
     clearTimeout(heavyTimer);
+    opts?.onDone?.(); // release the global concurrency slot once the stream is fully consumed
   }
 }
