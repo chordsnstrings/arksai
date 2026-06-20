@@ -59,6 +59,11 @@ Start from the bundled design system; do not hand-roll mediocre CSS.
 - REAL STATES (this is what separates polished from prototype): every interactive
   element needs hover, focus-visible, active, and disabled; every data view needs
   empty, loading (skeletons), and error states. Never ship a bare default state.
+  CONTRAST HOLDS IN EVERY STATE: when a button/link changes its background on
+  :hover/:active, change its TEXT colour in the same rule so the label stays legible
+  (a common bug: the bg darkens on hover but the text stays dark → the label
+  vanishes). Re-check WCAG AA (4.5:1 body, 3:1 large) for default, hover, focus AND
+  active — not just the resting state.
 - RESPONSIVE: fluid from small phones to wide desktop; test the key breakpoints;
   sensible touch targets (≥40px).
 - MOTION: subtle, purposeful micro-interactions (hover/focus/enter) with short

@@ -331,11 +331,101 @@ export async function browserSmokeTest(
       ? `Illegible text — these blocks don't contrast with their background (muted text taken too far). Use a readable ink for ALL text (muted ≈ 55–65% black, never a near-background tint); every text must meet WCAG AA (4.5:1 body, 3:1 large). Offenders:\n  - ${contrastIssues.join('\n  - ')}`
       : '';
 
+    // INTERACTION-STATE LEGIBILITY (deterministic): a button/link whose background
+    // changes on :hover but whose text colour does NOT (or vice-versa) goes
+    // unreadable in the hover state — a real, reported defect the static pass can't
+    // see. Actually hover each interactive control (real mouse → :hover + CSS vars
+    // resolve) and re-measure WCAG contrast of the hovered text vs its hovered bg.
+    let hoverIssues: string[] = [];
+    if (!blank && !signal.aborted) {
+      try {
+        const handles = await page.$$(
+          'a,button,[role="button"],input[type="submit"],input[type="button"],summary,.btn,.cta,.button',
+        );
+        let checked = 0;
+        for (const h of handles) {
+          if (checked >= 16 || hoverIssues.length >= 4 || signal.aborted) break;
+          const info = (await h
+            .evaluate((el: any) => {
+              const w: any = globalThis as any;
+              const cs = w.getComputedStyle(el);
+              if (cs.visibility === 'hidden' || cs.display === 'none' || el.offsetParent === null) return null;
+              const r = el.getBoundingClientRect();
+              if (r.width < 16 || r.height < 10 || r.top > 2600 || r.bottom < 0) return null;
+              const txt = String(el.innerText || el.value || '').trim();
+              if (txt.length < 2) return null;
+              return { txt: txt.slice(0, 38) };
+            })
+            .catch(() => null)) as { txt: string } | null;
+          if (!info) continue;
+          checked++;
+          try {
+            await h.scrollIntoViewIfNeeded({ timeout: 600 });
+            await h.hover({ timeout: 700, force: true });
+          } catch {
+            continue;
+          }
+          await page.waitForTimeout(70); // let the hover transition settle
+          const res = (await h
+            .evaluate((el: any) => {
+              const w: any = globalThis as any;
+              const parse = (s: string) => {
+                const m = String(s).match(/rgba?\(([^)]+)\)/);
+                if (!m) return null;
+                const p = m[1].split(',').map((x: string) => parseFloat(x));
+                return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+              };
+              const lum = (c: any) => {
+                const f = (v: number) => {
+                  v /= 255;
+                  return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+                };
+                return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+              };
+              const ratio = (a: any, b: any) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+              const bgOf = (node: any): any => {
+                let e = node;
+                while (e) {
+                  const cs = w.getComputedStyle(e);
+                  if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
+                  const bg = parse(cs.backgroundColor);
+                  if (bg && bg.a > 0.5) return bg;
+                  e = e.parentElement;
+                }
+                return { r: 255, g: 255, b: 255, a: 1 };
+              };
+              const cs = w.getComputedStyle(el);
+              const fg = parse(cs.color);
+              if (!fg || fg.a < 0.4) return null;
+              const bg = bgOf(el);
+              if (!bg) return null;
+              const cr = ratio(fg, bg);
+              const size = parseFloat(cs.fontSize) || 16;
+              const large = size >= 24 || (size >= 18.66 && parseInt(cs.fontWeight) >= 600);
+              const floor = large ? 3.0 : 4.5;
+              return { cr: Math.round(cr * 10) / 10, floor };
+            })
+            .catch(() => null)) as { cr: number; floor: number } | null;
+          if (res && res.cr < res.floor - 0.25)
+            hoverIssues.push(`"${info.txt}…" on hover — contrast ${res.cr.toFixed(1)}:1 (needs ≥${res.floor}:1)`);
+          try {
+            await page.mouse.move(2, 2); // un-hover before the next control
+          } catch {}
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
+    const hoverIssue = hoverIssues.length
+      ? `Illegible on hover — these controls lose contrast in their hover state (the background changes but the text colour doesn't, or vice-versa), so the label disappears when a user points at it. Set BOTH the hover background AND the hover text colour together and keep WCAG AA (4.5:1 body, 3:1 large) in EVERY state — default, hover, focus, active. Offenders:\n  - ${hoverIssues.join('\n  - ')}`
+      : '';
+
     const docFailed = !resp || resp.status() >= 400;
     const ce = dedupe(consoleErrors);
     const pe = dedupe(pageErrors);
     const fr = dedupe(failedRequests);
-    const hardFail = docFailed || blank || pe.length > 0 || fr.length > 0 || !!responsiveIssue || !!contrastIssue;
+    const hardFail =
+      docFailed || blank || pe.length > 0 || fr.length > 0 || !!responsiveIssue || !!contrastIssue || !!hoverIssue;
 
     // True visual judgment: if vision is configured, actually LOOK at the page
     // (the text-only model can't). For visual tasks run the DESIGN RUBRIC (gating
@@ -384,6 +474,7 @@ export async function browserSmokeTest(
     if (fr.length) lines.push(`✗ Failed requests (same-origin):\n  - ${fr.join('\n  - ')}`);
     if (responsiveIssue) lines.push(`✗ ${responsiveIssue}`);
     if (contrastIssue) lines.push(`✗ ${contrastIssue}`);
+    if (hoverIssue) lines.push(`✗ ${hoverIssue}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
     if (leaked.length) lines.push(`⚠ Value leaked into the UI:\n  - ${leaked.join('\n  - ')}`);
     if (interacted) lines.push('• Interaction pass ran (seeded inputs, submitted a form, clicked primary actions).');
