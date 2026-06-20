@@ -8,7 +8,7 @@ import { generateSpreadsheetTool, coerceNumeric } from '../src/agent/tools/excel
 import { generateDocTool } from '../src/agent/tools/docx';
 import { generatePptxTool } from '../src/agent/tools/pptx';
 import { iconSvg, hasIcon, ICON_NAMES } from '../src/agent/tools/icons';
-import { auditFormulaModel, detectEmptyPages } from '../src/agent/deliverableCheck';
+import { auditFormulaModel, detectEmptyPages, detectUnderfilledPages } from '../src/agent/deliverableCheck';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-docgen-'));
 const ctx = (): ToolCtx => ({
@@ -231,6 +231,22 @@ test('detectEmptyPages flags a lonely interior page but never the cover', () => 
 
 test('detectEmptyPages passes a well-filled document', () => {
   assert.deepEqual(detectEmptyPages([0.05, 0.07, 0.06]), []);
+});
+
+test('detectUnderfilledPages flags an interior page whose content ends high', () => {
+  // The real GIC-coffee bug: p1=cover, p2=87%, p3=92%, p4=27% (stranded), p5=93%, p6=last.
+  const defects = detectUnderfilledPages([1.0, 0.87, 0.92, 0.27, 0.93, 0.85]);
+  assert.equal(defects.length, 1);
+  assert.match(defects[0], /^p4:/);
+  assert.match(defects[0], /27%/);
+});
+
+test('detectUnderfilledPages exempts the cover and the final page, passes full pages', () => {
+  // cover light + final page ends partway down are both legitimate → no flags.
+  assert.deepEqual(detectUnderfilledPages([0.3, 0.9, 0.95, 0.35]), []);
+  assert.deepEqual(detectUnderfilledPages([1.0, 0.85, 0.9, 0.88]), []);
+  // a blank (near-empty) page is left to detectEmptyPages, not double-flagged here.
+  assert.deepEqual(detectUnderfilledPages([1.0, 0.02, 0.9]), []);
 });
 
 test('generate_doc writes a valid docx (zip/OOXML)', async () => {

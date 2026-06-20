@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recalc, recalcSheetData, type Workbook, type SheetGrid } from '../src/agent/tools/sheetcalc';
+import { recalc, recalcSheetData, recalcWorkbook, type Workbook, type SheetGrid } from '../src/agent/tools/sheetcalc';
 
 const grid = (cells: Record<string, { f?: string; v?: any }>): SheetGrid => new Map(Object.entries(cells));
 const wbk = (sheets: Record<string, SheetGrid>): Workbook => new Map(Object.entries(sheets));
@@ -77,4 +77,37 @@ test('recalcSheetData: cross-sheet driver feeds a calc sheet', () => {
 test('recalcSheetData: never throws on a malformed structure', () => {
   assert.doesNotThrow(() => recalcSheetData([{ name: 'X', rows: [[null, undefined, { f: '###' }]] } as any]));
   assert.doesNotThrow(() => recalcSheetData(null as any));
+});
+
+test('recalcWorkbook: caches results on a BUILT ExcelJS workbook (the cafe bug)', async () => {
+  const mod: any = await import('exceljs');
+  const ExcelJS = mod.default ?? mod;
+  const wb = new ExcelJS.Workbook();
+  // Reproduce the real defect: a TITLE row in the header pushed data down, and the
+  // formula cells were written with NO cached result → blank preview.
+  const a = wb.addWorksheet('Assumptions');
+  a.columns = [{ header: 'ASSUMPTIONS', key: 'a' }, { header: '', key: 'b' }, { header: '', key: 'c' }];
+  a.addRow(['Label', 'Value', 'Unit']);
+  a.addRow(['Opening Cash', 2000, '$']);
+  a.addRow(['Monthly Revenue', 7500, '$']); // B4
+  a.addRow(['COGS %', 0.28, '%']); // B5
+  const cf = wb.addWorksheet('Cash Flow');
+  cf.columns = [{ header: 'Line', key: 'l' }, { header: 'Jan', key: 'jan' }];
+  cf.addRow(['REVENUE', { formula: 'Assumptions!$B$4' }]); // B2 = 7500
+  cf.addRow(['COGS', { formula: 'B2*Assumptions!$B$5' }]); // B3 = 2100
+  cf.addRow(['Gross Profit', { formula: 'B2-B3' }]); // B4 = 5400
+
+  // before: no cached results
+  assert.equal((cf.getCell('B2').value as any).result, undefined);
+  recalcWorkbook(wb);
+  // after: every formula cell carries a correct cached result, formula preserved
+  assert.equal((cf.getCell('B2').value as any).result, 7500);
+  assert.equal((cf.getCell('B2').value as any).formula, 'Assumptions!$B$4');
+  assert.equal((cf.getCell('B3').value as any).result, 2100);
+  assert.equal((cf.getCell('B4').value as any).result, 5400);
+});
+
+test('recalcWorkbook: never throws on a bad workbook', () => {
+  assert.doesNotThrow(() => recalcWorkbook(null));
+  assert.doesNotThrow(() => recalcWorkbook({ eachSheet: () => { throw new Error('x'); } }));
 });

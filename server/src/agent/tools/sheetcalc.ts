@@ -90,6 +90,67 @@ export function recalcSheetData(sheets: any[]): void {
   }
 }
 
+/**
+ * AUTHORITATIVE recalc: compute and cache every formula cell's result on a BUILT
+ * ExcelJS workbook, using each cell's REAL coordinates. This is bulletproof where
+ * recalcSheetData's row-mapping guesswork fails (a title row, object rows, merged
+ * cells), because it reads the actual grid ExcelJS produced — the same coordinates
+ * the model's formulas reference. Without this, a formula cell ships with NO cached
+ * value and the in-app preview (and any non-recalculating viewer) shows BLANK.
+ *
+ * Duck-typed against the ExcelJS Worksheet/Cell API (no import needed). Best-effort:
+ * never throws — the formula string is always preserved, so the download recalculates
+ * in Excel regardless. Pure compute (no IO).
+ */
+export function recalcWorkbook(wbExcel: any): void {
+  try {
+    const colOf = (cell: any, cn: number): number => (typeof cn === 'number' ? cn : colToNum(String(cell?.col || 'A')));
+    const formulaOf = (v: any): string | undefined => {
+      if (v && typeof v === 'object') {
+        if (typeof v.formula === 'string') return v.formula;
+        if (typeof v.sharedFormula === 'string') return v.sharedFormula;
+      }
+      return undefined;
+    };
+    // 1) Build a grid (sheet -> "A1" -> {f?,v?}) from the real cells.
+    const wb: Workbook = new Map();
+    wbExcel.eachSheet((ws: any) => {
+      const grid: SheetGrid = new Map();
+      ws.eachRow({ includeEmpty: false }, (row: any, rn: number) => {
+        row.eachCell({ includeEmpty: false }, (cell: any, cn: number) => {
+          const addr = colLet(colOf(cell, cn)) + rn;
+          const v = cell.value;
+          const f = formulaOf(v);
+          if (f) grid.set(addr, { f, v: typeof (v as any).result === 'number' ? (v as any).result : undefined });
+          else if (typeof v === 'number') grid.set(addr, { v });
+          else if (v && typeof v === 'object' && typeof (v as any).result === 'number') grid.set(addr, { v: (v as any).result });
+          else grid.set(addr, { v });
+        });
+      });
+      wb.set(ws.name, grid);
+    });
+    // 2) Recompute.
+    recalc(wb);
+    // 3) Write computed results back onto the real ExcelJS formula cells.
+    wbExcel.eachSheet((ws: any) => {
+      const grid = wb.get(ws.name);
+      if (!grid) return;
+      ws.eachRow({ includeEmpty: false }, (row: any, rn: number) => {
+        row.eachCell({ includeEmpty: false }, (cell: any, cn: number) => {
+          const f = formulaOf(cell.value);
+          if (!f) return;
+          const computed = grid.get(colLet(colOf(cell, cn)) + rn);
+          if (computed && typeof computed.v === 'number' && Number.isFinite(computed.v)) {
+            cell.value = { formula: f, result: computed.v };
+          }
+        });
+      });
+    });
+  } catch {
+    /* best-effort — never block generation; formula string is preserved either way */
+  }
+}
+
 /** Recompute cached `v` for every confidently-evaluable formula cell, in place. */
 export function recalc(wb: Workbook): void {
   const memo = new Map<string, number | undefined>(); // "sheet!A1" -> value (undefined = not numeric)

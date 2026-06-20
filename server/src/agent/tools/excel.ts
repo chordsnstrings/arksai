@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { resolveInWorkspace, type ToolDef } from './common';
-import { recalcSheetData } from './sheetcalc';
+import { recalcSheetData, recalcWorkbook } from './sheetcalc';
 
 type ColType = 'text' | 'number' | 'currency' | 'percent' | 'date';
 interface ColSpec {
@@ -217,6 +217,10 @@ export const generateSpreadsheetTool: ToolDef = {
         }
         expected.push({ name, rows: rows.length });
       }
+      // AUTHORITATIVE pass: compute + cache every formula cell's result on the BUILT
+      // workbook (real coordinates), so the in-app preview never shows blank formula
+      // cells — even when the model's structure defeated the pre-write recalc.
+      recalcWorkbook(wb);
       await wb.xlsx.writeFile(absOut);
     } catch (e: any) {
       return `Error: failed to build the spreadsheet — ${e?.message ?? e}`;

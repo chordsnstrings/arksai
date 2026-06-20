@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-20.6';
+export const WHATS_NEW_VERSION = '2026-06-20.7';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A cleaner, calmer design house style',
-    body: 'We tightened the design library to a curated, all-muted set — 5 complete kits, 10 soft colour themes and 8 clean type pairings — and removed the loud, high-contrast looks. Every build now leans minimal, modern and restrained by default, so designs feel more considered.',
+    title: 'Spreadsheets always show their numbers',
+    body: 'Formula-driven sheets (cash-flow, budgets, models) now compute and store every result as they’re built, so the preview shows real numbers instead of blank cells — even before you open the file in Excel.',
   },
   {
-    title: 'Shareable, great-looking links',
-    body: 'arksai.studio now has per-team pages and a real link-preview card, so sharing a link (Reddit, X, WhatsApp, Slack) shows a polished preview — plus answer-engine-friendly SEO.',
+    title: 'No more half-empty report pages',
+    body: 'Reports are now checked page-by-page for under-filled pages: a short section that used to strand a mostly-blank page is caught and the layout reflows so every page is properly filled.',
   },
 ];
 

@@ -73,7 +73,41 @@ function inkCoverage(pix: any): number {
   }
 }
 
-async function rasterizePdf(abs: string): Promise<{ pngs: Buffer[]; pages: number; coverage: number[] }> {
+/** Vertical extent of content: the fraction of page HEIGHT at which the last row
+ *  carrying real ink sits. A full page reads ~0.95; a page whose content stops a
+ *  third of the way down (a stranded short section + a big blank bottom) reads ~0.3.
+ *  This is what catches an UNDER-FILLED page that inkCoverage alone misses (dense
+ *  top, empty bottom can still have moderate overall coverage). */
+function contentBottomExtent(pix: any): number {
+  try {
+    const px: Uint8Array = pix.getPixels();
+    const comps: number = pix.getNumberOfComponents();
+    const w: number = pix.getWidth();
+    const h: number = pix.getHeight();
+    const stride: number = typeof pix.getStride === 'function' ? pix.getStride() : w * comps;
+    if (!px?.length || comps < 3 || !h || !w) return 1;
+    let lastInkRow = 0;
+    for (let y = 0; y < h; y++) {
+      let ink = 0;
+      let seen = 0;
+      const base = y * stride;
+      for (let x = 0; x < w; x += 4) {
+        const i = base + x * comps;
+        if (i + 2 >= px.length) break;
+        const lum = (px[i] + px[i + 1] + px[i + 2]) / 3;
+        if (lum < 200) ink++;
+        seen++;
+      }
+      // a row "has content" if >0.3% of its sampled pixels are ink (ignore stray specks)
+      if (seen && ink / seen > 0.003) lastInkRow = y;
+    }
+    return (lastInkRow + 1) / h;
+  } catch {
+    return 1; // never block on a measurement failure
+  }
+}
+
+async function rasterizePdf(abs: string): Promise<{ pngs: Buffer[]; pages: number; coverage: number[]; extent: number[] }> {
   // mupdf is ESM with top-level await. Our server is CommonJS, so a normal `import()` gets
   // transpiled to require() and fails ("require() cannot be used on an ESM graph with
   // top-level await"). A Function-constructed import() stays a TRUE dynamic import that
@@ -84,13 +118,15 @@ async function rasterizePdf(abs: string): Promise<{ pngs: Buffer[]; pages: numbe
   const pages = doc.countPages();
   const pngs: Buffer[] = [];
   const coverage: number[] = [];
+  const extent: number[] = [];
   for (let i = 0; i < Math.min(pages, MAX_PAGES); i++) {
     const page = doc.loadPage(i);
     const pix = page.toPixmap(mupdf.Matrix.scale(1.6, 1.6), mupdf.ColorSpace.DeviceRGB, false, true);
     coverage.push(inkCoverage(pix));
+    extent.push(contentBottomExtent(pix));
     pngs.push(Buffer.from(pix.asPNG()));
   }
-  return { pngs, pages, coverage };
+  return { pngs, pages, coverage, extent };
 }
 
 /**
@@ -108,6 +144,31 @@ export function detectEmptyPages(coverage: number[], threshold = 0.006): string[
       out.push(
         `p${i + 1}: near-empty page (almost no content) — don't strand a lonely heading/line on its own ` +
           `page; let the surrounding sections FLOW to fill it or merge it into the previous page.`,
+      );
+    }
+  }
+  return out;
+}
+
+/**
+ * Deterministic under-fill check: flag an INTERIOR page whose content stops well
+ * before the bottom (a short stranded section + a large blank lower region) — the
+ * "≥60% page fill" rule the user asked for, which inkCoverage misses (a dense top +
+ * empty bottom still has moderate coverage). The cover (page 1) and the LAST page (a
+ * report legitimately ends partway down its final page) are exempt. Pure + tested.
+ */
+export function detectUnderfilledPages(extent: number[], minFill = 0.6): string[] {
+  const out: string[] = [];
+  const last = extent.length - 1;
+  for (let i = 0; i < extent.length; i++) {
+    if (i === 0 || i === last) continue; // skip cover + final page
+    const e = extent[i];
+    // 0.08..minFill = a real (not blank) page that nonetheless ends high, leaving a big gap.
+    if (e >= 0.08 && e < minFill) {
+      out.push(
+        `p${i + 1}: under-filled — content ends at ~${Math.round(e * 100)}% of the page height, leaving a large ` +
+          `blank lower band. Every interior page must be ≥~60% filled: pull the next section up so it FLOWS onto ` +
+          `this page, lengthen the section, or rebalance so a short section doesn't strand a half-empty page.`,
       );
     }
   }
@@ -349,11 +410,12 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
       pngs = r.pngs;
       base.pages = r.pages;
       // Deterministic, model-free structural pre-check: flag lonely near-empty
-      // interior pages instantly (no vision call) so they're caught even when the
+      // interior pages AND under-filled pages (content stops high, big blank bottom —
+      // the ≥60% fill rule) instantly (no vision call) so they're caught even when the
       // vision model is unavailable and so a revise round can fix them cheaply.
-      const empties = detectEmptyPages(r.coverage);
-      if (empties.length) {
-        seedDefects.push(...empties);
+      const structural = [...detectEmptyPages(r.coverage), ...detectUnderfilledPages(r.extent)];
+      if (structural.length) {
+        seedDefects.push(...structural);
         base.designVerdict = 'revise';
         base.designDefects = [...seedDefects];
       }
