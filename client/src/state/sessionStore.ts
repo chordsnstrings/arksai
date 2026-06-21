@@ -18,6 +18,8 @@ export interface ProgressState {
   label: string;
   pct: number;
   at: number;
+  /** Estimated seconds remaining at the moment `at` was received (ticked down client-side). */
+  etaSeconds?: number;
 }
 export interface CompletionState {
   kind: 'app' | 'pdf' | 'sheet' | 'doc' | 'image';
@@ -274,7 +276,7 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
         ...live,
         // Monotonic: the displayed phase always advances; pct never regresses
         // (a self-healing retry must read as forward motion).
-        progress: { phase: ev.phase, label: ev.label, pct: Math.max(live.progress?.pct ?? 0, ev.pct), at: Date.now() },
+        progress: { phase: ev.phase, label: ev.label, pct: Math.max(live.progress?.pct ?? 0, ev.pct), at: Date.now(), etaSeconds: ev.etaSeconds },
       };
 
     case 'assistant_delta': {

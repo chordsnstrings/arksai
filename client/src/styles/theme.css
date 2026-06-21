@@ -1175,12 +1175,26 @@ button { font-family: inherit; cursor: pointer; }
 @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 @keyframes progressPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
 .progress-label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   padding: 5px 16px 7px;
   font-size: 12px;
   color: var(--text-muted);
   font-family: var(--mono);
   letter-spacing: 0.01em;
 }
+/* Time-remaining: quieter than the action label, pinned to the right; the gentle pulse
+   draws the eye to the anticipation without nagging. */
+.progress-label .progress-eta {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: eta-pulse 2.4s ease-in-out infinite;
+}
+@keyframes eta-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.95; } }
+@media (prefers-reduced-motion: reduce) { .progress-label .progress-eta { animation: none; opacity: 0.8; } }
 
 /* ---- Richer status footer ---- */
 .status-footer .sf-label { color: var(--text); font-family: var(--sans); font-size: 13px; }

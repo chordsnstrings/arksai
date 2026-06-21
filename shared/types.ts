@@ -39,6 +39,40 @@ export function phaseFloor(phase: ProgressPhase): number {
 export function phaseCeiling(phase: ProgressPhase): number {
   return PHASE_BANDS[phase]?.ceil ?? 100;
 }
+
+/**
+ * Typical wall-clock SECONDS per phase for a normal build — drives an honest, slightly-
+ * generous "time remaining" estimate (a build usually BEATS it → a small positive surprise,
+ * not a broken countdown). Heuristic; refined later from real run durations. `building` is the
+ * variable one, scaled by mode. ORDER must match the phase progression.
+ */
+const PHASE_TYPICAL_SEC: Record<ProgressPhase, number> = {
+  understanding: 12,
+  building: 140,
+  verifying: 35,
+  testing: 30,
+  polishing: 22,
+  publishing: 25,
+  done: 0,
+};
+const PHASE_ORDER: ProgressPhase[] = ['understanding', 'building', 'verifying', 'testing', 'polishing', 'publishing', 'done'];
+
+/**
+ * Best-effort estimate of seconds remaining: the unfinished part of the current phase plus
+ * the typical duration of every phase still to come. Pure + deterministic so it's testable and
+ * shared by server (emits it) and tests. `building` scales by mode (reports are bigger single
+ * outputs; chat/plan are quick). Clamped to [0, 1800].
+ */
+export function estimateRemainingSeconds(phase: ProgressPhase, elapsedInPhaseSec: number, mode?: string): number {
+  const idx = PHASE_ORDER.indexOf(phase);
+  if (idx < 0 || phase === 'done') return 0;
+  const scale = (p: ProgressPhase) =>
+    p === 'building' ? (mode === 'report' ? 1.8 : mode === 'chat' || mode === 'plan' ? 0.5 : 1) : 1;
+  const current = Math.max(0, PHASE_TYPICAL_SEC[phase] * scale(phase) - Math.max(0, elapsedInPhaseSec));
+  let future = 0;
+  for (let i = idx + 1; i < PHASE_ORDER.length; i++) future += PHASE_TYPICAL_SEC[PHASE_ORDER[i]] * scale(PHASE_ORDER[i]);
+  return Math.min(1800, Math.round(current + future));
+}
 /** A selectable model id. The lineup is MiniMax-backed (Auto / Max / Flash). */
 export type ModelId = string;
 
@@ -212,6 +246,10 @@ export type AgentEvent =
       label: string;
       pct: number;
       detail?: string;
+      /** Best-effort estimated seconds remaining (slightly generous so a run usually
+       *  beats it). Omitted when not estimable; the client ticks it down + degrades
+       *  to a soft "almost there / larger job" when it runs out. */
+      etaSeconds?: number;
     }
   | {
       type: 'run_finished';

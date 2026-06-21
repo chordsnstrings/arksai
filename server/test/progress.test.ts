@@ -44,3 +44,18 @@ test("a later phase's floor is >= an earlier phase's ceil (bands do not overlap 
     );
   }
 });
+
+test('estimateRemainingSeconds: decreases through phases, counts down within a phase, never negative', async () => {
+  const { estimateRemainingSeconds } = await import('../../shared/types');
+  // At the start of building (0s elapsed) there's more left than at the start of testing.
+  const atBuildStart = estimateRemainingSeconds('building', 0, 'code');
+  const atTestStart = estimateRemainingSeconds('testing', 0, 'code');
+  assert.ok(atBuildStart > atTestStart, `building ${atBuildStart} should exceed testing ${atTestStart}`);
+  // Within a phase, more elapsed → less remaining.
+  assert.ok(estimateRemainingSeconds('building', 60, 'code') < atBuildStart);
+  // Running long past the phase typical clamps the current-phase part to 0 (never negative).
+  assert.ok(estimateRemainingSeconds('building', 9999, 'code') >= 0);
+  // 'done' is always 0; report mode (bigger single output) estimates more building time than code.
+  assert.equal(estimateRemainingSeconds('done', 0, 'code'), 0);
+  assert.ok(estimateRemainingSeconds('building', 0, 'report') > estimateRemainingSeconds('building', 0, 'code'));
+});

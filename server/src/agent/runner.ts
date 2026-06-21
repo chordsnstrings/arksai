@@ -28,7 +28,7 @@ import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewSer
 import { escalateModel, resolveProvider, selectModel } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
 import { routeExpertise } from './expertiseRouter';
-import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, type ProgressPhase } from '../../../shared/types';
+import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // generous headroom under MiniMax's large context window
 const PREVIEW_CHARS = 700;
@@ -333,6 +333,7 @@ export class AgentRun {
   private autoExpertiseApplied = false; // true once the auto-router has set this.session.task (never overwrites a picked play)
   private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
   private progressPhase: ProgressPhase = 'understanding';
+  private phaseStartedAt = Date.now(); // when the current phase began (for the time-remaining estimate)
   private slowLineIdx = Math.floor(Math.random() * SLOW_LINES.length); // rotate the funny "still working" lines
   private lastSlowAt = 0; // cooldown so long multi-turn builds vary the line without spamming
   private pendingMode: SessionMode | null = null; // set by switch_mode; applied between tool batches
@@ -425,13 +426,18 @@ export class AgentRun {
    * never goes backward (a self-healing retry must read as forward motion).
    */
   private emitProgress(phase: ProgressPhase, label: string, detail?: string) {
+    // Reset the phase clock when we actually move to a new phase, so the ETA measures
+    // elapsed-in-THIS-phase (not the whole run).
+    if (phase !== this.progressPhase) this.phaseStartedAt = Date.now();
     this.progressPhase = phase;
     const floor = phaseFloor(phase);
     const ceil = phaseCeiling(phase);
     // Nudge a little past the current value within the band, capped at the ceiling.
     const target = Math.min(ceil, Math.max(floor, this.progressPct + 2));
     this.progressPct = Math.max(this.progressPct, target);
-    this.emit({ type: 'progress', phase, label, pct: Math.round(this.progressPct), detail });
+    const elapsedInPhase = (Date.now() - this.phaseStartedAt) / 1000;
+    const etaSeconds = estimateRemainingSeconds(phase, elapsedInPhase, this.session.mode);
+    this.emit({ type: 'progress', phase, label, pct: Math.round(this.progressPct), detail, etaSeconds });
   }
 
   private emit(event: Parameters<typeof bus.emit>[1]) {
