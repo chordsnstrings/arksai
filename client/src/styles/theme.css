@@ -1148,7 +1148,8 @@ button { font-family: inherit; cursor: pointer; }
 /* Avoid iOS zoom-on-focus (inputs must be >= 16px). */
 @media (max-width: 860px) {
   .composer textarea, .dialog input, .dialog select, .dialog .tmpl,
-  .login-card input, .search-box, .canvas-port, .title-edit { font-size: 16px; }
+  .login-card input, .search-box, .canvas-port, .title-edit,
+  .email-settings input, .email-settings select, .rb-field input, .rb-field textarea { font-size: 16px; }
 }
 
 /* ---- Live "smart-work" progress bar ---- */
@@ -1778,11 +1779,21 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---- Email settings (org mailbox: SMTP + IMAP) ---- */
 .email-settings .an-sub { font-size: 12.5px; line-height: 1.55; color: var(--text-muted); }
-.email-settings label { display: block; }
+/* Polished inputs everywhere (the full-page Robots console isn't a .dialog, so it
+   doesn't inherit .dialog input — style them here to match the .rb-field fields). */
+.email-settings > label { display: block; font-family: var(--label); font-size: 12px; font-weight: 600; letter-spacing: .01em; color: var(--text); margin: 16px 0 7px; }
+.email-settings input, .email-settings select {
+  width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: 9px; padding: 10px 12px; font-family: var(--sans); font-size: 14px; color: var(--text);
+  transition: border-color .12s, box-shadow .12s;
+}
+.email-settings input::placeholder { color: var(--text-faint); }
+.email-settings input:focus, .email-settings select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.email-settings input[type="checkbox"] { width: auto; box-sizing: content-box; accent-color: var(--accent); }
 .email-settings .email-opt { font-weight: 400; color: var(--text-faint); font-size: 11px; }
-.email-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer; white-space: nowrap; }
+.email-chk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-muted); cursor: pointer; white-space: nowrap; }
 .email-chk input { width: auto; margin: 0; }
-.email-test { margin-top: 12px; padding: 9px 12px; border: 1px solid var(--border-soft); border-radius: 8px; font-size: 12.5px; line-height: 1.7; background: var(--bg, transparent); }
+.email-test { margin-top: 14px; padding: 11px 13px; border: 1px solid var(--border-soft); border-radius: 10px; font-size: 12.5px; line-height: 1.7; background: var(--bg-elev, transparent); }
 .email-test .ok { color: var(--green); }
 .email-test .bad { color: var(--red); }
 .email-test .muted { color: var(--text-faint); }
