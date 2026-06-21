@@ -220,8 +220,8 @@ export const generateSpreadsheetTool: ToolDef = {
             },
             rows: {
               type: 'array',
-              description: 'Rows as arrays (cell values in column order) OR objects keyed by column key. A cell may be a literal value, a formula string like "=B2*C2", or {"f":"B2*C2","v":1234} (formula + cached result). USE FORMULAS for models (cash-flow, budget, scenario) so changing one assumption flows through — never hard-code derived numbers.',
-              items: {},
+              description: 'Rows. PREFER the ARRAY form: each row is an array of cell values in column order (e.g. ["Rent", 2775, "=B2*12"]). Objects keyed by column key also work. A cell may be a literal value, a formula string like "=B2*C2", or {"f":"B2*C2","v":1234} (formula + cached result). USE FORMULAS for models (cash-flow, budget, scenario) so changing one assumption flows through — never hard-code derived numbers.',
+              items: { type: 'array', description: 'One row = an array of cell values in column order.', items: {} },
             },
           },
           required: ['name', 'columns', 'rows'],
