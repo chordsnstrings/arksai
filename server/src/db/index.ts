@@ -218,6 +218,50 @@ async function migrate() {
     created_at ${INT} NOT NULL,
     updated_at ${INT} NOT NULL
   )`);
+  // Robots: a standing email agent per org. role = what it does (customer_service /
+  // personal_assistant / custom); autonomy = shadow|ask|auto (ask = draft for approval,
+  // the safe default); model = which engine drafts (arksai-max=M3 / deepseek-v4 / compare).
+  // config is JSON (persona, knowledge, escalation rules, signature).
+  await q(`CREATE TABLE IF NOT EXISTS robots(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    autonomy TEXT NOT NULL DEFAULT 'ask',
+    model TEXT NOT NULL DEFAULT 'arksai-max',
+    config TEXT,
+    last_polled_at ${INT},
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robots_org ON robots(org_id, status)`);
+  // Robot drafts: a reply the robot produced for an inbound message. to_addr is LOCKED to
+  // the inbound sender (never a model-derived address). alt_text/alt_model hold the second
+  // model's draft for the bake-off. status = pending|sent|dismissed|escalated.
+  await q(`CREATE TABLE IF NOT EXISTS robot_drafts(
+    id TEXT PRIMARY KEY,
+    robot_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    inbound_message_id TEXT,
+    inbound_from TEXT NOT NULL,
+    inbound_name TEXT,
+    inbound_subject TEXT,
+    inbound_snippet TEXT,
+    to_addr TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    draft_text TEXT NOT NULL,
+    model_used TEXT,
+    alt_text TEXT,
+    alt_model TEXT,
+    escalated ${INT} NOT NULL DEFAULT 0,
+    escalation_reason TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at ${INT} NOT NULL,
+    sent_at ${INT}
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_drafts ON robot_drafts(robot_id, status, created_at)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_drafts_msg ON robot_drafts(robot_id, inbound_message_id)`);
   await q(`CREATE TABLE IF NOT EXISTS users(
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,

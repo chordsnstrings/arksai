@@ -85,7 +85,13 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Recurring/scheduled tasks — a durable server scheduler (daily/weekly/interval) that fires a fresh session even with the browser closed; managed via a Schedules dialog. Times are read in **your local timezone** (captured from your browser, DST-correct), so "daily 08:00" fires at 08:00 where you are — not on the server's clock.
 - Data in — `fetch_data` pulls a public CSV/JSON/published-Sheet URL (SSRF-guarded).
 - Deliver out — `send_webhook` posts a result to a Slack/Zapier/Discord hook.
-- **Email (per-org mailbox)** — each organization connects its own mailbox (SMTP for outbound, IMAP for inbound) in Settings → Email; passwords are stored **AES-256-GCM encrypted at rest** and never returned to the client. The agent can then `send_email` (with workspace attachments — a PDF, deck, sheet, or image) and `read_inbox` (triage/summarize/draft a reply), scoped strictly to the session's own org. A "Test connection" check verifies both legs before use. *(Stage 1 of the email channel; knowledge-base-grounded auto-reply is next.)*
+- **Email (per-org mailbox)** — each organization connects its own mailbox (SMTP for outbound, IMAP for inbound) in Settings → Email; passwords are stored **AES-256-GCM encrypted at rest** and never returned to the client. The agent can then `send_email` (with workspace attachments — a PDF, deck, sheet, or image) and `read_inbox` (triage/summarize/draft a reply), scoped strictly to the session's own org. A "Test connection" check verifies both legs before use.
+
+## Robots (standing email agents)
+- **Hire a robot** (sidebar → Robots) — onboarding **connects the mailbox first**, then you pick what the robot *is*: a **Customer assistant**, a **Personal assistant**, or a **Custom** role. Each has a tailored persona; you teach it tone, knowledge to ground replies in, escalation rules, and a signature.
+- **Drafts for approval (default)** — the robot polls inbound mail and writes a reply for each new message, surfaced in a **Drafts** inbox for one-tap **Approve & send** or edit/dismiss. Once trusted, switch it to **auto-send**.
+- **Safe by construction** — replies are **locked to the inbound sender** (a prompt-injected "forward to…" can't redirect them), the model sees only that one message plus the robot's own knowledge (data-minimized), and anything out of scope (refunds, billing, money, legal, angry complaints) **escalates to a human** instead of being answered.
+- **Model bake-off** — choose **ArksAI Max (M3)**, **ArksAI v4 (DeepSeek)**, or **Compare both** (drafts with each, you pick); a preview step lets you test a sample message before activating.
 
 ## Visual identity & theming
 - Editorial light/warm identity — ivory canvas, Source Serif 4 + Inter + Space Grotesk (same fonts the reports use), publication masthead, hairline rules, per-department accent coding. Token-driven.

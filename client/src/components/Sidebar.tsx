@@ -38,6 +38,7 @@ export function Sidebar({
   onNewProject,
   onEditProject,
   onSchedules,
+  onRobots,
   onAdmin,
   onAnalytics,
 }: {
@@ -45,6 +46,7 @@ export function Sidebar({
   onNewProject: () => void;
   onEditProject: (p: Project) => void;
   onSchedules: () => void;
+  onRobots: () => void;
   onAdmin: () => void;
   onAnalytics: () => void;
 }) {
@@ -170,6 +172,9 @@ export function Sidebar({
       </button>
       <button className="nav-btn subtle" onClick={onSchedules}>
         <span className="plus">⏱</span> Scheduled
+      </button>
+      <button className="nav-btn subtle" onClick={onRobots}>
+        <span className="plus">🤖</span> Robots
       </button>
       {(me?.isSuperadmin || me?.role === 'admin') && (
         <button className="nav-btn subtle" onClick={onAdmin}>

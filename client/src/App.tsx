@@ -19,6 +19,7 @@ import { NewSessionDialog } from './components/NewSessionDialog';
 import { ProgressBar } from './components/ProgressBar';
 import { ProjectDialog } from './components/ProjectDialog';
 import { SchedulesDialog } from './components/SchedulesDialog';
+import { RobotsDialog } from './components/RobotsDialog';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
@@ -50,6 +51,7 @@ export default function App() {
   const [showMemory, setShowMemory] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showSchedules, setShowSchedules] = useState(false);
+  const [showRobots, setShowRobots] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
@@ -214,6 +216,7 @@ export default function App() {
         onNewProject={() => setProjectDialog('new')}
         onEditProject={(p) => setProjectDialog(p)}
         onSchedules={() => setShowSchedules(true)}
+        onRobots={() => setShowRobots(true)}
         onAdmin={() => setShowAdmin(true)}
         onAnalytics={() => setShowAnalytics(true)}
       />
@@ -264,6 +267,7 @@ export default function App() {
       {showCommands && <CommandsDialog onClose={() => setShowCommands(false)} />}
       {showMemory && <MemoryDialog meta={activeMeta} onClose={() => setShowMemory(false)} />}
       {showSchedules && <SchedulesDialog onClose={() => setShowSchedules(false)} />}
+      {showRobots && <RobotsDialog onClose={() => setShowRobots(false)} />}
       {showAdmin && <AdminDialog onClose={() => setShowAdmin(false)} />}
       {showAnalytics && <AnalyticsConsole onClose={() => setShowAnalytics(false)} />}
       {showWhatsNew && <WhatsNewModal onClose={() => setShowWhatsNew(false)} />}

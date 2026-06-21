@@ -7,6 +7,21 @@ lands quality every single time**. Grounded in `ROBOTS_RESEARCH.md`. The governi
 ---
 
 ## Build log
+- **Email robot · Stage 2 — DONE (branch `claude/pensive-feynman-ugt30p`).** The first real Robot, built on
+  Stage 1. New: `robots` + `robot_drafts` tables; `robots/store.ts` (CRUD + drafts, org-scoped, idempotent
+  per inbound Message-ID); `robots/reply.ts` (the §5c engine — data-minimized single-message context,
+  persona by role, **locked-recipient** + injection-resistant system prompt, strict-JSON escalation signal,
+  and the **M3-vs-DeepSeek-v4 bake-off**: `compare` runs both); `robots/poller.ts` (durable 60s tick →
+  reads unseen mail → drafts per new message → `ask` leaves it pending, `auto` sends locked to sender;
+  booted in index.ts); `routes/robots.ts` (org-member-gated CRUD + `/preview` bake-off + draft
+  send[recipient locked to stored to_addr]/edit/dismiss). Client: sidebar **Robots** → `RobotsDialog.tsx`
+  (onboarding **connects mailbox first** → pick role [customer_service/personal_assistant/custom] → teach
+  [persona/knowledge/escalation/signature] → model + autonomy → preview/bake-off → activate; + a **Drafts
+  inbox** with approve&send/edit/dismiss/compare). 265 tests (5 new: store CRUD+cross-org isolation,
+  idempotency+recipient lock, escalation status, buildSystem injection/lock, parseReplyJson). Typecheck +
+  build clean; server **boot-verified** (tables create, poller starts, route auth-gated). **NOT yet
+  live-verified:** real model drafting + real send/receive need keys + a mailbox on the Droplet. Personal-
+  assistant **ICS invite accept/decline** is natural-language only for now (true iCal REPLY = follow-up).
 - **Email channel · Stage 1 — DONE (branch `claude/pensive-feynman-ugt30p`).** Per-org mailbox (SMTP+IMAP),
   the first external channel. New: `lib/crypto.ts` (AES-256-GCM secrets at rest), `org_email_accounts`
   table, `email/accounts.ts` (store; passwords write-only, decrypt server-side only), `email/client.ts`

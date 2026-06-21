@@ -457,3 +457,66 @@ export function emailDomain(email: string): string {
 export function isFreeEmailDomain(email: string): boolean {
   return FREE_EMAIL_DOMAINS.has(emailDomain(email));
 }
+
+// ---- Robots (standing email agents) ----
+export type RobotRole = 'customer_service' | 'personal_assistant' | 'custom';
+export type RobotStatus = 'draft' | 'active' | 'paused';
+export type RobotAutonomy = 'shadow' | 'ask' | 'auto';
+/** arksai-max = MiniMax M3, deepseek-v4 = DeepSeek, compare = run both (bake-off). */
+export type RobotModel = 'arksai-max' | 'deepseek-v4' | 'compare';
+
+export interface RobotConfig {
+  /** Free-text persona / tone instructions for the robot. */
+  persona?: string;
+  /** Knowledge the robot can ground replies in (product info, policies, FAQ, your prefs). */
+  knowledge?: string;
+  /** Topics that must escalate to a human instead of being answered autonomously. */
+  escalateOn?: string;
+  /** Signature appended to outgoing replies. */
+  signature?: string;
+}
+
+export interface Robot {
+  id: string;
+  orgId: string;
+  name: string;
+  role: RobotRole;
+  status: RobotStatus;
+  autonomy: RobotAutonomy;
+  model: RobotModel;
+  config: RobotConfig;
+  lastPolledAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type RobotDraftStatus = 'pending' | 'sent' | 'dismissed' | 'escalated';
+export interface RobotDraft {
+  id: string;
+  robotId: string;
+  orgId: string;
+  inboundMessageId: string | null;
+  inboundFrom: string;
+  inboundName: string | null;
+  inboundSubject: string | null;
+  inboundSnippet: string | null;
+  toAddr: string;
+  subject: string;
+  draftText: string;
+  modelUsed: string | null;
+  altText: string | null;
+  altModel: string | null;
+  escalated: boolean;
+  escalationReason: string | null;
+  status: RobotDraftStatus;
+  createdAt: number;
+  sentAt: number | null;
+}
+
+export interface CreateRobotRequest {
+  name: string;
+  role: RobotRole;
+  model?: RobotModel;
+  autonomy?: RobotAutonomy;
+  config?: RobotConfig;
+}

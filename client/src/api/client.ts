@@ -1,5 +1,6 @@
 import type {
   CreateProjectRequest,
+  CreateRobotRequest,
   CreateSessionRequest,
   CustomCommand,
   Deployment,
@@ -10,6 +11,9 @@ import type {
   PatchSessionRequest,
   ProcessInfo,
   Project,
+  Robot,
+  RobotConfig,
+  RobotDraft,
   ProjectFile,
   Schedule,
   CreateScheduleRequest,
@@ -76,6 +80,12 @@ export interface EmailAccountForm {
 export interface EmailVerifyResult {
   smtp: { ok: boolean; error?: string };
   imap: { ok: boolean; error?: string; skipped?: boolean };
+}
+export interface RobotDraftResult {
+  text: string;
+  model: string;
+  escalate: boolean;
+  reason: string;
 }
 export interface Lead {
   id: string;
@@ -270,6 +280,33 @@ export const api = {
     }).then((r) => r.result),
   deleteEmailAccount: (orgId: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/email`, { method: 'DELETE' }),
+  // ---- robots ----
+  listRobots: (orgId: string) =>
+    request<{ robots: Robot[] }>(`/api/orgs/${orgId}/robots`).then((r) => r.robots),
+  createRobot: (orgId: string, body: CreateRobotRequest) =>
+    request<{ robot: Robot }>(`/api/orgs/${orgId}/robots`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.robot),
+  updateRobot: (orgId: string, rid: string, patch: Partial<Robot> & { config?: RobotConfig }) =>
+    request<{ robot: Robot }>(`/api/orgs/${orgId}/robots/${rid}`, { method: 'PUT', body: JSON.stringify(patch) }).then((r) => r.robot),
+  deleteRobot: (orgId: string, rid: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}`, { method: 'DELETE' }),
+  previewRobot: (orgId: string, rid: string, sample: { from?: string; fromName?: string; subject?: string; body?: string }) =>
+    request<{ outcome: { primary: RobotDraftResult; alt?: RobotDraftResult } }>(`/api/orgs/${orgId}/robots/${rid}/preview`, {
+      method: 'POST',
+      body: JSON.stringify(sample),
+    }).then((r) => r.outcome),
+  listDrafts: (orgId: string, opts?: { status?: string; robotId?: string }) => {
+    const qs = new URLSearchParams();
+    if (opts?.status) qs.set('status', opts.status);
+    if (opts?.robotId) qs.set('robotId', opts.robotId);
+    const s = qs.toString();
+    return request<{ drafts: RobotDraft[] }>(`/api/orgs/${orgId}/drafts${s ? `?${s}` : ''}`).then((r) => r.drafts);
+  },
+  editDraft: (orgId: string, did: string, text: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}`, { method: 'PUT', body: JSON.stringify({ text }) }),
+  sendDraft: (orgId: string, did: string, text?: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}/send`, { method: 'POST', body: JSON.stringify({ text }) }),
+  dismissDraft: (orgId: string, did: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}/dismiss`, { method: 'POST' }),
   adminListOrgs: () => request<{ orgs: Org[] }>('/api/admin/orgs').then((r) => r.orgs),
   adminCreateOrg: (name: string, adminEmail?: string) =>
     request<{ org: Org; adminInviteLink: string | null }>('/api/admin/orgs', {

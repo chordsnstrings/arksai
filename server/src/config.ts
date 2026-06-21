@@ -58,6 +58,9 @@ export const config = {
     path.join(repoRoot, 'client', 'dist'),
   deepseekApiKey: process.env.DEEPSEEK_API_KEY || '',
   deepseekBaseUrl: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+  // Non-thinking DeepSeek alias used for one-shot robot reply drafting (fast, decisive;
+  // the thinking v4-pro is slow for short outputs). Env-overridable.
+  deepseekReplyModel: process.env.DEEPSEEK_REPLY_MODEL || 'deepseek-chat',
   githubToken: process.env.GITHUB_TOKEN || '',
   serperApiKey: process.env.SERPER_API_KEY || '',
   braveApiKey: process.env.BRAVE_API_KEY || '',

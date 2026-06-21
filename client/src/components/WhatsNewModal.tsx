@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-21.1';
+export const WHATS_NEW_VERSION = '2026-06-21.2';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Connect your email',
-    body: 'Each organization can now connect its own mailbox under Settings → Email. Once connected, your agents can send email — including attaching the PDFs, decks, and sheets they build — and read incoming replies. Works with any provider (a Gmail app-password, your company mail server, or an SMTP host).',
+    title: 'Meet Robots',
+    body: 'Hire a standing email agent from the sidebar. Connect your mailbox, pick what it does — a customer assistant, a personal assistant, or your own custom role — and teach it your tone, knowledge, and escalation rules.',
   },
   {
-    title: 'Your credentials, kept safe',
-    body: 'Mailbox passwords are encrypted at rest and never shown back to anyone — and a one-click “Test connection” checks both sending and receiving before anything goes live.',
+    title: 'It drafts, you approve',
+    body: 'Your robot reads incoming mail and writes a reply for each message, waiting in a Drafts inbox for one-tap send. Replies are locked to the original sender and anything sensitive (refunds, billing, anything about money) is flagged for a human. Once you trust it, switch it to send on its own.',
+  },
+  {
+    title: 'Pick the best writer',
+    body: 'Choose ArksAI Max or v4 to draft your replies — or have both write and compare them side by side before you decide.',
   },
 ];
 
