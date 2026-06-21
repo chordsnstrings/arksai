@@ -170,9 +170,6 @@ export function Sidebar({
       <button className="nav-btn subtle" onClick={onNewProject}>
         <span className="plus">▤</span> New project
       </button>
-      <button className="nav-btn subtle" onClick={onSchedules}>
-        <span className="plus">⏱</span> Scheduled
-      </button>
       <button className="nav-btn subtle" onClick={onRobots}>
         <span className="plus">🤖</span> Robots
       </button>
