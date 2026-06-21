@@ -85,6 +85,7 @@ actually live/usable. Powered by DeepSeek, with MiniMax and Suno as capability e
 - Recurring/scheduled tasks — a durable server scheduler (daily/weekly/interval) that fires a fresh session even with the browser closed; managed via a Schedules dialog. Times are read in **your local timezone** (captured from your browser, DST-correct), so "daily 08:00" fires at 08:00 where you are — not on the server's clock.
 - Data in — `fetch_data` pulls a public CSV/JSON/published-Sheet URL (SSRF-guarded).
 - Deliver out — `send_webhook` posts a result to a Slack/Zapier/Discord hook.
+- **Email (per-org mailbox)** — each organization connects its own mailbox (SMTP for outbound, IMAP for inbound) in Settings → Email; passwords are stored **AES-256-GCM encrypted at rest** and never returned to the client. The agent can then `send_email` (with workspace attachments — a PDF, deck, sheet, or image) and `read_inbox` (triage/summarize/draft a reply), scoped strictly to the session's own org. A "Test connection" check verifies both legs before use. *(Stage 1 of the email channel; knowledge-base-grounded auto-reply is next.)*
 
 ## Visual identity & theming
 - Editorial light/warm identity — ivory canvas, Source Serif 4 + Inter + Space Grotesk (same fonts the reports use), publication masthead, hairline rules, per-department accent coding. Token-driven.

@@ -4,6 +4,7 @@ import { api, type Lead, type Org, type OrgMember } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
 import { OrgAnalytics } from './OrgAnalytics';
+import { EmailSettings } from './EmailSettings';
 
 /**
  * Admin panel. Org admins manage their members (invite via a link, change/remove);
@@ -24,7 +25,7 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
   const [role, setRole] = useState<'member' | 'admin'>('member');
   const [orgName, setOrgName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
-  const [tab, setTab] = useState<'members' | 'usage'>('members');
+  const [tab, setTab] = useState<'members' | 'usage' | 'email'>('members');
 
   // The inviting admin's own domain — used to flag invites to someone OUTSIDE the
   // org. Skipped for the super-admin (who onboards many orgs) and if their own
@@ -127,6 +128,9 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
           <button className={`an-tab ${tab === 'usage' ? 'active' : ''}`} onClick={() => setTab('usage')}>
             Usage &amp; engagement
           </button>
+          <button className={`an-tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>
+            Email
+          </button>
         </div>
 
         <label>Organization</label>
@@ -140,6 +144,8 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
 
         {tab === 'usage' ? (
           orgId ? <OrgAnalytics orgId={orgId} /> : <div className="an-empty">Select an organization.</div>
+        ) : tab === 'email' ? (
+          orgId ? <EmailSettings orgId={orgId} /> : <div className="an-empty">Select an organization.</div>
         ) : (
         <>
 

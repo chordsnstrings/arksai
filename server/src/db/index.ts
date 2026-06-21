@@ -195,6 +195,29 @@ async function migrate() {
     created_at ${INT} NOT NULL,
     updated_at ${INT} NOT NULL
   )`);
+  // Per-org email connection (one mailbox per org). Passwords are stored
+  // AES-256-GCM encrypted at rest (lib/crypto). SMTP = outbound, IMAP = inbound.
+  // verified_at = last successful connection test; auto_reply gates Stage-2 drafting.
+  await q(`CREATE TABLE IF NOT EXISTS org_email_accounts(
+    org_id TEXT PRIMARY KEY,
+    from_name TEXT,
+    from_email TEXT NOT NULL,
+    smtp_host TEXT NOT NULL,
+    smtp_port ${INT} NOT NULL DEFAULT 587,
+    smtp_secure ${INT} NOT NULL DEFAULT 0,
+    smtp_user TEXT,
+    smtp_pass TEXT,
+    imap_host TEXT,
+    imap_port ${INT} NOT NULL DEFAULT 993,
+    imap_secure ${INT} NOT NULL DEFAULT 1,
+    imap_user TEXT,
+    imap_pass TEXT,
+    enabled ${INT} NOT NULL DEFAULT 1,
+    auto_reply ${INT} NOT NULL DEFAULT 0,
+    verified_at ${INT},
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
   await q(`CREATE TABLE IF NOT EXISTS users(
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,

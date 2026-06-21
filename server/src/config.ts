@@ -91,6 +91,10 @@ export const config = {
   minimaxTtsCost: Number(process.env.MINIMAX_TTS_COST || '0.03') || 0.03,
   minimaxVideoCost: Number(process.env.MINIMAX_VIDEO_COST || '0.43') || 0.43,
   appPassword: process.env.APP_PASSWORD || '',
+  // Symmetric key for encrypting third-party secrets at rest (per-org mailbox
+  // passwords). Falls back to APP_PASSWORD so existing deployments work without a
+  // new env var; set a dedicated ENCRYPTION_KEY to rotate independently of login.
+  encryptionKey: process.env.ENCRYPTION_KEY || process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   // Scheduled analytics digest: how often a platform snapshot is taken (hours), and an
   // optional webhook (Slack/Zapier/…) the digest is pushed to. Digests are always stored

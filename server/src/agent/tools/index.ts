@@ -20,6 +20,7 @@ import { generatePptxTool } from './pptx';
 import { switchModeTool, submitPlanTool } from './mode';
 import { fetchDataTool } from './data';
 import { sendWebhookTool } from './outbound';
+import { readInboxTool, sendEmailTool } from './email';
 import { generateComplianceFileTool } from './compliance';
 import { extractPaletteTool } from './palette';
 
@@ -57,6 +58,8 @@ export const ALL_TOOLS: ToolDef[] = [
   submitPlanTool,
   fetchDataTool,
   sendWebhookTool,
+  sendEmailTool,
+  readInboxTool,
   generateComplianceFileTool,
   extractPaletteTool,
 ];
@@ -85,6 +88,8 @@ const REPORT_TOOLS = new Set([
   'switch_mode',
   'fetch_data',
   'send_webhook',
+  'send_email',
+  'read_inbox',
 ]);
 
 export interface ToolSet {

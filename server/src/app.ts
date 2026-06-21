@@ -22,6 +22,7 @@ import { registerLeadRoutes } from './routes/leads';
 import { registerScheduleRoutes } from './routes/schedules';
 import { registerOrgRoutes } from './routes/orgs';
 import { registerAnalyticsRoutes } from './routes/analytics';
+import { registerEmailRoutes } from './routes/email';
 
 export async function buildApp() {
   const app = Fastify({ logger: { level: config.isProd ? 'warn' : 'info' } });
@@ -80,6 +81,7 @@ export async function buildApp() {
   registerScheduleRoutes(app);
   registerOrgRoutes(app);
   registerAnalyticsRoutes(app);
+  registerEmailRoutes(app);
 
   // Serve the built SPA with an index.html fallback for client-side routes.
   if (fs.existsSync(path.join(config.clientDist, 'index.html'))) {

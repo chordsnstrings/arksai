@@ -38,6 +38,45 @@ export interface OrgMember {
   name: string | null;
   createdAt: number;
 }
+export interface EmailAccount {
+  orgId: string;
+  fromName: string | null;
+  fromEmail: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUser: string | null;
+  imapHost: string | null;
+  imapPort: number;
+  imapSecure: boolean;
+  imapUser: string | null;
+  enabled: boolean;
+  autoReply: boolean;
+  verifiedAt: number | null;
+  hasSmtpPass: boolean;
+  hasImapPass: boolean;
+  updatedAt: number;
+}
+export interface EmailAccountForm {
+  fromName?: string | null;
+  fromEmail: string;
+  smtpHost: string;
+  smtpPort?: number;
+  smtpSecure?: boolean;
+  smtpUser?: string | null;
+  smtpPass?: string | null;
+  imapHost?: string | null;
+  imapPort?: number;
+  imapSecure?: boolean;
+  imapUser?: string | null;
+  imapPass?: string | null;
+  enabled?: boolean;
+  autoReply?: boolean;
+}
+export interface EmailVerifyResult {
+  smtp: { ok: boolean; error?: string };
+  imap: { ok: boolean; error?: string; skipped?: boolean };
+}
 export interface Lead {
   id: string;
   email: string;
@@ -216,6 +255,21 @@ export const api = {
     }),
   removeMember: (orgId: string, userId: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/members/${userId}`, { method: 'DELETE' }),
+  // ---- per-org email connection (SMTP + IMAP) ----
+  getEmailAccount: (orgId: string) =>
+    request<{ account: EmailAccount | null }>(`/api/orgs/${orgId}/email`).then((r) => r.account),
+  saveEmailAccount: (orgId: string, body: EmailAccountForm) =>
+    request<{ account: EmailAccount }>(`/api/orgs/${orgId}/email`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }).then((r) => r.account),
+  testEmailAccount: (orgId: string, body: EmailAccountForm) =>
+    request<{ result: EmailVerifyResult }>(`/api/orgs/${orgId}/email/test`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }).then((r) => r.result),
+  deleteEmailAccount: (orgId: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/email`, { method: 'DELETE' }),
   adminListOrgs: () => request<{ orgs: Org[] }>('/api/admin/orgs').then((r) => r.orgs),
   adminCreateOrg: (name: string, adminEmail?: string) =>
     request<{ org: Org; adminInviteLink: string | null }>('/api/admin/orgs', {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-17.10';
+export const WHATS_NEW_VERSION = '2026-06-21.1';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Snappier, especially with lots of work',
-    body: 'Your sidebar and chats load faster — even with hundreds of sessions — because we stopped shuttling each conversation’s full history around just to draw the list.',
+    title: 'Connect your email',
+    body: 'Each organization can now connect its own mailbox under Settings → Email. Once connected, your agents can send email — including attaching the PDFs, decks, and sheets they build — and read incoming replies. Works with any provider (a Gmail app-password, your company mail server, or an SMTP host).',
   },
   {
-    title: 'Accessible to everyone',
-    body: 'Every form across the app now reads correctly to screen readers, so teammates who rely on assistive technology can use ArksAI fully.',
-  },
-  {
-    title: 'Handles anything you throw at it',
-    body: 'Unusual input no longer trips the app up — odd characters, malformed requests, and tricky uploads all fail gracefully with a clear message, and documents named in Arabic now download with their proper name.',
+    title: 'Your credentials, kept safe',
+    body: 'Mailbox passwords are encrypted at rest and never shown back to anyone — and a one-click “Test connection” checks both sending and receiving before anything goes live.',
   },
 ];
 

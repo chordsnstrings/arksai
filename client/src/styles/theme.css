@@ -1689,3 +1689,16 @@ button { font-family: inherit; cursor: pointer; }
 .wn-list .wn-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-top: 7px; }
 .wn-list strong { font-size: 14px; }
 .wn-list p { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+
+/* ---- Email settings (org mailbox: SMTP + IMAP) ---- */
+.email-settings .an-sub { font-size: 12.5px; line-height: 1.55; color: var(--text-muted); }
+.email-settings label { display: block; }
+.email-settings .email-opt { font-weight: 400; color: var(--text-faint); font-size: 11px; }
+.email-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer; white-space: nowrap; }
+.email-chk input { width: auto; margin: 0; }
+.email-test { margin-top: 12px; padding: 9px 12px; border: 1px solid var(--border-soft); border-radius: 8px; font-size: 12.5px; line-height: 1.7; background: var(--bg, transparent); }
+.email-test .ok { color: var(--green); }
+.email-test .bad { color: var(--red); }
+.email-test .muted { color: var(--text-faint); }
+.email-note { margin-top: 10px; font-size: 12.5px; color: var(--green); }
+.email-settings .form-error { color: var(--red); font-size: 12.5px; }

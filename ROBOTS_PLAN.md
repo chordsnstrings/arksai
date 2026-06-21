@@ -6,6 +6,20 @@ lands quality every single time**. Grounded in `ROBOTS_RESEARCH.md`. The governi
 
 ---
 
+## Build log
+- **Email channel · Stage 1 — DONE (branch `claude/pensive-feynman-ugt30p`).** Per-org mailbox (SMTP+IMAP),
+  the first external channel. New: `lib/crypto.ts` (AES-256-GCM secrets at rest), `org_email_accounts`
+  table, `email/accounts.ts` (store; passwords write-only, decrypt server-side only), `email/client.ts`
+  (nodemailer send + imapflow/mailparser read + `verifyAccount` connection test), tools `send_email`
+  (+workspace attachments) / `read_inbox` (org-scoped via `ctx.session.orgId`), `routes/email.ts`
+  (org-admin-gated CRUD + test), client `EmailSettings.tsx` (Settings → Email tab). 260 tests
+  (6 new: crypto round-trip/tamper, encrypted-at-rest, keep-existing-password, auto-reply filter).
+  Send/receive code paths smoke-verified (graceful ECONNREFUSED); LIVE send/receive needs real creds on
+  the Droplet. **NEXT — Stage 2:** KB-grounded auto-reply with the §5c locked-recipient/data-minimized
+  pattern + the M3-vs-DeepSeek-v4 bake-off.
+
+---
+
 ## 0. Non‑negotiables (what "good" means here)
 1. **Simple core.** No connector setup, no workflow-building, no config to get a robot working. Hire →
    confirm mandate → it runs. Behind the scenes it reuses the engine that already works.
