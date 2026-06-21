@@ -90,6 +90,20 @@ for t, orig, cols, nrows in tables:
     print('  ' + t + '  ⟵ sheet "' + str(orig) + '"  (' + str(nrows) + ' rows, ' + str(len(cols)) + ' cols: ' + shown + ')')
 print()
 
+if os.environ.get("ARKSAI_PROFILE", "") == "1":
+    # "What's in this messy file?" — per-column stats for every tab, no cells paged.
+    for t, orig, cols, nrows in tables:
+        print('— PROFILE: ' + t + ' (sheet "' + str(orig) + '", ' + str(nrows) + ' rows) —')
+        try:
+            summ = con.execute('SUMMARIZE "' + t + '"').df()
+            keep = [c for c in ['column_name', 'column_type', 'min', 'max', 'approx_unique', 'avg', 'null_percentage'] if c in summ.columns]
+            with pd.option_context("display.max_rows", 200, "display.width", 240, "display.max_colwidth", 28):
+                print(summ[keep].to_string(index=False))
+        except Exception as e:
+            print('  (profile failed: ' + str(e) + ')')
+        print()
+    sys.exit(0)
+
 if not sql.strip():
     print("No SQL given — above are the queryable tables. Call again with a sql query, e.g. SELECT * FROM " + (tables[0][0] if tables else "data") + " LIMIT 20.")
     sys.exit(0)
@@ -119,7 +133,9 @@ export const querySpreadsheetTool: ToolDef = {
     '(lower_snake_case); the result always lists the available table names + columns first, so you can ' +
     'call once with an empty/simple sql to discover them, then again with the real query. Identifiers with ' +
     'spaces/symbols need double quotes. Example: SELECT category, SUM(amount) FROM transactions GROUP BY 1 ' +
-    'ORDER BY 2 DESC. Use read_spreadsheet for a quick visual peek; use THIS for any real computation.',
+    'ORDER BY 2 DESC. Pass `profile: true` (no sql needed) to get per-column stats for EVERY tab — type, ' +
+    'min/max, distinct count, average, % null — the ideal FIRST move on a messy/unfamiliar file. Use ' +
+    'read_spreadsheet for a quick visual peek; use THIS for any real computation.',
   parameters: {
     type: 'object',
     properties: {
@@ -129,6 +145,12 @@ export const querySpreadsheetTool: ToolDef = {
         description:
           'A DuckDB SQL query over the tabs (each sheet is a table, lower_snake_case of its name). ' +
           'Leave empty to just list the queryable tables + columns first.',
+      },
+      profile: {
+        type: 'boolean',
+        description:
+          'When true, skip sql and print per-column stats (type, min, max, distinct count, average, % null) ' +
+          'for every tab — best for understanding an unfamiliar/messy file before querying it.',
       },
       limit: { type: 'number', description: 'Max result rows to print (default 50).' },
     },
@@ -162,6 +184,7 @@ export const querySpreadsheetTool: ToolDef = {
           ARKSAI_XLSX: abs,
           ARKSAI_SQL: String(args.sql ?? ''),
           ARKSAI_LIMIT: String(args.limit ?? 50),
+          ARKSAI_PROFILE: args.profile ? '1' : '',
         },
       });
       let out = res.output.trim();

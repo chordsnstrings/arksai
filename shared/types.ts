@@ -63,14 +63,23 @@ const PHASE_ORDER: ProgressPhase[] = ['understanding', 'building', 'verifying', 
  * shared by server (emits it) and tests. `building` scales by mode (reports are bigger single
  * outputs; chat/plan are quick). Clamped to [0, 1800].
  */
-export function estimateRemainingSeconds(phase: ProgressPhase, elapsedInPhaseSec: number, mode?: string): number {
+export function estimateRemainingSeconds(
+  phase: ProgressPhase,
+  elapsedInPhaseSec: number,
+  mode?: string,
+  /** Self-calibrated typical seconds per phase (learned from this mode's real runs).
+   *  When a phase is present here it OVERRIDES the static heuristic (and the mode scale,
+   *  since a calibrated value already encodes mode). Phases absent here fall back. */
+  typical?: Partial<Record<ProgressPhase, number>>,
+): number {
   const idx = PHASE_ORDER.indexOf(phase);
   if (idx < 0 || phase === 'done') return 0;
   const scale = (p: ProgressPhase) =>
     p === 'building' ? (mode === 'report' ? 1.8 : mode === 'chat' || mode === 'plan' ? 0.5 : 1) : 1;
-  const current = Math.max(0, PHASE_TYPICAL_SEC[phase] * scale(phase) - Math.max(0, elapsedInPhaseSec));
+  const typ = (p: ProgressPhase) => typical?.[p] ?? PHASE_TYPICAL_SEC[p] * scale(p);
+  const current = Math.max(0, typ(phase) - Math.max(0, elapsedInPhaseSec));
   let future = 0;
-  for (let i = idx + 1; i < PHASE_ORDER.length; i++) future += PHASE_TYPICAL_SEC[PHASE_ORDER[i]] * scale(PHASE_ORDER[i]);
+  for (let i = idx + 1; i < PHASE_ORDER.length; i++) future += typ(PHASE_ORDER[i]);
   return Math.min(1800, Math.round(current + future));
 }
 /** A selectable model id. The lineup is MiniMax-backed (Auto / Max / Flash). */

@@ -29,6 +29,7 @@ import { escalateModel, resolveProvider, selectModel } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
 import { routeExpertise } from './expertiseRouter';
 import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
+import { calibratedTypical, recordRunDurations } from './etaCalibration';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // generous headroom under MiniMax's large context window
 const PREVIEW_CHARS = 700;
@@ -334,6 +335,7 @@ export class AgentRun {
   private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
   private progressPhase: ProgressPhase = 'understanding';
   private phaseStartedAt = Date.now(); // when the current phase began (for the time-remaining estimate)
+  private phaseDurations: Partial<Record<ProgressPhase, number>> = {}; // real seconds per phase (for ETA self-calibration)
   private slowLineIdx = Math.floor(Math.random() * SLOW_LINES.length); // rotate the funny "still working" lines
   private lastSlowAt = 0; // cooldown so long multi-turn builds vary the line without spamming
   private pendingMode: SessionMode | null = null; // set by switch_mode; applied between tool batches
@@ -427,8 +429,13 @@ export class AgentRun {
    */
   private emitProgress(phase: ProgressPhase, label: string, detail?: string) {
     // Reset the phase clock when we actually move to a new phase, so the ETA measures
-    // elapsed-in-THIS-phase (not the whole run).
-    if (phase !== this.progressPhase) this.phaseStartedAt = Date.now();
+    // elapsed-in-THIS-phase (not the whole run). Record the phase we're leaving so its REAL
+    // duration can self-calibrate future estimates (summed — a phase can recur across rounds).
+    if (phase !== this.progressPhase) {
+      const spent = (Date.now() - this.phaseStartedAt) / 1000;
+      this.phaseDurations[this.progressPhase] = (this.phaseDurations[this.progressPhase] ?? 0) + spent;
+      this.phaseStartedAt = Date.now();
+    }
     this.progressPhase = phase;
     const floor = phaseFloor(phase);
     const ceil = phaseCeiling(phase);
@@ -436,7 +443,7 @@ export class AgentRun {
     const target = Math.min(ceil, Math.max(floor, this.progressPct + 2));
     this.progressPct = Math.max(this.progressPct, target);
     const elapsedInPhase = (Date.now() - this.phaseStartedAt) / 1000;
-    const etaSeconds = estimateRemainingSeconds(phase, elapsedInPhase, this.session.mode);
+    const etaSeconds = estimateRemainingSeconds(phase, elapsedInPhase, this.session.mode, calibratedTypical(this.session.mode));
     this.emit({ type: 'progress', phase, label, pct: Math.round(this.progressPct), detail, etaSeconds });
   }
 
@@ -974,6 +981,9 @@ export class AgentRun {
             }
           : undefined;
       if (finalStatus === 'done') this.emitProgress('done', 'Ready');
+      // Self-calibrate the ETA: fold this run's REAL per-phase durations into the per-mode
+      // EWMA (only clean, completed runs — a failed/aborted run's phases are misleading).
+      if (finalStatus === 'done') recordRunDurations(this.session.mode, this.phaseDurations);
 
       this.emit({
         type: 'run_finished',

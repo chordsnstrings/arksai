@@ -68,6 +68,15 @@ test('query_spreadsheet with empty sql lists the queryable tables', async () => 
   assert.match(out, /orders_2024/);
 });
 
+test('query_spreadsheet profile mode returns per-column stats (or degrades)', async () => {
+  makeBiz('biz3.xlsx');
+  const out = await querySpreadsheetTool.run({ path: 'biz3.xlsx', profile: true }, ctx());
+  if (out.includes('MISSING_DEPS')) return;
+  assert.match(out, /PROFILE/);
+  assert.match(out, /column_name/); // SUMMARIZE header
+  assert.match(out, /null_percentage/);
+});
+
 test('query_spreadsheet is available in every mode', () => {
   for (const m of ['chat', 'plan', 'code', 'report'] as const) assert.ok(querySpreadsheetTool.modes.includes(m));
 });
