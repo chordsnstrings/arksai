@@ -146,3 +146,29 @@ test('project visibility: a private project is hidden from non-invited members',
   const pub = await store.createProject({ name: 'Team Wiki', orgId: org.id, ownerUserId: owner });
   assert.ok(await store.getProject(pub.id, sc(other)), 'org-wide project visible to all members');
 });
+
+test('deleteOrg cascades: removes the org + data + orphan users, keeps shared users + superadmin, refuses default', async () => {
+  const store = await import('../src/sessions/store');
+  const org = await orgs.createOrg('DeleteMe Inc');
+  const other = await orgs.createOrg('Keepers LLC');
+  const orphan = await orgs.createUser({ email: 'orphan@deleteme.com', password: 'password123' });
+  const shared = await orgs.createUser({ email: 'shared@keep.com', password: 'password123' });
+  const op = await orgs.createUser({ email: 'op@platform.com', password: 'password123', isSuperadmin: true });
+  await orgs.addMembership(orphan.id, org.id, 'member');
+  await orgs.addMembership(shared.id, org.id, 'member');
+  await orgs.addMembership(shared.id, other.id, 'member'); // shared also belongs to another org
+  await orgs.addMembership(op.id, org.id, 'admin');
+  await orgs.setOrgProfile(org.id, { accent: '#123456' });
+  const sess = await store.createSession({ title: 'x', mode: 'code', model: 'm', orgId: org.id } as any);
+
+  const res = await orgs.deleteOrg(org.id);
+
+  assert.equal(await orgs.getOrg(org.id), null, 'org row gone');
+  assert.equal(await orgs.getUser(orphan.id), null, 'orphan user deleted');
+  assert.ok(await orgs.getUser(shared.id), 'user shared with another org is kept');
+  assert.ok(await orgs.getUser(op.id), 'superadmin is never deleted');
+  assert.ok(await orgs.getOrg(other.id), 'other org untouched');
+  assert.equal(await store.getSession(sess.id), null, 'org sessions cascade-deleted');
+  assert.ok(res.deletedUsers.some((u) => u.email === 'orphan@deleteme.com'));
+  await assert.rejects(() => orgs.deleteOrg(orgs.DEFAULT_ORG_ID), /default workspace cannot be deleted/i);
+});

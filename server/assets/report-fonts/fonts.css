@@ -15,3 +15,27 @@
 @font-face{font-family:'Source Serif 4';font-weight:600;font-style:normal;font-display:swap;src:url('source-serif-600.woff2') format('woff2')}
 @font-face{font-family:'Space Grotesk';font-weight:500;font-style:normal;font-display:swap;src:url('space-grotesk-500.woff2') format('woff2')}
 @font-face{font-family:'Space Grotesk';font-weight:700;font-style:normal;font-display:swap;src:url('space-grotesk-700.woff2') format('woff2')}
+
+/*
+ * Curated type library — clean modern + refined serif ONLY (no high-contrast /
+ * loud display faces; house style is minimal + muted). All SIL Open Font License,
+ * latin subset, self-hosted. Pair a display with a body via data-type in themes.css.
+ *   • Fraunces (serif display)        — warm, restrained — premium / editorial
+ *   • Outfit (sans display)           — soft geometric — modern / startup
+ *   • Sora (sans display)             — quiet geometric — technical
+ *   • DM Sans (sans body/display)     — humanist, calm — product
+ *   • Manrope (sans body/display)     — neutral, clean — product / tech
+ *   • Plus Jakarta Sans (sans body)   — modern, friendly — product
+ *   • Lora (serif body)               — warm, calm reading
+ *   • Newsreader (serif body/display) — long-form editorial reading
+ */
+@font-face{font-family:'Fraunces';font-weight:600;font-style:normal;font-display:swap;src:url('fraunces-600.woff2') format('woff2')}
+@font-face{font-family:'Outfit';font-weight:600;font-style:normal;font-display:swap;src:url('outfit-600.woff2') format('woff2')}
+@font-face{font-family:'Sora';font-weight:600;font-style:normal;font-display:swap;src:url('sora-600.woff2') format('woff2')}
+@font-face{font-family:'DM Sans';font-weight:400;font-style:normal;font-display:swap;src:url('dmsans-400.woff2') format('woff2')}
+@font-face{font-family:'DM Sans';font-weight:600;font-style:normal;font-display:swap;src:url('dmsans-600.woff2') format('woff2')}
+@font-face{font-family:'Manrope';font-weight:600;font-style:normal;font-display:swap;src:url('manrope-600.woff2') format('woff2')}
+@font-face{font-family:'Plus Jakarta Sans';font-weight:400;font-style:normal;font-display:swap;src:url('jakarta-400.woff2') format('woff2')}
+@font-face{font-family:'Plus Jakarta Sans';font-weight:600;font-style:normal;font-display:swap;src:url('jakarta-600.woff2') format('woff2')}
+@font-face{font-family:'Lora';font-weight:400;font-style:normal;font-display:swap;src:url('lora-400.woff2') format('woff2')}
+@font-face{font-family:'Newsreader';font-weight:400;font-style:normal;font-display:swap;src:url('newsreader-400.woff2') format('woff2')}

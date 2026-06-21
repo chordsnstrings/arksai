@@ -1,0 +1,46 @@
+# ArksAI
+
+> ArksAI is an AI platform that helps UAE businesses adopt AI **without needing any AI-skilled staff**. Anyone on a team describes what they need in plain words, and ArksAI does the work and hands back a finished, verified result — a live web app, a dashboard, a designed report or deck, on-brand ad/social creatives, real spreadsheets and documents, or the exact UAE-compliant filing the FTA and MOHRE expect. Website: https://arksai.studio (currently in alpha, invitation-only).
+
+## What ArksAI is
+
+ArksAI is "describe it once → get one finished thing that looks perfect, works perfectly, and is actually usable." It is built for **non-technical business people**, not developers. The promise is zero user iteration: the quality comes from the system (an opinionated design engine plus an internal verify-and-revise loop), not from the user's prompting skill.
+
+The single biggest reason it exists: **help UAE businesses adopt AI without hiring or training AI-skilled individuals.** A marketer, an accountant, an HR manager, or a founder gets expert-grade output in their own language, the same day, with no technical skill required.
+
+## Who it is for (per team)
+
+- **Marketing** — conversion-focused landing pages (built live), on-brand ad & social creatives (real AI imagery with crisp, legible text and your logo), campaign briefs, content calendars, blog posts, competitor and audience research, performance reports.
+- **Sales** — pitch decks, pricing & proposals, case studies, battlecards, ROI models, account plans, outreach sequences, pipeline trackers.
+- **Finance / Strategy** — board decks, investor updates, KPI dashboards, formula-driven financial models (DCF, ratios, variance, forecasts), cash-flow models, scenario analysis, budgets.
+- **HR / People & Ops** — job descriptions, offer letters, policies and handbooks, onboarding portals and checklists, surveys, people dashboards, runbooks.
+- **Engineering** — internal tools, prototypes, admin panels, docs sites, metrics dashboards, API designs and tests, technical docs, dependency audits, code review.
+- **BI & Analytics** — dashboards, data explorers, cohort and forecast analyses, scorecards, automated digests and alerts.
+- **Tax & Compliance (UAE)** — VAT 201 working papers + FAF, Corporate Tax (CT 300) computations, monthly WPS salary files (SIF), PINT AE e-invoicing XML, Excise returns, readiness reviews.
+- **Legal (UAE)** — contracts, NDAs, employment agreements, powers of attorney, corporate documents, notices, legal opinions, contract review, compliance audits — drafted to sign, bilingual (eloquent English + Modern Standard Arabic) where the destination requires it.
+
+## What it can produce
+
+- **Live web apps & dashboards** — built, booted in a real browser, and verified (it checks the app actually renders, routes work, and there are no errors) before you see it.
+- **Designed reports, board decks & PDFs** — magazine-grade layout, real charts, embedded fonts, page-perfect.
+- **On-brand ad & social creatives** — a finished PNG/JPEG: AI background imagery with reserved space, then pixel-crisp headline/sub/bullets/CTA and your logo composited on top (never the AI model's garbled lettering).
+- **Editable spreadsheets (.xlsx) & documents (.docx) & decks (.pptx)** — formula-driven sheets, typographic documents, real editable slides.
+- **UAE-compliant filing documents** — the exact validated artifacts each obligation requires; you review and submit through EmaraTax, your accredited e-invoicing provider, or your WPS agent bank.
+
+## Why the quality is reliable
+
+- An opinionated, typography-first design system with a bundled UI kit and a 120+ icon library, used across every output.
+- A gating internal design + functional review: every visual deliverable is rendered and checked for legibility (WCAG contrast — in the resting AND hover states), mobile responsiveness, and senior-design-director quality, then automatically revised — so the user never has to iterate.
+- Per-team expert standards baked in (FP&A rigor, inclusive HR, RevOps, brand growth, senior engineering, UAE tax & legal practice).
+
+## Key facts
+
+- Built specifically for the **United Arab Emirates** market and its compliance regime (FTA VAT/Corporate Tax/Excise, MOHRE WPS, PINT AE e-invoicing).
+- **No AI or technical skills required** — you describe the task in plain language (English or Arabic) and review a finished result.
+- Produces real, usable deliverables — not just chat answers.
+- Currently **alpha, invitation-only**; request access at https://arksai.studio with a work email.
+
+## Links
+
+- Home: https://arksai.studio/
+- Request access: https://arksai.studio/ (the "Request access" form)

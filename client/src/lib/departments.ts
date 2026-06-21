@@ -1,5 +1,6 @@
 import type { SessionMode } from '@shared/types';
 import { AUTO_MODEL } from '@shared/types';
+import type { DepartmentId, ExpertiseKey } from '@shared/expertiseKeys';
 
 /**
  * The department-aware catalog. ArksAI for companies: each corporate function
@@ -7,6 +8,13 @@ import { AUTO_MODEL } from '@shared/types';
  * its real day-to-day work, grouped by the kind of work — Create / Analyze /
  * Operate. Pure data so adding tasks/departments — or promoting them to per-org
  * templates later — is trivial.
+ *
+ * The set of play keys + department ids is the single source of truth in
+ * `shared/expertiseKeys.ts` — `Play.key` and `Department.id` are typed against it,
+ * so the COMPILER rejects a play key that isn't registered, and a server-side sync
+ * test fails the build if a registered key has no play here (or no server standard /
+ * triggers). Adding an expertise: register the key in shared/expertiseKeys.ts, then
+ * add the play, the standard, and the triggers. See EXPERTISE_AUTHORING.md.
  */
 
 export type Category = 'create' | 'analyze' | 'operate';
@@ -18,8 +26,11 @@ export const CATEGORIES: { id: Category; label: string; blurb: string }[] = [
 ];
 
 export interface Play {
-  /** Stable "<deptId>.<task>" key → server injects expert standards for it. */
-  key: string;
+  /**
+   * Stable "<deptId>.<task>" key → server injects expert standards for it.
+   * Typed against the shared registry, so an unregistered key is a compile error.
+   */
+  key: ExpertiseKey;
   title: string;
   blurb: string;
   /** A real, ready-to-run brief sent as the first message. */
@@ -32,7 +43,8 @@ export interface Play {
 }
 
 export interface Department {
-  id: string;
+  /** Department id from the shared registry — an unregistered id is a compile error. */
+  id: DepartmentId;
   name: string;
   /** One-line value statement shown on the tile. */
   blurb: string;
@@ -265,6 +277,16 @@ export const DEPARTMENTS: Department[] = [
         prompt: 'Write a design doc / PRD (an editable document): the problem, goals and non-goals, the proposed approach, alternatives, risks, and a rollout plan — well-structured. Tell me the feature/project.' },
       { key: 'engineering.statusreport', title: 'Sprint / status report', blurb: 'What shipped, summarized.', mode: 'report', category: 'operate', icon: 'bar-chart-3',
         prompt: 'Turn sprint/status data into a clean status report (PDF): what shipped, what’s in progress, risks/blockers, and what’s next — with a chart or two. I’ll give you the inputs; flag gaps rather than inventing.' },
+      { key: 'engineering.schema', title: 'Database schema', blurb: 'Tables, keys, migrations.', mode: 'code', model: A, category: 'create', icon: 'git-branch',
+        prompt: 'Design a normalized database schema from my requirements: entities, relationships, keys, constraints, and the right indexes — plus a Mermaid ERD, the DDL, and a migration plan, delivered as a clean, typography-first design document. Tell me what the system needs to store.' },
+      { key: 'engineering.apidesign', title: 'API design & review', blurb: 'A clean REST contract.', mode: 'code', model: A, category: 'create', icon: 'terminal',
+        prompt: 'Design (or review) a REST API: resources, versioning, pagination, idempotency, a consistent error shape, status codes, and auth — to clean conventions. Deliver it as a designed API reference document. Describe the API or paste the spec/endpoints.' },
+      { key: 'engineering.apitests', title: 'API test suite', blurb: 'Happy-path, edge, auth.', mode: 'code', model: A, category: 'analyze', icon: 'circle-check',
+        prompt: 'Build a comprehensive, ready-to-run API test suite — happy path, input validation, the auth matrix (no/invalid/expired token, wrong role), error codes, and contract checks — then exercise it and report the results. Describe the API or point me at the routes.' },
+      { key: 'engineering.codereview', title: 'Code review', blurb: 'Bugs, security, fixes.', mode: 'code', model: A, category: 'analyze', icon: 'search',
+        prompt: 'Do a structured code review — correctness, security, readability, and performance — with severity-tagged findings and a concrete fix for each, delivered as a clean, typography-first review report. Paste the code/diff or point me at the files (or a PR).' },
+      { key: 'engineering.depaudit', title: 'Dependency audit', blurb: 'Risky & outdated deps.', mode: 'code', model: A, category: 'operate', icon: 'file-text',
+        prompt: 'Audit my project’s dependencies: flag floating/unpinned ranges, duplicates, pre-1.0 pins, and a missing lockfile, then give a risk-ordered upgrade plan — delivered as a designed audit report. (I’ll be honest that an offline pass can’t see live CVEs and tell you to pair it with npm audit / pip-audit.) Paste your package.json or requirements.txt, or point me at the file.' },
     ],
   },
   {
@@ -362,6 +384,52 @@ export const DEPARTMENTS: Department[] = [
         prompt: 'Advise on licensing and the right jurisdiction (a designed document). Tell me the activity — I’ll map the required licences and approvals and recommend mainland vs free zone vs DIFC/ADGM with the trade-offs (ownership, tax, courts, cost, substance), citing the regulator for each step.' },
       { key: 'legal.calendar', title: 'Legal calendar & tracker', blurb: 'Renewals, UBO, AGM, filings.', mode: 'code', model: M3, category: 'operate', icon: 'calendar',
         prompt: 'Build me a corporate legal calendar and filing tracker (a formula-driven spreadsheet): licence renewals, UBO updates (within 15 days of any change), AGM/board cadence, trademark renewals, and contract expiry/notice windows — with owner, due date, status and lead time per item. I’ll give you the dates; never invent one, and mark anything missing.' },
+    ],
+  },
+  {
+    id: 'personal',
+    name: 'Personal',
+    blurb: 'Money, writing, big purchases, and plans — for everyday life.',
+    accent: '#3a7d6b',
+    icon: 'wallet',
+    plays: [
+      { key: 'personal.budget', title: 'My monthly budget', blurb: 'See what’s left each month.', mode: 'code', model: A, category: 'create', icon: 'wallet',
+        prompt: 'Help me make a simple personal/household monthly budget (a spreadsheet): my income at the top, everyday categories (rent, groceries, transport, bills, subscriptions, fun, savings), and a clear “what’s left this month” — built with live formulas so changing one number updates everything. Ask me my income and the main things I spend on, then build it; never invent my numbers.' },
+      { key: 'personal.savings', title: 'Savings / debt plan', blurb: 'A realistic plan to your goal.', mode: 'code', model: A, category: 'create', icon: 'trending-up',
+        prompt: 'Help me build a realistic savings or debt-payoff plan: ask me my goal (an amount to save, or being debt-free), my timeline, and what I can set aside each month, then lay out a month-by-month plan, the smart order to pay things off, and the date I’ll get there — and tell me honestly if the timeline is realistic. Never invent my balances; ask.' },
+      { key: 'personal.valuation', title: 'Should I buy / sell?', blurb: 'Real prices, a clear verdict.', mode: 'report', model: A, category: 'analyze', icon: 'search',
+        prompt: 'Help me decide whether to buy or sell something (a car, phone, home, or any product) — research real current listings/prices for the exact item (tell me the make/model/year/condition/mileage and my region), cite each source, and give me a fair buy range, a realistic resale range, the key things that move the price, and a plain verdict (good deal / overpriced / hold) with your reasoning. Never make a price up; if you can’t find comparables, say so.' },
+      { key: 'personal.resume', title: 'Résumé / CV', blurb: 'Clean, ATS-friendly, strong.', mode: 'code', model: A, category: 'create', icon: 'file-text',
+        prompt: 'Help me build a clean, ATS-friendly résumé / CV (an editable document): strong, quantified action-verb bullets, the right sections, and tailored to the role I’m going for. Ask me about my experience and the job, then draft it with clearly marked placeholders for anything I haven’t given you; never invent jobs or dates.' },
+      { key: 'personal.coverletter', title: 'Cover letter', blurb: 'Tailored and specific.', mode: 'code', model: A, category: 'create', icon: 'mail',
+        prompt: 'Write me a tailored, one-page cover letter (an editable document): a specific hook for why this role and company, my relevant achievements mapped to what they need, and a confident close. Ask me the role, the company, and a couple of my wins; mark placeholders for the rest and never invent experience.' },
+      { key: 'personal.complaintletter', title: 'Complaint / dispute letter', blurb: 'Firm, polite, effective.', mode: 'code', model: A, category: 'create', icon: 'mail',
+        prompt: 'Write me a firm but polite complaint / dispute letter (an editable document): the facts (with dates and reference numbers), the specific problem, exactly what I want done and by when, and a calm escalation line. Tell me what happened and what you want fixed; I’ll draft it — never invent facts.' },
+      { key: 'personal.letter', title: 'Formal letter', blurb: 'The right register, done.', mode: 'code', model: A, category: 'create', icon: 'file-text',
+        prompt: 'Write me a formal letter (an editable document) in the right register and structure for its purpose — sender/recipient, date, a clear subject and a concise body, and a proper sign-off. Tell me who it’s to and what it needs to say; mark placeholders for specifics and never invent facts.' },
+      { key: 'personal.emailrewrite', title: 'Rewrite my email', blurb: 'Clearer, better tone.', mode: 'chat', model: A, category: 'create', icon: 'mail',
+        prompt: 'Help me rewrite and polish a message or email — paste it in and tell me the goal (more professional, warmer, firmer, shorter, clearer). I’ll keep your meaning exactly but fix the tone, clarity, grammar, and brevity, and make the ask obvious — without adding anything you didn’t say.' },
+      { key: 'personal.trip', title: 'Trip itinerary', blurb: 'A realistic day-by-day plan.', mode: 'report', model: A, category: 'create', icon: 'calendar',
+        prompt: 'Plan me a realistic day-by-day trip itinerary: tell me the destination, dates, who’s going, and a rough budget, and I’ll group the days sensibly by area, mix must-sees with downtime, add rough timings and getting-around notes, and flag costs as estimates (never invented). I’ll note anything seasonal or worth booking ahead.' },
+      { key: 'personal.event', title: 'Event / party plan', blurb: 'Checklist, timeline, budget.', mode: 'code', model: A, category: 'operate', icon: 'circle-check',
+        prompt: 'Help me plan an event or party: tell me the occasion, the date, the headcount, and a budget, and I’ll give you a clear checklist and timeline working back from the day, a simple budget with estimates, and a supplies/shopping list. Practical and realistic; I’ll mark any prices to confirm rather than invent them.' },
+      { key: 'personal.checklist', title: 'Personal checklist', blurb: 'A plan you won’t forget.', mode: 'code', model: A, category: 'operate', icon: 'clipboard',
+        prompt: 'Make me a clear personal checklist / plan for the thing I’m doing (moving house, a big trip, a project) — the steps and items in a sensible order, grouped logically, with due-dates or owners where it helps. Tell me the task; I’ll think through what’s easy to forget and build it as a clean, editable list.' },
+    ],
+  },
+  {
+    id: 'learning',
+    name: 'Learning',
+    blurb: 'Explain it, study it, summarize it — pitched to your level.',
+    accent: '#4a6fa5',
+    icon: 'graduation-cap',
+    plays: [
+      { key: 'learning.explainer', title: 'Explain a concept', blurb: 'At exactly your level.', mode: 'chat', model: A, category: 'create', icon: 'lightbulb',
+        prompt: 'Explain a concept to me clearly — tell me the topic and your level (a 10-year-old, a beginner, an expert), and I’ll lead with a plain-language intuition, give a concrete example or analogy, then the precise detail, and finish with a quick recap. Accurate above all; I’ll define terms as I go and never make facts up.' },
+      { key: 'learning.studyguide', title: 'Study guide / notes', blurb: 'Structured, scannable, with practice.', mode: 'code', model: A, category: 'create', icon: 'graduation-cap',
+        prompt: 'Make me a study guide / revision notes (an editable document): organised by topic with clear headings, the key points distilled (must-knows in bold), worked examples, handy memory aids, and a short set of practice questions with answers. Tell me the subject and what to cover (or paste the material); I’ll keep it faithful and never invent facts.' },
+      { key: 'learning.summarize', title: 'Summarize this', blurb: 'Faithful, structured, honest.', mode: 'chat', model: A, category: 'analyze', icon: 'file-text',
+        prompt: 'Summarize a document or text for me — paste it in and tell me how short you want it. I’ll give you a one-line TL;DR, then the key points as scannable bullets grouped by theme, keep the critical numbers and dates exact, and flag anything ambiguous or missing — only what the text actually says, never invented.' },
     ],
   },
 ];

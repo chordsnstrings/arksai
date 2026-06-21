@@ -6,7 +6,7 @@ import { editFileTool, globTool, grepTool, readFileTool, writeFileTool } from '.
 import { gitCommitTool, gitDiffStatTool, gitPushTool } from './git';
 import { webFetchTool, webSearchTool } from './web';
 import { verifyTool } from './verify';
-import { generateMusicTool } from './music';
+import { generateMusicTool, extendMusicTool, generateLyricsTool, coverAudioTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
 import { generateCreativeTool } from './creative';
 import { renderReportTool } from './report';
@@ -19,15 +19,25 @@ import { generateDocTool } from './docx';
 import { generatePptxTool } from './pptx';
 import { switchModeTool, submitPlanTool } from './mode';
 import { fetchDataTool } from './data';
+import { fetchAdsTool } from './ads';
 import { sendWebhookTool } from './outbound';
 import { readInboxTool, sendEmailTool } from './email';
 import { generateComplianceFileTool } from './compliance';
 import { extractPaletteTool } from './palette';
+import { validatePaletteTool } from './validatePalette';
+import { computeFinancialsTool } from './computeFinancials';
+import { dependencyAuditorTool } from './dependencyAuditor';
+import { readSpreadsheetTool } from './spreadsheet';
+import { querySpreadsheetTool } from './query';
+import { readPresentationTool } from './presentation';
 
 export const ALL_TOOLS: ToolDef[] = [
   webSearchTool,
   webFetchTool,
   generateMusicTool,
+  extendMusicTool,
+  generateLyricsTool,
+  coverAudioTool,
   seeImageTool,
   generateImageTool,
   generateCreativeTool,
@@ -57,11 +67,18 @@ export const ALL_TOOLS: ToolDef[] = [
   switchModeTool,
   submitPlanTool,
   fetchDataTool,
+  fetchAdsTool,
   sendWebhookTool,
   sendEmailTool,
   readInboxTool,
   generateComplianceFileTool,
   extractPaletteTool,
+  validatePaletteTool,
+  computeFinancialsTool,
+  dependencyAuditorTool,
+  readSpreadsheetTool,
+  querySpreadsheetTool,
+  readPresentationTool,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,
@@ -85,6 +102,12 @@ const REPORT_TOOLS = new Set([
   'generate_doc',
   'generate_pptx',
   'extract_palette',
+  'validate_palette',
+  'compute_financials',
+  'dependency_auditor',
+  'read_spreadsheet',
+  'query_spreadsheet',
+  'read_presentation',
   'switch_mode',
   'fetch_data',
   'send_webhook',

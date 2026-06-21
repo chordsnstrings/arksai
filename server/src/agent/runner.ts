@@ -1,4 +1,3 @@
-import OpenAI from 'openai';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,7 +16,8 @@ import { crawlSiteTool, saveOrgProfileTool } from './tools/onboarding';
 import { extractPaletteTool } from './tools/palette';
 import { track } from '../analytics/track';
 import { ToolError, type ToolCtx } from './tools/common';
-import { generateTitle } from './titleGen';
+import { deriveTitle } from './titleGen';
+import { recordIncident } from '../incidents/store';
 import { makeThinkFilter } from './thinkFilter';
 import { Usage } from './usage';
 import { checkLabel, detectStartCommand, verifyProject } from './verify';
@@ -27,9 +27,11 @@ import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 import { escalateModel, resolveProvider, selectModel } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
-import { isAutoModel, MAX_MODEL, phaseFloor, phaseCeiling, type ProgressPhase } from '../../../shared/types';
+import { routeExpertise } from './expertiseRouter';
+import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
+import { calibratedTypical, recordRunDurations } from './etaCalibration';
 
-const CONTEXT_TOKEN_BUDGET = 50_000; // deepseek-chat window is ~64k
+const CONTEXT_TOKEN_BUDGET = 50_000; // generous headroom under MiniMax's large context window
 const PREVIEW_CHARS = 700;
 const MAX_DESIGN_ROUNDS = 2; // bounded internal design-critique iterations
 const REPORT_MAX_DESIGN_ROUNDS = 2; // report mode: quality-first revise cap (deterministic pre-check keeps rounds cheap)
@@ -39,6 +41,74 @@ const REPORT_MAX_DESIGN_ROUNDS = 2; // report mode: quality-first revise cap (de
 // so we fall back to the fast model quickly instead (the fast coding model handles big
 // structured output well). Env-tunable via MINIMAX_HEAVY_TOOL_DEADLINE_MS.
 const HEAVY_GENERATORS = new Set(['generate_spreadsheet', 'generate_pptx', 'generate_doc']);
+
+// How many slow M3 turns we tolerate (each finished on the fast model for that turn only)
+// before giving up on M3 for the rest of the run. Quality-first: M3 references cells more
+// accurately on a financial model, so we keep returning to it. Env-tunable.
+const MAX_MINIMAX_STALLS = Math.max(1, Number(process.env.MINIMAX_MAX_STALLS || '3') || 3);
+
+/**
+ * Global concurrency limiter for MiniMax (Anthropic-endpoint) streams. M3 buffers a
+ * turn's output server-side, and under CONCURRENCY it STARVES the contending streams —
+ * they get keepalive pings (so gaps stay tiny and the idle timer never trips) but
+ * produce NO content for minutes (the "900s hang"). Empirically: 1–3 concurrent M3
+ * streams complete cleanly, 4 degrade, 6 starve. So we cap concurrent streams; excess
+ * turns queue. FIFO; abort-aware so an interrupted run never holds a slot. Env-tunable.
+ */
+export class Semaphore {
+  private avail: number;
+  private waiters: Array<{ resolve: () => void; signal?: AbortSignal; onAbort?: () => void }> = [];
+  constructor(n: number) {
+    this.avail = Math.max(1, n);
+  }
+  async acquire(signal?: AbortSignal): Promise<() => void> {
+    if (signal?.aborted) throw new Error('aborted before acquiring MiniMax slot');
+    if (this.avail > 0) {
+      this.avail--;
+    } else {
+      await new Promise<void>((resolve, reject) => {
+        const w: { resolve: () => void; signal?: AbortSignal; onAbort?: () => void } = { resolve, signal };
+        w.onAbort = () => {
+          const i = this.waiters.indexOf(w);
+          if (i >= 0) this.waiters.splice(i, 1); // never granted a slot → nothing to return
+          reject(new Error('aborted while queued for a MiniMax slot'));
+        };
+        if (signal) signal.addEventListener('abort', w.onAbort, { once: true });
+        this.waiters.push(w);
+      });
+    }
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const next = this.waiters.shift();
+      if (next) {
+        if (next.signal && next.onAbort) next.signal.removeEventListener('abort', next.onAbort);
+        next.resolve(); // hand the slot directly to the next waiter (avail stays consumed)
+      } else {
+        this.avail++;
+      }
+    };
+  }
+}
+const MINIMAX_MAX_CONCURRENCY = Math.max(1, Number(process.env.MINIMAX_MAX_CONCURRENCY || '3') || 3);
+const minimaxLimiter = new Semaphore(MINIMAX_MAX_CONCURRENCY);
+
+// When a turn runs long (quality-first: we let the best model finish a big generation),
+// the user should KNOW it's working — with a bit of personality, not a dry spinner. One
+// of these is shown when a turn passes ~55s; they reassure (it's not stuck) AND smile.
+const SLOW_LINES = [
+  'Still cooking — this one’s a big batch. Good things, slow oven. 🍞',
+  'Hang tight — the model’s doing real work back here, not thinking about lunch.',
+  'Bigger build, bigger brain. Letting it finish properly beats rushing it.',
+  'Still on it — lots of numbers and pixels being wrangled behind the scenes.',
+  'Quality over quick: we’re building the good version, not the flimsy fast one.',
+  'Deep in the zone. 🎧 Give it a beat — this is the worth-it kind of slow.',
+  'Brewing something detailed. ☕ Large outputs take a moment; it’s not stuck.',
+  'Working hard, not hardly working — a meaty build is in progress.',
+  'Measuring twice, cutting once. Almost there in spirit.',
+  'Still going strong — the careful pass takes a little longer, promise it’s alive.',
+];
 
 interface AccToolCall {
   id: string;
@@ -144,22 +214,96 @@ function pickPreviewDoc(items: TimelineItem[]): { path: string; kind: 'pdf' | 's
 }
 
 /** Transient network/provider failures worth retrying; never auth errors. */
-function isTransientApiError(err: any): boolean {
+export function isTransientApiError(err: any): boolean {
   const status = err?.status ?? err?.response?.status;
   if (status === 401 || status === 400) return false;
   if (status === 429 || (status >= 500 && status < 600)) return true;
-  const msg = String(err?.message ?? err);
-  return /resolve|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|fetch failed|socket hang up|network|private\/reserved IP/i.test(
+  // Inspect the wrapped cause too: undici reports a mid-stream socket drop as
+  // `TypeError: terminated` with the real reason (ERR_STREAM_PREMATURE_CLOSE /
+  // UND_ERR_SOCKET / ECONNRESET) on err.cause.
+  const msg = `${err?.message ?? err} ${err?.code ?? ''} ${err?.cause?.code ?? ''} ${err?.cause?.message ?? ''}`;
+  return /resolve|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|fetch failed|socket hang up|network|private\/reserved IP|premature close|premature_close|ERR_STREAM_PREMATURE_CLOSE|terminated|other side closed|UND_ERR/i.test(
     msg,
   );
 }
 
+// Tool calls that PRODUCE the deliverable. Once one of these has run, the raw research
+// tool-results from EARLIER turns are no longer needed verbatim — their data is already
+// baked into the rendered HTML/spec, and the QC/revise turns work off the rendered pages,
+// not the scraped sources. So we stub those stale research dumps to stop re-paying for
+// them on every subsequent turn (the ~820k-token report blowup).
+const DELIVERABLE_PRODUCERS = new Set([
+  'render_report',
+  'generate_spreadsheet',
+  'generate_doc',
+  'generate_pptx',
+  'render_chart',
+]);
+// Tools whose RAW output is large research data, safe to stub once it's been used.
+const RESEARCH_TOOLS = new Set(['web_search', 'web_fetch', 'fetch_data']);
+const RESEARCH_STUB = '[research results — used in the report, trimmed to save context]';
+
+/** Map every tool_call_id → the tool name that produced it (from assistant turns). */
+function toolNameById(context: any[]): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const msg of context) {
+    if (msg?.role === 'assistant' && Array.isArray(msg.tool_calls)) {
+      for (const tc of msg.tool_calls) if (tc?.id && tc.function?.name) m.set(tc.id, tc.function.name);
+    }
+  }
+  return m;
+}
+
+/**
+ * Once a deliverable has been produced, stub the RAW research tool-results from EARLIER
+ * turns so they aren't re-sent at full size on every QC/revise turn. PURE + conservative:
+ *  - only stubs tool messages whose producing tool was a RESEARCH tool (web_search/web_fetch/
+ *    fetch_data) and whose body is large (>200 chars);
+ *  - only stubs ones that appear BEFORE the most recent deliverable-producing tool call —
+ *    so the report HTML/spec, the user's brief, the system prompt and recent turns are never
+ *    touched. The report's actual content is fully preserved; this only drops scraped sources.
+ * Returns true if anything was stubbed. Exported for testing.
+ */
+export function trimStaleResearch(context: any[]): boolean {
+  const names = toolNameById(context);
+  // Find the index of the LAST assistant turn that produced a deliverable.
+  let lastDeliverableIdx = -1;
+  for (let i = 0; i < context.length; i++) {
+    const msg = context[i];
+    if (msg?.role === 'assistant' && Array.isArray(msg.tool_calls)) {
+      if (msg.tool_calls.some((tc: any) => DELIVERABLE_PRODUCERS.has(tc?.function?.name))) {
+        lastDeliverableIdx = i;
+      }
+    }
+  }
+  if (lastDeliverableIdx < 0) return false; // no deliverable yet → keep all research verbatim
+  let changed = false;
+  for (let i = 0; i < lastDeliverableIdx; i++) {
+    const msg = context[i];
+    if (
+      msg?.role === 'tool' &&
+      typeof msg.content === 'string' &&
+      msg.content.length > 200 &&
+      msg.content !== RESEARCH_STUB &&
+      RESEARCH_TOOLS.has(names.get(msg.tool_call_id) ?? '')
+    ) {
+      msg.content = RESEARCH_STUB;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 /**
  * Keep the context under the model window for long-running sessions:
- * first shrink old tool outputs, then drop the oldest messages entirely
- * (long chats have no tool output to shrink).
+ * first stub stale research dumps (already baked into the deliverable), then shrink
+ * remaining old tool outputs, then drop the oldest messages entirely (long chats have
+ * no tool output to shrink).
  */
 function truncateContext(context: any[]) {
+  // Always run the targeted research-trim first — it's the primary token sink for reports
+  // (it makes the QC/revise turns cheap), and it's safe regardless of the total size.
+  trimStaleResearch(context);
   if (estimateTokens(context) < CONTEXT_TOKEN_BUDGET) return;
   for (const msg of context) {
     if (msg.role === 'tool' && typeof msg.content === 'string' && msg.content.length > 200) {
@@ -187,59 +331,48 @@ export class AgentRun {
   private engineCostUsd = 0; // external-engine spend this run (e.g. Suno)
   private accruedCostUsd = 0; // model spend this run, summed per concrete model
   private taskProfile!: TaskProfile; // classified at run start; drives design context + gating
+  private autoExpertiseApplied = false; // true once the auto-router has set this.session.task (never overwrites a picked play)
   private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
   private progressPhase: ProgressPhase = 'understanding';
+  private phaseStartedAt = Date.now(); // when the current phase began (for the time-remaining estimate)
+  private phaseDurations: Partial<Record<ProgressPhase, number>> = {}; // real seconds per phase (for ETA self-calibration)
+  private slowLineIdx = Math.floor(Math.random() * SLOW_LINES.length); // rotate the funny "still working" lines
+  private lastSlowAt = 0; // cooldown so long multi-turn builds vary the line without spamming
   private pendingMode: SessionMode | null = null; // set by switch_mode; applied between tool batches
   private planSubmitted = false; // set by submit_plan; ends the turn awaiting the user's nod
   private planResolved = false; // this run answers a pending plan → plan→code is allowed
   private planApproved = false; // this run is the user's "Approve & build" → must build, not re-plan
-  private client: OpenAI; // DeepSeek (also used for title gen)
-  private minimaxClient: OpenAI | null = null;
   private minimaxAvailable = !!config.minimaxApiKey;
-  // Set once M3 has stalled on this run; subsequent MiniMax turns use the faster
-  // fallback coding model instead (the user's "M3, but fall back if slow" choice).
+  // Set once M3 has stalled REPEATEDLY on this run; subsequent MiniMax turns use the
+  // faster model instead (the user's "M3, but fall back if slow" choice).
   private minimaxFellBack = false;
+  // Quality-first stall handling: a single slow M3 turn finishes on the fast model for
+  // THAT turn only (forceFastThisTurn), then the run returns to M3 — because each staged
+  // step (e.g. one spreadsheet sheet) is small, so M3 stays accurate on the next one.
+  // Only after MAX_MINIMAX_STALLS do we give up on M3 for the rest of the run (the weaker
+  // fast model makes more cross-reference errors on a financial model, so we keep M3 where
+  // we can). Counts stalls across the run.
+  private minimaxStalls = 0;
+  private forceFastThisTurn = false;
   // The concrete model the orchestrator is using right now (resolved from the
   // session model, which may be the virtual 'arksai-auto').
   private activeModel = '';
   private activeApiModel = '';
   private activePricingId = '';
-  private activeClient!: OpenAI;
 
-  constructor(private session: SessionMeta) {
-    this.client = new OpenAI({
-      apiKey: config.deepseekApiKey || 'missing-key',
-      baseURL: config.deepseekBaseUrl,
-    });
-  }
+  constructor(private session: SessionMeta) {}
 
-  private clientFor(provider: 'deepseek' | 'minimax'): OpenAI {
-    if (provider === 'minimax') {
-      if (!this.minimaxClient) {
-        this.minimaxClient = new OpenAI({
-          apiKey: config.minimaxApiKey || 'missing-key',
-          baseURL: config.minimaxBaseUrl,
-          timeout: 180_000, // M3 can be slow — bound a hung request so the DeepSeek fallback can fire
-        });
-      }
-      return this.minimaxClient;
-    }
-    return this.client;
-  }
-
-  /** Point the run at a concrete model (resolving provider + real API id). */
+  /** Point the run at a concrete model (resolving the real MiniMax API id). */
   private setActiveModel(modelId: string) {
     const r = resolveProvider(modelId);
     this.activeModel = modelId;
     this.activeApiModel = r.apiModel;
     this.activePricingId = r.pricingId;
-    this.activeClient = this.clientFor(r.provider);
   }
 
   /** When falling back M3 → DeepSeek mid-conversation, drop M3's reasoning_content from the
-   *  history: it's M3/Anthropic-specific and DeepSeek's thinking mode 400s on it ("reasoning_content
-   *  must be passed back"). The objects are shared with `context` (same refs), so this cleans both.
-   *  DeepSeek then thinks fresh going forward (its own reasoning_content accumulates validly). */
+   *  history before switching models: it's M3-specific and a different model can reject it.
+   *  The objects are shared with `context` (same refs), so this cleans both. */
   private dropM3Reasoning(msgs: any[]) {
     for (const m of msgs ?? []) if (m && m.role === 'assistant' && 'reasoning_content' in m) delete m.reasoning_content;
   }
@@ -249,19 +382,69 @@ export class AgentRun {
   }
 
   /**
+   * Auto-expertise (Phase 1): when the user just typed and no department play set
+   * session.task, deterministically infer the right expert standards from the trigger
+   * tables and apply them for this run (and the rest of the session). NEVER overwrites
+   * an explicit picked-play task. Gated on config.autoExpertise; chat/code/report only.
+   * Logs the inferred {task, confidence, source} as analytics metadata (never message text).
+   */
+  private applyAutoExpertise(userText: string) {
+    if (!config.autoExpertise) return;
+    if (this.session.task) return; // an explicit play (or an already-applied inference) wins
+    if (this.session.mode === 'plan') return; // plan is a gate, not a deliverable; routes on the build turn
+    const route = routeExpertise(userText, this.session.mode);
+    // Phase 4 — confidence tiers (gated on config.clarifyExpertise; flip OFF to revert):
+    //   HIGH   → inject the SPECIFIC task expertise silently.
+    //   MEDIUM → inject the DEPARTMENT PERSONA only (expert voice, no wrong task specifics).
+    //   LOW/none → inject NOTHING; the chat prompt's vague-clarify path asks ONE question.
+    // The router already enforces the mis-route guard (a specific taskKey is only ever
+    // returned at tier 'high'), so this just maps the tier to what we set as session.task.
+    let inferred: string | null;
+    if (config.clarifyExpertise) {
+      if (route.tier === 'high') inferred = route.taskKey; // a confident specific task
+      else if (route.tier === 'medium') inferred = route.department; // persona only
+      else inferred = null; // low/none → leave it to vague-clarify; never guess
+    } else {
+      // Legacy behaviour (flag off): apply whatever the router surfaced.
+      inferred = route.taskKey ?? route.department;
+    }
+    if (!inferred) return;
+    this.session.task = inferred; // in-memory for this session object → survives turns + switch_mode
+    this.autoExpertiseApplied = true;
+    // Persist so a fresh runner (a later turn) keeps the expertise without re-routing.
+    void store.updateSession(this.session.id, { task: inferred }).catch(() => {});
+    track('expertise_selected', {
+      orgId: this.session.orgId,
+      userId: (this.session as any).createdBy ?? null,
+      sessionId: this.session.id,
+      props: { task: inferred, confidence: route.confidence, tier: route.tier, source: route.source },
+    });
+  }
+
+  /**
    * Emit a live progress beat. The bar advertises the (deliberately visible)
    * expert work at each stage. pct is clamped monotonic: entering a phase snaps
    * up to its floor; finer beats within a phase nudge toward its ceiling — but it
    * never goes backward (a self-healing retry must read as forward motion).
    */
   private emitProgress(phase: ProgressPhase, label: string, detail?: string) {
+    // Reset the phase clock when we actually move to a new phase, so the ETA measures
+    // elapsed-in-THIS-phase (not the whole run). Record the phase we're leaving so its REAL
+    // duration can self-calibrate future estimates (summed — a phase can recur across rounds).
+    if (phase !== this.progressPhase) {
+      const spent = (Date.now() - this.phaseStartedAt) / 1000;
+      this.phaseDurations[this.progressPhase] = (this.phaseDurations[this.progressPhase] ?? 0) + spent;
+      this.phaseStartedAt = Date.now();
+    }
     this.progressPhase = phase;
     const floor = phaseFloor(phase);
     const ceil = phaseCeiling(phase);
     // Nudge a little past the current value within the band, capped at the ceiling.
     const target = Math.min(ceil, Math.max(floor, this.progressPct + 2));
     this.progressPct = Math.max(this.progressPct, target);
-    this.emit({ type: 'progress', phase, label, pct: Math.round(this.progressPct), detail });
+    const elapsedInPhase = (Date.now() - this.phaseStartedAt) / 1000;
+    const etaSeconds = estimateRemainingSeconds(phase, elapsedInPhase, this.session.mode, calibratedTypical(this.session.mode));
+    this.emit({ type: 'progress', phase, label, pct: Math.round(this.progressPct), detail, etaSeconds });
   }
 
   private emit(event: Parameters<typeof bus.emit>[1]) {
@@ -271,10 +454,9 @@ export class AgentRun {
   /** A stronger model the current mode demands, or null. Reports + non-trivial
    *  visual code builds shouldn't run on the cheapest brain. */
   private floorModel(): string | null {
-    if (this.activeModel !== 'deepseek-v4-flash') return null;
-    const strong = this.minimaxAvailable ? MAX_MODEL : 'deepseek-v4-pro';
-    if (this.session.mode === 'report') return strong;
-    if (this.session.mode === 'code' && this.taskProfile?.isVisual && this.taskProfile.tier !== 'light') return strong;
+    if (this.activeModel !== FAST_MODEL) return null;
+    if (this.session.mode === 'report') return MAX_MODEL;
+    if (this.session.mode === 'code' && this.taskProfile?.isVisual && this.taskProfile.tier !== 'light') return MAX_MODEL;
     return null;
   }
 
@@ -377,6 +559,13 @@ export class AgentRun {
     // the quality model floor.
     this.taskProfile = classifyTask(userText, this.session.mode);
 
+    // Auto-expertise (Phase 1): if the user just TYPED (no department play picked →
+    // session.task falsy), deterministically select the right expert standards from the
+    // trigger tables so expertiseFor (inside buildSystemPrompt) injects them. A picked
+    // play (an explicit task) ALWAYS wins and is never overwritten. The inferred task is
+    // stored on the session object so it survives subsequent turns + a switch_mode.
+    this.applyAutoExpertise(userText);
+
     // Memory: global (every session) + this repo's project memory + an optional
     // ARKS.md in the workspace. Kept around so a mode switch can rebuild the prompt.
     let memoryBlock = await this.loadMemoryBlock(dir);
@@ -407,17 +596,30 @@ export class AgentRun {
 
     try {
       const maxIterations = config.maxIterations;
+      // Hard per-run TOKEN budget — the backstop against a runaway loop quietly billing
+      // for ever (the "1.8M tokens" incident). The deadline fix removes the main amplifier
+      // and the budget branch completes GRACEFULLY when a deliverable already exists, so this
+      // only truly bites a no-deliverable runaway. A fully-researched report legitimately
+      // lands ~800k (≈ $0.11), so the ceiling sits ABOVE that to avoid false trips while
+      // still catching pathological loops. Env-overridable.
+      const maxRunTokens = Number(process.env.MAX_RUN_TOKENS || '1200000') || 1_200_000;
       const STALL_LIMIT = 6;
       const EMPTY_RETRY_LIMIT = 2; // a thinking model that truncates mid-reasoning gets a couple of nudged retries
+      const STREAM_RETRY_LIMIT = 2; // a connection dropped MID-response (premature close) gets a couple of fresh retries
       let stallSig = '';
       let stallCount = 0;
       let emptyRetries = 0;
+      let streamRetries = 0;
       let iteration = 0;
-      let stopReason: 'natural' | 'ceiling' | 'stall' | null = null;
+      let stopReason: 'natural' | 'ceiling' | 'stall' | 'budget' | null = null;
       while (!this.abort.signal.aborted) {
         iteration++;
         if (iteration > maxIterations) {
           stopReason = 'ceiling';
+          break;
+        }
+        if (this.usage.totalTokens > maxRunTokens) {
+          stopReason = 'budget';
           break;
         }
         truncateContext(context);
@@ -458,43 +660,38 @@ export class AgentRun {
             if (tc.function?.name) slot.name += tc.function.name;
             if (tc.function?.arguments) slot.args += tc.function.arguments;
           }
-          if (chunk.usage) {
-            const u: any = chunk.usage;
-            this.usage.add(u);
-            // Cost is computed per concrete model so Auto mode blends correctly.
-            const hit = u.prompt_cache_hit_tokens ?? 0;
-            const miss = u.prompt_cache_miss_tokens ?? Math.max(0, (u.prompt_tokens ?? 0) - hit);
-            this.accruedCostUsd += computeCost(this.activePricingId, {
-              cacheHit: hit,
-              cacheMiss: miss,
-              completion: u.completion_tokens ?? 0,
-            });
-            this.emit({
-              type: 'usage_update',
-              totalTokens: this.usage.totalTokens,
-              promptTokens: this.usage.promptTokens,
-              completionTokens: this.usage.completionTokens,
-              cacheHitTokens: this.usage.cacheHitTokens,
-              cacheMissTokens: this.usage.cacheMissTokens,
-              costUsd: this.accruedCostUsd,
-            });
-          }
+          if (chunk.usage) this.accrueUsage(chunk.usage);
         }
         } catch (err: any) {
-          // M3 over-buffered/stalled this turn → fall back to the RELIABLE DeepSeek workhorse
-          // and redo the turn (once). NOT to another MiniMax model: M2.7-highspeed always-thinks
-          // and stalls AGAIN on tool-use turns, so the run would hang then die with nothing built
-          // (the operator's 9-min code-build hang). deepseek-v4-pro finishes; the verify/report
-          // gates guard quality. Mirrors the fetch-time hard-failure fallback (createCompletionWithRetry).
-          if (err?.minimaxStall && !this.minimaxFellBack && resolveProvider(this.activeModel).provider === 'minimax') {
-            this.minimaxFellBack = true;
-            // Fall back to the NON-THINKING DeepSeek model: a thinking model (v4-pro) 400s when
-            // continuing M3's history ("reasoning_content … must be passed back"), but the
-            // non-thinking model imposes no such rule and reliably finishes. Strip M3's
-            // reasoning_content too so the history is a clean, standard tool-use transcript.
-            this.setActiveModel('deepseek-chat');
-            this.dropM3Reasoning(context);
-            sysInfo(`↳ ArksAI Max was slow — switching to ArksAI Flash to finish reliably.`);
+          // M3 over-buffered/stalled this turn → switch to the faster MiniMax model (Flash /
+          // M2.7-highspeed) and redo the turn (once). minimaxFellBack also makes
+          // createMinimaxStream pick the fast model for the rest of the run.
+          if (err?.minimaxStall && !this.minimaxFellBack && !this.abort.signal.aborted) {
+            this.minimaxStalls++;
+            if (this.minimaxStalls >= MAX_MINIMAX_STALLS) {
+              // Repeatedly slow → give up on M3 for the rest of the run.
+              this.minimaxFellBack = true;
+              this.dropM3Reasoning(context);
+              this.setActiveModel(FAST_MODEL);
+              sysInfo(`↳ ArksAI Max keeps running long — finishing the rest on ArksAI Flash.`);
+            } else {
+              // One slow step → finish JUST this turn on the fast model, then return to Max.
+              // Keep M3's reasoning + active model so the next (small, staged) turn runs on Max,
+              // which references cells more accurately than the fast model.
+              this.forceFastThisTurn = true;
+              sysInfo(`↳ That step ran long — finishing it on ArksAI Flash, then back to ArksAI Max.`);
+            }
+            continue;
+          }
+          // The connection dropped mid-reply (a "premature close" / terminated socket).
+          // Nothing is committed to the context until a turn completes, so redo the turn
+          // (bounded) instead of failing the run. turn_reset clears any partial output so
+          // the retry renders cleanly with no doubled text.
+          if (isTransientApiError(err) && !this.abort.signal.aborted && streamRetries < STREAM_RETRY_LIMIT) {
+            streamRetries++;
+            this.emit({ type: 'turn_reset', runId: this.runId });
+            sysInfo(`↳ The connection dropped — reconnecting (${streamRetries}/${STREAM_RETRY_LIMIT}).`);
+            await new Promise((r) => setTimeout(r, 400 * streamRetries));
             continue;
           }
           throw err;
@@ -648,6 +845,42 @@ export class AgentRun {
         const msg = `I got stuck repeating the same step and want to avoid spinning — could you give me a steer on what to do next? Tell me a bit more and I’ll pick it right back up.`;
         this.emit({ type: 'run_error', runId: this.runId, message: msg });
         liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
+        void recordIncident({
+          kind: 'stall', severity: 'med', signature: `stall ${this.session.mode}`,
+          title: `Run stalled (repeated step) in ${this.session.mode} mode`,
+          context: { mode: this.session.mode, model: this.activeModel, task: this.session.task },
+          orgId: this.session.orgId, sessionId: this.session.id,
+        });
+      } else if (stopReason === 'budget') {
+        // GRACEFUL CAP: a good deliverable may already be on disk (the recurring "error with a
+        // hidden good PDF" — a report hits the token budget AFTER a clean PDF was rendered). If
+        // one exists, COMPLETE the run normally (the finally block then auto-opens it + fires the
+        // completion card) and add only a soft INFO note — never hand the user an error over a
+        // finished file. Only show the hard budget error when NOTHING was produced.
+        const produced = await this.newestDeliverable(dir, ['.pdf', '.pptx', '.docx', '.xlsx']).catch(() => null);
+        if (produced) {
+          finalStatus = 'done';
+          liveItems.push({
+            kind: 'system',
+            id: randomUUID(),
+            level: 'info',
+            text: `This one took a bit more processing than usual. Your document is ready below.`,
+            ts: Date.now(),
+          });
+          console.warn(`[budget] run ${this.runId} hit the token budget (${this.usage.totalTokens} tokens) but a deliverable was produced — completing normally — session ${this.session.id}`);
+        } else {
+          finalStatus = 'error';
+          const msg = `This task used an unusually large amount of processing (over the per-run safety budget), so I stopped to avoid runaway cost. Your work so far is saved. This usually means the request looped — tell me to continue and I’ll resume more efficiently.`;
+          this.emit({ type: 'run_error', runId: this.runId, message: msg });
+          liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
+          console.warn(`[budget] run ${this.runId} hit the token budget (${this.usage.totalTokens} tokens) — session ${this.session.id}`);
+          void recordIncident({
+            kind: 'cost_spike', severity: 'high', signature: `budget ${this.session.mode}`,
+            title: `Run exceeded the token budget (${this.usage.totalTokens} tokens) in ${this.session.mode} mode`,
+            context: { mode: this.session.mode, model: this.activeModel, task: this.session.task, tokens: this.usage.totalTokens },
+            orgId: this.session.orgId, sessionId: this.session.id,
+          });
+        }
       }
     } catch (err: any) {
       if (this.abort.signal.aborted) {
@@ -662,6 +895,14 @@ export class AgentRun {
           level: 'error',
           text: `Agent error: ${message}`,
           ts: Date.now(),
+        });
+        void recordIncident({
+          kind: /stall|premature|terminated|timeout/i.test(message) ? 'timeout' : 'run_error',
+          severity: 'high', signature: `${this.session.mode}: ${message}`,
+          title: `Agent error in ${this.session.mode} mode: ${message.slice(0, 120)}`,
+          detail: message,
+          context: { mode: this.session.mode, model: this.activeModel, task: this.session.task },
+          orgId: this.session.orgId, sessionId: this.session.id,
         });
       }
     } finally {
@@ -740,6 +981,9 @@ export class AgentRun {
             }
           : undefined;
       if (finalStatus === 'done') this.emitProgress('done', 'Ready');
+      // Self-calibrate the ETA: fold this run's REAL per-phase durations into the per-mode
+      // EWMA (only clean, completed runs — a failed/aborted run's phases are misleading).
+      if (finalStatus === 'done') recordRunDurations(this.session.mode, this.phaseDurations);
 
       this.emit({
         type: 'run_finished',
@@ -774,46 +1018,54 @@ export class AgentRun {
     }
   }
 
-  /** Retry transient API failures (network blips, 429/5xx) with backoff. Uses
-   *  whatever model the orchestrator is currently on; if a MiniMax call fails
-   *  with a hard error (its endpoint/tool-calling is unvalidated), fall back to
-   *  DeepSeek Pro once so the run keeps going. */
+  /** Fold a usage chunk into the running totals + stream a cost update (per concrete
+   *  model, so Auto mode blends correctly). Shared by the streaming + buffered paths. */
+  private accrueUsage(u: any) {
+    this.usage.add(u);
+    const hit = u.prompt_cache_hit_tokens ?? 0;
+    const miss = u.prompt_cache_miss_tokens ?? Math.max(0, (u.prompt_tokens ?? 0) - hit);
+    this.accruedCostUsd += computeCost(this.activePricingId, {
+      cacheHit: hit,
+      cacheMiss: miss,
+      completion: u.completion_tokens ?? 0,
+    });
+    this.emit({
+      type: 'usage_update',
+      totalTokens: this.usage.totalTokens,
+      promptTokens: this.usage.promptTokens,
+      completionTokens: this.usage.completionTokens,
+      cacheHitTokens: this.usage.cacheHitTokens,
+      cacheMissTokens: this.usage.cacheMissTokens,
+      costUsd: this.accruedCostUsd,
+    });
+  }
+
+  /** Retry transient API failures (network blips, 429/5xx) with backoff. All models are
+   *  MiniMax, served via the ANTHROPIC-compatible endpoint (not the OpenAI one): on the
+   *  OpenAI surface M3's thinking is forced ON and unbounded — it reasons for minutes and
+   *  never emits a tool call (the spreadsheet hang); on /anthropic/v1/messages thinking is
+   *  OFF by default, so it acts immediately. createMinimaxStream translates our OpenAI-shaped
+   *  loop to/from the Anthropic wire format so the rest of the loop is unchanged. If M3 (Max)
+   *  hard-fails, fall back once to the fast model (Flash) so the run keeps going. */
   private async createCompletionWithRetry(params: any): Promise<AsyncIterable<any>> {
     const delays = [2000, 4000, 8000];
     let triedFallback = false;
     for (let attempt = 0; ; attempt++) {
       try {
-        // MiniMax M3 goes through the ANTHROPIC-compatible endpoint, not the OpenAI one.
-        // Why it matters (verified live): on the OpenAI surface (/v1) M3's thinking is forced
-        // ON and unbounded — it reasons for minutes and never emits a tool call (0 tool calls
-        // in 150s on a real agent prompt), which our token budget then truncates into a silent
-        // empty turn (the spreadsheet hang). Every documented thinking-control knob
-        // (reasoning_effort, thinking, enable_thinking, chat_template_kwargs) is IGNORED there.
-        // On the Anthropic surface (/anthropic/v1/messages) M3 thinking is OFF by default, so
-        // it acts immediately — it called generate_spreadsheet in ~2.8s in the same scenario.
-        // We translate our OpenAI-shaped loop to/from the Anthropic wire format (see
-        // createMinimaxStream) so nothing else in the agent loop changes.
-        if (resolveProvider(this.activeModel).provider === 'minimax') {
-          return await this.createMinimaxStream(params);
-        }
-        return (await this.activeClient.chat.completions.create(
-          { ...params, model: this.activeApiModel } as any,
-          { signal: this.abort.signal },
-        )) as unknown as AsyncIterable<any>;
+        return await this.createMinimaxStream(params);
       } catch (err) {
         if (this.abort.signal.aborted) throw err;
-        // Hard failure on MiniMax → fall back to DeepSeek Pro and retry once.
+        // Hard failure on M3 → fall back to the fast MiniMax model once and retry.
         if (!isTransientApiError(err) && this.activeModel === MAX_MODEL && !triedFallback) {
           triedFallback = true;
-          // Non-thinking DeepSeek finishes reliably when inheriting M3's history (a thinking
-          // model 400s on it). params.messages share object refs with context → also cleans it.
-          this.setActiveModel('deepseek-chat');
+          this.minimaxFellBack = true;
           this.dropM3Reasoning(params.messages);
+          this.setActiveModel(FAST_MODEL);
           const note: TimelineItem = {
             kind: 'system',
             id: randomUUID(),
             level: 'info',
-            text: '↳ MiniMax was unavailable — falling back to ArksAI Flash.',
+            text: '↳ Switching to ArksAI Flash to finish.',
             ts: Date.now(),
           };
           this.emit({ type: 'timeline_item', item: note });
@@ -862,8 +1114,11 @@ export class AgentRun {
     // that favoured M3 doesn't hold for real document generation — M2.7 both completes AND is
     // higher quality here.)
     const isLegal = !!this.session.task?.startsWith('legal.');
-    const useFast = this.minimaxFellBack || this.session.mode === 'report' || isLegal;
+    const useFast = this.minimaxFellBack || this.forceFastThisTurn || this.session.mode === 'report' || isLegal;
     const model = useFast ? config.minimaxFallbackModel : this.activeApiModel;
+    // One-turn override is consumed here: the NEXT turn returns to Max (this.activeApiModel
+    // is untouched, so only this stalled step ran on the fast model).
+    this.forceFastThisTurn = false;
     const body: Record<string, unknown> = { model, max_tokens: 64000, system, messages, stream: true };
     if (tools.length) body.tools = tools;
     // fetch has NO built-in timeout, and M3 can be slow to even send response headers on a
@@ -877,14 +1132,42 @@ export class AgentRun {
     const PRIMARY_MS = Number(process.env.MINIMAX_TURN_DEADLINE_MS || '150000') || 150_000;
     const FAST_MS = Number(process.env.MINIMAX_FAST_DEADLINE_MS || '240000') || 240_000;
     const totalMs = useFast ? FAST_MS : PRIMARY_MS;
+    // Acquire a global concurrency slot BEFORE arming the turn deadline (so time spent
+    // queued doesn't eat the deadline). This caps concurrent M3 streams so they can't
+    // starve each other server-side (the root cause of the hang). Released when the
+    // stream is fully consumed / errors / aborts.
+    // One-time "this is taking longer" reassurance (quality-first: we let M3 finish a big
+    // generation rather than bail to a weaker model, so a turn can legitimately run ~1–2min —
+    // the user should KNOW it's working, not wonder if it hung). Fires once per run.
+    const slowNotice = setTimeout(() => {
+      if (this.abort.signal.aborted) return;
+      // Cooldown so a multi-turn big build varies the line instead of repeating every turn.
+      if (Date.now() - this.lastSlowAt < 60_000) return;
+      this.lastSlowAt = Date.now();
+      const line = SLOW_LINES[this.slowLineIdx % SLOW_LINES.length];
+      this.slowLineIdx++;
+      this.emitProgress(this.progressPhase, line);
+    }, 55_000);
+    let release: () => void;
+    try {
+      release = await minimaxLimiter.acquire(this.abort.signal);
+    } catch (e) {
+      clearTimeout(slowNotice); // never granted a slot (aborted while queued) — don't leak the timer
+      throw e;
+    }
+    let releasedSlot = false;
+    const releaseSlot = () => {
+      if (releasedSlot) return;
+      releasedSlot = true;
+      clearTimeout(slowNotice);
+      release();
+    };
     const ac = new AbortController();
     // `trip` is set by the stream adapter once streaming starts; it REJECTS the in-flight
     // read so a stall unblocks the loop even if ac.abort() doesn't propagate to a hung socket
     // read (a real undici behavior — a mid-stream abort can leave read() pending forever,
     // which is exactly the operator's "code build hangs 9 min, no fallback" symptom).
     const stall: { tripped: boolean; trip?: () => void } = { tripped: false };
-    if (this.abort.signal.aborted) ac.abort();
-    else this.abort.signal.addEventListener('abort', () => ac.abort(), { once: true });
     // The HEADERS wait must be raced against the deadline too, not just aborted: M3 can buffer
     // server-side for minutes before sending ANY response byte on a big prompt, and ac.abort()
     // does NOT reliably reject a pending undici fetch that's still awaiting headers — so relying
@@ -903,6 +1186,16 @@ export class AgentRun {
       e.minimaxStall = true;
       rejectHeaders?.(e); // unblocks a hung HEADERS await (before streaming begins)
     }, totalMs);
+    // A user INTERRUPT (Stop) must unblock a hung fetch promptly — abort the socket, trip the
+    // mid-stream read race, and reject a pending headers await. This fires ONLY on an explicit
+    // user abort; it adds NO time/token heuristic, so a slow-but-healthy run is never killed.
+    const onUserAbort = () => {
+      ac.abort();
+      stall.trip?.(); // unblocks a hung mid-stream read (set once streaming begins)
+      rejectHeaders?.(new Error('interrupted by user')); // unblocks a hung headers await
+    };
+    if (this.abort.signal.aborted) onUserAbort();
+    else this.abort.signal.addEventListener('abort', onUserAbort, { once: true });
     let resp: Response;
     try {
       resp = await Promise.race([
@@ -920,6 +1213,7 @@ export class AgentRun {
       ]);
     } catch (e: any) {
       clearTimeout(totalTimer);
+      releaseSlot(); // free the concurrency slot on a failed/aborted request
       if (stall.tripped || e?.minimaxStall) {
         const err: any = new Error(`MiniMax (${model}) stalled — no response within ${totalMs / 1000}s.`);
         err.minimaxStall = true; // → the loop falls back to the faster model
@@ -929,19 +1223,26 @@ export class AgentRun {
     }
     if (!resp.ok || !resp.body) {
       clearTimeout(totalTimer);
+      releaseSlot();
       const detail = await resp.text().catch(() => '');
       // Carry the HTTP status so the retry/fallback classifier treats 429/5xx as
-      // transient (retry on M3) and 4xx as hard (fall back to DeepSeek Pro).
+      // transient (retry) and 4xx as hard (M3 → fast model fallback).
       const err: any = new Error(`MiniMax (Anthropic) ${resp.status}: ${detail.slice(0, 300)}`);
       err.status = resp.status;
       throw err;
     }
     // Idle backstop ≥ the total deadline so a still-streaming-but-slow turn isn't cut off
-    // before its patience window (M3 gaps run 24–76s; the total deadline governs).
-    // On the PRIMARY model (M3, code mode), a heavy structured-output tool call gets a SHORT
-    // deadline once it starts streaming — M3 over-buffers these, so we'd rather fall back to
-    // the fast model in ~30s than wait the full 150s. (No effect once useFast is set.)
-    const heavyMs = Number(process.env.MINIMAX_HEAVY_TOOL_DEADLINE_MS || '30000') || 30_000;
+    // before its patience window. The idle is now CONTENT-based (pings don't reset it), so a
+    // genuine no-output stall trips it while a healthy big generation streams through.
+    // HEAVY-TOOL EAGER FALLBACK — DISABLED BY DEFAULT (quality-first). We used to bail a
+    // heavy generate_* off M3 after 30s, but bake-offs show M3 finishes a large 3-statement
+    // model in ~107s with genuinely formula-driven, domain-aware output (higher quality than
+    // the fast fallback, which DeepSeek-max can't even complete). With the concurrency limiter
+    // preventing the starvation that the 30s timer was guarding against, M3 completes well
+    // inside the 150s content-idle window — so let it finish. Set MINIMAX_HEAVY_TOOL_DEADLINE_MS
+    // to a positive value to re-enable the eager fallback if ever needed.
+    const heavyEnv = process.env.MINIMAX_HEAVY_TOOL_DEADLINE_MS;
+    const heavyMs = heavyEnv !== undefined ? Math.max(0, Number(heavyEnv) || 0) : 0;
     return anthropicSseToOpenAI(resp.body as any, {
       controller: ac,
       idleMs: Math.max(totalMs, 120_000),
@@ -950,6 +1251,7 @@ export class AgentRun {
       isPrimary: !useFast,
       heavyNames: HEAVY_GENERATORS,
       heavyMs,
+      onDone: releaseSlot, // free the concurrency slot when the stream is fully consumed
     });
   }
 
@@ -1149,27 +1451,19 @@ export class AgentRun {
       this.warnIfDesignGateSkipped(review, sys);
       // Bounded revise for documents (up to 2 — the deterministic checks are cheap). A weak
       // first model often botches a formula model (hard-coded or EMPTY cells) or leaves a thin
-      // deliverable; re-prompting the SAME weak model rarely fixes it, so in Auto mode bring in
-      // a STRONGER, reliable model (DeepSeek Pro — strong + doesn't stall like M3) to redo it.
+      // deliverable; re-prompting the SAME model rarely fixes it, so in Auto mode bring in the
+      // other MiniMax tier to redo it.
       if (defects.length && this.designRounds < 2) {
         this.designRounds++;
-        // Bring in a different, reliable model to redo a flagged document (re-prompting the
-        // same model rarely fixes a hard-coded/empty deliverable). From M3 (whose first-pass
-        // spreadsheets are often hard-coded), hand off to NON-thinking deepseek-chat — strip
-        // M3's reasoning_content first (a thinking model rejects it), and chat carries NO such
-        // requirement, so this never errors the revise. From a weaker DeepSeek, escalate to Pro
-        // (strong at formulas; the proven path). Both keep the run completing.
-        if (isAutoModel(this.session.model)) {
-          if (this.activeModel === MAX_MODEL) {
-            // Round 1 off M3 → non-thinking chat (safe handoff; a 2nd round then goes to Pro).
-            this.dropM3Reasoning(context);
-            this.setActiveModel('deepseek-chat');
-            sys('info', '↳ Bringing in ArksAI Flash to fix the document.');
-          } else if (this.activeModel !== 'deepseek-v4-pro') {
-            // Any weaker DeepSeek (flash/chat, incl. after an M3 fallback) → Pro (proven for formulas).
-            this.setActiveModel('deepseek-v4-pro');
-            sys('info', '↳ Bringing in ArksAI Pro to get the document right.');
-          }
+        // Bring in a different model to redo a flagged document (re-prompting the same model
+        // rarely fixes a hard-coded/empty deliverable). M3's first-pass spreadsheets are often
+        // hard-coded, and the fast coding model (Flash / M2.7-highspeed) is strong at structured
+        // formula output — so hand M3 → Flash (strip M3's reasoning_content first).
+        if (isAutoModel(this.session.model) && this.activeModel === MAX_MODEL) {
+          this.dropM3Reasoning(context);
+          this.minimaxFellBack = true;
+          this.setActiveModel(FAST_MODEL);
+          sys('info', '↳ Bringing in ArksAI Flash to fix the document.');
         }
         // A formula/empty-model failure needs a CONCRETE how-to, not just "fix it".
         const formulaIssue = defects.some((d) => /formula|hard-?cod|typed.?in|empty/i.test(d));
@@ -1524,9 +1818,7 @@ export class AgentRun {
   }
 
   private async generateTitleAsync(userText: string) {
-    // Always use the non-thinking alias: v4 models default to thinking mode and
-    // would spend the small token budget on reasoning, returning an empty title.
-    const title = await generateTitle(this.client, 'deepseek-chat', userText);
+    const title = deriveTitle(userText);
     if (!title) return;
     await store.updateSession(this.session.id, { title });
     bus.sessionChanged((await store.getSession(this.session.id))!);
@@ -1605,6 +1897,7 @@ export async function* anthropicSseToOpenAI(
     isPrimary?: boolean;
     heavyNames?: Set<string>;
     heavyMs?: number;
+    onDone?: () => void;
   },
 ): AsyncIterable<any> {
   const reader = body.getReader();
@@ -1683,7 +1976,18 @@ export async function* anthropicSseToOpenAI(
     }
     const { done, value } = read;
     if (done) break;
-    arm(); // reset idle timer on activity
+    // Streaming has started, so the TOTAL-turn timer has done its job (it guards the
+    // headers wait + initial server-side buffering). From here the IDLE timer governs:
+    // a steadily-streaming but LONG generation — e.g. a big report's HTML streamed as
+    // render_report's tool args over several minutes — must NOT be killed just for being
+    // long; only a genuine mid-stream SILENCE (idleMs) should trip. (The heavy-generator
+    // accelerator below still arms its own shorter timer for M3 on the primary model.)
+    clearTimeout(totalTimer);
+    // NOTE: do NOT re-arm the idle timer on every raw chunk. M3, when STARVED under
+    // concurrency, sends keepalive *pings* with no content — re-arming on those would
+    // (and did) let a no-progress stream hang forever. We re-arm ONLY on real content
+    // (text / tool-args / thinking deltas + a block start) below, so a ping-only stall
+    // trips the idle backstop and falls back. (Initial arm() above starts the window.)
     buf += decoder.decode(value, { stream: true });
     const lines = buf.split('\n');
     buf = lines.pop() || '';
@@ -1707,6 +2011,7 @@ export async function* anthropicSseToOpenAI(
           break;
         }
         case 'content_block_start': {
+          arm(); // real progress (a block began) → reset the content idle window
           const cb = ev.content_block;
           if (cb?.type === 'tool_use') {
             // Heavy structured generator on the PRIMARY model → shorten the deadline. M3
@@ -1728,6 +2033,9 @@ export async function* anthropicSseToOpenAI(
         }
         case 'content_block_delta': {
           const d = ev.delta;
+          // Real content → reset the idle window (pings/keepalives do NOT, so a starved
+          // ping-only stream still trips the backstop and falls back).
+          if (d?.type === 'text_delta' || d?.type === 'thinking_delta' || d?.type === 'input_json_delta') arm();
           if (d?.type === 'text_delta') yield { choices: [{ delta: { content: d.text } }] };
           else if (d?.type === 'thinking_delta') yield { choices: [{ delta: { reasoning_content: d.thinking } }] };
           else if (d?.type === 'input_json_delta')
@@ -1754,5 +2062,6 @@ export async function* anthropicSseToOpenAI(
     clearTimeout(idleTimer);
     clearTimeout(totalTimer);
     clearTimeout(heavyTimer);
+    opts?.onDone?.(); // release the global concurrency slot once the stream is fully consumed
   }
 }

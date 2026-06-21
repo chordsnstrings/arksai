@@ -9,18 +9,30 @@ import { resolveInWorkspace } from '../agent/tools/common';
 /** A clean, on-brand HTML shell so spreadsheet/doc previews look designed. */
 export const SHELL = (body: string, title = 'Preview') => `<!doctype html><html><head><meta charset="utf-8">
 <title>${title}</title><style>
-:root{--ink:#16181d;--muted:#6b7280;--line:#e7e6e2;--surface:#f7f7f5;--accent:#4f46e5}
+:root{--ink:#1a1c22;--soft:#3a3d44;--muted:#5c6270;--line:#e7e6e2;--surface:#f7f7f5;--accent:#44566a}
 *{box-sizing:border-box}
-body{margin:0;padding:26px;background:#fff;color:var(--ink);font-size:14px;line-height:1.55;
-  font-family:'Inter',-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased}
-h1{font-size:24px} h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:20px 0 8px}
-p,li{max-width:72ch}
-table{border-collapse:collapse;width:100%;margin:0 0 18px;font-size:13px}
-table td,table th{border:1px solid var(--line);padding:6px 10px;text-align:left;font-variant-numeric:tabular-nums}
-table tr:first-child td{background:var(--surface);font-weight:600}
+body{margin:0;padding:40px 44px;background:#fff;color:var(--ink);font-size:15px;line-height:1.6;
+  font-family:'Inter',-apple-system,'Segoe UI','Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;
+  max-width:1100px;margin-inline:auto}
+/* Prose gets a comfortable measure; tables (esp. wide sheets) stay full width. */
+.docview-body > p,.docview-body > ul,.docview-body > ol,.docview-body > blockquote{max-width:74ch}
+h1{font-family:Georgia,'Source Serif 4',serif;font-size:30px;line-height:1.15;letter-spacing:-.01em;margin:0 0 14px;color:#16140f}
+h2{font-family:Georgia,'Source Serif 4',serif;font-size:21px;line-height:1.25;margin:30px 0 10px}
+h3{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:24px 0 8px}
+p,li{color:var(--soft)}
+p{margin:0 0 14px}
+ul,ol{margin:0 0 14px;padding-left:22px}
+li{margin:0 0 5px}
+strong{color:var(--ink)}
+a{color:var(--accent)}
+hr{border:0;border-top:1px solid var(--line);margin:24px 0}
+table{border-collapse:collapse;width:100%;margin:8px 0 22px;font-size:13.5px}
+table td,table th{border:1px solid var(--line);padding:7px 11px;text-align:left;font-variant-numeric:tabular-nums;vertical-align:top}
+table th,table tr:first-child td{background:var(--surface);font-weight:600;color:var(--ink)}
 table tbody tr:nth-child(even){background:#fafaf9}
-img{max-width:100%}
-</style></head><body>${body}</body></html>`;
+img{max-width:100%;border-radius:8px;margin:8px 0}
+blockquote{margin:0 0 16px;padding:2px 0 2px 16px;border-left:3px solid var(--accent);color:var(--muted)}
+</style></head><body><div class="docview-body">${body}</div></body></html>`;
 
 /**
  * Render a workspace .xlsx/.csv/.docx file to a styled HTML string (SheetJS / mammoth),

@@ -101,6 +101,51 @@ export async function updateOrgName(id: string, name: string): Promise<void> {
   await q('UPDATE orgs SET name = $1 WHERE id = $2', [name, id]);
 }
 
+/**
+ * Hard-delete an org and ALL its data (cascade): sessions (+timeline), projects (+members/files),
+ * deployments, schedules, custom_commands, invites, org_profile, analytics, memberships — and any
+ * USER left with no remaining org (orphan), EXCEPT the superadmin. Returns the ids needing
+ * filesystem/registry cleanup so the caller finishes the job. Refuses the default workspace.
+ */
+export async function deleteOrg(orgId: string): Promise<{
+  sessionIds: string[];
+  projectIds: string[];
+  deploymentSlugs: string[];
+  deletedUsers: { id: string; email: string }[];
+}> {
+  if (orgId === DEFAULT_ORG_ID) throw new Error('The default workspace cannot be deleted.');
+  const ids = async (sql: string, col: string) => (await q(sql, [orgId])).map((r: any) => r[col]);
+  const sessionIds = await ids('SELECT id FROM sessions WHERE org_id = $1', 'id');
+  const projectIds = await ids('SELECT id FROM projects WHERE org_id = $1', 'id');
+  const deploymentSlugs = await ids('SELECT slug FROM deployments WHERE org_id = $1', 'slug');
+  const memberIds = [...new Set(await ids('SELECT user_id FROM memberships WHERE org_id = $1', 'user_id'))];
+
+  for (const sid of sessionIds) await q('DELETE FROM timeline WHERE session_id = $1', [sid]).catch(() => {});
+  for (const pid of projectIds) {
+    await q('DELETE FROM project_members WHERE project_id = $1', [pid]).catch(() => {});
+    await q('DELETE FROM project_files WHERE project_id = $1', [pid]).catch(() => {});
+  }
+  for (const tbl of ['sessions', 'projects', 'deployments', 'schedules', 'custom_commands', 'invites', 'analytics_events', 'analytics_digests', 'connectors']) {
+    await q(`DELETE FROM ${tbl} WHERE org_id = $1`, [orgId]).catch(() => {});
+  }
+  await q('DELETE FROM org_profiles WHERE org_id = $1', [orgId]).catch(() => {});
+  await q('DELETE FROM memberships WHERE org_id = $1', [orgId]);
+
+  // Orphan users: a member with no remaining org membership (and not the operator) is deleted.
+  const deletedUsers: { id: string; email: string }[] = [];
+  for (const uid of memberIds) {
+    const still = await q('SELECT 1 FROM memberships WHERE user_id = $1 LIMIT 1', [uid]);
+    const u = await getUser(uid);
+    if (still.length === 0 && u && !u.isSuperadmin) {
+      await q('DELETE FROM auth_sessions WHERE user_id = $1', [uid]).catch(() => {});
+      await q('DELETE FROM users WHERE id = $1', [uid]);
+      deletedUsers.push({ id: u.id, email: u.email });
+    }
+  }
+  await q('DELETE FROM orgs WHERE id = $1', [orgId]);
+  return { sessionIds, projectIds, deploymentSlugs, deletedUsers };
+}
+
 // ---- per-org shared profile + memory scope (strictly per-tenant) ----
 
 /**

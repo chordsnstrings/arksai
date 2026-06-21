@@ -141,8 +141,21 @@ export async function listFiles(sessionId: string): Promise<string[]> {
   if (!fs.existsSync(dir)) return [];
   const fg = (await import('fast-glob')).default;
   const files = await fg('**/*', {
+    // Exclude dependency / virtualenv / build noise so a deliverable is never pushed off
+    // the listing cap (a python-docx .venv added hundreds of files and hid the real .docx).
     cwd: dir,
-    ignore: ['**/node_modules/**', '**/.git/**'],
+    ignore: [
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/.venv/**',
+      '**/venv/**',
+      '**/env/**',
+      '**/__pycache__/**',
+      '**/site-packages/**',
+      '**/*.egg-info/**',
+      '**/.pytest_cache/**',
+      '**/.cache/**',
+    ],
     dot: true,
     onlyFiles: true,
     followSymbolicLinks: false,

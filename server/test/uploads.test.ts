@@ -57,19 +57,34 @@ test('contentDisposition: CR/LF and quotes in a filename cannot inject a header'
   assert.doesNotMatch(h.match(/filename="([^"]*)"/)![1], /["]/); // quote neutralized
 });
 
-test('buildUploadNote: a data file points the agent at its extracted sidecar', () => {
+test('buildUploadNote: a spreadsheet routes to read_spreadsheet (NOT a lossy text sidecar)', () => {
   const note = buildUploadNote(['uploads/q1.xlsx'], true)!;
   assert.match(note, /the user just uploaded/);
   assert.match(note, /uploads\/q1\.xlsx/);
-  assert.match(note, /uploads\/q1\.xlsx\.extracted\.txt/);
+  assert.match(note, /read_spreadsheet/);
+  assert.doesNotMatch(note, /extracted\.txt/); // spreadsheets are read structurally, not extracted
   assert.match(note, /do NOT ask the user to paste or re-upload/i);
 });
 
-test('buildUploadNote: csv/pdf/docx are all treated as extractable documents', () => {
-  for (const f of ['uploads/data.csv', 'uploads/report.pdf', 'uploads/brief.docx']) {
+test('buildUploadNote: pdf/docx → extracted sidecar; csv/xls/xlsx → read_spreadsheet', () => {
+  for (const f of ['uploads/report.pdf', 'uploads/brief.docx']) {
     const note = buildUploadNote([f], true)!;
     assert.match(note, new RegExp(`${f.replace(/[.]/g, '\\.')}\\.extracted\\.txt`));
   }
+  for (const f of ['uploads/data.csv', 'uploads/model.xls', 'uploads/book.xlsx']) {
+    const note = buildUploadNote([f], true)!;
+    assert.match(note, /read_spreadsheet/);
+    assert.doesNotMatch(note, /extracted\.txt/);
+  }
+});
+
+test('buildUploadNote: a .pptx routes to read_presentation (NOT read_file, NOT a text sidecar)', () => {
+  const note = buildUploadNote(['uploads/deck.pptx'], true)!;
+  assert.match(note, /uploads\/deck\.pptx/);
+  assert.match(note, /read_presentation/);
+  assert.match(note, /slide/i); // mentions reading every slide
+  assert.doesNotMatch(note, /extracted\.txt/); // not extracted to a sidecar
+  assert.doesNotMatch(note, /read with read_file/); // not the generic read_file fallback
 });
 
 test('buildUploadNote: an image routes to see_image when vision is available', () => {
@@ -106,10 +121,31 @@ test('buildUploadNote: a plain/unknown file is read directly with read_file', ()
 });
 
 test('buildUploadNote: a mixed batch surfaces every kind in one note', () => {
-  const note = buildUploadNote(['uploads/model.xlsx', 'uploads/logo.png', 'uploads/readme.md'], true)!;
-  assert.match(note, /model\.xlsx\.extracted\.txt/); // doc → sidecar
+  const note = buildUploadNote(
+    ['uploads/model.xlsx', 'uploads/brief.pdf', 'uploads/deck.pptx', 'uploads/logo.png', 'uploads/readme.md'],
+    true,
+  )!;
+  assert.match(note, /model\.xlsx/); // spreadsheet → read_spreadsheet
+  assert.match(note, /read_spreadsheet/);
+  assert.match(note, /brief\.pdf\.extracted\.txt/); // doc → sidecar
+  assert.match(note, /deck\.pptx/); // presentation → read_presentation
+  assert.match(note, /read_presentation/);
   assert.match(note, /logo\.png/); // image
   assert.match(note, /see_image/);
   assert.match(note, /readme\.md/); // other → read_file
   assert.match(note, /read with read_file/);
+});
+
+test('buildUploadNote: multiple files / kinds steer the agent to process EVERY one', () => {
+  // multiple files, multiple kinds → explicit "do not stop after the first"
+  const multi = buildUploadNote(
+    ['uploads/a.xlsx', 'uploads/b.xlsx', 'uploads/photo1.png', 'uploads/photo2.png'],
+    true,
+  )!;
+  assert.match(multi, /every slide of each deck/);
+  assert.match(multi, /do not stop after the first/i);
+  assert.match(multi, /LOOK at every image/);
+  // a single file → no over-broad "process every one" appendix
+  const single = buildUploadNote(['uploads/only.xlsx'], true)!;
+  assert.doesNotMatch(single, /do not stop after the first/i);
 });

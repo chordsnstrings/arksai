@@ -24,7 +24,8 @@ export type AnalyticsEvent =
   | 'run_finished'
   | 'deliverable_produced'
   | 'publish'
-  | 'mode_switch';
+  | 'mode_switch'
+  | 'expertise_selected';
 
 type Scalar = string | number | boolean | null | undefined;
 

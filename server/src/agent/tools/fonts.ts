@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { repoRoot } from '../../config';
 import { resolveInWorkspace, type ToolDef } from './common';
+import { ICON_NAMES } from './icons';
 
 const FONTS_DIR = path.join(repoRoot, 'server', 'assets', 'report-fonts');
 
@@ -45,9 +46,13 @@ export const addFontsTool: ToolDef = {
       `Installed fonts + icons into ${destRel}/. Link RELATIVE to your HTML (NOT root-absolute "/${destRel}/..."): ` +
       `<link rel="stylesheet" href="${destRel}/fonts.css"> (or @import). Keep ${destRel}/ in (or under) the directory ` +
       `your app serves — if you serve public/, install it there — or root-absolute paths 404 and fonts won't load. ` +
-      `Families: "Inter" (sans/body), "Source Serif 4" (serif display), "Space Grotesk" (modern display). Also ` +
-      `${destRel}/icons.svg — a Lucide line-icon source: read it and INLINE an icon's inner <path>s into your HTML ` +
-      `(an external <use href> does NOT render in the PDF). Pick a font pairing for the brand and use icons for section markers/KPIs.`
+      `Families (clean modern + refined serif — house style is minimal·muted) — body/sans: "Inter", "DM Sans", ` +
+      `"Plus Jakarta Sans", "Manrope"; serif: "Source Serif 4", "Lora", "Newsreader"; display: "Space Grotesk", ` +
+      `"Fraunces", "Outfit", "Sora". Pick a restrained display+body pairing that fits the brand (Fraunces = warm·premium; ` +
+      `Outfit/Sora/DM Sans = modern; Source Serif 4/Newsreader = editorial; Manrope/Plus Jakarta = clean product). Also ` +
+      `${destRel}/icons.svg — a curated ${ICON_NAMES.length}-icon Lucide line set: read it and INLINE an icon's inner <path>s into your HTML ` +
+      `(an external <use href> does NOT render in the PDF). Pick a font pairing for the brand and use icons for section markers/KPIs. ` +
+      `Available icons include: ${ICON_NAMES.join(', ')}.`
     );
   },
 };

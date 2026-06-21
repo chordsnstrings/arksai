@@ -9,6 +9,7 @@ import { MemoryDialog } from './components/MemoryDialog';
 import { Composer } from './components/Composer';
 import { CostBar } from './components/CostBar';
 import { Landing } from './components/Landing';
+import { VerticalPage, verticalSlugs } from './components/VerticalPage';
 import { Launchpad } from './components/Launchpad';
 import { LoginScreen } from './components/LoginScreen';
 import { InviteAccept } from './components/InviteAccept';
@@ -19,12 +20,12 @@ import { NewSessionDialog } from './components/NewSessionDialog';
 import { ProgressBar } from './components/ProgressBar';
 import { ProjectDialog } from './components/ProjectDialog';
 import { SchedulesDialog } from './components/SchedulesDialog';
-import { RobotsDialog } from './components/RobotsDialog';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AnalyticsConsole } from './components/AnalyticsConsole';
+import { Robots } from './components/Robots';
 import { useConfirm } from './state/confirmStore';
 import { useStore, emptyLive } from './state/sessionStore';
 import type { Project } from '@shared/types';
@@ -51,9 +52,13 @@ export default function App() {
   const [showMemory, setShowMemory] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showSchedules, setShowSchedules] = useState(false);
-  const [showRobots, setShowRobots] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  // Robots: the separate, full-page agentic surface. Linkable at /robots; opening it pushes the
+  // URL so it's a real shareable destination, and back/forward toggle it.
+  const [showRobots, setShowRobots] = useState(
+    typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/robots',
+  );
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   // A deep link (/s/<id>) that resolved to a session we can't open (deleted / no
   // access). We keep the URL and show an explicit panel instead of silently
@@ -124,6 +129,7 @@ export default function App() {
     if (m) resolve(m[1]);
     // Back/forward: follow the URL, including clearing to the launchpad.
     const onPop = () => {
+      setShowRobots(window.location.pathname.replace(/\/$/, '') === '/robots');
       const mm = window.location.pathname.match(/^\/s\/([^/]+)$/);
       if (mm) resolve(mm[1]);
       else {
@@ -137,6 +143,7 @@ export default function App() {
 
   useEffect(() => {
     if (authed !== true) return;
+    if (showRobots) return; // the Robots surface owns the URL (/robots) while it's open
     const p = window.location.pathname;
     if (p.startsWith('/invite/') || p === '/operator' || p === '/operator/') return;
     // A real session is open → any earlier "not available" deep link is moot.
@@ -153,7 +160,7 @@ export default function App() {
     didInitialUrlSync.current = true;
     const target = activeId ? `/s/${activeId}` : '/';
     if (p !== target) window.history.pushState({}, '', target); // guard prevents popstate loops
-  }, [activeId, authed, deepLinkNotFound]);
+  }, [activeId, authed, deepLinkNotFound, showRobots]);
 
   useGlobalEvents(authed === true);
   useSessionEvents(authed === true ? activeId : null);
@@ -180,14 +187,16 @@ export default function App() {
   if (inviteMatch) return <InviteAccept token={decodeURIComponent(inviteMatch[1])} />;
   const isOperatorPath = path === '/operator' || path === '/operator/';
 
+  const forMatch = path.match(/^\/for\/([a-z-]+)\/?$/);
+
   if (authed === null) return null;
   if (!authed) {
     if (isOperatorPath) return <OperatorLogin />;
-    return showLogin ? (
-      <LoginScreen onBack={() => setShowLogin(false)} />
-    ) : (
-      <Landing onSignIn={() => setShowLogin(true)} />
-    );
+    if (showLogin) return <LoginScreen onBack={() => setShowLogin(false)} />;
+    // Public per-vertical marketing pages (shareable, server-side OG meta).
+    if (forMatch && verticalSlugs().includes(forMatch[1]))
+      return <VerticalPage slug={forMatch[1]} onSignIn={() => setShowLogin(true)} />;
+    return <Landing onSignIn={() => setShowLogin(true)} />;
   }
 
   // First-run: an org admin whose org hasn't been onboarded gets the agent-driven,
@@ -216,7 +225,10 @@ export default function App() {
         onNewProject={() => setProjectDialog('new')}
         onEditProject={(p) => setProjectDialog(p)}
         onSchedules={() => setShowSchedules(true)}
-        onRobots={() => setShowRobots(true)}
+        onRobots={() => {
+          setShowRobots(true);
+          window.history.pushState({}, '', '/robots');
+        }}
         onAdmin={() => setShowAdmin(true)}
         onAnalytics={() => setShowAnalytics(true)}
       />
@@ -267,9 +279,17 @@ export default function App() {
       {showCommands && <CommandsDialog onClose={() => setShowCommands(false)} />}
       {showMemory && <MemoryDialog meta={activeMeta} onClose={() => setShowMemory(false)} />}
       {showSchedules && <SchedulesDialog onClose={() => setShowSchedules(false)} />}
-      {showRobots && <RobotsDialog onClose={() => setShowRobots(false)} />}
       {showAdmin && <AdminDialog onClose={() => setShowAdmin(false)} />}
       {showAnalytics && <AnalyticsConsole onClose={() => setShowAnalytics(false)} />}
+      {showRobots && (
+        <Robots
+          onClose={() => {
+            setShowRobots(false);
+            const back = useStore.getState().activeId;
+            window.history.pushState({}, '', back ? `/s/${back}` : '/');
+          }}
+        />
+      )}
       {showWhatsNew && <WhatsNewModal onClose={() => setShowWhatsNew(false)} />}
       <ConfirmModal />
     </div>

@@ -39,22 +39,69 @@ export function phaseFloor(phase: ProgressPhase): number {
 export function phaseCeiling(phase: ProgressPhase): number {
   return PHASE_BANDS[phase]?.ceil ?? 100;
 }
-/** Any DeepSeek model id. The selectable list is fetched live from /api/models. */
+
+/**
+ * Typical wall-clock SECONDS per phase for a normal build — drives an honest, slightly-
+ * generous "time remaining" estimate (a build usually BEATS it → a small positive surprise,
+ * not a broken countdown). Heuristic; refined later from real run durations. `building` is the
+ * variable one, scaled by mode. ORDER must match the phase progression.
+ */
+const PHASE_TYPICAL_SEC: Record<ProgressPhase, number> = {
+  understanding: 12,
+  building: 140,
+  verifying: 35,
+  testing: 30,
+  polishing: 22,
+  publishing: 25,
+  done: 0,
+};
+const PHASE_ORDER: ProgressPhase[] = ['understanding', 'building', 'verifying', 'testing', 'polishing', 'publishing', 'done'];
+
+/**
+ * Best-effort estimate of seconds remaining: the unfinished part of the current phase plus
+ * the typical duration of every phase still to come. Pure + deterministic so it's testable and
+ * shared by server (emits it) and tests. `building` scales by mode (reports are bigger single
+ * outputs; chat/plan are quick). Clamped to [0, 1800].
+ */
+export function estimateRemainingSeconds(
+  phase: ProgressPhase,
+  elapsedInPhaseSec: number,
+  mode?: string,
+  /** Self-calibrated typical seconds per phase (learned from this mode's real runs).
+   *  When a phase is present here it OVERRIDES the static heuristic (and the mode scale,
+   *  since a calibrated value already encodes mode). Phases absent here fall back. */
+  typical?: Partial<Record<ProgressPhase, number>>,
+): number {
+  const idx = PHASE_ORDER.indexOf(phase);
+  if (idx < 0 || phase === 'done') return 0;
+  const scale = (p: ProgressPhase) =>
+    p === 'building' ? (mode === 'report' ? 1.8 : mode === 'chat' || mode === 'plan' ? 0.5 : 1) : 1;
+  const typ = (p: ProgressPhase) => typical?.[p] ?? PHASE_TYPICAL_SEC[p] * scale(p);
+  const current = Math.max(0, typ(phase) - Math.max(0, elapsedInPhaseSec));
+  let future = 0;
+  for (let i = idx + 1; i < PHASE_ORDER.length; i++) future += typ(PHASE_ORDER[i]);
+  return Math.min(1800, Math.round(current + future));
+}
+/** A selectable model id. The lineup is MiniMax-backed (Auto / Max / Flash). */
 export type ModelId = string;
 
 export const SESSION_MODES: SessionMode[] = ['chat', 'plan', 'code', 'report'];
 
-export const DEFAULT_MODEL = 'deepseek-v4-flash';
-/** Used when the live model list can't be fetched. */
-export const FALLBACK_MODEL_IDS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
-/** Kept for older imports; the live list supersedes it. */
-export const MODELS: ModelId[] = FALLBACK_MODEL_IDS;
+/** Default: the orchestrator picks the concrete MiniMax model per task. */
+export const DEFAULT_MODEL = 'arksai-auto';
 
 /** Virtual model: the orchestrator picks the concrete model per task. */
 export const AUTO_MODEL = 'arksai-auto';
-/** Branded id for the MiniMax LLM engine (routable + directly selectable). */
+/** MiniMax M3 — the top-quality, multimodal brain. */
 export const MAX_MODEL = 'arksai-max';
+/** MiniMax M2.7-highspeed — the fast/cheap tier. */
+export const FAST_MODEL = 'arksai-flash';
 export const isAutoModel = (id: string): boolean => id === AUTO_MODEL;
+
+/** The full selectable lineup (all MiniMax-backed). */
+export const FALLBACK_MODEL_IDS = [AUTO_MODEL, MAX_MODEL, FAST_MODEL];
+/** Kept for older imports. */
+export const MODELS: ModelId[] = FALLBACK_MODEL_IDS;
 
 export interface ModelPricing {
   label: string;
@@ -70,29 +117,28 @@ export interface ModelInfo extends ModelPricing {
 }
 
 /**
- * DeepSeek pricing in USD per 1M tokens, matching the live platform exactly,
- * including the cache-hit input tier. Source:
- * https://api-docs.deepseek.com/quick_start/pricing. Update if it changes.
+ * MiniMax pricing in USD per 1M tokens. M3 (verified June 2026, current promo):
+ * $0.30 input / $1.20 output, $0.06 cached input. Source:
+ * https://devtk.ai/en/models/minimax-m3/ + the MiniMax console. Update if it changes.
  */
 const DEFAULT_PRICING: ModelPricing = {
   label: 'unknown',
-  inputCacheHitPerM: 0.0028,
-  inputCacheMissPerM: 0.14,
-  outputPerM: 0.28,
+  inputCacheHitPerM: 0.06,
+  inputCacheMissPerM: 0.3,
+  outputPerM: 1.2,
 };
 // UI labels are ArksAI-branded (the underlying provider/model id is internal).
-// As we add other engines (e.g. music via Suno), they get ArksAI labels here too.
+// All three tiers are MiniMax-backed. As we add other engines (e.g. music via
+// Suno), they get ArksAI labels here too.
 export const KNOWN_MODELS: Record<string, ModelPricing> = {
-  'deepseek-v4-flash': { label: 'ArksAI Flash', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
-  'deepseek-v4-pro': { label: 'ArksAI Pro', inputCacheHitPerM: 0.003625, inputCacheMissPerM: 0.435, outputPerM: 0.87 },
-  // Orchestrated options. 'arksai-auto' is virtual (cost is computed against the
-  // concrete model the router actually used). 'arksai-max' = MiniMax LLM;
-  // pricing is an estimate until validated against MiniMax billing.
-  'arksai-auto': { label: 'ArksAI Auto', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
-  'arksai-max': { label: 'ArksAI Max', inputCacheHitPerM: 0.2, inputCacheMissPerM: 0.2, outputPerM: 1.1 },
-  // legacy aliases
-  'deepseek-chat': { label: 'ArksAI Flash', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
-  'deepseek-reasoner': { label: 'ArksAI Flash (reasoning)', inputCacheHitPerM: 0.0028, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
+  // 'arksai-auto' is virtual (cost is computed against the concrete model the
+  // router actually used → M3 or Flash). Priced like M3 as a neutral placeholder.
+  'arksai-auto': { label: 'ArksAI Auto', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.3, outputPerM: 1.2 },
+  // ArksAI Max = MiniMax M3 (verified current promo pricing).
+  'arksai-max': { label: 'ArksAI Max', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.3, outputPerM: 1.2 },
+  // ArksAI Flash = MiniMax M2.7-highspeed (fast/cheap tier). Output priced lower
+  // than M3 as an ESTIMATE — validate against MiniMax billing and tune.
+  'arksai-flash': { label: 'ArksAI Flash', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.2, outputPerM: 0.6 },
 };
 
 export function pricingFor(model: string): ModelPricing {
@@ -111,7 +157,7 @@ export interface CostTokens {
   completion: number;
 }
 
-/** Cost in USD mirroring DeepSeek billing, accounting for cached input tokens. */
+/** Cost in USD mirroring MiniMax billing, accounting for cached input tokens. */
 export function computeCost(model: string, t: CostTokens): number {
   const p = pricingFor(model);
   const hit = t.cacheHit ?? 0;
@@ -169,6 +215,9 @@ export type AgentEvent =
   | { type: 'run_started'; runId: string; mode: SessionMode }
   | { type: 'assistant_delta'; runId: string; text: string }
   | { type: 'assistant_message_done'; runId: string; messageId: string }
+  // The current turn was dropped mid-stream (a transient connection close) and is being
+  // redone — clear any partial assistant/tool output so the retry doesn't visibly double.
+  | { type: 'turn_reset'; runId: string }
   | {
       type: 'tool_call_started';
       runId: string;
@@ -206,6 +255,10 @@ export type AgentEvent =
       label: string;
       pct: number;
       detail?: string;
+      /** Best-effort estimated seconds remaining (slightly generous so a run usually
+       *  beats it). Omitted when not estimable; the client ticks it down + degrades
+       *  to a soft "almost there / larger job" when it runs out. */
+      etaSeconds?: number;
     }
   | {
       type: 'run_finished';
@@ -360,6 +413,8 @@ export interface Deployment {
   updatedAt: number;
   /** When this preview auto-expires (ms epoch). null = no expiry (legacy/permanent). */
   expiresAt?: number | null;
+  /** For a built SPA framework (Vite/CRA/…): the built-output subdir to static-serve (e.g. "dist"). null = serve the deployment root. */
+  staticDir?: string | null;
   /** Result of the post-publish smoke test (present on the publish response only). */
   verifyDetail?: string;
 }

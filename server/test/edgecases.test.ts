@@ -53,6 +53,110 @@ test('xlsx: a formula referencing a missing cell + a circular formula do not cra
   assert.doesNotMatch(r, /^Error/);
 });
 
+test('xlsx: a blank spacer row does NOT fail validation (off-by-one trap)', async () => {
+  // SheetJS trims the trailing blank row, so re-read count = sent − 1. The old strict check
+  // failed here forever and drove the model off the tool. Must succeed now.
+  const r = await run(generateSpreadsheetTool, {
+    output: 'spacer.xlsx',
+    sheets: [{
+      name: 'A',
+      columns: [{ header: 'Item' }, { header: 'Val', type: 'number' }],
+      rows: [['Rent', 100], ['Utilities', 50], ['', ''], ['Total', { f: 'SUM(B2:B3)' }]],
+    }],
+  });
+  assert.doesNotMatch(r, /^Error/, r);
+  assert.match(r, /Generated/);
+});
+
+test('xlsx: a formula-cell emitted as a JSON STRING becomes a real formula (M3 encoding)', async () => {
+  // M3 emits {f,v} cells as JSON strings; they must round-trip into real Excel formulas,
+  // not get stored as text (which left the model with 0 live formulas in a live run).
+  await run(generateSpreadsheetTool, {
+    output: 'jsonstr.xlsx',
+    sheets: [{
+      name: 'P',
+      columns: [{ header: 'Item' }, { header: 'A', type: 'number' }, { header: 'B', type: 'number' }],
+      rows: [
+        ['x', 100, '{"f":"B2*2","v":200}'],            // stringified {f,v}
+        ['y', 50, '{"f":"B2+B3","v":150}'],
+      ],
+    }],
+  });
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.read(fs.readFileSync(path.join(ws, 'jsonstr.xlsx')), { type: 'buffer' });
+  const sh = wb.Sheets['P'];
+  assert.equal(sh['C2'].f, 'B2*2'); // real formula, not text
+  assert.equal(sh['C2'].t, 'n'); // numeric (cached result), not a string
+  assert.equal(sh['C2'].v, 200);
+});
+
+test('xlsx: STAGED build — append adds sheets, preserves prior ones, resolves cross-sheet formulas', async () => {
+  // Stage 1: the Assumptions driver sheet.
+  const r1 = await run(generateSpreadsheetTool, {
+    output: 'model.xlsx',
+    sheets: [{ name: 'Assumptions', columns: [{ header: 'Driver' }, { header: 'Value', type: 'number' }], rows: [['Monthly rent', 25000], ['Growth', 0.05]] }],
+  });
+  assert.doesNotMatch(r1, /^Error/);
+
+  // Stage 2: append a schedule sheet that references Assumptions with live formulas.
+  const r2 = await run(generateSpreadsheetTool, {
+    output: 'model.xlsx',
+    append: true,
+    sheets: [{
+      name: 'OPEX',
+      columns: [{ header: 'Line' }, { header: 'M1', type: 'currency' }, { header: 'M2', type: 'currency' }],
+      rows: [
+        ['Rent', { f: 'Assumptions!B2' }, { f: 'Assumptions!B2*(1+Assumptions!B3)' }],
+        ['Total', { f: 'SUM(B2:B2)' }, { f: 'SUM(C2:C2)' }],
+      ],
+    }],
+  });
+  assert.doesNotMatch(r2, /^Error/);
+  assert.match(r2, /2 sheet\(s\) now in the workbook/);
+
+  // Re-open: BOTH sheets present, and the cross-sheet formula's cached value was recalculated.
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.read(fs.readFileSync(path.join(ws, 'model.xlsx')), { type: 'buffer' });
+  assert.deepEqual(wb.SheetNames, ['Assumptions', 'OPEX']);
+  const opex = wb.Sheets['OPEX'];
+  assert.equal(opex['B2'].f, 'Assumptions!B2');
+  assert.equal(opex['B2'].v, 25000); // resolved across sheets
+  assert.equal(opex['C2'].v, 26250); // 25000 * 1.05
+});
+
+test('xlsx: a formula our evaluator cannot compute is PRESERVED, never dropped', async () => {
+  // ExcelJS silently drops a formula cell that has no `result` — so an unsupported formula
+  // (NPV/IRR/VLOOKUP/…) would vanish entirely. The recalc must stamp a placeholder result so
+  // the formula survives (Excel recomputes on open). Regression guard for that fix.
+  await run(generateSpreadsheetTool, {
+    output: 'survive.xlsx',
+    sheets: [{
+      name: 'M',
+      columns: [{ header: 'Line' }, { header: 'V', type: 'number' }],
+      rows: [['cash', 100], ['npv', { f: 'NPV(0.1,B2,B2)' }], ['irr', '=IRR(B2:B3)']],
+    }],
+  });
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.read(fs.readFileSync(path.join(ws, 'survive.xlsx')), { type: 'buffer' });
+  const sh = wb.Sheets['M'];
+  assert.equal(sh['B3'].f, 'NPV(0.1,B2,B2)'); // object-form unsupported formula kept
+  assert.equal(sh['B4'].f, 'IRR(B2:B3)'); // "=..." string-form unsupported formula kept
+});
+
+test('xlsx: total rows are bold + top-ruled (finance-grade styling)', async () => {
+  await run(generateSpreadsheetTool, {
+    output: 'totals.xlsx',
+    sheets: [{ name: 'S', columns: [{ header: 'Item' }, { header: 'Amt', type: 'number' }], rows: [['Coffee', 10], ['Total', { f: 'SUM(B2:B2)' }]] }],
+  });
+  const ExcelJS: any = (await import('exceljs')).default ?? (await import('exceljs'));
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(path.join(ws, 'totals.xlsx'));
+  const ws2 = wb.getWorksheet('S');
+  const totalRow = ws2.getRow(3); // header=1, Coffee=2, Total=3
+  assert.equal(totalRow.getCell(1).font?.bold, true);
+  assert.equal(totalRow.getCell(1).border?.top?.style, 'thin');
+});
+
 // ---------- generate_doc ----------
 test('docx: empty/missing blocks does not crash', async () => {
   const r1 = await run(generateDocTool, { output: 'empty.docx', title: 'T', blocks: [] });

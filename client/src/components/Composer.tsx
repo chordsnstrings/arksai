@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SessionMeta, SessionMode } from '@shared/types';
-import { computeCost, expandTemplate, FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
+import { computeCost, expandTemplate, FALLBACK_MODEL_IDS } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { clearLoopTimer, startLoopTimer } from '../api/useAutomation';
@@ -90,13 +90,6 @@ export function Composer({
   const setMode = async (mode: SessionMode) => {
     if (mode === meta.mode) return;
     upsertSession(await api.patchSession(meta.id, { mode }));
-  };
-
-  const cycleModel = async () => {
-    if (running) return;
-    const ids = modelIds.length ? modelIds : FALLBACK_MODEL_IDS;
-    const next = ids[(ids.indexOf(meta.model) + 1) % ids.length];
-    upsertSession(await api.patchSession(meta.id, { model: next }));
   };
 
   const sys = (t: string, level: 'info' | 'error' = 'info') => addLocalSystem(meta.id, t, level);
@@ -299,18 +292,9 @@ export function Composer({
   const uploadFiles = async (files: FileList | File[]) => {
     const list = [...files];
     if (list.length === 0 || uploading) return;
-    const form = new FormData();
-    for (const file of list) form.append('files', file, file.name);
     setUploading(true);
     try {
-      const res = await fetch(`/api/sessions/${meta.id}/upload`, { method: 'POST', body: form, credentials: 'same-origin' });
-      if (!res.ok) {
-        let message = res.statusText;
-        try {
-          message = (await res.json()).error ?? message;
-        } catch {}
-        throw new Error(message);
-      }
+      await api.uploadSessionFiles(meta.id, list); // retries a transient deploy/restart blip
       // Seamless: surface what's attached and focus the box so the user just types
       // the request — the agent is told about these files automatically on the next run.
       setAttached((prev) => [...prev, ...list.map((f) => f.name)]);
@@ -445,13 +429,10 @@ export function Composer({
           >
             {uploading ? '…' : '+'}
           </button>
-          {/* No mode pills — ArksAI reads the request and moves itself into whatever it
-              needs (build / plan / report / image / …). Power users can still force one
-              with the /mode command. */}
+          {/* No mode pills and no model picker — ArksAI reads the request and routes itself
+              (build / plan / report / image / …) and picks the right model (M3 vs fast)
+              automatically. Power users can still force them with /mode and /model. */}
           <span className="spacer" />
-          <button className="model-badge" onClick={cycleModel} title={`${meta.model} — click to switch model`}>
-            {modelLabel(meta.model)}
-          </button>
           <button className="send-btn" disabled={!text.trim() || (running && !isCommand)} onClick={send}>
             {running && !isCommand ? '…' : 'Send'}
           </button>

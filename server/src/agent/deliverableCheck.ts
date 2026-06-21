@@ -73,7 +73,41 @@ function inkCoverage(pix: any): number {
   }
 }
 
-async function rasterizePdf(abs: string): Promise<{ pngs: Buffer[]; pages: number; coverage: number[] }> {
+/** Vertical extent of content: the fraction of page HEIGHT at which the last row
+ *  carrying real ink sits. A full page reads ~0.95; a page whose content stops a
+ *  third of the way down (a stranded short section + a big blank bottom) reads ~0.3.
+ *  This is what catches an UNDER-FILLED page that inkCoverage alone misses (dense
+ *  top, empty bottom can still have moderate overall coverage). */
+function contentBottomExtent(pix: any): number {
+  try {
+    const px: Uint8Array = pix.getPixels();
+    const comps: number = pix.getNumberOfComponents();
+    const w: number = pix.getWidth();
+    const h: number = pix.getHeight();
+    const stride: number = typeof pix.getStride === 'function' ? pix.getStride() : w * comps;
+    if (!px?.length || comps < 3 || !h || !w) return 1;
+    let lastInkRow = 0;
+    for (let y = 0; y < h; y++) {
+      let ink = 0;
+      let seen = 0;
+      const base = y * stride;
+      for (let x = 0; x < w; x += 4) {
+        const i = base + x * comps;
+        if (i + 2 >= px.length) break;
+        const lum = (px[i] + px[i + 1] + px[i + 2]) / 3;
+        if (lum < 200) ink++;
+        seen++;
+      }
+      // a row "has content" if >0.3% of its sampled pixels are ink (ignore stray specks)
+      if (seen && ink / seen > 0.003) lastInkRow = y;
+    }
+    return (lastInkRow + 1) / h;
+  } catch {
+    return 1; // never block on a measurement failure
+  }
+}
+
+async function rasterizePdf(abs: string): Promise<{ pngs: Buffer[]; pages: number; coverage: number[]; extent: number[] }> {
   // mupdf is ESM with top-level await. Our server is CommonJS, so a normal `import()` gets
   // transpiled to require() and fails ("require() cannot be used on an ESM graph with
   // top-level await"). A Function-constructed import() stays a TRUE dynamic import that
@@ -84,13 +118,15 @@ async function rasterizePdf(abs: string): Promise<{ pngs: Buffer[]; pages: numbe
   const pages = doc.countPages();
   const pngs: Buffer[] = [];
   const coverage: number[] = [];
+  const extent: number[] = [];
   for (let i = 0; i < Math.min(pages, MAX_PAGES); i++) {
     const page = doc.loadPage(i);
     const pix = page.toPixmap(mupdf.Matrix.scale(1.6, 1.6), mupdf.ColorSpace.DeviceRGB, false, true);
     coverage.push(inkCoverage(pix));
+    extent.push(contentBottomExtent(pix));
     pngs.push(Buffer.from(pix.asPNG()));
   }
-  return { pngs, pages, coverage };
+  return { pngs, pages, coverage, extent };
 }
 
 /**
@@ -108,6 +144,31 @@ export function detectEmptyPages(coverage: number[], threshold = 0.006): string[
       out.push(
         `p${i + 1}: near-empty page (almost no content) — don't strand a lonely heading/line on its own ` +
           `page; let the surrounding sections FLOW to fill it or merge it into the previous page.`,
+      );
+    }
+  }
+  return out;
+}
+
+/**
+ * Deterministic under-fill check: flag an INTERIOR page whose content stops well
+ * before the bottom (a short stranded section + a large blank lower region) — the
+ * "≥60% page fill" rule the user asked for, which inkCoverage misses (a dense top +
+ * empty bottom still has moderate coverage). The cover (page 1) and the LAST page (a
+ * report legitimately ends partway down its final page) are exempt. Pure + tested.
+ */
+export function detectUnderfilledPages(extent: number[], minFill = 0.6): string[] {
+  const out: string[] = [];
+  const last = extent.length - 1;
+  for (let i = 0; i < extent.length; i++) {
+    if (i === 0 || i === last) continue; // skip cover + final page
+    const e = extent[i];
+    // 0.08..minFill = a real (not blank) page that nonetheless ends high, leaving a big gap.
+    if (e >= 0.08 && e < minFill) {
+      out.push(
+        `p${i + 1}: under-filled — content ends at ~${Math.round(e * 100)}% of the page height, leaving a large ` +
+          `blank lower band. Every interior page must be ≥~60% filled: pull the next section up so it FLOWS onto ` +
+          `this page, lengthen the section, or rebalance so a short section doesn't strand a half-empty page.`,
       );
     }
   }
@@ -232,6 +293,40 @@ function parseAddr(addr: string): { col: number; row: number } | null {
  * a numeric grid. Plain data tables (no derived rows, no assumptions sheet) are never flagged.
  * Pure + synchronous so it's trivially unit-testable. Takes an already-parsed SheetJS workbook.
  */
+/**
+ * Detect decorative banner/separator rows INSIDE a sheet's data (e.g. a cell like
+ * "── CASH FLOW (AED) ──" or "═══════"). These shift every row down and break the
+ * model's absolute formula references (REVENUE ends up pointing at the wrong row — a
+ * recurring bug). Unambiguous: only flags real box-drawing / long-dash runs, never
+ * legitimate data. Pure + exported for tests. Returns one defect line per sheet hit.
+ */
+export function detectBannerRows(wb: any): string[] {
+  const out: string[] = [];
+  const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
+  const banner = /[─━═]{3,}|[—–]{4,}|^[\s_*=~-]{8,}$/; // box-drawing run, long em/en-dash run, or a rule of -/=/_
+  for (const name of names) {
+    const sh = wb?.Sheets?.[name];
+    if (!sh) continue;
+    let hit = '';
+    for (const addr of Object.keys(sh)) {
+      if (addr[0] === '!') continue;
+      const v = sh[addr]?.v;
+      if (typeof v === 'string' && banner.test(v.trim())) {
+        hit = v.trim().slice(0, 40);
+        break;
+      }
+    }
+    if (hit) {
+      out.push(
+        `Sheet "${name}" has a decorative banner/separator row ("${hit}…") inside its data — REMOVE it: it pushes every ` +
+          `row down and breaks absolute formula references (e.g. REVENUE pointing at the wrong Assumptions row). Keep the ` +
+          `column headers as row 1 and data from row 2; put the title in the tab name, not a banner row.`,
+      );
+    }
+  }
+  return out;
+}
+
 export function auditFormulaModel(wb: any): { isModel: boolean; reason: string } {
   let formulas = 0;
   let numericTotal = 0;
@@ -292,6 +387,156 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
   return { isModel: false, reason: '' };
 }
 
+// A first-cell text that's acting as a SECTION DIVIDER inside a sheet's data — these shift
+// every following row down and corrupt absolute formula references. Catches em-dash/rule
+// wrappers ("—— REVENUE ——", "════"), a "Section N" label, or an ALL-CAPS phrase
+// ("SPACE & LEASE", "REVENUE DRIVERS", "COST OF GOODS SOLD").
+const SECTION_LABEL_RE =
+  /^[\s—–=]*[—–=]{2,}[\s\S]*$|[—–=]{2,}[\s—–=]*$|^\s*section\b/i;
+const ALLCAPS_SECTION_RE = /^[A-Z][A-Z0-9 &/().,'’-]{5,}$/;
+
+/**
+ * Flag plain-text / dash section-divider rows inside a sheet (the cause we saw live: an
+ * interior label-only row like "SPACE & LEASE" or "—— REVENUE ——" pushed the data rows
+ * down so the model's =Assumptions!$B$N references landed on the wrong cells → 0s and wrong
+ * totals). A section row = an INTERIOR row (not the header, not the last row) whose first
+ * cell is one of those labels and which carries NO numeric cells. Pure; one defect per sheet.
+ */
+export function detectSectionRows(wb: any): string[] {
+  const out: string[] = [];
+  const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
+  for (const name of names) {
+    const sh = wb?.Sheets?.[name];
+    if (!sh) continue;
+    // group cells by row: first text label + whether the row has any numbers
+    const rows = new Map<number, { label?: string; labelCol: number; hasNum: boolean }>();
+    let maxRow = 1;
+    for (const addr of Object.keys(sh)) {
+      if (addr[0] === '!') continue;
+      const p = parseAddr(addr);
+      if (!p) continue;
+      maxRow = Math.max(maxRow, p.row);
+      let r = rows.get(p.row);
+      if (!r) { r = { labelCol: Infinity, hasNum: false }; rows.set(p.row, r); }
+      const c = sh[addr];
+      if (c?.t === 'n' && typeof c?.v === 'number') r.hasNum = true;
+      const isText = (c?.t === 's' || c?.t === 'str') && typeof c?.v === 'string' && c.v.trim();
+      if (isText && p.col < r.labelCol) { r.labelCol = p.col; r.label = String(c.v).trim(); }
+    }
+    const sheetHasNums = [...rows.values()].some((r) => r.hasNum);
+    if (!sheetHasNums) continue; // a pure text sheet isn't a calc grid
+    let hit = '';
+    for (const [rn, r] of rows) {
+      if (rn <= 1 || rn >= maxRow) continue; // skip header + last row
+      if (r.hasNum || !r.label) continue; // a divider carries no numbers
+      if (SECTION_LABEL_RE.test(r.label) || ALLCAPS_SECTION_RE.test(r.label)) { hit = r.label.slice(0, 40); break; }
+    }
+    if (hit)
+      out.push(
+        `Sheet "${name}" has a section/divider row ("${hit}…") sitting inside the data — REMOVE it. ` +
+          `A label-only row pushes every following row down, so absolute references like Assumptions!$B$5 point ` +
+          `at the wrong cell (this is what made rent/occupancy read 0 and totals wrong). Keep ONE header on row 1, ` +
+          `data from row 2 with no divider rows; put a section name in the tab name or a separate sheet.`,
+      );
+  }
+  return out;
+}
+
+const SANITY_DERIVED_RE = DERIVED_LABEL_RE; // a derived row reading 0 is a broken reference
+const median = (xs: number[]): number => {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+// A row whose label is legitimately a RATIO / PERCENT / RATE (so a 0<v<1 value is correct,
+// not a leaked rate) — exempt from the rate-leak check.
+const RATIO_LABEL_RE = /margin|ratio|%|percent|\brate\b|growth|yield|markup|discount|share|utilis|utiliz|effective|\btax\b|\bvat\b|multiple|per\s|index|factor/i;
+// A row whose label is a MONEY line — a 0<v<1 here is almost certainly a leaked rate.
+const MONEY_LABEL_RE = /revenue|sales|cogs|\bcost|rent|salar|wage|payroll|\bfee|expense|lease|utilit|insuranc|marketing|inventory|capex|opex|purchase|spend|\bprice|deposit|income|cash|ebitda|profit|payment|amount/i;
+// A row whose label is a roll-up TOTAL — legitimately much larger than line items, so it's
+// exempt from the per-row OUTLIER check (an annual total in a monthly grid isn't "absurd").
+const TOTAL_LABEL_RE = /\b(total|subtotal|sum|grand|annual|year|3[- ]?yr|cumulative)\b/i;
+// Freeform KPI/dashboard sheets show ratios + headline numbers in tile layouts, so the
+// row-label heuristic doesn't apply — skip them (the real errors live in the schedule sheets).
+const SKIP_SHEET_RE = /dashboard|cover|\bkpi\b|overview|snapshot|chart/i;
+
+/**
+ * Numeric SANITY gate (pure): catch numbers that CAN'T be right even though the file is
+ * formula-driven and renders — the live failure mode (a cross-sheet formula that landed on the
+ * wrong cell). Reads the SheetJS computed values. Calibrated against a known-BROKEN model (must
+ * fire) AND a known-GOOD one (must stay quiet), so it doesn't cause needless revise churn:
+ *  1) OUTLIER — ROW-WISE: a line item's own periods are the baseline; a cell ≥ 200× the row's
+ *     median (and ≥ 1000 abs) is a mis-reference (a 140,000,000 POS fee among ~1,500 siblings).
+ *     Row-wise (not column-wise) so a legitimately large annual-total COLUMN isn't flagged.
+ *     Total/roll-up rows are skipped (a total is meant to dwarf the lines).
+ *  2) RATE-LEAK — a cell 0 < |v| < 1 on a MONEY-labelled row (revenue/cost/rent/fee…) that is
+ *     NOT a ratio/%/margin row → a rate/percent leaked where a value belongs (revenue = 0.30).
+ *  3) DERIVED-ZERO — a Total/Net/Balance row that's ALL zero while the sheet has real numbers.
+ * Assumptions/driver/input sheets are skipped (they legitimately hold rates + mixed scales).
+ */
+export function auditNumericSanity(wb: any): string[] {
+  const findings: string[] = [];
+  const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
+  for (const name of names) {
+    if (MODEL_SHEET_RE.test(name) || SKIP_SHEET_RE.test(name)) continue;
+    const sh = wb?.Sheets?.[name];
+    if (!sh) continue;
+    const rows = new Map<number, { label?: string; labelCol: number; cells: { col: number; v: number; addr: string }[] }>();
+    let sheetHasNonzero = false;
+    for (const addr of Object.keys(sh)) {
+      if (addr[0] === '!') continue;
+      const p = parseAddr(addr);
+      if (!p) continue;
+      const c = sh[addr];
+      let r = rows.get(p.row);
+      if (!r) { r = { labelCol: Infinity, cells: [] }; rows.set(p.row, r); }
+      if (c?.t === 'n' && typeof c?.v === 'number') {
+        r.cells.push({ col: p.col, v: c.v, addr });
+        if (c.v !== 0) sheetHasNonzero = true;
+      } else {
+        const isText = (c?.t === 's' || c?.t === 'str') && typeof c?.v === 'string' && c.v.trim();
+        if (isText && p.col < r.labelCol) { r.labelCol = p.col; r.label = String(c.v).trim(); }
+      }
+    }
+    const outliers: string[] = [];
+    const leaks: string[] = [];
+    const zeroRows: string[] = [];
+    for (const r of rows.values()) {
+      const isTotal = !!r.label && TOTAL_LABEL_RE.test(r.label);
+      const isRatio = !!r.label && RATIO_LABEL_RE.test(r.label);
+      const isMoney = !!r.label && MONEY_LABEL_RE.test(r.label);
+      // (1) row-wise outlier — skip total rows (a total legitimately dwarfs the lines)
+      if (!isTotal && r.cells.length >= 4) {
+        const mags = r.cells.map((x) => Math.abs(x.v)).filter((m) => m > 0);
+        const med = median(mags);
+        if (med > 0)
+          for (const { v, addr } of r.cells)
+            if (Math.abs(v) >= 1000 && Math.abs(v) >= 200 * med) outliers.push(`${addr}=${Math.round(v).toLocaleString()}`);
+      }
+      // (2) rate-leak — a money line (not a ratio) whose WHOLE row (≥4 cells) is sub-1: a real
+      // leaked rate (revenue 0.30 across every month), not a stray ratio/per-unit cell.
+      if (isMoney && !isRatio && r.cells.length >= 4 && r.cells.every((c) => Math.abs(c.v) > 0 && Math.abs(c.v) < 1))
+        for (const { v, addr } of r.cells) leaks.push(`${addr}=${v}`);
+      // (3) derived row computing to all-zero
+      if (sheetHasNonzero && r.label && SANITY_DERIVED_RE.test(r.label) && !isRatio && r.cells.length >= 1 && r.cells.every((c) => c.v === 0))
+        zeroRows.push(r.label.slice(0, 28));
+    }
+    const parts: string[] = [];
+    if (outliers.length) parts.push(`absurd value(s) ${outliers.slice(0, 4).join(', ')} (a mis-referenced formula)`);
+    if (leaks.length) parts.push(`money cell(s) ${leaks.slice(0, 4).join(', ')} under 1 — a rate/% leaked in where a value belongs`);
+    if (zeroRows.length) parts.push(`derived row(s) "${[...new Set(zeroRows)].slice(0, 4).join('", "')}" computing to 0`);
+    if (parts.length)
+      findings.push(
+        `Sheet "${name}" has numbers that can't be right: ${parts.join('; ')}. Re-check each cell's formula — ` +
+          `it is almost certainly pointing at the WRONG cell (a rate/% cell or a row shifted by a divider) instead ` +
+          `of the intended Assumptions/schedule value. Fix the reference so the number is realistic; recompute.`,
+      );
+  }
+  return findings.slice(0, 4);
+}
+
 // ---------------------------------------------------------------- main
 
 export async function checkDeliverable(abs: string, kind: DeliverableKind, signal: AbortSignal): Promise<DeliverableQC> {
@@ -332,6 +577,17 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
             `so changing one assumption flows through. Keep the same structure and styling; include the cached result ` +
             `"v" so the preview shows numbers.`,
         );
+      }
+      // Banner/separator rows shift cells down and corrupt formula references — flag them.
+      seedDefects.push(...detectBannerRows(wb));
+      // Plain-text/dash SECTION rows do the same row-shift damage — flag them too.
+      seedDefects.push(...detectSectionRows(wb));
+      // NUMERIC SANITY: a formula-driven model that still shows impossible numbers (a 140M
+      // line, a money cell < 1, a Total computing to 0) — a mis-referenced formula. The
+      // vision gate renders the computed value and can rationalise it, so this deterministic
+      // read of the values catches it even with no vision egress.
+      seedDefects.push(...auditNumericSanity(wb));
+      if (seedDefects.length) {
         base.designVerdict = 'revise';
         base.designDefects = [...seedDefects];
       }
@@ -349,11 +605,12 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
       pngs = r.pngs;
       base.pages = r.pages;
       // Deterministic, model-free structural pre-check: flag lonely near-empty
-      // interior pages instantly (no vision call) so they're caught even when the
+      // interior pages AND under-filled pages (content stops high, big blank bottom —
+      // the ≥60% fill rule) instantly (no vision call) so they're caught even when the
       // vision model is unavailable and so a revise round can fix them cheaply.
-      const empties = detectEmptyPages(r.coverage);
-      if (empties.length) {
-        seedDefects.push(...empties);
+      const structural = [...detectEmptyPages(r.coverage), ...detectUnderfilledPages(r.extent)];
+      if (structural.length) {
+        seedDefects.push(...structural);
         base.designVerdict = 'revise';
         base.designDefects = [...seedDefects];
       }

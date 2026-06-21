@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVlSpec, renderChartSvg, type ChartType } from '../src/agent/tools/chart';
+import { buildVlSpec, renderChartSvg, makeSvgResponsive, chartSize, type ChartType } from '../src/agent/tools/chart';
 
 const sample = {
   bar: { type: 'bar' as ChartType, data: [{ m: 'Jan', v: 10 }, { m: 'Feb', v: 22 }], x: 'm', y: 'v', value_labels: true },
@@ -50,6 +50,34 @@ test('buildVlSpec falls back to a (bar) chart on an unknown type — never throw
   assert.equal(typeof spec, 'object');
   // produces a usable bar-style spec rather than failing the chart request
   assert.ok(JSON.stringify(spec).includes('"bar"'));
+});
+
+test('chartSize defaults to a full-measure width and floors a tiny request', () => {
+  assert.equal(chartSize({ type: 'bar', data: [] }).width, 600); // full text-column default
+  assert.equal(chartSize({ type: 'bar', data: [], width: 120 }).width, 360); // floored, never tiny
+  assert.equal(chartSize({ type: 'bar', data: [], height: 50 }).height, 220); // floored
+});
+
+test('chartSize grows height with rows for bar_h / heatmap (avoids label collisions)', () => {
+  const few = chartSize({ type: 'bar_h', data: Array.from({ length: 3 }, (_, i) => ({ i })) });
+  const many = chartSize({ type: 'bar_h', data: Array.from({ length: 20 }, (_, i) => ({ i })) });
+  assert.equal(many.height > few.height, true);
+});
+
+test('makeSvgResponsive makes the SVG fluid but keeps the viewBox', () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="589" height="333" viewBox="0 0 589 333"><g/></svg>';
+  const out = makeSvgResponsive(svg);
+  assert.match(out, /style="[^"]*width:100%/);
+  assert.match(out, /height:auto/);
+  assert.match(out, /max-width:589px/); // capped at the natural size (no blurry upscaling)
+  assert.match(out, /viewBox="0 0 589 333"/); // viewBox preserved so it scales
+});
+
+test('makeSvgResponsive replaces an existing inline style, not duplicates it', () => {
+  const svg = '<svg width="600" height="300" viewBox="0 0 600 300" style="width:600px">x</svg>';
+  const out = makeSvgResponsive(svg);
+  assert.equal((out.match(/style="/g) || []).length, 1);
+  assert.match(out, /width:100%/);
 });
 
 // Real Vega render (no browser / canvas). Covers the types Claude used + more.

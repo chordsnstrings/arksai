@@ -155,24 +155,70 @@ export function fileToDataUrl(absPath: string): string {
 
 // ----------------------------------------------------------- Image generation
 
+/**
+ * Pure builder for the MiniMax image_generation request body. Kept separate so
+ * the reference-image branch is unit-testable without a live key.
+ *
+ * `subjectReferenceDataUri` (when present) is a base64 data URI (or a public
+ * URL) of a reference image — MiniMax carries a PERSON/character's likeness
+ * across via `subject_reference`. Only ONE reference is supported; when absent
+ * the field is omitted entirely (back-compat with the plain text-to-image call).
+ *
+ * NOTE: subject_reference shape validated against MiniMax docs; confirm live on the Droplet.
+ */
+export function buildImageRequest(
+  model: string,
+  prompt: string,
+  opts: { aspectRatio?: string; n?: number; subjectReferenceDataUri?: string },
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    model,
+    prompt,
+    aspect_ratio: opts.aspectRatio || '1:1',
+    n: Math.min(Math.max(opts.n ?? 1, 1), 4),
+    response_format: 'url',
+  };
+  if (opts.subjectReferenceDataUri) {
+    body.subject_reference = [{ type: 'character', image_file: opts.subjectReferenceDataUri }];
+  }
+  return body;
+}
+
 export async function generateImage(
   prompt: string,
-  opts: { aspectRatio?: string; n?: number },
+  opts: { aspectRatio?: string; n?: number; subjectReference?: string },
   repoDir: string,
   signal: AbortSignal,
 ): Promise<EngineResult> {
   try {
+    // Optional reference image (absolute path, already resolved by the caller):
+    // read it and encode as a base64 data URI for subject_reference. Fail soft.
+    let subjectReferenceDataUri: string | undefined;
+    if (opts.subjectReference) {
+      try {
+        const ext = path.extname(opts.subjectReference).slice(1).toLowerCase();
+        const mime = ext === 'jpg' || ext === 'jpeg' ? 'jpeg' : ext === 'webp' ? 'webp' : 'png';
+        const b64 = fs.readFileSync(opts.subjectReference).toString('base64');
+        subjectReferenceDataUri = `data:image/${mime};base64,${b64}`;
+      } catch (e: any) {
+        return {
+          ok: false,
+          files: [],
+          error: `couldn't read the reference image "${opts.subjectReference}" — ${String(e?.message ?? e)}`,
+        };
+      }
+    }
     const res = await fetch(`${base()}/image_generation`, {
       method: 'POST',
       headers: authHeaders(),
       signal,
-      body: JSON.stringify({
-        model: config.minimaxImageModel,
-        prompt,
-        aspect_ratio: opts.aspectRatio || '1:1',
-        n: Math.min(Math.max(opts.n ?? 1, 1), 4),
-        response_format: 'url',
-      }),
+      body: JSON.stringify(
+        buildImageRequest(config.minimaxImageModel, prompt, {
+          aspectRatio: opts.aspectRatio,
+          n: opts.n,
+          subjectReferenceDataUri,
+        }),
+      ),
     });
     const data: any = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, files: [], error: `HTTP ${res.status}: ${JSON.stringify(data).slice(0, 300)}` };

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { repoRoot } from '../../config';
 import { resolveInWorkspace, type ToolDef } from './common';
+import { ICON_NAMES } from './icons';
 
 const UI_KIT_DIR = path.join(repoRoot, 'server', 'assets', 'ui-kit');
 const FONTS_DIR = path.join(repoRoot, 'server', 'assets', 'report-fonts');
@@ -63,16 +64,25 @@ export const addUiKitTool: ToolDef = {
       `CRITICAL: keep the kit in (or under) the directory your app serves — if you serve a subfolder like public/, ` +
       `install it there (dest "public/ui-kit"). Root-absolute "/${destRel}/..." 404s when served from a subdir — ` +
       `the #1 cause of an unstyled, failed deploy.\n` +
-      `THEME: <html data-theme="aurora"> — pick ONE personality (aurora·emerald·sunset·mono·editorial·noir·ocean) ` +
-      `and offer the user a quick choice; add " dark" for dark mode; override --accent for a brand.\n` +
+      `House style is MINIMAL · MODERN · MUTED — soft desaturated accents, light layouts, type-first. ` +
+      `DESIGN KIT (fastest — a complete vetted look in one token): <html data-kit="minimal"> — pick ONE of 5: ` +
+      `minimal (clean modern SaaS) · paper (refined serif) · linen (warm editorial) · calm (quiet wellness) · ` +
+      `harbor (corporate clean). Each bundles a muted palette+radius+shadow+fonts; still override --accent for a brand colour.\n` +
+      `OR mix-and-match — THEME (muted colour, 10): <html data-theme="slate"> from slate·ink·indigo·ocean·sage·teal·` +
+      `clay·stone·plum·olive (add " dark" for dark mode); + TYPE (font pairing, 8): <html data-type="editorial"> from ` +
+      `geometric·editorial·clean·startup·tech·journal·warm·humanist. ` +
+      `Offer the user ONE quick curated look (a kit, or a colour+pairing) with a strong default matched to the brand/audience. ` +
+      `Keep it restrained — one quiet accent used ~5–10%, never a loud/saturated fill.\n` +
       `BUILD WITH the tokens (--accent/--ink/--surface/--s-*/--t-*/--r-*/--shadow-*/--ease*; the type scale is ` +
       `already fluid/responsive); COMPONENTS (.btn .card .field .input .switch .segmented .tabs .table .badge ` +
       `.alert .avatar .progress .kpi .price .quote .menu dialog .accordion .toast — all with states); and SECTION ` +
       `PATTERNS (.hero/.hero-split/.hero-center .features .bento .stat-band .pricing .testimonials .cta[.is-accent] ` +
       `.logos .split .footer). COMPOSE these blocks into a bespoke page — never output a generic centered-hero ` +
       `template. MOTION: add [data-reveal] (scroll-in) and .animate-in (entrance); use ONE signature moment per page ` +
-      `(a gradient .cta.is-accent, a .bento, or a hero visual), restraint elsewhere. Icons: inline a symbol's ` +
-      `<path>s from ${destRel}/icons.svg (external <use href> does NOT render reliably).`
+      `(a gradient .cta.is-accent, a .bento, or a hero visual), restraint elsewhere.\n` +
+      `ICONS (${ICON_NAMES.length} curated Lucide line icons in ${destRel}/icons.svg — use these, don't hand-roll SVGs): ` +
+      `in a browser reference one with <svg class="ico" width="24" height="24"><use href="${destRel}/icons.svg#NAME"/></svg> ` +
+      `— symbols stroke with currentColor so set the icon's CSS \`color\` to recolour it. Available: ${ICON_NAMES.join(', ')}.`
     );
   },
 };

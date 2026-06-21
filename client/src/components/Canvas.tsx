@@ -206,7 +206,7 @@ export function Canvas({ sessionId }: { sessionId: string }) {
             </button>
           )}
         </div>
-        <span className="spacer" />
+        <div className="canvas-head-mid">
         {tab === 'preview' && (
           <>
             {detectedPorts.map((p) => (
@@ -238,7 +238,8 @@ export function Canvas({ sessionId }: { sessionId: string }) {
             ↻
           </button>
         )}
-        <button className="canvas-btn" onClick={() => toggleCanvas(false)} title="Close">
+        </div>
+        <button className="canvas-btn canvas-close" onClick={() => toggleCanvas(false)} title="Close">
           ✕
         </button>
       </div>

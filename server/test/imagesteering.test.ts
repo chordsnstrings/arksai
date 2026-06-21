@@ -35,3 +35,18 @@ test('marketing persona forbids a CSS/SVG fallback and treats an error as RETRY,
   assert.match(m, /NOT mean the tool is unavailable/i);
   assert.match(m, /NEVER substitute an HTML\/CSS\/SVG graphic/i);
 });
+
+// PHASE 4 — when no expertise is injected and the ask is too thin, the chat agent asks ONE
+// crisp clarifying question (never refuses, never blind-guesses); a clear ask still builds.
+test('chat prompt carries the vague-clarify behavior (ask one question, never guess/refuse)', () => {
+  const p = buildSystemPrompt(chatSession, '/tmp', '');
+  // the dedicated section exists and frames clarify-then-build, not refuse/guess
+  assert.match(p, /When the ask is vague, get the context FIRST/);
+  assert.match(p, /don't guess blindly/i);
+  // the Phase-4 reinforcement: exactly ONE question on a genuinely thin message,
+  // and a clear subject is NOT treated as vague
+  assert.match(p, /lead with exactly ONE warm, specific question/i);
+  assert.match(p, /already\s+names a clear subject is NOT vague/i);
+  // stays the expert — never the refusal path
+  assert.doesNotMatch(p, /I can't help with that/i);
+});

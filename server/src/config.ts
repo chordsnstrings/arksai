@@ -68,7 +68,13 @@ export const config = {
   sunoApiKey: process.env.SUNO_API_KEY || '',
   sunoBaseUrl: process.env.SUNO_BASE_URL || 'https://api.sunoapi.org',
   sunoCallbackUrl: process.env.SUNO_CALLBACK_URL || 'https://arksai.example.com/suno/callback',
-  // Estimated USD cost per generated track, added to the session cost.
+  // Default Suno model id. V5 is the current flagship (superior expression, faster,
+  // 1000-char style budget, up to ~8-min songs). Verified against the live sunoapi.org
+  // docs (model ids: V5 / V4_5PLUS / V4_5ALL / V4_5 / V4; V4 is legacy with a 200-char
+  // style cap). Override with SUNO_MODEL if a newer id ships.
+  sunoModel: process.env.SUNO_MODEL || 'V5',
+  // Estimated USD cost per generated track, added to the session cost. NB: a generate call
+  // returns ~2 tracks, so a single generation costs ≈ 2× this.
   sunoCostPerTrack: Number(process.env.SUNO_COST_PER_TRACK || '0.08') || 0.08,
   // MiniMax (LLM, voice/audio, music, video/Hailuo). Registered in the engine
   // roster when the key is set; specific tools wired per capability later.
@@ -99,6 +105,29 @@ export const config = {
   // new env var; set a dedicated ENCRYPTION_KEY to rotate independently of login.
   encryptionKey: process.env.ENCRYPTION_KEY || process.env.APP_PASSWORD || '',
   cookieSecure: process.env.COOKIE_SECURE === 'true',
+  // Self-healing: when true, errors/timeouts/cost-spikes are captured as incidents
+  // (and, if a GitHub repo + token are set, an auto-fix issue is filed for a fresh
+  // one). OFF by default — the kill switch for the whole loop. Set AUTO_HEAL=true.
+  autoHeal: process.env.AUTO_HEAL === 'true',
+  // Repo the auto-fix issues are filed against (owner/name); the Claude Code trigger
+  // watches it. Defaults to this project's repo.
+  autoHealRepo: process.env.AUTO_HEAL_REPO || 'chordsnstrings/arksai',
+  // Public base URL of this app — used to build OAuth redirect URIs for ad-platform
+  // connectors (must be HTTPS and registered in each provider's app). Defaults to the
+  // live host; override per environment.
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL || 'https://arksai.studio').replace(/\/$/, ''),
+  // Key used to encrypt connector OAuth tokens at rest (AES-256-GCM). Any string;
+  // it's hashed to 32 bytes. MUST be set in production — without it connectors are
+  // disabled so tokens are never stored in plaintext.
+  connectorEncKey: process.env.CONNECTOR_ENC_KEY || '',
+  // Ad-platform connector apps (each connector lights up only when its creds are set).
+  metaAppId: process.env.META_APP_ID || '',
+  metaAppSecret: process.env.META_APP_SECRET || '',
+  googleAdsClientId: process.env.GOOGLE_ADS_CLIENT_ID || '',
+  googleAdsClientSecret: process.env.GOOGLE_ADS_CLIENT_SECRET || '',
+  googleAdsDeveloperToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN || '',
+  tiktokClientKey: process.env.TIKTOK_CLIENT_KEY || '',
+  tiktokClientSecret: process.env.TIKTOK_CLIENT_SECRET || '',
   // Scheduled analytics digest: how often a platform snapshot is taken (hours), and an
   // optional webhook (Slack/Zapier/…) the digest is pushed to. Digests are always stored
   // in-app for the operator regardless; the webhook is opt-in.
@@ -107,6 +136,25 @@ export const config = {
   // Gating visual design-critique loop (needs a vision model). On by default;
   // set AGENT_DESIGN_GATE=false to disable (e.g. keyless dev).
   designGate: process.env.AGENT_DESIGN_GATE !== 'false',
+  // Auto-expertise router (Phase 1): a free-form message with no picked play
+  // deterministically selects the right expert standards. ON by default; kill
+  // switch EXPERTISE_AUTOROUTE=false for instant rollback to the generic agent.
+  autoExpertise: process.env.EXPERTISE_AUTOROUTE !== 'false',
+  // Confidence → clarify (Phase 4): apply explicit HIGH/MEDIUM/LOW tiers when auto-routing —
+  // HIGH fires the specific task, MEDIUM fires only the department persona (no wrong
+  // specifics), LOW/none injects nothing and leaves the message to the chat prompt's
+  // vague-clarify path (ask ONE crisp question). ON by default; EXPERTISE_CLARIFY=false
+  // reverts to applying whatever the router surfaces (task OR dept) regardless of tier.
+  clarifyExpertise: process.env.EXPERTISE_CLARIFY !== 'false',
+  // Progressive disclosure (Phase 5): the system prompt is assembled from a slim
+  // always-on CORE + on-demand SLICES (report page-mechanics, design-system,
+  // capability/tool notes); a slice is included ONLY when the current mode/task
+  // needs it, decided ONCE at prompt-build time (per run + on switch_mode — no
+  // mid-run swapping). A REPORT-mode build still receives EVERY rule it gets today
+  // (byte-equivalent); the saving is NOT loading report/design/tool slices on turns
+  // that don't use them (a plain plan turn, etc.). ON by default; EXPERTISE_PROGRESSIVE
+  // =false returns the full prompt for an instant, diffable rollback.
+  progressiveExpertise: process.env.EXPERTISE_PROGRESSIVE !== 'false',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
   maxIterations: intEnv('MAX_ITERATIONS', 200),
   // When true the agent's shell inherits the FULL process environment (so it
@@ -127,8 +175,8 @@ export function validateConfig() {
       console.warn('[config] APP_PASSWORD not set — using dev default "arksai". Set it in .env.');
     }
   }
-  if (!config.deepseekApiKey) {
-    const msg = 'DEEPSEEK_API_KEY is not set — agent runs will fail until it is provided.';
+  if (!config.minimaxApiKey) {
+    const msg = 'MINIMAX_API_KEY is not set — agent runs will fail until it is provided (MiniMax is the LLM engine).';
     if (isProd) problems.push(msg);
     else console.warn(`[config] ${msg}`);
   }
@@ -141,7 +189,6 @@ export function validateConfig() {
 /** Secret values that must never appear in tool output sent to the model/UI. */
 export function secretValues(): string[] {
   return [
-    config.deepseekApiKey,
     config.githubToken,
     config.appPassword,
     config.serperApiKey,
@@ -149,5 +196,10 @@ export function secretValues(): string[] {
     config.sunoApiKey,
     config.minimaxApiKey,
     config.analyticsDigestWebhook,
+    config.metaAppSecret,
+    config.googleAdsClientSecret,
+    config.googleAdsDeveloperToken,
+    config.tiktokClientSecret,
+    config.connectorEncKey,
   ].filter((s) => s && s.length >= 6);
 }

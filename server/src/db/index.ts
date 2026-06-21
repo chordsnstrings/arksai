@@ -341,6 +341,48 @@ async function migrate() {
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_analytics_digests_gen ON analytics_digests(generated_at)`);
 
+  // Ad-platform connectors — per-ORG OAuth links to Meta/Google/TikTok ad accounts.
+  // Tokens are stored ENCRYPTED (AES-256-GCM); never plaintext. One row per connected
+  // ad account. Org-scoped: an org only ever sees its own connectors.
+  await q(`CREATE TABLE IF NOT EXISTS connectors(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    account_name TEXT,
+    access_token_enc TEXT NOT NULL,
+    refresh_token_enc TEXT,
+    expires_at ${INT},
+    scopes TEXT,
+    status TEXT NOT NULL,
+    created_by TEXT,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_connectors_org ON connectors(org_id)`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_connectors_uniq ON connectors(org_id, provider, account_id)`);
+
+  // Self-healing: captured errors/timeouts/cost-spikes (METADATA + scrubbed context) the
+  // operator can review and an auto-fix agent can act on. Deduped by fingerprint (count++).
+  await q(`CREATE TABLE IF NOT EXISTS incidents(
+    id TEXT PRIMARY KEY,
+    fingerprint TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    title TEXT NOT NULL,
+    detail TEXT,
+    context TEXT,
+    org_id TEXT,
+    session_id TEXT,
+    count ${INT} NOT NULL,
+    status TEXT NOT NULL,
+    issue_url TEXT,
+    first_seen ${INT} NOT NULL,
+    last_seen ${INT} NOT NULL
+  )`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_incidents_fp ON incidents(fingerprint)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status, last_seen)`);
+
   // Small global key/value store (e.g. the operator's chosen display name — the operator
   // logs in via APP_PASSWORD and has no users row, so it can't live on a user).
   await q(`CREATE TABLE IF NOT EXISTS app_settings(
@@ -376,6 +418,7 @@ async function migrate() {
     'schedules:org_id TEXT',
     'schedules:tz TEXT',
     `deployments:expires_at ${INT}`,
+    'deployments:static_dir TEXT',
   ]) {
     const cut = spec.indexOf(':');
     const table = spec.slice(0, cut);

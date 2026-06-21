@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { config } from '../../config';
 import { analyzeImage, fileToDataUrl, generateImage, generateVideo, textToSpeech } from '../../engines/minimax';
 import { resolveInWorkspace, type ToolDef } from './common';
@@ -41,8 +42,13 @@ export const seeImageTool: ToolDef = {
 export const generateImageTool: ToolDef = {
   name: 'generate_image',
   description:
-    'Generate an image from a text prompt with the MiniMax image engine (costs money). Use for ' +
-    'logos, icons, illustrations, hero/banner images, placeholders. Saved into the workspace ' +
+    'Generate an image from a text prompt — and optionally make it LIKE an uploaded reference ' +
+    'image via `reference_image`. To create an image "like this one": if the reference is a ' +
+    'PERSON whose look should carry over, pass reference_image (MiniMax carries that ' +
+    "person/character's likeness across; only ONE reference is supported); for general " +
+    'STYLE/composition/palette/scene of a non-person reference, first see_image the reference, ' +
+    'then capture what you saw in the prompt. Uses the MiniMax image engine (costs money). Good ' +
+    'for logos, icons, illustrations, hero/banner images, placeholders. Saved into the workspace ' +
     'images/ folder and offered to the user as downloads — reference them from your code by path.',
   parameters: {
     type: 'object',
@@ -50,6 +56,13 @@ export const generateImageTool: ToolDef = {
       prompt: { type: 'string', description: 'Detailed description of the image to generate.' },
       aspect_ratio: { type: 'string', description: 'e.g. "1:1", "16:9", "9:16", "4:3" (default 1:1).' },
       n: { type: 'number', description: 'How many images (1-4, default 1).' },
+      reference_image: {
+        type: 'string',
+        description:
+          'Optional path to an UPLOADED image to base the new image on (carries a ' +
+          "person/character's likeness across). For matching the general STYLE/scene/palette of a " +
+          'non-person reference, first see_image it and describe that in `prompt` instead.',
+      },
     },
     required: ['prompt'],
   },
@@ -66,9 +79,27 @@ export const generateImageTool: ToolDef = {
         '"Image generation isn\'t enabled on this workspace yet — the operator needs to add the MiniMax API key."'
       );
     }
+    // Optional reference image: resolve the workspace path and confirm it exists
+    // before handing it to the engine, so a bad path is an actionable error here.
+    let subjectReference: string | undefined;
+    if (args.reference_image) {
+      try {
+        const abs = resolveInWorkspace(ctx.repoDir, String(args.reference_image));
+        if (!fs.existsSync(abs)) {
+          return `Error: the reference image "${args.reference_image}" wasn't found in the workspace. Upload it first, then pass its path.`;
+        }
+        subjectReference = abs;
+      } catch (e: any) {
+        return `Error: ${e?.message ?? e}`;
+      }
+    }
     const r = await generateImage(
       String(args.prompt ?? ''),
-      { aspectRatio: args.aspect_ratio ? String(args.aspect_ratio) : undefined, n: Number(args.n) || 1 },
+      {
+        aspectRatio: args.aspect_ratio ? String(args.aspect_ratio) : undefined,
+        n: Number(args.n) || 1,
+        subjectReference,
+      },
       ctx.repoDir,
       ctx.signal,
     );

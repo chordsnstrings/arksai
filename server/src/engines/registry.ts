@@ -2,7 +2,7 @@ import { config } from '../config';
 
 /**
  * The orchestration spine. Each engine declares what it's good at; the
- * DeepSeek orchestrator routes a task to the right one via that engine's
+ * MiniMax-powered orchestrator routes a task to the right one via that engine's
  * tool(s). Adding a new engine (image, video, voice) = one entry here + a
  * tool that calls it. Tools self-gate on availability.
  */
@@ -17,11 +17,11 @@ export interface EngineInfo {
 export function listEngines(): EngineInfo[] {
   return [
     {
-      id: 'deepseek',
-      capability: 'code, reasoning, writing',
+      id: 'minimax',
+      capability: 'code, reasoning, writing, vision, image, speech & video, long-context LLM',
       label: 'ArksAI',
-      provider: 'deepseek',
-      available: !!config.deepseekApiKey,
+      provider: 'minimax',
+      available: !!config.minimaxApiKey,
     },
     {
       id: 'suno',
@@ -29,13 +29,6 @@ export function listEngines(): EngineInfo[] {
       label: 'Suno',
       provider: 'sunoapi.org',
       available: !!config.sunoApiKey,
-    },
-    {
-      id: 'minimax',
-      capability: 'vision, image, speech & video generation, long-context LLM',
-      label: 'MiniMax',
-      provider: 'minimax',
-      available: !!config.minimaxApiKey,
     },
   ];
 }

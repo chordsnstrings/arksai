@@ -45,9 +45,13 @@ const VISION_PROMPT =
 
 export const DESIGN_RUBRIC_PROMPT =
   'You are a senior design director reviewing a screenshot of a UI a junior built. Judge it against ' +
-  'this rubric: typography (clear scale & hierarchy, readable), spacing & alignment (consistent rhythm, ' +
-  'on a grid, not cramped or sparsely empty), visual hierarchy, colour (restrained, strong contrast, ' +
-  'accent used sparingly), component polish & states, and overall "does this look professionally designed". ' +
+  'this rubric: typography-FIRST (a real modular scale, strong but quiet hierarchy, a refined font pairing, ' +
+  'readable measure), spacing & alignment (consistent rhythm on a grid, generous whitespace, not cramped or ' +
+  'sparsely empty), visual hierarchy, colour (a DISTINCTIVE confident palette — flag the generic default ' +
+  'blue/indigo-on-white "AI look" — ONE accent used sparingly), LEGIBILITY (flag ANY text you struggle to ' +
+  'read — washed-out muted/secondary text that nearly vanishes into the background, or light text on a busy ' +
+  'image/photo with no scrim; every line of copy must be clearly readable), component polish & ' +
+  'considered states, and overall "does this look like a top-tier product a senior designer shipped, not a template". ' +
   'Respond EXACTLY in this format and nothing else:\n' +
   'First line: "VERDICT: PASS" if it already looks genuinely well-designed, or "VERDICT: REVISE" if a ' +
   'competent designer would change something.\n' +
@@ -215,11 +219,230 @@ export async function browserSmokeTest(
       }
     }
 
+    // RESPONSIVE (deterministic, no vision): a real product must not overflow
+    // horizontally on a phone. Render at 390px wide and measure content vs viewport;
+    // a layout wider than the screen is a hard responsiveness defect. Reset to desktop
+    // after so the visual design review (below) still sees the desktop composition.
+    let responsiveIssue = '';
+    if (!blank) {
+      try {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.waitForTimeout(450);
+        const ov: any = await page
+          .evaluate(() => {
+            const d: any = (globalThis as any).document;
+            const w: any = globalThis as any;
+            const sw = Math.max(d?.documentElement?.scrollWidth || 0, d?.body?.scrollWidth || 0);
+            return { scrollW: sw, innerW: w.innerWidth || 390 };
+          })
+          .catch(() => ({ scrollW: 0, innerW: 390 }));
+        const over = Math.round((ov.scrollW || 0) - (ov.innerW || 390));
+        if (over > 24)
+          responsiveIssue = `Not responsive — horizontal overflow at 390px: content is ${over}px wider than the screen (the user has to scroll sideways on a phone). Fix with max-width:100%, flex-wrap, fluid units, image/table containers (overflow-x:auto on the container, not the page), and no fixed pixel widths wider than the viewport.`;
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.waitForTimeout(250);
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    // LEGIBLE TEXT (deterministic, no vision): every block of text must contrast with its
+    // background. Muted/secondary text is fine for hierarchy, but washed-out near-background
+    // text (a recurring defect) is illegible — measure WCAG contrast on real text vs its
+    // solid background and flag anything clearly under the legibility floor.
+    let contrastIssues: string[] = [];
+    if (!blank) {
+      try {
+        contrastIssues = (await page.evaluate(() => {
+          const d: any = (globalThis as any).document;
+          const w: any = globalThis as any;
+          const parse = (s: string) => {
+            const m = String(s).match(/rgba?\(([^)]+)\)/);
+            if (!m) return null;
+            const p = m[1].split(',').map((x: string) => parseFloat(x));
+            return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+          };
+          const lum = (c: any) => {
+            const f = (v: number) => {
+              v /= 255;
+              return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+            };
+            return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+          };
+          const ratio = (a: any, b: any) => {
+            const l1 = lum(a),
+              l2 = lum(b);
+            return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+          };
+          const bgOf = (el: any): any => {
+            let e = el;
+            while (e) {
+              const cs = w.getComputedStyle(e);
+              if (cs.backgroundImage && cs.backgroundImage !== 'none') return null; // over an image — can't measure
+              const bg = parse(cs.backgroundColor);
+              if (bg && bg.a > 0.5) return bg;
+              e = e.parentElement;
+            }
+            return { r: 255, g: 255, b: 255, a: 1 };
+          };
+          const bad: string[] = [];
+          const seen: Record<string, boolean> = {};
+          // Include <div> — copy is often placed directly in a div (heroes, cards, bands),
+          // and that text was the gap the legibility gate kept missing.
+          const els = d.querySelectorAll(
+            'p,li,span,a,button,h1,h2,h3,h4,h5,h6,small,label,td,th,blockquote,figcaption,div,strong,em,dt,dd,summary',
+          );
+          for (const el of els) {
+            let direct = '';
+            for (const n of el.childNodes) if (n.nodeType === 3) direct += n.textContent;
+            direct = direct.trim();
+            if (direct.length < 12) continue; // only leaf elements with real direct text
+            const cs = w.getComputedStyle(el);
+            if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.4) continue;
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 10 || rect.height < 6) continue;
+            // Only judge text actually in the viewport's first ~3 screens (visible, real copy).
+            if (rect.bottom < 0 || rect.top > 3000) continue;
+            const fg = parse(cs.color);
+            if (!fg || fg.a < 0.4) continue;
+            const bg = bgOf(el);
+            if (!bg) continue; // text over an image — vision review handles those
+            const cr = ratio(fg, bg);
+            const size = parseFloat(cs.fontSize) || 16;
+            const large = size >= 24 || (size >= 18.66 && parseInt(cs.fontWeight) >= 600);
+            const floor = large ? 3.0 : 4.5;
+            // Tighter slack (0.25) so borderline-illegible copy is caught, not waved through;
+            // 0.5 used to let washed-out text and low-contrast CTAs pass.
+            if (cr < floor - 0.25) {
+              const key = direct.slice(0, 38);
+              if (seen[key]) continue;
+              seen[key] = true;
+              bad.push(`"${key}…" — contrast ${cr.toFixed(1)}:1 (needs ≥${floor}:1, ${size}px)`);
+            }
+            if (bad.length >= 6) break;
+          }
+          return bad;
+        })) as string[];
+      } catch {
+        /* best-effort */
+      }
+    }
+    const contrastIssue = contrastIssues.length
+      ? `Illegible text — these blocks don't contrast with their background (muted text taken too far). Use a readable ink for ALL text (muted ≈ 55–65% black, never a near-background tint); every text must meet WCAG AA (4.5:1 body, 3:1 large). Offenders:\n  - ${contrastIssues.join('\n  - ')}`
+      : '';
+
+    // INTERACTION-STATE LEGIBILITY (deterministic): a button/link whose background
+    // changes on :hover but whose text colour does NOT (or vice-versa) goes
+    // unreadable in the hover state — a real, reported defect the static pass can't
+    // see. Hover each control (real mouse → :hover + CSS vars resolve), measure WCAG
+    // contrast at REST and on HOVER, and flag only a genuine hover REGRESSION (hover
+    // ends below AA *and* is meaningfully worse than rest) — so we catch the
+    // vanishing label without re-flagging resting low-contrast (the static pass's job).
+    let hoverIssues: string[] = [];
+    if (!blank && !signal.aborted) {
+      // Kill transitions/animations so each hovered state is measured at its FINAL
+      // value, not mid-fade (a mid-transition read gives false numbers).
+      await page.addStyleTag({ content: '*{transition-duration:0s !important;animation-duration:0s !important}' }).catch(() => {});
+      // Measures the element's text-vs-background WCAG contrast in its current state.
+      const measure = (el: any) => {
+        const w: any = globalThis as any;
+        const parse = (s: string) => {
+          const m = String(s).match(/rgba?\(([^)]+)\)/);
+          if (!m) return null;
+          const p = m[1].split(',').map((x: string) => parseFloat(x));
+          return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+        };
+        const lum = (c: any) => {
+          const f = (v: number) => {
+            v /= 255;
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+          };
+          return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+        };
+        const ratio = (a: any, b: any) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+        const bgOf = (node: any): any => {
+          let e = node;
+          while (e) {
+            const cs = w.getComputedStyle(e);
+            if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
+            const bg = parse(cs.backgroundColor);
+            if (bg && bg.a > 0.5) return bg;
+            e = e.parentElement;
+          }
+          return { r: 255, g: 255, b: 255, a: 1 };
+        };
+        const cs = w.getComputedStyle(el);
+        const fg = parse(cs.color);
+        if (!fg || fg.a < 0.4) return null;
+        const bg = bgOf(el);
+        if (!bg) return null;
+        const size = parseFloat(cs.fontSize) || 16;
+        const large = size >= 24 || (size >= 18.66 && parseInt(cs.fontWeight) >= 600);
+        return { cr: Math.round(ratio(fg, bg) * 10) / 10, floor: large ? 3.0 : 4.5 };
+      };
+      try {
+        const handles = await page.$$(
+          'a,button,[role="button"],input[type="submit"],input[type="button"],summary,.btn,.cta,.button',
+        );
+        let checked = 0;
+        const seenTxt: Record<string, boolean> = {};
+        for (const h of handles) {
+          if (checked >= 24 || hoverIssues.length >= 5 || signal.aborted) break;
+          // No vertical cap — scrollIntoViewIfNeeded brings a deep control (e.g. a
+          // subscribe button low on the page) into view to hover it. Filter by
+          // visibility + a sane size; skip logos/wordmarks (exempt from text contrast);
+          // dedupe identical labels (footer link lists).
+          const info = (await h
+            .evaluate((el: any) => {
+              const w: any = globalThis as any;
+              const cs = w.getComputedStyle(el);
+              if (cs.visibility === 'hidden' || cs.display === 'none' || el.offsetParent === null) return null;
+              const r = el.getBoundingClientRect();
+              if (r.width < 16 || r.height < 10) return null;
+              const cls = String(el.className || '');
+              if (/\b(brand|logo|wordmark)\b/i.test(cls) || el.querySelector('img,svg[role="img"]')) return null;
+              const txt = String(el.innerText || el.value || '').trim();
+              if (txt.length < 2 || txt.length > 60) return null; // a real control label, not a whole card
+              return { txt: txt.slice(0, 38) };
+            })
+            .catch(() => null)) as { txt: string } | null;
+          if (!info) continue;
+          if (seenTxt[info.txt]) continue;
+          seenTxt[info.txt] = true;
+          checked++;
+          const rest = (await h.evaluate(measure).catch(() => null)) as { cr: number; floor: number } | null;
+          try {
+            await h.scrollIntoViewIfNeeded({ timeout: 600 });
+            await h.hover({ timeout: 700, force: true });
+          } catch {
+            continue;
+          }
+          await page.waitForTimeout(60);
+          const hov = (await h.evaluate(measure).catch(() => null)) as { cr: number; floor: number } | null;
+          try {
+            await page.mouse.move(2, 2); // un-hover before the next control
+          } catch {}
+          // Flag a true hover regression: the hovered label ends below AA AND lost
+          // meaningful contrast versus its resting state (so the hover is what broke it).
+          if (hov && rest && hov.cr < hov.floor - 0.25 && hov.cr < rest.cr - 0.5)
+            hoverIssues.push(
+              `"${info.txt}…" — contrast drops to ${hov.cr.toFixed(1)}:1 on hover (was ${rest.cr.toFixed(1)}:1 at rest; needs ≥${hov.floor}:1)`,
+            );
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
+    const hoverIssue = hoverIssues.length
+      ? `Illegible on hover — these controls lose contrast in their hover state (the background changes but the text colour doesn't, or vice-versa), so the label gets hard to read when a user points at it. Set BOTH the hover background AND the hover text colour together and keep WCAG AA (4.5:1 body, 3:1 large) in EVERY state — default, hover, focus, active. Offenders:\n  - ${hoverIssues.join('\n  - ')}`
+      : '';
+
     const docFailed = !resp || resp.status() >= 400;
     const ce = dedupe(consoleErrors);
     const pe = dedupe(pageErrors);
     const fr = dedupe(failedRequests);
-    const hardFail = docFailed || blank || pe.length > 0 || fr.length > 0;
+    const hardFail =
+      docFailed || blank || pe.length > 0 || fr.length > 0 || !!responsiveIssue || !!contrastIssue || !!hoverIssue;
 
     // True visual judgment: if vision is configured, actually LOOK at the page
     // (the text-only model can't). For visual tasks run the DESIGN RUBRIC (gating
@@ -266,6 +489,9 @@ export async function browserSmokeTest(
     if (blank) lines.push('✗ The page rendered blank (no visible content).');
     if (pe.length) lines.push(`✗ Uncaught JS errors:\n  - ${pe.join('\n  - ')}`);
     if (fr.length) lines.push(`✗ Failed requests (same-origin):\n  - ${fr.join('\n  - ')}`);
+    if (responsiveIssue) lines.push(`✗ ${responsiveIssue}`);
+    if (contrastIssue) lines.push(`✗ ${contrastIssue}`);
+    if (hoverIssue) lines.push(`✗ ${hoverIssue}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
     if (leaked.length) lines.push(`⚠ Value leaked into the UI:\n  - ${leaked.join('\n  - ')}`);
     if (interacted) lines.push('• Interaction pass ran (seeded inputs, submitted a form, clicked primary actions).');

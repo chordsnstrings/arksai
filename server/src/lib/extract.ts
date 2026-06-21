@@ -1,29 +1,27 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import * as XLSX from 'xlsx';
 
 const EXTRACT_CAP = 200_000; // chars
 
-export const EXTRACTABLE = new Set(['.xlsx', '.xls', '.csv', '.pdf', '.docx']);
+// Linear prose/document formats get a plain-text sidecar (read_file). Spreadsheets do
+// NOT — a flat text dump silently drops sheets (a multi-sheet workbook lost 23 of 26
+// sheets to the char cap), so they're read structurally via the read_spreadsheet tool.
+export const EXTRACTABLE = new Set(['.pdf', '.docx']);
+export const SPREADSHEET = new Set(['.xlsx', '.xls', '.csv']);
+// PowerPoint is a binary zip (OOXML) — a flat-text extract is garbage, so it's read
+// structurally via the read_presentation tool (NOT a text sidecar, NOT read_file).
+export const PRESENTATION = new Set(['.pptx']);
 
 /**
- * Extract readable text from an office/document file so the (text-only) model
- * can work with it via read_file. Returns null for unsupported formats;
- * failures are reported as a short error string rather than thrown.
+ * Extract readable text from a prose/document file (PDF/DOCX) so the (text-only)
+ * model can work with it via read_file. Spreadsheets are NOT extracted here (use the
+ * read_spreadsheet tool — flat extraction loses sheets). Returns null for anything
+ * else; failures are a short error string rather than thrown.
  */
 export async function extractText(absPath: string): Promise<string | null> {
   const ext = path.extname(absPath).toLowerCase();
   if (!EXTRACTABLE.has(ext)) return null;
   try {
-    if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
-      const wb = XLSX.read(fs.readFileSync(absPath), { type: 'buffer' });
-      const parts: string[] = [];
-      for (const name of wb.SheetNames) {
-        parts.push(`=== Sheet: ${name} ===`);
-        parts.push(XLSX.utils.sheet_to_csv(wb.Sheets[name]));
-      }
-      return parts.join('\n').slice(0, EXTRACT_CAP);
-    }
     if (ext === '.pdf') {
       const { PDFParse } = await import('pdf-parse');
       const parser = new PDFParse({ data: fs.readFileSync(absPath) });
@@ -53,13 +51,27 @@ const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
  */
 export function buildUploadNote(files: string[], minimaxAvailable: boolean, paletteAvailable = false): string | null {
   if (!files.length) return null;
+  const ext = (f: string) => path.extname(f).toLowerCase();
   const images = files.filter((f) => IMAGE_RE.test(f));
-  const docs = files.filter((f) => !IMAGE_RE.test(f) && EXTRACTABLE.has(path.extname(f).toLowerCase()));
-  const others = files.filter((f) => !IMAGE_RE.test(f) && !EXTRACTABLE.has(path.extname(f).toLowerCase()));
+  const sheets = files.filter((f) => !IMAGE_RE.test(f) && SPREADSHEET.has(ext(f)));
+  const decks = files.filter((f) => !IMAGE_RE.test(f) && PRESENTATION.has(ext(f)));
+  const docs = files.filter((f) => !IMAGE_RE.test(f) && EXTRACTABLE.has(ext(f)));
+  const others = files.filter(
+    (f) => !IMAGE_RE.test(f) && !SPREADSHEET.has(ext(f)) && !PRESENTATION.has(ext(f)) && !EXTRACTABLE.has(ext(f)),
+  );
   const clauses: string[] = [];
+  if (sheets.length)
+    clauses.push(
+      `spreadsheet(s): ${sheets.join(', ')} — call read_spreadsheet on each (NOT read_file) to list every sheet ` +
+        `and read exact values; for totals / P&L / pivots / charts, crunch the raw file with Python (pandas/openpyxl) in code mode`,
+    );
+  if (decks.length)
+    clauses.push(
+      `presentation(s): ${decks.join(', ')} — call read_presentation on each (NOT read_file) to read every slide + speaker notes`,
+    );
   if (docs.length)
     clauses.push(
-      `document/data file(s): ${docs.map((f) => `${f} (read its extracted text at ${f}.extracted.txt)`).join('; ')}`,
+      `document file(s): ${docs.map((f) => `${f} (read its extracted text at ${f}.extracted.txt)`).join('; ')}`,
     );
   if (others.length) clauses.push(`file(s): ${others.join(', ')} (read with read_file)`);
   if (images.length) {
@@ -78,8 +90,15 @@ export function buildUploadNote(files: string[], minimaxAvailable: boolean, pale
     }
     clauses.push(imgClause);
   }
+  // When several files and/or several kinds were uploaded, make it explicit that EVERY
+  // one must be processed (every sheet of each spreadsheet, every slide of each deck, and
+  // every image looked at) — the operator's "multiple excels + multiple images" must just work.
+  const everyFile =
+    files.length > 1 || clauses.length > 1
+      ? ' Open/read EACH of these — every sheet of each spreadsheet, every slide of each deck, and LOOK at every image — before answering; do not stop after the first.'
+      : '';
   return (
     `[System note: the user just uploaded ${clauses.join('; and ')}. ` +
-    `Use these to fulfil the request — open/read them now; do NOT ask the user to paste or re-upload, and do not guess their contents.]`
+    `Use these to fulfil the request — open/read them now; do NOT ask the user to paste or re-upload, and do not guess their contents.${everyFile}]`
   );
 }

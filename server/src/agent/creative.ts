@@ -56,7 +56,9 @@ function fontsCss(): string {
 }
 
 const esc = (s: string) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const escMultiline = (s: string) => esc(s).replace(/\r?\n/g, '<br>');
+// Convert real newlines AND a literal backslash-n (the model often emits "\n" as text in the
+// headline string) into <br>, so the headline never renders a stray "\n".
+const escMultiline = (s: string) => esc(s).replace(/\\n|\r?\n/g, '<br>');
 
 /**
  * Pure: build the composited-creative HTML. Exported for unit tests (no disk/network).

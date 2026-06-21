@@ -1,6 +1,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toAnthropicMessages, mapAnthropicStop, anthropicSseToOpenAI, AgentRun } from '../src/agent/runner';
+import { toAnthropicMessages, mapAnthropicStop, anthropicSseToOpenAI, AgentRun, isTransientApiError, Semaphore } from '../src/agent/runner';
+
+test('isTransientApiError: recognizes the premature-close / mid-stream drop class', () => {
+  // undici wraps a mid-stream socket drop as `TypeError: terminated` with the real
+  // reason on .cause — both shapes must be treated as transient (→ retry the turn).
+  assert.equal(isTransientApiError(new TypeError('terminated')), true);
+  assert.equal(isTransientApiError({ message: 'terminated', cause: { code: 'ERR_STREAM_PREMATURE_CLOSE' } }), true);
+  assert.equal(isTransientApiError({ message: 'Premature close' }), true);
+  assert.equal(isTransientApiError({ cause: { code: 'UND_ERR_SOCKET', message: 'other side closed' } }), true);
+  assert.equal(isTransientApiError({ message: 'fetch failed', cause: { code: 'ECONNRESET' } }), true);
+  assert.equal(isTransientApiError({ status: 503 }), true);
+});
+
+test('isTransientApiError: does NOT retry auth/bad-request or a clean stop', () => {
+  assert.equal(isTransientApiError({ status: 401 }), false);
+  assert.equal(isTransientApiError({ status: 400, message: 'invalid request' }), false);
+  assert.equal(isTransientApiError(new Error('some unrelated logic error')), false);
+});
 
 test('toAnthropicMessages: system is hoisted, user becomes a text block', () => {
   const { system, messages } = toAnthropicMessages([
@@ -246,4 +263,89 @@ test('legal routes to the fast model; a non-legal code run stays on M3', async (
   } finally {
     globalThis.fetch = origFetch;
   }
+});
+
+// A stream that floods keepalive PINGS forever (no content) — exactly what M3 does to a
+// STARVED concurrent stream. The idle timer must trip on these (they're not progress).
+function pingFloodStream(ctrl: AbortController): any {
+  const enc = new TextEncoder();
+  const ping = 'data: {"type":"ping"}\n\n';
+  return { getReader() { return { read() {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => resolve({ done: false, value: enc.encode(ping) }), 10);
+      ctrl.signal.addEventListener('abort', () => { clearTimeout(t); reject(new Error('aborted')); }, { once: true });
+    });
+  } }; } };
+}
+
+// A stream that emits a real text_delta every `gapMs` (genuine, if slow, progress).
+function tricklingContentStream(ctrl: AbortController, gapMs: number, n: number): any {
+  const enc = new TextEncoder();
+  let i = 0;
+  return { getReader() { return { read() {
+    if (i >= n) return Promise.resolve({ done: true, value: undefined });
+    i++;
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => resolve({ done: false, value: enc.encode('data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"x"}}\n\n') }), gapMs);
+      ctrl.signal.addEventListener('abort', () => { clearTimeout(t); reject(new Error('aborted')); }, { once: true });
+    });
+  } }; } };
+}
+
+test('anthropicSseToOpenAI: a PING-only stream trips the idle backstop (pings are not progress) + calls onDone', async () => {
+  const ctrl = new AbortController();
+  let done = false;
+  let threw: any;
+  try {
+    for await (const _ of anthropicSseToOpenAI(pingFloodStream(ctrl), {
+      controller: ctrl,
+      idleMs: 120, // tiny content-idle: pings must NOT keep it alive
+      stall: { tripped: false },
+      onDone: () => { done = true; },
+    })) { /* consume */ }
+  } catch (e) { threw = e; }
+  assert.ok(threw, 'expected the idle backstop to trip on a ping-only stream');
+  assert.equal(threw.minimaxStall, true);
+  assert.equal(done, true, 'onDone must release the concurrency slot even on a stall');
+});
+
+test('anthropicSseToOpenAI: real content trickling under idleMs does NOT trip (content re-arms)', async () => {
+  const ctrl = new AbortController();
+  let chunks = 0;
+  for await (const c of anthropicSseToOpenAI(tricklingContentStream(ctrl, 40, 6), {
+    controller: ctrl,
+    idleMs: 120, // each content delta (every 40ms) re-arms, so 120ms never elapses idle
+    stall: { tripped: false },
+  })) { if (c.choices?.[0]?.delta?.content) chunks++; }
+  assert.equal(ctrl.signal.aborted, false, 'a steadily-streaming turn must not be killed');
+  assert.equal(chunks, 6);
+});
+
+test('Semaphore: caps concurrency, is FIFO, and frees the slot on release', async () => {
+  const s = new Semaphore(2);
+  const r1 = await s.acquire();
+  const r2 = await s.acquire();
+  let third = false;
+  const p3 = s.acquire().then((r) => { third = true; return r; });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(third, false, 'the 3rd acquire must wait while 2 slots are held');
+  r1(); // release → hands the slot to the waiter
+  const r3 = await p3;
+  assert.equal(third, true);
+  r2(); r3();
+});
+
+test('Semaphore: an aborted waiter rejects and never holds a slot', async () => {
+  const s = new Semaphore(1);
+  const r1 = await s.acquire();
+  const ac = new AbortController();
+  const p = s.acquire(ac.signal);
+  let rejected = false;
+  p.catch(() => { rejected = true; });
+  ac.abort();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(rejected, true, 'an aborted queued acquire must reject');
+  r1(); // releasing the only slot must succeed (the aborted waiter is gone, slot returns to pool)
+  const r2 = await s.acquire(); // proves the slot was freed, not leaked to the aborted waiter
+  r2();
 });

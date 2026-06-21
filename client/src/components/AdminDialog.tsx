@@ -5,6 +5,7 @@ import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
 import { OrgAnalytics } from './OrgAnalytics';
 import { EmailSettings } from './EmailSettings';
+import { ConnectionsPanel } from './ConnectionsPanel';
 
 /**
  * Admin panel. Org admins manage their members (invite via a link, change/remove);
@@ -25,7 +26,7 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
   const [role, setRole] = useState<'member' | 'admin'>('member');
   const [orgName, setOrgName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
-  const [tab, setTab] = useState<'members' | 'usage' | 'email'>('members');
+  const [tab, setTab] = useState<'members' | 'usage' | 'email' | 'connections'>('members');
 
   // The inviting admin's own domain — used to flag invites to someone OUTSIDE the
   // org. Skipped for the super-admin (who onboards many orgs) and if their own
@@ -116,6 +117,34 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const deleteSelectedOrg = async () => {
+    const org = orgs.find((o) => o.id === orgId);
+    if (!org) return;
+    if (
+      !(await confirmDialog({
+        title: `Delete “${org.name}”?`,
+        body: `This permanently deletes the organization and ALL its data — every chat, project, published app, schedule, and its member accounts. This cannot be undone.`,
+        confirmLabel: 'Delete organization',
+        danger: true,
+      }))
+    )
+      return;
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api.adminDeleteOrg(orgId);
+      const list = await api.adminListOrgs();
+      setOrgs(list);
+      setOrgId(list[0]?.id ?? '');
+      setLink('');
+      setError(`Deleted “${r.name}” — removed ${r.sessions} chats, ${r.deployments} apps, and ${r.deletedUsers} user account(s).`);
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to delete the org.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div className={`dialog wide ${tab === 'usage' ? 'analytics' : ''}`} onClick={(e) => e.stopPropagation()}>
@@ -131,21 +160,39 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
           <button className={`an-tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>
             Email
           </button>
+          <button className={`an-tab ${tab === 'connections' ? 'active' : ''}`} onClick={() => setTab('connections')}>
+            Connections
+          </button>
         </div>
 
         <label>Organization</label>
-        <select aria-label="Organization" value={orgId} onChange={(e) => { setOrgId(e.target.value); setLink(''); }}>
-          {orgs.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select aria-label="Organization" value={orgId} onChange={(e) => { setOrgId(e.target.value); setLink(''); }} style={{ flex: 1 }}>
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+          {isSuper && orgId && orgId !== 'default' && (
+            <button
+              className="danger-btn"
+              onClick={deleteSelectedOrg}
+              disabled={busy}
+              title="Delete this organization and all its data"
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              Delete org…
+            </button>
+          )}
+        </div>
 
         {tab === 'usage' ? (
           orgId ? <OrgAnalytics orgId={orgId} /> : <div className="an-empty">Select an organization.</div>
         ) : tab === 'email' ? (
           orgId ? <EmailSettings orgId={orgId} /> : <div className="an-empty">Select an organization.</div>
+        ) : tab === 'connections' ? (
+          <ConnectionsPanel />
         ) : (
         <>
 

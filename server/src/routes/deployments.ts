@@ -5,6 +5,7 @@ import * as store from '../sessions/store';
 import { deploymentDir, deploymentRegistry } from '../deploy/registry';
 import { publishSession, removeDeployment, restartDeployment, stopDeployment } from '../deploy/publish';
 import { resolveInWorkspace } from '../agent/tools/common';
+import { proxyFetch } from '../lib/proxy';
 import { scopeOf } from '../auth';
 
 const MIME: Record<string, string> = {
@@ -25,12 +26,25 @@ const MIME: Record<string, string> = {
   '.txt': 'text/plain',
 };
 
-/** Rewrite root-absolute asset URLs + inject <base> so an app served under a
- *  /apps/<slug>/ prefix loads its assets correctly. (Same idea as the preview proxy.) */
-function rewriteHtml(html: string, prefix: string): string {
+/** Rewrite root-absolute asset URLs + inject <base> AND a runtime fetch/XHR shim so an app
+ *  served under a /apps/<slug>/ prefix loads its assets AND its API calls correctly. The
+ *  <base> + attribute rewrite fix HTML-declared URLs; the shim fixes root-absolute
+ *  fetch('/api/…') / XHR / WebSocket calls in JS, which otherwise resolve against the bare
+ *  origin (arksai.studio/api/…) and 404 — the #1 reason published server apps looked broken. */
+export function rewriteHtml(html: string, prefix: string): string {
   let out = html.replace(/\b(src|href)=("|')\/(?!\/)/gi, `$1=$2${prefix}`);
-  if (/<head[^>]*>/i.test(out)) out = out.replace(/<head([^>]*)>/i, `<head$1><base href="${prefix}">`);
-  else out = `<base href="${prefix}">` + out;
+  // Runs before the app's own scripts (deferred module scripts execute after this inline one),
+  // so patched fetch/XHR/WebSocket are in place by the time the app makes its first request.
+  const shim =
+    `<base href="${prefix}">` +
+    `<script>(function(){var B=${JSON.stringify(prefix)};` +
+    `function fx(u){try{return (typeof u==="string"&&u.charAt(0)==="/"&&u.charAt(1)!=="/")?B+u.slice(1):u;}catch(e){return u;}}` +
+    `var f=window.fetch;if(f)window.fetch=function(i,o){if(typeof i==="string")i=fx(i);else if(i&&i.url){try{i=new Request(fx(i.url),i);}catch(e){}}return f.call(this,i,o);};` +
+    `var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){var a=[m,fx(u)].concat([].slice.call(arguments,2));return x.apply(this,a);};` +
+    `var W=window.WebSocket;if(W){window.WebSocket=function(u,p){try{if(typeof u==="string"&&/^wss?:\\/\\/[^/]+\\//.test(u)){u=u.replace(/^(wss?:\\/\\/[^/]+)\\//,function(_,h){return h+B;});}}catch(e){}return p===undefined?new W(u):new W(u,p);};window.WebSocket.prototype=W.prototype;}` +
+    `})();</script>`;
+  if (/<head[^>]*>/i.test(out)) out = out.replace(/<head([^>]*)>/i, `<head$1>${shim}`);
+  else out = shim + out;
   return out;
 }
 
@@ -91,29 +105,37 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
         return reply.code(502).type('text/html').send(`<body style="font-family:sans-serif;padding:40px">This app isn't running. Restart it from ArksAI.</body>`);
       }
       const qs = req.url.includes('?') ? '?' + req.url.split('?').slice(1).join('?') : '';
-      let res: Response;
-      try {
-        res = await fetch(`http://127.0.0.1:${port}/${rest}${qs}`, {
-          method: req.method,
-          headers: { 'accept-encoding': 'identity' },
-          body: ['GET', 'HEAD'].includes(req.method) ? undefined : (req.body as any),
-          redirect: 'manual',
-        });
-      } catch {
-        return reply.code(502).type('text/html').send(`<body style="font-family:sans-serif;padding:40px">App not responding on port ${port}.</body>`);
+      const res = await proxyFetch(`http://127.0.0.1:${port}/${rest}${qs}`, req);
+      if (!res) {
+        return reply.code(502).type('text/html').send(`<body style="font-family:sans-serif;padding:40px">App not responding on port ${port}. Restart it from ArksAI.</body>`);
       }
-      const ct = res.headers.get('content-type') ?? '';
       reply.code(res.status);
-      for (const h of ['content-type', 'cache-control']) {
-        const v = res.headers.get(h);
-        if (v) reply.header(h, v);
-      }
-      if (/text\/html/i.test(ct)) return reply.type('text/html').send(rewriteHtml(await res.text(), prefix));
-      return reply.send(Buffer.from(await res.arrayBuffer()));
+      for (const [h, v] of Object.entries(res.headers)) reply.header(h, v);
+      if (/text\/html/i.test(res.contentType)) return reply.type('text/html').send(rewriteHtml(res.body.toString('utf8'), prefix));
+      return reply.send(res.body);
     }
 
-    // Static: serve a file from the snapshot dir.
-    const root = deploymentDir(slug);
+    // A SPA whose production build FAILED has no dist/ — serving the raw root would ship
+    // unbuilt source (a 200 that doesn't run). Show a clean notice instead of broken source.
+    if (dep.status === 'error' && !dep.staticDir && fs.existsSync(path.join(deploymentDir(slug), 'package.json'))) {
+      return reply
+        .code(503)
+        .type('text/html')
+        .send(
+          `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+            `<title>Preview being prepared</title>` +
+            `<div style="min-height:100vh;display:grid;place-items:center;margin:0;background:#f7f6f3;` +
+            `font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#1a1a1a">` +
+            `<div style="max-width:30rem;padding:2rem;text-align:center">` +
+            `<div style="font-size:2rem;margin-bottom:.5rem">⏳</div>` +
+            `<h1 style="font:600 1.4rem/1.3 Georgia,serif;margin:0 0 .5rem">This preview is being prepared</h1>` +
+            `<p style="margin:0;color:#555;line-height:1.6">The app's build hit a snag and the author is fixing it. ` +
+            `Check back in a moment.</p></div></div>`,
+        );
+    }
+
+    // Static: serve a file from the snapshot dir (or a built SPA's dist/ subdir).
+    const root = dep.staticDir ? path.join(deploymentDir(slug), dep.staticDir) : deploymentDir(slug);
     let relPath = rest || 'index.html';
     let abs: string;
     try {

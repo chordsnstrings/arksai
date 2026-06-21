@@ -4,11 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ToolCtx } from '../src/agent/tools/common';
-import { generateSpreadsheetTool } from '../src/agent/tools/excel';
+import { generateSpreadsheetTool, coerceNumeric } from '../src/agent/tools/excel';
 import { generateDocTool } from '../src/agent/tools/docx';
 import { generatePptxTool } from '../src/agent/tools/pptx';
 import { iconSvg, hasIcon, ICON_NAMES } from '../src/agent/tools/icons';
-import { auditFormulaModel, detectEmptyPages } from '../src/agent/deliverableCheck';
+import { auditFormulaModel, detectEmptyPages, detectUnderfilledPages, detectBannerRows, detectSectionRows, auditNumericSanity } from '../src/agent/deliverableCheck';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-docgen-'));
 const ctx = (): ToolCtx => ({
@@ -57,6 +57,59 @@ test('generate_spreadsheet writes a styled, validated xlsx', async () => {
 test('generate_spreadsheet rejects empty spec', async () => {
   const res = await generateSpreadsheetTool.run({ sheets: [] }, ctx());
   assert.match(res, /^Error/);
+});
+
+test('coerceNumeric: number-as-text becomes a real number (so SUM works), text/IDs left alone', () => {
+  // formatted numbers → coerced (the dashboard-totals-read-0 bug)
+  assert.equal(coerceNumeric('480,000.'), 480000);
+  assert.equal(coerceNumeric('$15,000'), 15000);
+  assert.equal(coerceNumeric('1,580,000.'), 1580000);
+  assert.equal(coerceNumeric('49.6'), 49.6);
+  assert.equal(coerceNumeric('$48,713'), 48713);
+  // left as text: bare integers (possible IDs/zips), labels, dates, real numbers, formulas
+  assert.equal(coerceNumeric('12345'), '12345');
+  assert.equal(coerceNumeric('GlobalFin'), 'GlobalFin');
+  assert.equal(coerceNumeric('2026-06-01'), '2026-06-01');
+  assert.equal(coerceNumeric(42), 42);
+});
+
+test('xlsx: a number written as text is stored numeric so a SUM over it is non-zero', async () => {
+  await generateSpreadsheetTool.run(
+    {
+      output: 'sumcheck.xlsx',
+      sheets: [
+        {
+          name: 'S',
+          columns: [{ header: 'Rev', key: 'rev', type: 'currency' }],
+          rows: [{ rev: '480,000.' }, { rev: '$120,000' }, { rev: '=SUM(A2:A3)' }],
+        },
+      ],
+    },
+    ctx(),
+  );
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.read(fs.readFileSync(path.join(ws, 'sumcheck.xlsx')), { type: 'buffer' });
+  const cell = wb.Sheets['S']['A2'];
+  assert.equal(cell.t, 'n', 'a "480,000." text value must be stored as a numeric cell'); // not 's' (text)
+  assert.equal(cell.v, 480000);
+});
+
+test('generate_doc: literal <b>/<strong> markup renders as bold, NOT as visible tags', async () => {
+  const res = await generateDocTool.run(
+    {
+      output: 'btags.docx',
+      title: 'Bold test',
+      blocks: [{ type: 'paragraph', text: 'Merge conflicts cost <b>$6.9 million annually</b> and **87%** of teams hit them.' }],
+    },
+    ctx(),
+  );
+  assert.doesNotMatch(res, /^Error/);
+  const mammoth: any = await import('mammoth');
+  const { value: textOut } = await mammoth.extractRawText({ path: path.join(ws, 'btags.docx') });
+  assert.ok(!/<b>|<\/b>|<strong>/.test(textOut), 'no literal HTML tags in the rendered docx text');
+  assert.ok(!/\*\*/.test(textOut), 'no literal ** markdown in the rendered docx text');
+  assert.match(textOut, /\$6\.9 million annually/);
+  assert.match(textOut, /87%/);
 });
 
 async function readWb(file: string): Promise<any> {
@@ -178,6 +231,103 @@ test('detectEmptyPages flags a lonely interior page but never the cover', () => 
 
 test('detectEmptyPages passes a well-filled document', () => {
   assert.deepEqual(detectEmptyPages([0.05, 0.07, 0.06]), []);
+});
+
+test('detectUnderfilledPages flags an interior page whose content ends high', () => {
+  // The real GIC-coffee bug: p1=cover, p2=87%, p3=92%, p4=27% (stranded), p5=93%, p6=last.
+  const defects = detectUnderfilledPages([1.0, 0.87, 0.92, 0.27, 0.93, 0.85]);
+  assert.equal(defects.length, 1);
+  assert.match(defects[0], /^p4:/);
+  assert.match(defects[0], /27%/);
+});
+
+test('detectUnderfilledPages exempts the cover and the final page, passes full pages', () => {
+  // cover light + final page ends partway down are both legitimate → no flags.
+  assert.deepEqual(detectUnderfilledPages([0.3, 0.9, 0.95, 0.35]), []);
+  assert.deepEqual(detectUnderfilledPages([1.0, 0.85, 0.9, 0.88]), []);
+  // a blank (near-empty) page is left to detectEmptyPages, not double-flagged here.
+  assert.deepEqual(detectUnderfilledPages([1.0, 0.02, 0.9]), []);
+});
+
+test('detectBannerRows flags a box-drawing banner row but not clean data', async () => {
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([['── CASH FLOW (AED) ──────────', '', ''], ['Line', 'Jan', 'Feb'], ['Revenue', 100, 110]]),
+    'Cash Flow',
+  );
+  const hits = detectBannerRows(wb);
+  assert.equal(hits.length, 1);
+  assert.match(hits[0], /Cash Flow/);
+  assert.match(hits[0], /banner\/separator/);
+
+  // clean sheet → no false positive
+  const clean = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(clean, XLSX.utils.aoa_to_sheet([['Item', 'Jan'], ['Revenue', 100], ['COGS', 28]]), 'S');
+  assert.deepEqual(detectBannerRows(clean), []);
+  assert.deepEqual(detectBannerRows(null), []);
+});
+
+test('detectSectionRows flags plain-text/dash divider rows that shift references', async () => {
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.utils.book_new();
+  // an interior ALL-CAPS divider + an em-dash divider, with real data around them
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([
+      ['Item', 'M1', 'M2'],
+      ['Walk-in revenue', 58500, 58500],
+      ['REVENUE DRIVERS', '', ''], // ALL-CAPS divider
+      ['B2B revenue', 6000, 6000],
+      ['—— COST OF GOODS SOLD ——', '', ''], // em-dash divider
+      ['COGS', 16000, 16000],
+    ]),
+    'PnL',
+  );
+  const hits = detectSectionRows(wb);
+  assert.equal(hits.length, 1);
+  assert.match(hits[0], /PnL/);
+  assert.match(hits[0], /section\/divider row/);
+
+  // clean sheet (header + data only) → no false positive
+  const clean = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(clean, XLSX.utils.aoa_to_sheet([['Item', 'M1'], ['Rent', 2775], ['Total', 2775]]), 'S');
+  assert.deepEqual(detectSectionRows(clean), []);
+  assert.deepEqual(detectSectionRows(null), []);
+});
+
+test('auditNumericSanity flags impossible numbers, not legitimate ones', async () => {
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.utils.book_new();
+  // A money column (mostly thousands) with: a 140M outlier, a 0.30 rate-leak, and a Total row = 0
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([
+      ['Line', 'M1', 'M2', 'M3', 'M4'],
+      ['Rent', 2775, 2775, 2775, 2775],
+      ['POS fee', 140400000, 1460, 1460, 1460], // absurd outlier
+      ['B2B revenue', 0.3, 0.3, 0.3, 0.3], // rate leaked into a money column
+      ['Marketing', 8000, 8000, 8000, 8000],
+      ['Total occupancy', 0, 0, 0, 0], // derived row computing to 0
+    ]),
+    'OPEX',
+  );
+  const hits = auditNumericSanity(wb);
+  assert.equal(hits.length, 1);
+  assert.match(hits[0], /140,400,000|absurd/);
+  assert.match(hits[0], /under 1|rate/);
+  assert.match(hits[0], /Total occupancy|0/);
+
+  // An assumptions sheet with legit rates + mixed scales → never flagged
+  const asum = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(asum, XLSX.utils.aoa_to_sheet([['Driver', 'Value'], ['Rent', 185], ['Growth', 0.004], ['COGS %', 0.28]]), 'Assumptions');
+  assert.deepEqual(auditNumericSanity(asum), []);
+  // a clean money sheet → no false positive
+  const clean = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(clean, XLSX.utils.aoa_to_sheet([['Line', 'M1', 'M2', 'M3', 'M4'], ['Rent', 2775, 2775, 2775, 2775], ['Staff', 18000, 18100, 18200, 18300]]), 'S');
+  assert.deepEqual(auditNumericSanity(clean), []);
+  assert.deepEqual(auditNumericSanity(null), []);
 });
 
 test('generate_doc writes a valid docx (zip/OOXML)', async () => {

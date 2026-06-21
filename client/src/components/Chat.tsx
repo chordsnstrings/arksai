@@ -5,6 +5,7 @@ import type { TimelineItem, ToolCallRecord } from '@shared/types';
 import type { CompletionState, LiveState } from '../state/sessionStore';
 import { useStore } from '../state/sessionStore';
 import { api } from '../api/client';
+import { openExternal } from '../lib/openExternal';
 
 const TOOL_LABEL: Record<string, string> = {
   web_search: 'Searching',
@@ -310,7 +311,14 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
         <div className="cc-live">
           <strong>✓ Live — share with anyone, no login needed.</strong>
           <div className="cc-link-row">
-            <a href={link} target="_blank" rel="noreferrer">
+            <a
+              href={link}
+              onClick={(e) => {
+                e.preventDefault();
+                openExternal(link);
+              }}
+              rel="noreferrer"
+            >
               {link}
             </a>
             <button className="cc-copy" onClick={copy}>

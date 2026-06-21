@@ -8,7 +8,7 @@ import { browserSmokeTest } from '../agent/uiCheck';
 import { config } from '../config';
 import { repoDir } from '../sessions/workspace';
 import * as store from '../sessions/store';
-import { deploymentRegistry, deploymentDir } from './registry';
+import { deploymentRegistry, deploymentDir, deploymentsRoot } from './registry';
 import type { Deployment, DeploymentKind } from '../../../shared/types';
 
 /** A published deployment plus the result of smoke-testing its live public URL. */
@@ -20,13 +20,88 @@ export const PREVIEW_TTL_MS = 24 * 60 * 60 * 1000;
 const JANITOR_MS = 5 * 60 * 1000; // sweep cadence
 
 function slugify(name: string): string {
-  return (
-    (name || 'app')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'app'
+  let s = (name || 'app')
+    .toLowerCase()
+    // strip leading instruction filler so a title like "Code task: create a … app" → "app"
+    .replace(/^\s*code task:?\s*/, '')
+    .replace(/^\s*(please\s+)?(create|build|make|design|generate|write)\s+(me\s+)?(a|an|the)?\s*/, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  // cap to the first few words so the public URL stays short and readable
+  s = s.split('-').filter(Boolean).slice(0, 5).join('-').slice(0, 40);
+  return s || 'app';
+}
+
+/**
+ * A built single-page-app framework (Vite/CRA/Vue-CLI/Parcel/Angular) → we BUILD it and
+ * static-serve the output, NEVER run its dev server (Vite ignores PORT and binds 5173, so
+ * `npm run dev` under our port allocator 502s). Returns null for a real runtime server
+ * (Express/Next/Nuxt/Nest/etc.) — those keep the run-a-process path.
+ */
+export function detectSpaBuild(dir: string): { build: string } | null {
+  const pkgPath = path.join(dir, 'package.json');
+  if (!fs.existsSync(pkgPath)) return null;
+  let pkg: any;
+  try {
+    pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!pkg?.scripts?.build) return null;
+  const names = Object.keys({ ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) });
+  // A runtime server must keep running — never static-build it.
+  if (names.some((n) => /^(next|nuxt|@nestjs\/|express|fastify|koa|@remix-run\/|@sveltejs\/kit|h3|hono)/.test(n))) return null;
+  const isSpaDep = names.some((n) =>
+    /^(vite|react-scripts|@vue\/cli-service|parcel|@angular\/cli|@craco\/craco|@parcel\/core)$/.test(n),
   );
+  // Also catch a Vite/CRA/Parcel app by its config file or build-script command, since the
+  // dep can land in either deps/devDeps under varied names — so SPAs reliably build→static
+  // instead of slipping to the dev-server path.
+  const hasViteConfig = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs'].some((f) => fs.existsSync(path.join(dir, f)));
+  const scriptsBlob = JSON.stringify(pkg.scripts ?? {});
+  const isSpaScript = /\b(vite build|react-scripts build|parcel build|vue-cli-service build|ng build)\b/.test(scriptsBlob);
+  return isSpaDep || hasViteConfig || isSpaScript ? { build: 'npm run build' } : null;
+}
+
+/** Where a SPA build dropped its output (first dir that actually has an index.html). */
+const SPA_OUT_DIRS = ['dist', 'build', 'out', 'public'];
+function findBuildOutput(dest: string): string | null {
+  return SPA_OUT_DIRS.find((d) => fs.existsSync(path.join(dest, d, 'index.html'))) ?? null;
+}
+
+const APP_MARKERS = [
+  'package.json', 'index.html', 'server.js', 'app.js', 'main.js', 'main.py', 'app.py', 'server.py', 'wsgi.py', 'requirements.txt', 'go.mod',
+];
+function hasAppMarker(dir: string): boolean {
+  return APP_MARKERS.some((f) => fs.existsSync(path.join(dir, f)));
+}
+
+/**
+ * Agents frequently build the app in a SUBDIRECTORY (todo-app/, client/, frontend/, app/)
+ * rather than the workspace root — in which case publishing the root serves an empty dir →
+ * 404 (the "publish is broken" the agent then hallucinates about). Find the real app root:
+ * the workspace root if it has app markers, else the shallowest subdir (≤2 levels) that does.
+ */
+export function findAppRoot(dest: string): string {
+  if (hasAppMarker(dest)) return dest;
+  const skip = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'out', 'uploads', '.cache', '__pycache__']);
+  let level = [dest];
+  for (let depth = 0; depth < 2; depth++) {
+    const next: string[] = [];
+    for (const d of level) {
+      let subs: string[] = [];
+      try {
+        subs = fs
+          .readdirSync(d, { withFileTypes: true })
+          .filter((e) => e.isDirectory() && !skip.has(e.name))
+          .map((e) => path.join(d, e.name));
+      } catch {}
+      for (const s of subs) if (hasAppMarker(s)) return s;
+      next.push(...subs);
+    }
+    level = next;
+  }
+  return dest;
 }
 
 async function uniqueSlug(base: string): Promise<string> {
@@ -72,12 +147,53 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   );
   if (!snap.ok) throw new Error(`snapshot failed: ${snap.output.slice(-300)}`);
 
-  const startCmd = detectStartCommand(dest);
+  // If the app actually lives in a subdir (todo-app/, client/, …), RE-ROOT the snapshot so
+  // build/run/serve all work from `dest` — otherwise we'd serve an empty root and 404.
+  const appRoot = findAppRoot(dest);
+  if (appRoot !== dest) {
+    const tmp = `${dest}.approot`;
+    const q = (s: string) => JSON.stringify(s);
+    const r = await execBash(
+      `rm -rf ${q(tmp)} && cp -a ${q(appRoot)} ${q(tmp)} && rm -rf ${q(dest)} && mv ${q(tmp)} ${q(dest)}`,
+      { cwd: deploymentsRoot(), timeoutMs: 60_000 },
+    ).catch(() => null);
+    if (!r?.ok) console.warn(`[deploy] re-root from ${path.relative(dest, appRoot)} failed for ${slug}`);
+  }
+
   let kind: DeploymentKind = 'static';
   let port: number | null = null;
   let status: Deployment['status'] = 'running';
+  let staticDir: string | null = null;
+  let buildError: string | undefined; // surfaced to the agent so a failed publish says WHY
 
-  if (startCmd) {
+  const spa = detectSpaBuild(dest);
+  const startCmd = spa ? null : detectStartCommand(dest);
+
+  if (spa) {
+    // BUILD the SPA (needs devDeps → full install), then static-serve its output. This is
+    // the most common ArksAI output (React/Vite); running its dev server under the proxy 502s.
+    const install = fs.existsSync(path.join(dest, 'package-lock.json'))
+      ? 'npm ci --no-audit --no-fund'
+      : 'npm install --no-audit --no-fund';
+    const inst = await execBash(install, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
+    const built = await execBash(spa.build, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
+    const out = findBuildOutput(dest);
+    if (built?.ok && out) {
+      kind = 'static';
+      staticDir = out; // serve the built dist/ as static files
+      // Reclaim disk: a static SPA only needs its built output, not the ~hundreds-of-MB
+      // node_modules / source. (Disk is the Droplet's real constraint, not RAM.)
+      await execBash(`rm -rf ${JSON.stringify(path.join(dest, 'node_modules'))}`, { cwd: dest, timeoutMs: 60_000 }).catch(() => null);
+    } else {
+      status = 'error'; // build failed or produced no index.html — better an honest error than a broken dev-server link
+      kind = 'static';
+      const tail = (s?: string) => String(s ?? '').slice(-700).trim();
+      buildError = !built?.ok
+        ? `The app's production build failed (\`npm run build\`). Read this error, fix it in the app, and republish:\n\n${tail(built?.output) || tail(inst?.output) || '(no output captured)'}`
+        : `The build ran but produced no index.html in dist/ (or build/out/public). Make the build output a static site (a Vite/CRA build should write dist/index.html).`;
+      console.warn(`[deploy] SPA build failed for ${slug}: ${tail(built?.output) || tail(inst?.output)}`);
+    }
+  } else if (startCmd) {
     kind = /python|wsgi/.test(startCmd) ? 'python' : 'node';
     if (kind === 'node' && fs.existsSync(path.join(dest, 'package.json'))) {
       const install = fs.existsSync(path.join(dest, 'package-lock.json'))
@@ -114,6 +230,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     port,
     orgId: session.orgId, // inherit the publishing session's org → scoped, manageable
     expiresAt: Date.now() + PREVIEW_TTL_MS, // 24h preview — the janitor deletes it after
+    staticDir, // a built SPA serves from its dist/ subdir
   });
 
   // POST-PUBLISH verification — smoke-test the REAL public URL the user will
@@ -121,8 +238,8 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   // broken link. On a hard failure mark it errored and hand the defect back to
   // the agent to fix + republish. Bounded + best-effort (degrades to a pass if
   // Playwright/Chromium is unavailable, e.g. in a bare sandbox).
-  let verifyDetail: string | undefined;
-  let verifyOk = true;
+  let verifyDetail: string | undefined = buildError; // a failed SPA build → hand the build error back to the agent
+  let verifyOk = !buildError;
   if (status !== 'error') {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 30_000);

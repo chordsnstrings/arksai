@@ -1,30 +1,71 @@
 /*
- * ArksAI UI kit — named themes = design PERSONALITIES (not just accent swaps).
- * Each varies hue + radius + type + measure + shadow, so the whole feel changes.
- * The agent OFFERS one (Aurora is the gorgeous default). Apply on <html>:
- *   <html data-theme="aurora">   ·   add dark: <html data-theme="aurora dark">
+ * ArksAI UI kit — design personalities. House style: MINIMAL, MODERN, MUTED.
+ * Every option here is restrained and sophisticated — soft, desaturated accents
+ * used sparingly on a light, typographic layout. No loud/neon hues, no high-
+ * contrast "fashion" display faces. Apply on <html>:
+ *   <html data-theme="slate">          ·  add dark: <html data-theme="slate dark">
+ *   <html data-theme="slate" data-type="editorial">   (mix colour + type)
+ *   <html data-kit="minimal">          (a complete vetted look in one token)
  *
- *  • aurora    — indigo · rounded · soft         — modern SaaS (DEFAULT)
- *  • emerald   — green  · rounded · calm          — fintech / health
- *  • sunset    — amber  · extra-rounded · warm     — consumer / marketing
- *  • mono      — slate  · sharp · minimal shadow   — B2B / internal / technical
- *  • editorial — rose   · serif display            — magazine / portfolio
- *  • noir      — graphite · tight · premium         — luxury / premium brand
- *  • ocean     — blue   · rounded · corporate        — enterprise
+ * COLOUR THEMES (muted accents — quiet, confident, never neon):
+ *  • slate   — muted blue-grey   (DEFAULT) — modern SaaS / product
+ *  • ink     — near-black graphite          — minimal / technical / luxury
+ *  • indigo  — muted indigo                 — calm software
+ *  • ocean   — muted denim blue             — enterprise / finance
+ *  • sage    — muted green                  — health / sustainability
+ *  • teal    — muted teal                   — wellness / education
+ *  • clay    — muted terracotta             — warm / hospitality / craft
+ *  • stone   — warm taupe                   — editorial / neutral
+ *  • plum    — muted mauve                  — creative / studio
+ *  • olive   — muted olive                  — natural / organic
+ *
+ * TYPOGRAPHY PAIRINGS (clean modern + refined serif — no high-contrast faces),
+ * pick independently via data-type:
+ *  • geometric (default) — Space Grotesk · Inter      — crisp modern
+ *  • editorial           — Source Serif 4 · Inter      — authored, classic
+ *  • clean               — Manrope · Plus Jakarta      — neutral product
+ *  • startup             — Outfit · DM Sans            — soft geometric
+ *  • tech                — Sora · Manrope              — quiet technical
+ *  • journal             — Newsreader (serif)          — long-form reading
+ *  • warm                — Fraunces · Lora             — warm, literary
+ *  • humanist            — DM Sans                     — soft, single-family
+ *
+ * DESIGN KITS (complete look in one token via data-kit):
+ *  • minimal  — clean modern   (slate · tight · flat · Space Grotesk/Inter)
+ *  • paper    — refined serif  (ink · Source Serif 4/Inter · generous)
+ *  • linen    — warm editorial (clay · Fraunces/Lora)
+ *  • calm     — quiet wellness (sage · DM Sans/Manrope)
+ *  • harbor   — corporate clean (ocean · Manrope/Plus Jakarta)
  */
-[data-theme~='aurora']    { --accent: #4f46e5; --accent-2: #7c74f2; --accent-tint: #eef0fe; --accent-ink: #fff; }
-[data-theme~='emerald']   { --accent: #0f9d6e; --accent-2: #34c79a; --accent-tint: #e6f7f0; --accent-ink: #fff; }
-[data-theme~='sunset']    { --accent: #e0682a; --accent-2: #f4a259; --accent-tint: #fcefe6; --accent-ink: #fff; --r-md: 14px; --r-lg: 22px; --r-xl: 30px; }
-[data-theme~='mono']      { --accent: #2a2f3a; --accent-2: #4a515f; --accent-tint: #eceef1; --accent-ink: #fff; --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-xl: 14px; --shadow-md: 0 1px 3px rgba(16,18,29,.08); }
-[data-theme~='editorial'] { --accent: #b03a5b; --accent-2: #d06a86; --accent-tint: #f8e9ee; --accent-ink: #fff; --font-display: 'Source Serif 4', Georgia, serif; --measure: 62ch; }
-[data-theme~='noir']      { --accent: #1b1d22; --accent-2: #3a3d44; --accent-tint: #ededee; --accent-ink: #fff; --r-sm: 4px; --r-md: 7px; --r-lg: 12px; }
-[data-theme~='ocean']     { --accent: #2563eb; --accent-2: #5b8def; --accent-tint: #e8f0fe; --accent-ink: #fff; }
 
-/* editorial: serif display headings */
-[data-theme~='editorial'] h1,
-[data-theme~='editorial'] h2,
-[data-theme~='editorial'] .hero h1,
-[data-theme~='editorial'] .display { font-family: var(--font-display); letter-spacing: -0.015em; }
-/* noir: extra-tight premium display */
-[data-theme~='noir'] h1,
-[data-theme~='noir'] .display { letter-spacing: var(--track-tight); }
+/* ── COLOUR THEMES (muted) ──────────────────────────────────────────────────── */
+[data-theme~='slate']  { --accent: #44566a; --accent-2: #61748a; --accent-tint: #eef1f4; --accent-ink: #fff; }
+[data-theme~='ink']    { --accent: #2b2e34; --accent-2: #4a4e57; --accent-tint: #ededee; --accent-ink: #fff; --r-sm: 5px; --r-md: 8px; --r-lg: 12px; }
+[data-theme~='indigo'] { --accent: #4c5580; --accent-2: #6d76a0; --accent-tint: #eeeff7; --accent-ink: #fff; }
+[data-theme~='ocean']  { --accent: #395c78; --accent-2: #5b7e98; --accent-tint: #e9eff3; --accent-ink: #fff; }
+[data-theme~='sage']   { --accent: #4f6551; --accent-2: #6f8470; --accent-tint: #ecf1ec; --accent-ink: #fff; }
+[data-theme~='teal']   { --accent: #3a6568; --accent-2: #5a8588; --accent-tint: #e8f1f0; --accent-ink: #fff; }
+[data-theme~='clay']   { --accent: #97604a; --accent-2: #b3826d; --accent-tint: #f4ebe6; --accent-ink: #fff; }
+[data-theme~='stone']  { --accent: #6b6052; --accent-2: #8a8073; --accent-tint: #f1ede7; --accent-ink: #fff; }
+[data-theme~='plum']   { --accent: #5f5170; --accent-2: #80728f; --accent-tint: #efecf3; --accent-ink: #fff; }
+[data-theme~='olive']  { --accent: #5f5e38; --accent-2: #807f57; --accent-tint: #f0efe2; --accent-ink: #fff; }
+
+/* ── TYPOGRAPHY PAIRINGS (data-type) — clean modern + refined serif ──────────── */
+[data-type='geometric'] { --font-display: 'Space Grotesk', var(--font-sans); --font-sans: 'Inter', system-ui, sans-serif; }
+[data-type='editorial'] { --font-display: 'Source Serif 4', Georgia, serif; --font-sans: 'Inter', system-ui, sans-serif; --measure: 64ch; }
+[data-type='clean']     { --font-display: 'Manrope', system-ui, sans-serif; --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif; }
+[data-type='startup']   { --font-display: 'Outfit', system-ui, sans-serif; --font-sans: 'DM Sans', system-ui, sans-serif; }
+[data-type='tech']      { --font-display: 'Sora', system-ui, sans-serif; --font-sans: 'Manrope', system-ui, sans-serif; }
+[data-type='journal']   { --font-display: 'Newsreader', Georgia, serif; --font-sans: 'Newsreader', Georgia, serif; --measure: 66ch; }
+[data-type='warm']      { --font-display: 'Fraunces', Georgia, serif; --font-sans: 'Lora', Georgia, serif; --measure: 66ch; }
+[data-type='humanist']  { --font-display: 'DM Sans', system-ui, sans-serif; --font-sans: 'DM Sans', system-ui, sans-serif; }
+/* The chosen display family drives every heading + .display, the body family the rest. */
+[data-type] h1, [data-type] h2, [data-type] h3, [data-type] .hero h1, [data-type] .display { font-family: var(--font-display); }
+
+/* ── DESIGN KITS (data-kit) — complete, vetted, minimal looks ────────────────── */
+[data-kit='minimal'] { --accent:#44566a; --accent-2:#61748a; --accent-tint:#eef1f4; --accent-ink:#fff; --r-sm:4px; --r-md:7px; --r-lg:11px; --r-xl:16px; --shadow-md:0 1px 3px rgba(16,18,29,.07); --font-display:'Space Grotesk',sans-serif; --font-sans:'Inter',system-ui,sans-serif; }
+[data-kit='paper']   { --accent:#41454d; --accent-2:#5c616b; --accent-tint:#edeef0; --accent-ink:#fff; --r-sm:5px; --r-md:8px; --r-lg:12px; --font-display:'Source Serif 4',Georgia,serif; --font-sans:'Inter',system-ui,sans-serif; --measure:64ch; }
+[data-kit='linen']   { --accent:#97604a; --accent-2:#b3826d; --accent-tint:#f4ebe6; --accent-ink:#fff; --r-md:12px; --r-lg:18px; --font-display:'Fraunces',Georgia,serif; --font-sans:'Lora',Georgia,serif; --measure:66ch; }
+[data-kit='calm']    { --accent:#4f6551; --accent-2:#6f8470; --accent-tint:#ecf1ec; --accent-ink:#fff; --r-md:12px; --r-lg:18px; --font-display:'DM Sans',system-ui,sans-serif; --font-sans:'Manrope',system-ui,sans-serif; }
+[data-kit='harbor']  { --accent:#395c78; --accent-2:#5b7e98; --accent-tint:#e9eff3; --accent-ink:#fff; --r-sm:5px; --r-md:8px; --r-lg:12px; --font-display:'Manrope',system-ui,sans-serif; --font-sans:'Plus Jakarta Sans',system-ui,sans-serif; }
+[data-kit] h1, [data-kit] h2, [data-kit] h3, [data-kit] .hero h1, [data-kit] .display { font-family: var(--font-display); }
