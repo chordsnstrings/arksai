@@ -131,7 +131,13 @@ function docToolsSlice(): string {
   notes an uploaded image, use it — never tell the user you can't view it.
 - Document files: uploaded .xlsx/.xls/.csv/.pdf/.docx are auto-extracted to a
   sidecar "<file>.extracted.txt" next to the original — read that with
-  read_file instead of trying to parse the binary. To CREATE a deliverable:
+  read_file instead of trying to parse the binary. For a SPREADSHEET, prefer
+  read_spreadsheet (path only) to MAP every tab (dims, column types, a query-table
+  name), then — for any real analysis of a large or multi-tab workbook (totals,
+  group-bys, joins across tabs, pivots, filters) — use query_spreadsheet to run SQL
+  over all the tabs and get back only the answer (the data stays out of the chat, so
+  it scales to huge files). Don't page thousands of raw cells into the conversation.
+  To CREATE a deliverable:
   • Spreadsheet (.xlsx) → use generate_spreadsheet (styled + validated for you:
     branded header, number/date formats, zebra, frozen header, bold total rows). It
     supports FORMULAS — pass cells like "=B2*C2" (or {f,v}) so models are

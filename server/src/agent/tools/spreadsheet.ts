@@ -2,6 +2,29 @@ import fs from 'node:fs';
 import * as XLSX from 'xlsx';
 import type { ToolDef } from './common';
 import { resolveInWorkspace, ToolError } from './common';
+import { tableNamesFor } from './query';
+
+/** Infer a coarse type per column from the header + a sample of data rows, so the manifest
+ *  reads like a schema (the model can write good query_spreadsheet SQL without paging cells). */
+function inferColTypes(rows: string[][]): string {
+  if (rows.length < 1) return '';
+  const header = rows[0] ?? [];
+  const sample = rows.slice(1, 31);
+  const out: string[] = [];
+  for (let c = 0; c < Math.min(header.length, MAX_COLS); c++) {
+    const vals = sample.map((r) => (r[c] ?? '').trim()).filter((v) => v !== '');
+    let kind = 'text';
+    if (vals.length) {
+      const num = vals.filter((v) => /^[-+]?[$£€]?\d[\d,]*\.?\d*%?$/.test(v)).length;
+      const date = vals.filter((v) => /^\d{4}-\d{2}-\d{2}|^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(v)).length;
+      if (date / vals.length >= 0.6) kind = 'date';
+      else if (num / vals.length >= 0.6) kind = 'number';
+    }
+    const name = String(header[c] ?? `col${c + 1}`).replace(/\s+/g, ' ').trim() || `col${c + 1}`;
+    out.push(`${name}(${kind})`);
+  }
+  return out.join(', ');
+}
 
 // Per-call output budgets — keep a tool response bounded (token cost) while letting
 // the agent page through any sheet via the `rows` range. The manifest ALWAYS lists
@@ -45,9 +68,10 @@ export const readSpreadsheetTool: ToolDef = {
     'silently drops sheets). Call with just `path` to get a MANIFEST of EVERY sheet (name, dimensions, ' +
     'header row, and a few sample rows) — this is the right first step for "what is in this file?". Then ' +
     'call again with `sheet` (name or 1-based number) and an optional `rows` range (e.g. "1-200" or "500") ' +
-    'to read exact values from one sheet, paging as needed. For heavy analysis (totals, P&L, pivots, ' +
-    'charts) read the raw file with Python (pandas/openpyxl) in code mode — this tool is for reading, not ' +
-    'computing.',
+    'to read exact values from one sheet, paging as needed. The manifest also gives each sheet a "query ' +
+    'table" name and inferred column types. For heavy analysis (totals, P&L, pivots, joins across tabs, ' +
+    'filters) DON\'T page cells — use query_spreadsheet to run SQL over all the tabs and get only the ' +
+    'result. This tool is the quick map/peek; query_spreadsheet is the calculator.',
   parameters: {
     type: 'object',
     properties: {
@@ -114,13 +138,16 @@ export const readSpreadsheetTool: ToolDef = {
 
     // ---- Manifest of every sheet ----
     const head: string[] = [`Workbook "${p}" — ${names.length} sheet${names.length === 1 ? '' : 's'}:`];
+    const tableMap = tableNamesFor(names); // query_spreadsheet table name per sheet
     let out = '';
     for (let s = 0; s < names.length; s++) {
       const name = names[s];
       const ws = wb.Sheets[name];
       const d = dims(ws);
       const rows = aoa(ws);
-      let block = `\n=== Sheet ${s + 1}/${names.length}: "${name}" — ${d.rows} rows × ${d.cols} cols ===\n`;
+      let block = `\n=== Sheet ${s + 1}/${names.length}: "${name}" — ${d.rows} rows × ${d.cols} cols  (query table: ${tableMap[s].table}) ===\n`;
+      const cols = inferColTypes(rows);
+      if (cols) block += `columns: ${cols}\n`;
       const sample = rows.slice(0, MANIFEST_SAMPLE_ROWS);
       for (let i = 0; i < sample.length; i++) block += `${i + 1}: ${fmtRow(sample[i])}\n`;
       if (rows.length > MANIFEST_SAMPLE_ROWS)
@@ -134,7 +161,7 @@ export const readSpreadsheetTool: ToolDef = {
     return (
       head.join('\n') +
       out +
-      `\n[This is a structured overview. For exact values read a sheet with sheet:"<name>"; for totals/P&L/pivots/charts crunch the raw file "${p}" with Python (pandas/openpyxl) in code mode.]`
+      `\n[This is the MAP. For exact values read a sheet with sheet:"<name>". For ANY real analysis across a large or multi-tab file — totals, group-bys, joins across tabs, pivots, filters, reconciliation — use query_spreadsheet with a SQL query (each sheet is the "query table" named above) so you get only the answer back instead of paging cells.]`
     );
   },
 };

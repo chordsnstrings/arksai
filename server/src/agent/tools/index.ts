@@ -27,6 +27,7 @@ import { validatePaletteTool } from './validatePalette';
 import { computeFinancialsTool } from './computeFinancials';
 import { dependencyAuditorTool } from './dependencyAuditor';
 import { readSpreadsheetTool } from './spreadsheet';
+import { querySpreadsheetTool } from './query';
 import { readPresentationTool } from './presentation';
 
 export const ALL_TOOLS: ToolDef[] = [
@@ -73,6 +74,7 @@ export const ALL_TOOLS: ToolDef[] = [
   computeFinancialsTool,
   dependencyAuditorTool,
   readSpreadsheetTool,
+  querySpreadsheetTool,
   readPresentationTool,
 ];
 
@@ -101,6 +103,7 @@ const REPORT_TOOLS = new Set([
   'compute_financials',
   'dependency_auditor',
   'read_spreadsheet',
+  'query_spreadsheet',
   'read_presentation',
   'switch_mode',
   'fetch_data',

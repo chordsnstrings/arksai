@@ -23,6 +23,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       git ripgrep ca-certificates bash procps zip unzip curl jq openssh-client \
       python3 python3-pip python3-venv python-is-python3 \
       && rm -rf /var/lib/apt/lists/*
+# Preinstall the data-analysis stack so the agent can READ/QUERY large, multi-tab
+# spreadsheets instantly (query_spreadsheet runs DuckDB over every tab; the agent also
+# reaches for pandas/openpyxl). Without this it burned turns pip-installing mid-task.
+RUN pip3 install --no-cache-dir --break-system-packages \
+      pandas openpyxl duckdb || \
+    pip3 install --no-cache-dir pandas openpyxl duckdb
 # doctl (DigitalOcean CLI) so the agent can manage infrastructure
 ARG DOCTL_VERSION=1.120.0
 RUN curl -sL "https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-amd64.tar.gz" \
