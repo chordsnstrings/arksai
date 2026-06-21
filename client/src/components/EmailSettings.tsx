@@ -7,7 +7,7 @@ import { api, type EmailAccount, type EmailAccountForm, type EmailVerifyResult }
  * "saved" placeholder and a blank value keeps the existing password. "Test connection"
  * verifies both legs before the agent ever uses them.
  */
-export function EmailSettings({ orgId }: { orgId: string }) {
+export function EmailSettings({ orgId, robotId }: { orgId: string; robotId?: string }) {
   const [form, setForm] = useState<EmailAccountForm>({ fromEmail: '', smtpHost: '', smtpPort: 587, imapPort: 993, imapSecure: true });
   const [account, setAccount] = useState<EmailAccount | null>(null);
   const [busy, setBusy] = useState(false);
@@ -15,10 +15,25 @@ export function EmailSettings({ orgId }: { orgId: string }) {
   const [note, setNote] = useState('');
   const [test, setTest] = useState<EmailVerifyResult | null>(null);
 
+  // Bind to either the org mailbox or a specific robot's mailbox.
+  const calls = robotId
+    ? {
+        get: () => api.getRobotEmail(orgId, robotId),
+        save: (b: EmailAccountForm) => api.saveRobotEmail(orgId, robotId, b),
+        test: (b: EmailAccountForm) => api.testRobotEmail(orgId, robotId, b),
+        del: () => api.deleteRobotEmail(orgId, robotId),
+      }
+    : {
+        get: () => api.getEmailAccount(orgId),
+        save: (b: EmailAccountForm) => api.saveEmailAccount(orgId, b),
+        test: (b: EmailAccountForm) => api.testEmailAccount(orgId, b),
+        del: () => api.deleteEmailAccount(orgId),
+      };
+
   useEffect(() => {
     setError(''); setNote(''); setTest(null);
     if (!orgId) return;
-    api.getEmailAccount(orgId).then((a) => {
+    calls.get().then((a) => {
       setAccount(a);
       if (a) {
         setForm({
@@ -31,7 +46,8 @@ export function EmailSettings({ orgId }: { orgId: string }) {
         setForm({ fromEmail: '', smtpHost: '', smtpPort: 587, imapPort: 993, imapSecure: true });
       }
     }).catch(() => {});
-  }, [orgId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, robotId]);
 
   const set = (patch: Partial<EmailAccountForm>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -40,7 +56,7 @@ export function EmailSettings({ orgId }: { orgId: string }) {
   const doTest = async () => {
     setBusy(true); setError(''); setNote(''); setTest(null);
     try {
-      const r = await api.testEmailAccount(orgId, form);
+      const r = await calls.test(form);
       setTest(r);
     } catch (e: any) {
       setError(e?.message || 'Test failed.');
@@ -50,7 +66,7 @@ export function EmailSettings({ orgId }: { orgId: string }) {
   const save = async () => {
     setBusy(true); setError(''); setNote('');
     try {
-      const a = await api.saveEmailAccount(orgId, form);
+      const a = await calls.save(form);
       setAccount(a);
       set({ smtpPass: '', imapPass: '' });
       setNote('Saved.');
@@ -62,7 +78,7 @@ export function EmailSettings({ orgId }: { orgId: string }) {
   const disconnect = async () => {
     setBusy(true); setError('');
     try {
-      await api.deleteEmailAccount(orgId);
+      await calls.del();
       setAccount(null);
       setForm({ fromEmail: '', smtpHost: '', smtpPort: 587, imapPort: 993, imapSecure: true });
       setNote('Mailbox disconnected.');
@@ -76,7 +92,9 @@ export function EmailSettings({ orgId }: { orgId: string }) {
   return (
     <div className="email-settings">
       <p className="an-sub" style={{ marginTop: 4 }}>
-        Connect a mailbox so this organization's agents can send email (SMTP) and read replies (IMAP).
+        {robotId
+          ? 'Connect this robot’s own mailbox — it sends and reads email from this address (SMTP + IMAP). Each robot has its own.'
+          : 'Connect a mailbox so this organization’s agents can send email (SMTP) and read replies (IMAP).'}{' '}
         Works with any provider — a Gmail app‑password, a company mail server, or a transactional SMTP host.
       </p>
 

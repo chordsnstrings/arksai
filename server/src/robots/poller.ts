@@ -1,5 +1,5 @@
-import { getEmailAccount } from '../email/accounts';
-import { readInbox, sendEmail, type InboxMessage } from '../email/client';
+import { getRobotEmailAccount } from '../email/accounts';
+import { readInboxForRobot, sendEmailForRobot, type InboxMessage } from '../email/client';
 import type { Robot } from '../../../shared/types';
 import { createDraft, draftExistsFor, listActiveRobots, markDraftStatus, markPolled } from './store';
 import { draftReply } from './reply';
@@ -30,12 +30,12 @@ function reSubject(s: string | undefined): string {
 }
 
 async function processRobot(robot: Robot): Promise<void> {
-  const account = await getEmailAccount(robot.orgId);
+  const account = await getRobotEmailAccount(robot.id);
   if (!account || !account.enabled || !account.imapHost) return;
 
   let messages: InboxMessage[];
   try {
-    messages = await readInbox(robot.orgId, { unseenOnly: true, limit: MAX_PER_ROBOT });
+    messages = await readInboxForRobot(robot.id, { unseenOnly: true, limit: MAX_PER_ROBOT });
   } catch (e) {
     console.error(`[robot ${robot.id}] inbox read failed:`, (e as any)?.message ?? e);
     return;
@@ -82,7 +82,7 @@ async function processRobot(robot: Robot): Promise<void> {
     // Auto mode: send a clean (non-escalated) draft right away, locked to the sender.
     if (robot.autonomy === 'auto' && !primary.escalate && primary.text) {
       try {
-        await sendEmail(robot.orgId, {
+        await sendEmailForRobot(robot.id, {
           to: msg.from,
           subject: reSubject(msg.subject),
           text: primary.text,

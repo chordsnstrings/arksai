@@ -13,6 +13,7 @@ import {
 import { useRobots } from '../state/robotsStore';
 import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
+import { EmailSettings } from './EmailSettings';
 
 /**
  * "Robots" — the separate, full-page agentic surface (reached from the Sidebar link / /robots).
@@ -306,6 +307,7 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
   const update = useRobots((s) => s.update);
   const remove = useRobots((s) => s.remove);
   const setStatus = useRobots((s) => s.setStatus);
+  const orgId = useRobots((s) => s.orgId) ?? '';
   const [mandate, setMandate] = useState(robot.mandate);
   const dirty = mandate.trim() !== robot.mandate;
   const st = STATUS_META[robot.status];
@@ -373,6 +375,14 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
               Dismiss
             </button>
           </div>
+        </section>
+
+        <section className="rb-panel rb-span">
+          <h3>Mailbox</h3>
+          <p className="rb-mini-empty" style={{ marginBottom: 6 }}>
+            This robot has its own email identity. Connect a mailbox here so it can read incoming mail and send replies on its own behalf.
+          </p>
+          {orgId && <EmailSettings orgId={orgId} robotId={robot.id} />}
         </section>
 
         <section className="rb-panel rb-span">

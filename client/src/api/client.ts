@@ -318,6 +318,15 @@ export const api = {
     }).then((r) => r.result),
   deleteEmailAccount: (orgId: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/email`, { method: 'DELETE' }),
+  // ---- per-robot mailbox (each robot is its own email identity) ----
+  getRobotEmail: (orgId: string, rid: string) =>
+    request<{ account: EmailAccount | null }>(`/api/orgs/${orgId}/robots/${rid}/email`).then((r) => r.account),
+  saveRobotEmail: (orgId: string, rid: string, body: EmailAccountForm) =>
+    request<{ account: EmailAccount }>(`/api/orgs/${orgId}/robots/${rid}/email`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.account),
+  testRobotEmail: (orgId: string, rid: string, body: EmailAccountForm) =>
+    request<{ result: EmailVerifyResult }>(`/api/orgs/${orgId}/robots/${rid}/email/test`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.result),
+  deleteRobotEmail: (orgId: string, rid: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/email`, { method: 'DELETE' }),
   // ---- robots ----
   listRobots: (orgId: string) =>
     request<{ robots: Robot[] }>(`/api/orgs/${orgId}/robots`).then((r) => r.robots),

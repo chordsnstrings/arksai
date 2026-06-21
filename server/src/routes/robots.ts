@@ -13,8 +13,16 @@ import {
   updateRobot,
 } from '../robots/store';
 import { draftReply } from '../robots/reply';
-import { sendEmail } from '../email/client';
+import { sendEmailForRobot, verifyAccount } from '../email/client';
 import type { InboxMessage } from '../email/client';
+import {
+  deleteRobotEmailAccount,
+  getRobotEmailAccount,
+  markRobotVerified,
+  robotAccountSecrets,
+  upsertRobotEmailAccount,
+  type EmailAccount,
+} from '../email/accounts';
 
 /**
  * Robots + drafts API, org-scoped. Any member of the org (or the operator) can manage
@@ -89,6 +97,75 @@ export function registerRobotRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // ---- per-robot mailbox (each robot is its own email identity) ----
+  app.get('/api/orgs/:id/robots/:rid/email', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    return { account: await getRobotEmailAccount(robot.id) };
+  });
+
+  app.put('/api/orgs/:id/robots/:rid/email', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const b = (req.body as any) || {};
+    if (!b.fromEmail || !b.smtpHost) {
+      return reply.code(400).send({ error: 'A from address and an SMTP host are required.' });
+    }
+    const account = await upsertRobotEmailAccount(robot.id, orgId(req), {
+      fromName: b.fromName ?? null,
+      fromEmail: String(b.fromEmail).trim(),
+      smtpHost: String(b.smtpHost).trim(),
+      smtpPort: Number(b.smtpPort) || 587,
+      smtpSecure: !!b.smtpSecure,
+      smtpUser: b.smtpUser ?? null,
+      smtpPass: b.smtpPass ?? null,
+      imapHost: b.imapHost ? String(b.imapHost).trim() : null,
+      imapPort: Number(b.imapPort) || 993,
+      imapSecure: b.imapSecure !== false,
+      imapUser: b.imapUser ?? null,
+      imapPass: b.imapPass ?? null,
+      enabled: b.enabled !== false,
+      autoReply: !!b.autoReply,
+    });
+    return { account };
+  });
+
+  app.post('/api/orgs/:id/robots/:rid/email/test', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const b = (req.body as any) || {};
+    if (!b.smtpHost || !b.fromEmail) {
+      return reply.code(400).send({ error: 'A from address and an SMTP host are required to test.' });
+    }
+    const stored = await robotAccountSecrets(robot.id);
+    const account: EmailAccount = {
+      orgId: orgId(req), robotId: robot.id,
+      fromName: b.fromName ?? null, fromEmail: String(b.fromEmail).trim(),
+      smtpHost: String(b.smtpHost).trim(), smtpPort: Number(b.smtpPort) || 587, smtpSecure: !!b.smtpSecure,
+      smtpUser: b.smtpUser ?? null,
+      imapHost: b.imapHost ? String(b.imapHost).trim() : null, imapPort: Number(b.imapPort) || 993,
+      imapSecure: b.imapSecure !== false, imapUser: b.imapUser ?? null,
+      enabled: true, autoReply: !!b.autoReply, verifiedAt: null,
+      hasSmtpPass: !!(b.smtpPass || stored.smtpPass), hasImapPass: !!(b.imapPass || stored.imapPass),
+      updatedAt: Date.now(),
+    };
+    const secrets = { smtpPass: b.smtpPass || stored.smtpPass, imapPass: b.imapPass || stored.imapPass };
+    const result = await verifyAccount(account, secrets);
+    if (result.smtp.ok && (result.imap.ok || result.imap.skipped)) await markRobotVerified(robot.id).catch(() => {});
+    return { result };
+  });
+
+  app.delete('/api/orgs/:id/robots/:rid/email', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    await deleteRobotEmailAccount(robot.id);
+    return { ok: true };
+  });
+
   // Generate a draft from a SAMPLE inbound message — onboarding preview + the
   // M3-vs-DeepSeek bake-off, without waiting for real mail to arrive.
   app.post('/api/orgs/:id/robots/:rid/preview', async (req, reply) => {
@@ -142,7 +219,7 @@ export function registerRobotRoutes(app: FastifyInstance) {
     if (draft.status === 'sent') return reply.code(409).send({ error: 'Already sent.' });
     const text = String((req.body as any)?.text ?? draft.draftText);
     try {
-      await sendEmail(orgId(req), {
+      await sendEmailForRobot(draft.robotId, {
         to: draft.toAddr, // LOCKED
         subject: draft.subject,
         text,

@@ -100,3 +100,32 @@ test('deleteEmailAccount removes the row', async () => {
   await accounts.deleteEmailAccount('o1');
   assert.equal(await accounts.getEmailAccount('o1'), null);
 });
+
+test('per-robot mailbox: each robot has its own encrypted account, scoped + isolated', async () => {
+  // Two robots in the same org connect different mailboxes.
+  const a = await accounts.upsertRobotEmailAccount('robot-a', 'o1', {
+    fromEmail: 'a@acme.com', smtpHost: 'smtp.acme.com', smtpUser: 'a@acme.com', smtpPass: 'pw-a',
+    imapHost: 'imap.acme.com', imapPass: 'imap-a', autoReply: true,
+  });
+  await accounts.upsertRobotEmailAccount('robot-b', 'o1', {
+    fromEmail: 'b@acme.com', smtpHost: 'smtp.acme.com', smtpPass: 'pw-b',
+  });
+  assert.equal(a.robotId, 'robot-a');
+  assert.equal(a.fromEmail, 'a@acme.com');
+
+  // Secrets are per-robot and recover correctly (and don't bleed across robots).
+  assert.equal((await accounts.robotAccountSecrets('robot-a')).smtpPass, 'pw-a');
+  assert.equal((await accounts.robotAccountSecrets('robot-b')).smtpPass, 'pw-b');
+
+  // Stored encrypted, not plaintext.
+  const raw = await db.qOne<{ smtp_pass: string }>('SELECT smtp_pass FROM robot_email_accounts WHERE robot_id = $1', ['robot-a']);
+  assert.ok(crypto.isEncrypted(raw!.smtp_pass));
+
+  // Blank password on re-save keeps the existing one.
+  await accounts.upsertRobotEmailAccount('robot-a', 'o1', { fromEmail: 'a@acme.com', smtpHost: 'smtp.acme.com', smtpPass: '' });
+  assert.equal((await accounts.robotAccountSecrets('robot-a')).smtpPass, 'pw-a');
+
+  await accounts.deleteRobotEmailAccount('robot-a');
+  assert.equal(await accounts.getRobotEmailAccount('robot-a'), null);
+  assert.ok(await accounts.getRobotEmailAccount('robot-b')); // unaffected
+});

@@ -261,6 +261,30 @@ async function migrate() {
     sent_at ${INT}
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_robot_drafts ON robot_drafts(robot_id, status, created_at)`);
+  // Per-ROBOT mailbox (multi-tenant: each robot connects its OWN mailbox, so each robot is a
+  // unique email identity). Same shape as org_email_accounts but keyed by robot_id; org_id is
+  // kept for scoping. Passwords AES-256-GCM encrypted at rest.
+  await q(`CREATE TABLE IF NOT EXISTS robot_email_accounts(
+    robot_id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    from_name TEXT,
+    from_email TEXT NOT NULL,
+    smtp_host TEXT NOT NULL,
+    smtp_port ${INT} NOT NULL DEFAULT 587,
+    smtp_secure ${INT} NOT NULL DEFAULT 0,
+    smtp_user TEXT,
+    smtp_pass TEXT,
+    imap_host TEXT,
+    imap_port ${INT} NOT NULL DEFAULT 993,
+    imap_secure ${INT} NOT NULL DEFAULT 1,
+    imap_user TEXT,
+    imap_pass TEXT,
+    enabled ${INT} NOT NULL DEFAULT 1,
+    auto_reply ${INT} NOT NULL DEFAULT 0,
+    verified_at ${INT},
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_robot_drafts_msg ON robot_drafts(robot_id, inbound_message_id)`);
   await q(`CREATE TABLE IF NOT EXISTS users(
     id TEXT PRIMARY KEY,

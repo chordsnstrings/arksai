@@ -139,6 +139,7 @@ export async function updateRobot(
 export async function deleteRobot(id: string, orgId: string): Promise<void> {
   await q('DELETE FROM robots WHERE id = $1 AND org_id = $2', [id, orgId]);
   await q('DELETE FROM robot_drafts WHERE robot_id = $1 AND org_id = $2', [id, orgId]);
+  await q('DELETE FROM robot_email_accounts WHERE robot_id = $1 AND org_id = $2', [id, orgId]);
 }
 
 export async function markPolled(id: string, ts = Date.now()): Promise<void> {

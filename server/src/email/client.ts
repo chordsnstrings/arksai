@@ -3,7 +3,14 @@ import path from 'node:path';
 import nodemailer from 'nodemailer';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
-import { accountSecrets, getEmailAccount, type EmailAccount, type EmailSecrets } from './accounts';
+import {
+  accountSecrets,
+  getEmailAccount,
+  getRobotEmailAccount,
+  robotAccountSecrets,
+  type EmailAccount,
+  type EmailSecrets,
+} from './accounts';
 
 /**
  * Runtime SMTP/IMAP client built from a per-org connection. Outbound via nodemailer,
@@ -65,13 +72,12 @@ function fromHeader(account: EmailAccount): string {
   return account.fromName ? `${account.fromName} <${account.fromEmail}>` : account.fromEmail;
 }
 
-/** Send a message from the org's mailbox. Returns the provider message id. */
-export async function sendEmail(orgId: string, opts: SendOptions): Promise<{ messageId: string }> {
-  const account = await getEmailAccount(orgId);
-  if (!account) throw new Error('No email account is connected for this organization.');
-  if (!account.enabled) throw new Error('This organization\'s email account is disabled.');
-  const secrets = await accountSecrets(orgId);
-
+/** Core send: works off a resolved account + secrets (org- or robot-owned). */
+export async function sendWithAccount(
+  account: EmailAccount,
+  secrets: EmailSecrets,
+  opts: SendOptions,
+): Promise<{ messageId: string }> {
   const attachments = (opts.attachments ?? [])
     .filter((a) => a.path && fs.existsSync(a.path))
     .map((a) => ({ filename: a.filename || path.basename(a.path), path: a.path }));
@@ -93,15 +99,29 @@ export async function sendEmail(orgId: string, opts: SendOptions): Promise<{ mes
   return { messageId: info.messageId };
 }
 
-/** Read the most recent inbound messages (newest first). */
-export async function readInbox(
-  orgId: string,
-  opts: { limit?: number; mailbox?: string; unseenOnly?: boolean } = {},
-): Promise<InboxMessage[]> {
+/** Send from an ORG mailbox (the general agent tools). */
+export async function sendEmail(orgId: string, opts: SendOptions): Promise<{ messageId: string }> {
   const account = await getEmailAccount(orgId);
   if (!account) throw new Error('No email account is connected for this organization.');
-  if (!account.imapHost) throw new Error('No IMAP (inbound) settings are configured for this organization.');
-  const secrets = await accountSecrets(orgId);
+  if (!account.enabled) throw new Error('This organization\'s email account is disabled.');
+  return sendWithAccount(account, await accountSecrets(orgId), opts);
+}
+
+/** Send from a ROBOT's own mailbox. */
+export async function sendEmailForRobot(robotId: string, opts: SendOptions): Promise<{ messageId: string }> {
+  const account = await getRobotEmailAccount(robotId);
+  if (!account) throw new Error('This robot has no mailbox connected.');
+  if (!account.enabled) throw new Error('This robot\'s mailbox is disabled.');
+  return sendWithAccount(account, await robotAccountSecrets(robotId), opts);
+}
+
+/** Core inbox read: works off a resolved account + secrets. */
+export async function readInboxWithAccount(
+  account: EmailAccount,
+  secrets: EmailSecrets,
+  opts: { limit?: number; mailbox?: string; unseenOnly?: boolean } = {},
+): Promise<InboxMessage[]> {
+  if (!account.imapHost) throw new Error('No IMAP (inbound) settings are configured for this mailbox.');
   const limit = Math.min(50, Math.max(1, opts.limit ?? 10));
   const mailbox = opts.mailbox || 'INBOX';
 
@@ -150,6 +170,26 @@ export async function readInbox(
     await client.logout().catch(() => {});
   }
   return out.sort((a, b) => (b.date > a.date ? 1 : -1));
+}
+
+/** Read an ORG mailbox (the general agent tools). */
+export async function readInbox(
+  orgId: string,
+  opts: { limit?: number; mailbox?: string; unseenOnly?: boolean } = {},
+): Promise<InboxMessage[]> {
+  const account = await getEmailAccount(orgId);
+  if (!account) throw new Error('No email account is connected for this organization.');
+  return readInboxWithAccount(account, await accountSecrets(orgId), opts);
+}
+
+/** Read a ROBOT's own mailbox. */
+export async function readInboxForRobot(
+  robotId: string,
+  opts: { limit?: number; mailbox?: string; unseenOnly?: boolean } = {},
+): Promise<InboxMessage[]> {
+  const account = await getRobotEmailAccount(robotId);
+  if (!account) throw new Error('This robot has no mailbox connected.');
+  return readInboxWithAccount(account, await robotAccountSecrets(robotId), opts);
 }
 
 export interface VerifyResult {
