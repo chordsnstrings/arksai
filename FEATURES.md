@@ -6,9 +6,16 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 
 > **Maintenance:** keep this file current — every shipped change that adds, removes, or
 > meaningfully alters a feature should update this list in the same commit.
-> _Last updated: 2026-06-19._
+> _Last updated: 2026-06-21._
 
 ---
+
+## Robots — the agentic surface (new, UI shell)
+- A **separate, full-page workspace for standing agents**, reached from a **"🤖 Robots"** link in the sidebar (next to Scheduled) and linkable at **`/robots`** — its own destination, like Code/Design are for Claude. The classic **Chat stays exactly as it is**; Robots is an additive second surface.
+- **Role-branded agents** (Finance Agent, Marketing Agent, Sales Agent… one per department, with the department's accent + icon) instead of one-shot chats. The shift from cron-style *Scheduled* runs to **standing teammates** that work on a schedule, on an event, or when a metric moves — and check in with you when they need a decision.
+- **Three surfaces**: a **roster** ("Your robots"), a **"Needs You" approval inbox** (Approve / Edit / Decline cards — the async heart of the product), and a **per-robot office** (editable plain-language **mandate**, **autonomy dial** — *Ask me before everything → Ask me for the big things → Just keep me posted* — **triggers**, an activity **journal**, and a **deliverables** shelf).
+- A **Hire flow**: pick a role → name it → set its standing mandate (pre-filled per role) → choose when it works → set how much it can do on its own.
+- This is the **UI shell with real empty states (no mock data)**; the durable agent runtime (checkpointed long runs, real triggers, live approvals) is the next build. Editorial light theme throughout; Playwright-verified end-to-end (empty states, hire→office, the `/robots` route).
 
 ## Core product & agent
 - Autonomous agent loop — streaming, tool-calling, stall guard, context truncation, graceful error handling.

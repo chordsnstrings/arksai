@@ -25,6 +25,7 @@ import { TopBar } from './components/TopBar';
 import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AnalyticsConsole } from './components/AnalyticsConsole';
+import { Robots } from './components/Robots';
 import { useConfirm } from './state/confirmStore';
 import { useStore, emptyLive } from './state/sessionStore';
 import type { Project } from '@shared/types';
@@ -53,6 +54,11 @@ export default function App() {
   const [showSchedules, setShowSchedules] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  // Robots: the separate, full-page agentic surface. Linkable at /robots; opening it pushes the
+  // URL so it's a real shareable destination, and back/forward toggle it.
+  const [showRobots, setShowRobots] = useState(
+    typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/robots',
+  );
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   // A deep link (/s/<id>) that resolved to a session we can't open (deleted / no
   // access). We keep the URL and show an explicit panel instead of silently
@@ -123,6 +129,7 @@ export default function App() {
     if (m) resolve(m[1]);
     // Back/forward: follow the URL, including clearing to the launchpad.
     const onPop = () => {
+      setShowRobots(window.location.pathname.replace(/\/$/, '') === '/robots');
       const mm = window.location.pathname.match(/^\/s\/([^/]+)$/);
       if (mm) resolve(mm[1]);
       else {
@@ -136,6 +143,7 @@ export default function App() {
 
   useEffect(() => {
     if (authed !== true) return;
+    if (showRobots) return; // the Robots surface owns the URL (/robots) while it's open
     const p = window.location.pathname;
     if (p.startsWith('/invite/') || p === '/operator' || p === '/operator/') return;
     // A real session is open → any earlier "not available" deep link is moot.
@@ -152,7 +160,7 @@ export default function App() {
     didInitialUrlSync.current = true;
     const target = activeId ? `/s/${activeId}` : '/';
     if (p !== target) window.history.pushState({}, '', target); // guard prevents popstate loops
-  }, [activeId, authed, deepLinkNotFound]);
+  }, [activeId, authed, deepLinkNotFound, showRobots]);
 
   useGlobalEvents(authed === true);
   useSessionEvents(authed === true ? activeId : null);
@@ -217,6 +225,10 @@ export default function App() {
         onNewProject={() => setProjectDialog('new')}
         onEditProject={(p) => setProjectDialog(p)}
         onSchedules={() => setShowSchedules(true)}
+        onRobots={() => {
+          setShowRobots(true);
+          window.history.pushState({}, '', '/robots');
+        }}
         onAdmin={() => setShowAdmin(true)}
         onAnalytics={() => setShowAnalytics(true)}
       />
@@ -269,6 +281,15 @@ export default function App() {
       {showSchedules && <SchedulesDialog onClose={() => setShowSchedules(false)} />}
       {showAdmin && <AdminDialog onClose={() => setShowAdmin(false)} />}
       {showAnalytics && <AnalyticsConsole onClose={() => setShowAnalytics(false)} />}
+      {showRobots && (
+        <Robots
+          onClose={() => {
+            setShowRobots(false);
+            const back = useStore.getState().activeId;
+            window.history.pushState({}, '', back ? `/s/${back}` : '/');
+          }}
+        />
+      )}
       {showWhatsNew && <WhatsNewModal onClose={() => setShowWhatsNew(false)} />}
       <ConfirmModal />
     </div>

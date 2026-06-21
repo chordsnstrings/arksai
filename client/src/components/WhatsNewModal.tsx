@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-20.14';
+export const WHATS_NEW_VERSION = '2026-06-21.1';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Makes sense of messy spreadsheets',
-    body: 'Drop in a big, unfamiliar workbook and ArksAI can instantly profile every tab — what each column is, its range, how many blanks, the averages — then run real queries across the tabs to answer your question, without wading through thousands of rows.',
-  },
-  {
-    title: 'A smarter time estimate',
-    body: 'The “time remaining” on the progress bar now learns from your real builds, so it gets more accurate over time for how this workspace actually runs — not a fixed guess.',
+    title: 'Introducing Robots — your standing AI team',
+    body: 'A brand-new space (the 🤖 Robots link in the sidebar) for agents that keep working in the background — a Finance Agent, a Marketing Agent, and more. Give one a standing job, choose when it works and how much it can do on its own, and it checks in with you in a “Needs You” inbox when it needs a decision. Your normal Chat is unchanged — this is a separate place. (First look — the agents come to life next.)',
   },
 ];
 

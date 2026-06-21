@@ -1787,3 +1787,175 @@ button { font-family: inherit; cursor: pointer; }
 .conn-accounts { list-style: none; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--line, #e7e2d8); display: flex; flex-direction: column; gap: 6px; }
 .conn-accounts li { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
 .conn-accounts li.conn-bad span { color: #b4452f; }
+
+/* ============================================================
+   Robots — the separate, full-page agentic surface.
+   Editorial light theme; per-role accent via inline --accent.
+   ============================================================ */
+.robots {
+  position: fixed; inset: 0; z-index: 45; background: var(--bg);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.rb-top {
+  display: flex; align-items: center; gap: 18px;
+  padding: 14px 22px; border-bottom: 1px solid var(--border);
+  background: var(--bg-elev); flex-wrap: wrap;
+}
+.rb-back {
+  font-family: var(--label); font-size: 13px; color: var(--text-muted);
+  background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 11px;
+}
+.rb-back:hover { background: var(--bg-hover); color: var(--text); }
+.rb-brand { display: flex; align-items: center; gap: 11px; }
+.rb-logo { font-size: 26px; line-height: 1; }
+.rb-title { font-family: var(--display); font-size: 22px; font-weight: 600; color: var(--text); line-height: 1.05; }
+.rb-sub { font-family: var(--label); font-size: 12px; color: var(--text-faint); letter-spacing: .01em; }
+.rb-tabs { display: flex; gap: 4px; margin-left: auto; }
+.rb-tabs button {
+  font-family: var(--label); font-size: 13.5px; color: var(--text-muted);
+  background: none; border: none; padding: 8px 13px; border-radius: 8px; position: relative;
+}
+.rb-tabs button:hover { background: var(--bg-hover); color: var(--text); }
+.rb-tabs button.on { background: var(--bg-active); color: var(--text); }
+.rb-badge {
+  margin-left: 6px; background: var(--red); color: #fff; font-size: 11px; font-weight: 600;
+  border-radius: 9px; padding: 1px 6px; font-family: var(--sans);
+}
+.rb-hire {
+  font-family: var(--label); font-size: 13.5px; font-weight: 600; color: #fff;
+  background: var(--accent); border: none; border-radius: 9px; padding: 9px 15px;
+}
+.rb-hire:hover { background: var(--accent-strong); }
+.rb-main { flex: 1; overflow-y: auto; padding: 30px 26px 60px; }
+
+/* Empty states */
+.rb-empty { max-width: 540px; margin: 7vh auto 0; text-align: center; }
+.rb-empty-art { font-size: 46px; margin-bottom: 14px; }
+.rb-empty h2 { font-family: var(--display); font-size: 26px; font-weight: 600; color: var(--text); margin: 0 0 10px; }
+.rb-empty p { font-size: 15px; line-height: 1.6; color: var(--text-muted); margin: 0 auto 22px; max-width: 460px; }
+.rb-cta {
+  font-family: var(--label); font-size: 14px; font-weight: 600; color: #fff;
+  background: var(--accent, #1f5f8b); border: none; border-radius: 10px; padding: 11px 20px;
+}
+.rb-cta:hover { filter: brightness(1.06); }
+.rb-cta:disabled { opacity: .45; cursor: not-allowed; }
+.rb-cta.ghost { background: none; color: var(--text-muted); border: 1px solid var(--border); }
+.rb-cta.ghost:hover { background: var(--bg-hover); color: var(--text); }
+.rb-suggest { margin-top: 34px; }
+.rb-suggest > span { font-family: var(--label); font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-faint); }
+.rb-suggest-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; }
+.rb-chip {
+  display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text);
+  background: var(--bg-elev); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: 8px; padding: 7px 12px;
+}
+.rb-chip:hover { background: var(--bg-hover); }
+
+/* Roster */
+.rb-roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; max-width: 1100px; margin: 0 auto; }
+.rb-card {
+  text-align: left; background: var(--bg-elev); border: 1px solid var(--border);
+  border-top: 3px solid var(--accent); border-radius: 12px; padding: 16px 17px 14px;
+  display: flex; flex-direction: column; gap: 9px; transition: transform .08s, box-shadow .12s;
+}
+.rb-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.07); }
+.rb-card-head { display: flex; align-items: center; justify-content: space-between; }
+.rb-card-icon { color: var(--accent); display: flex; }
+.rb-status {
+  font-family: var(--label); font-size: 11px; font-weight: 600; color: var(--tone, var(--text-muted));
+  text-transform: uppercase; letter-spacing: .05em;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.rb-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--tone, var(--text-muted)); }
+.rb-status.big { font-size: 12.5px; }
+.rb-card-name { font-family: var(--display); font-size: 18px; font-weight: 600; color: var(--text); }
+.rb-card-mandate { font-size: 13px; line-height: 1.5; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.rb-card-foot { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border-soft); }
+.rb-task { font-size: 12px; color: var(--text); }
+.rb-task.muted { color: var(--text-faint); font-style: italic; }
+
+/* Inbox */
+.rb-inbox { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.rb-approval { background: var(--bg-elev); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 11px; padding: 16px 18px; }
+.rb-approval-from { font-family: var(--label); font-size: 12px; color: var(--accent); display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.rb-approval-title { font-family: var(--display); font-size: 17px; font-weight: 600; color: var(--text); margin: 6px 0 4px; }
+.rb-approval-why { font-size: 13.5px; color: var(--text-muted); line-height: 1.5; }
+.rb-approval-draft { background: var(--bg); border: 1px solid var(--border-soft); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; color: var(--text); white-space: pre-wrap; margin: 10px 0 0; font-family: var(--mono); }
+.rb-approval-actions { display: flex; gap: 8px; margin-top: 13px; }
+.rb-approve { font-family: var(--label); font-weight: 600; font-size: 13px; color: #fff; background: var(--green); border: none; border-radius: 8px; padding: 8px 16px; }
+.rb-edit, .rb-decline { font-family: var(--label); font-size: 13px; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; }
+.rb-edit:hover, .rb-decline:hover { background: var(--bg-hover); color: var(--text); }
+
+/* Hire */
+.rb-hire-flow { max-width: 680px; margin: 0 auto; }
+.rb-hire-head { margin-bottom: 20px; }
+.rb-hire-head h2 { font-family: var(--display); font-size: 24px; font-weight: 600; color: var(--text); margin: 6px 0 6px; display: flex; align-items: center; gap: 9px; }
+.rb-hire-head h2 svg { color: var(--accent, var(--text)); }
+.rb-hire-head p { font-size: 14px; color: var(--text-muted); line-height: 1.55; margin: 0; }
+.rb-role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.rb-role { text-align: left; background: var(--bg-elev); border: 1px solid var(--border); border-top: 3px solid var(--accent); border-radius: 11px; padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.rb-role:hover { background: var(--bg-hover); transform: translateY(-1px); }
+.rb-role-icon { color: var(--accent); }
+.rb-role-name { font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--text); }
+.rb-role-blurb { font-size: 12.5px; color: var(--text-muted); line-height: 1.45; }
+.rb-link { font-family: var(--label); font-size: 13px; color: var(--text-muted); background: none; border: none; padding: 0 0 10px; }
+.rb-link:hover { color: var(--text); }
+.rb-field { display: block; margin-bottom: 18px; }
+.rb-field > span { font-family: var(--label); font-size: 12.5px; font-weight: 600; color: var(--text); display: block; margin-bottom: 8px; }
+.rb-field input, .rb-field textarea { width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font-family: var(--sans); font-size: 14px; color: var(--text); resize: vertical; }
+.rb-field input:focus, .rb-field textarea:focus { outline: none; border-color: var(--accent, var(--accent)); }
+.rb-triggers { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.rb-trigger { display: flex; align-items: flex-start; gap: 9px; text-align: left; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 9px; padding: 11px 12px; color: var(--text-muted); }
+.rb-trigger svg { margin-top: 1px; flex-shrink: 0; }
+.rb-trigger.on { border-color: var(--accent, #1f5f8b); background: var(--accent-dim); color: var(--text); }
+.rb-trigger-label { font-family: var(--label); font-size: 13px; font-weight: 600; color: var(--text); }
+.rb-trigger-blurb { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; }
+.rb-hire-actions { display: flex; gap: 10px; margin-top: 8px; }
+
+/* Autonomy dial */
+.rb-dial { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.rb-dial-track { display: flex; align-items: center; gap: 0; margin-bottom: 12px; position: relative; }
+.rb-dial-stop { flex: 1; background: none; border: none; padding: 6px 0; position: relative; }
+.rb-dial-stop::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: var(--border); transform: translateY(-50%); z-index: 0; }
+.rb-dial-stop:first-child::before { left: 50%; }
+.rb-dial-stop:last-child::before { right: 50%; }
+.rb-dial-stop.lit::before { background: var(--accent, #1f5f8b); }
+.rb-dial-dot { position: relative; z-index: 1; display: block; width: 14px; height: 14px; border-radius: 50%; margin: 0 auto; background: var(--bg-elev); border: 2px solid var(--border); }
+.rb-dial-stop.lit .rb-dial-dot { border-color: var(--accent, #1f5f8b); }
+.rb-dial-stop.on .rb-dial-dot { background: var(--accent, #1f5f8b); border-color: var(--accent, #1f5f8b); transform: scale(1.25); }
+.rb-dial-label strong { font-family: var(--label); font-size: 14px; color: var(--text); display: block; }
+.rb-dial-label span { font-size: 12.5px; color: var(--text-muted); }
+
+/* Office */
+.rb-office { max-width: 920px; margin: 0 auto; }
+.rb-office-head { display: flex; align-items: center; gap: 14px; padding: 6px 0 18px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.rb-office-icon { color: var(--accent); display: flex; }
+.rb-office-id { margin-right: auto; }
+.rb-office-name { font-family: var(--display); font-size: 24px; font-weight: 600; color: var(--text); }
+.rb-office-role { font-family: var(--label); font-size: 12.5px; color: var(--text-muted); }
+.rb-office-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.rb-panel { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+.rb-panel.rb-span { grid-column: 1 / -1; }
+.rb-panel h3 { font-family: var(--label); font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-faint); margin: 0 0 11px; }
+.rb-panel textarea { width: 100%; box-sizing: border-box; background: var(--bg-input); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font-family: var(--sans); font-size: 14px; color: var(--text); resize: vertical; }
+.rb-panel-actions { display: flex; gap: 8px; margin-top: 11px; }
+.rb-save { font-family: var(--label); font-size: 13px; font-weight: 600; color: #fff; background: var(--accent, #1f5f8b); border: none; border-radius: 8px; padding: 8px 15px; }
+.rb-save:disabled { opacity: .4; cursor: default; }
+.rb-ghost-btn { font-family: var(--label); font-size: 13px; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; }
+.rb-ghost-btn:hover { background: var(--bg-hover); color: var(--text); }
+.rb-danger-btn { font-family: var(--label); font-size: 13px; color: var(--red); background: none; border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; margin-left: auto; }
+.rb-danger-btn:hover { background: rgba(178,59,59,.08); }
+.rb-trigger-tags { display: flex; flex-wrap: wrap; gap: 7px; }
+.rb-trigger-tag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--label); font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; }
+.rb-mini-empty { font-size: 13px; color: var(--text-faint); line-height: 1.55; font-style: italic; }
+.rb-journal, .rb-outputs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rb-journal li { font-size: 13px; color: var(--text); }
+.rb-journal-when { font-family: var(--mono); font-size: 11px; color: var(--text-faint); margin-right: 8px; }
+.rb-out-kind { font-family: var(--label); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; margin-right: 8px; }
+
+@media (max-width: 720px) {
+  .rb-office-grid { grid-template-columns: 1fr; }
+  .rb-triggers { grid-template-columns: 1fr; }
+  .rb-tabs { margin-left: 0; order: 3; width: 100%; }
+  .rb-hire-flow { padding-bottom: 30px; }
+}
