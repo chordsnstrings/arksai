@@ -68,6 +68,28 @@ test('xlsx: a blank spacer row does NOT fail validation (off-by-one trap)', asyn
   assert.match(r, /Generated/);
 });
 
+test('xlsx: a formula-cell emitted as a JSON STRING becomes a real formula (M3 encoding)', async () => {
+  // M3 emits {f,v} cells as JSON strings; they must round-trip into real Excel formulas,
+  // not get stored as text (which left the model with 0 live formulas in a live run).
+  await run(generateSpreadsheetTool, {
+    output: 'jsonstr.xlsx',
+    sheets: [{
+      name: 'P',
+      columns: [{ header: 'Item' }, { header: 'A', type: 'number' }, { header: 'B', type: 'number' }],
+      rows: [
+        ['x', 100, '{"f":"B2*2","v":200}'],            // stringified {f,v}
+        ['y', 50, '{"f":"B2+B3","v":150}'],
+      ],
+    }],
+  });
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.read(fs.readFileSync(path.join(ws, 'jsonstr.xlsx')), { type: 'buffer' });
+  const sh = wb.Sheets['P'];
+  assert.equal(sh['C2'].f, 'B2*2'); // real formula, not text
+  assert.equal(sh['C2'].t, 'n'); // numeric (cached result), not a string
+  assert.equal(sh['C2'].v, 200);
+});
+
 test('xlsx: STAGED build — append adds sheets, preserves prior ones, resolves cross-sheet formulas', async () => {
   // Stage 1: the Assumptions driver sheet.
   const r1 = await run(generateSpreadsheetTool, {

@@ -51,7 +51,22 @@ export function coerceNumeric(v: any): any {
 }
 
 export function toCell(v: any): any {
-  if (typeof v === 'string' && v.length > 1 && v[0] === '=') return { formula: v.slice(1) };
+  if (typeof v === 'string') {
+    const s = v.trim();
+    // Some models (M3) emit a formula-cell OBJECT as a JSON STRING because the cell schema is
+    // untyped — e.g. '{"f":"B2*C2","v":1234}'. Parse it back into a real formula cell, else it
+    // gets stored as TEXT and the model isn't actually formula-driven (a real live bug).
+    if (s.length > 3 && s[0] === '{' && s.includes('"f"')) {
+      try {
+        const o = JSON.parse(s);
+        if (o && typeof o.f === 'string') return o.v !== undefined ? { formula: o.f, result: o.v } : { formula: o.f };
+      } catch {
+        /* not valid JSON — fall through and treat as text */
+      }
+    }
+    if (s.length > 1 && s[0] === '=') return { formula: s.slice(1) };
+    return coerceNumeric(v);
+  }
   if (v && typeof v === 'object' && typeof v.f === 'string') {
     return v.v !== undefined ? { formula: v.f, result: v.v } : { formula: v.f };
   }
