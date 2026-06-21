@@ -546,6 +546,8 @@ export interface Robot {
   model: RobotModel;
   config: RobotConfig;
   lastPolledAt: number | null;
+  /** True when this robot has its own mailbox connected, enabled, and able to receive (IMAP). */
+  mailboxReady: boolean;
   createdAt: number;
   updatedAt: number;
 }

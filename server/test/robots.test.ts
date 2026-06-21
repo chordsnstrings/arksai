@@ -87,6 +87,26 @@ test('buildSystem injects persona/knowledge/escalation + locks the recipient + d
   assert.match(sys, /— Acme/);
 });
 
+test('buildSystem folds a department persona into a specialist (custom + dept)', () => {
+  const robot: any = {
+    id: 'x', orgId: 'o1', name: 'Finance Agent', role: 'custom', status: 'active', autonomy: 'ask',
+    model: 'arksai-max', lastPolledAt: null, createdAt: 0, updatedAt: 0, mailboxReady: true,
+    config: { dept: 'finance', mandate: 'Keep the model current', persona: 'Keep the model current' },
+  };
+  const sys = reply.buildSystem(robot);
+  assert.match(sys, /DOMAIN EXPERTISE \(finance\)/);
+  assert.match(sys, /FP&A/); // the finance persona text
+  // A plain customer_service robot has no department fold.
+  const cs: any = { ...robot, role: 'customer_service', config: { knowledge: 'x' } };
+  assert.doesNotMatch(reply.buildSystem(cs), /DOMAIN EXPERTISE/);
+});
+
+test('a newly created robot is mailbox-less until one is connected', async () => {
+  const r = await store.createRobot('o1', { name: 'NeedsBox', role: 'customer_service' });
+  const fetched = await store.getRobot(r.id, 'o1');
+  assert.equal(fetched?.mailboxReady, false);
+});
+
 test('parseReplyJson handles clean JSON, fenced JSON, and bare prose', () => {
   const a = reply.parseReplyJson('{"escalate": false, "reason": "", "reply": "Hello there"}');
   assert.equal(a?.escalate, false);

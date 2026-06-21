@@ -59,6 +59,10 @@ export interface Robot {
   triggers: TriggerKind[];
   createdAt: number;
   currentTask?: string;
+  /** Backend role driving the reply persona: customer_service | personal_assistant | custom. */
+  kind?: string;
+  /** True when this robot has its own mailbox connected + receivable (IMAP). */
+  mailboxReady?: boolean;
   journal: JournalEntry[];
   outputs: RobotOutput[];
 }

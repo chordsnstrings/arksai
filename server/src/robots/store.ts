@@ -35,10 +35,17 @@ function rowToRobot(r: any): Robot {
     model: r.model,
     config: parseConfig(r.config),
     lastPolledAt: r.last_polled_at != null ? Number(r.last_polled_at) : null,
+    mailboxReady: !!Number(r.mailbox_ready ?? 0),
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
   };
 }
+
+// Correlated subquery (SQLite + PG portable) → 1 when the robot has its own enabled,
+// receivable (IMAP) mailbox. Selected alongside robots.* as `mailbox_ready`.
+const MAILBOX_READY =
+  `(SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM robot_email_accounts e ` +
+  `WHERE e.robot_id = robots.id AND e.enabled = 1 AND e.imap_host IS NOT NULL) AS mailbox_ready`;
 
 function rowToDraft(r: any): RobotDraft {
   return {
@@ -67,12 +74,12 @@ function rowToDraft(r: any): RobotDraft {
 // ---- robots ----
 
 export async function listRobots(orgId: string): Promise<Robot[]> {
-  const rows = await q('SELECT * FROM robots WHERE org_id = $1 ORDER BY created_at DESC', [orgId]);
+  const rows = await q(`SELECT robots.*, ${MAILBOX_READY} FROM robots WHERE org_id = $1 ORDER BY created_at DESC`, [orgId]);
   return rows.map(rowToRobot);
 }
 
 export async function getRobot(id: string, orgId?: string): Promise<Robot | null> {
-  const r = await qOne('SELECT * FROM robots WHERE id = $1', [id]);
+  const r = await qOne(`SELECT robots.*, ${MAILBOX_READY} FROM robots WHERE id = $1`, [id]);
   if (!r) return null;
   if (orgId != null && r.org_id !== orgId) return null; // cross-org → not found
   return rowToRobot(r);
@@ -148,7 +155,7 @@ export async function markPolled(id: string, ts = Date.now()): Promise<void> {
 
 /** Active robots across all orgs — used by the poller (internal caller, unscoped). */
 export async function listActiveRobots(): Promise<Robot[]> {
-  const rows = await q("SELECT * FROM robots WHERE status = 'active'");
+  const rows = await q(`SELECT robots.*, ${MAILBOX_READY} FROM robots WHERE status = 'active'`);
   return rows.map(rowToRobot);
 }
 

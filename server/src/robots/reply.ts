@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { config } from '../config';
 import type { Robot, RobotRole } from '../../../shared/types';
 import type { InboxMessage } from '../email/client';
+import { departmentPersona } from '../agent/expertise';
 
 /**
  * The reply engine: turn ONE inbound message into a knowledge-grounded draft reply,
@@ -55,6 +56,12 @@ export interface ReplyOutcome {
 export function buildSystem(robot: Robot): string {
   const c = robot.config || {};
   const parts: string[] = [ROLE_PERSONA[robot.role] || ROLE_PERSONA.custom];
+  // Specialist robots (role custom + a department) also get that department's expertise
+  // persona, so a "Finance Agent" answers like one — not as a generic assistant.
+  if (robot.role === 'custom' && c.dept) {
+    const dp = departmentPersona(c.dept);
+    if (dp) parts.push(`DOMAIN EXPERTISE (${c.dept}):\n${dp}`);
+  }
   if (c.persona) parts.push(`PERSONA / TONE:\n${c.persona}`);
   if (c.knowledge) parts.push(`KNOWLEDGE (answer only from this; do not go beyond it):\n${c.knowledge}`);
   if (c.escalateOn) parts.push(`ALWAYS ESCALATE when the message involves:\n${c.escalateOn}`);

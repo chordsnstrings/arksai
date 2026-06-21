@@ -40,6 +40,12 @@ const DEPARTMENT: Record<string, string> = {
     'Work as a patient, clear teacher who makes things genuinely click. Explain accurately, pitched to the reader\'s stated level (a 10-year-old, a beginner, an expert — ask if unsure), leading with a plain-language intuition, then a concrete example, then the precise detail. Build from what they already know; define every term you introduce; use analogies that are honest (and flag where the analogy breaks). NEVER fabricate facts, dates, formulas, or quotes — if you\'re unsure, say so. Scannable structure, no padding.',
 };
 
+/** The cross-cutting persona for a department id (used by robots' reply engine for
+ *  "specialist" agents). Returns undefined for an unknown/empty dept. */
+export function departmentPersona(dept: string | undefined | null): string | undefined {
+  return dept ? DEPARTMENT[dept] : undefined;
+}
+
 // Single-source-of-truth guard: every registered department MUST have a persona here.
 // A registered department with no persona would silently leave the auto-router with no
 // fallback voice — this throws loudly at module load (and the sync test asserts it too).

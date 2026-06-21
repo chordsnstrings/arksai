@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Approval, AutonomyLevel, Robot, RobotStatus, TriggerKind } from '../lib/robots';
 import { roleSpec } from '../lib/robots';
 import { api } from '../api/client';
-import type { Robot as ApiRobot, RobotConfig, RobotAutonomy } from '@shared/types';
+import type { Robot as ApiRobot, RobotConfig, RobotAutonomy, RobotRole } from '@shared/types';
 
 /**
  * Client store for the Robots console — now backed by the real `/api/orgs/:id/robots`
@@ -17,7 +17,8 @@ import type { Robot as ApiRobot, RobotConfig, RobotAutonomy } from '@shared/type
 // "autonomous" sends on its own. Reverse maps to ask_big (the sensible middle default).
 const toApiAutonomy = (a: AutonomyLevel): RobotAutonomy => (a === 'autonomous' ? 'auto' : 'ask');
 const toUiAutonomy = (a: RobotAutonomy): AutonomyLevel => (a === 'auto' ? 'autonomous' : 'ask_big');
-const toUiStatus = (s: ApiRobot['status']): RobotStatus => (s === 'paused' ? 'paused' : 'idle');
+// active → running (idle); draft/paused → not running (paused/"needs setup").
+const toUiStatus = (s: ApiRobot['status']): RobotStatus => (s === 'active' ? 'idle' : 'paused');
 
 type ExtConfig = RobotConfig & { dept?: string; mandate?: string; triggers?: TriggerKind[] };
 
@@ -33,6 +34,8 @@ function toUiRobot(r: ApiRobot): Robot {
     autonomy: toUiAutonomy(r.autonomy),
     triggers: cfg.triggers && cfg.triggers.length ? cfg.triggers : ['event'],
     createdAt: r.createdAt,
+    kind: r.role,
+    mailboxReady: r.mailboxReady,
     journal: [],
     outputs: [],
   };
@@ -40,13 +43,27 @@ function toUiRobot(r: ApiRobot): Robot {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+/** Hire input from the console wizard. `kind` is the backend reply persona; `dept` (a department
+ *  id) refines a `custom` specialist. Created PAUSED — the wizard connects a mailbox then activates. */
+export interface HireInput {
+  kind: RobotRole;
+  dept?: string;
+  name: string;
+  mandate: string;
+  knowledge?: string;
+  escalateOn?: string;
+  signature?: string;
+  autonomy: AutonomyLevel;
+  triggers: TriggerKind[];
+}
+
 interface RobotsState {
   orgId: string | null;
   robots: Robot[];
   approvals: Approval[];
   loading: boolean;
   load(orgId: string): Promise<void>;
-  hire(input: { role: string; name: string; mandate: string; autonomy: AutonomyLevel; triggers: TriggerKind[] }): Promise<Robot>;
+  hire(input: HireInput): Promise<Robot>;
   update(id: string, patch: Partial<Robot>): void;
   remove(id: string): void;
   setStatus(id: string, status: RobotStatus): void;
@@ -82,23 +99,28 @@ export const useRobots = create<RobotsState>((set, get) => ({
 
   hire: async (input) => {
     const orgId = get().orgId;
-    const spec = roleSpec(input.role);
+    const isSpecialist = input.kind === 'custom' && !!input.dept;
+    const spec = isSpecialist ? roleSpec(input.dept!) : undefined;
     const config: ExtConfig = {
-      dept: input.role,
+      dept: isSpecialist ? input.dept : undefined,
       mandate: input.mandate.trim(),
       persona: input.mandate.trim(),
+      knowledge: input.knowledge?.trim() || undefined,
+      escalateOn: input.escalateOn?.trim() || undefined,
+      signature: input.signature?.trim() || undefined,
       triggers: input.triggers.length ? input.triggers : ['event'],
     };
+    const displayName = input.name || spec?.name || 'Agent';
     if (orgId) {
       try {
+        // Created PAUSED: the wizard connects a mailbox, then Activate flips it on.
         const created = await api.createRobot(orgId, {
-          name: input.name || spec?.name || 'Agent',
-          role: 'custom',
+          name: displayName,
+          role: input.kind,
           model: 'arksai-max',
           autonomy: toApiAutonomy(input.autonomy),
           config,
         });
-        await api.updateRobot(orgId, created.id, { status: 'active' }).catch(() => {});
         await get().load(orgId);
         const ui = get().robots.find((r) => r.id === created.id);
         if (ui) return ui;
@@ -107,9 +129,9 @@ export const useRobots = create<RobotsState>((set, get) => ({
       }
     }
     const robot: Robot = {
-      id: uid(), role: input.role, name: input.name || spec?.name || 'Agent', mandate: input.mandate.trim(),
-      status: 'idle', autonomy: input.autonomy, triggers: input.triggers.length ? input.triggers : ['event'],
-      createdAt: Date.now(), journal: [], outputs: [],
+      id: uid(), role: input.dept || input.kind, name: displayName, mandate: input.mandate.trim(),
+      status: 'paused', autonomy: input.autonomy, triggers: input.triggers.length ? input.triggers : ['event'],
+      createdAt: Date.now(), kind: input.kind, mailboxReady: false, journal: [], outputs: [],
     };
     set((s) => ({ robots: [robot, ...s.robots] }));
     return robot;

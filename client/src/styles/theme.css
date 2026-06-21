@@ -1971,3 +1971,9 @@ button { font-family: inherit; cursor: pointer; }
   .rb-tabs { margin-left: 0; order: 3; width: 100%; }
   .rb-hire-flow { padding-bottom: 30px; }
 }
+
+/* ---- Robots Hire wizard additions ---- */
+.rb-role.picked { box-shadow: 0 0 0 2px var(--accent); background: var(--bg-hover); }
+.rb-task.warn { color: #c0502f; font-weight: 500; }
+.rb-sub { font-size: 13px; color: var(--text-muted); }
+.rb-hire-flow .email-settings { margin-top: 4px; }

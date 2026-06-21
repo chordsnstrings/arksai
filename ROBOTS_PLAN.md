@@ -7,6 +7,26 @@ lands quality every single time**. Grounded in `ROBOTS_RESEARCH.md`. The governi
 ---
 
 ## Build log
+- **Hire-flow polish — DONE (branch `claude/pensive-feynman-ugt30p`, 2026-06-21).** Built per the approved
+  plan below. Wizard `Robots.tsx Hire`: kind-first (Customer/Personal/Specialist→dept grid) → teach
+  (name/mandate/knowledge/escalation/signature) → connect-first-but-skippable per-robot `EmailSettings` step
+  (robot created PAUSED, then Activate, or "connect later" stays paused) → autonomy/triggers. `robotsStore`
+  passes the real `role` (not hardcoded custom) + dept/knowledge/escalation/signature in config; created
+  paused (draft→UI 'paused'). Backend: `departmentPersona()` exported from `expertise.ts` + folded into
+  `reply.ts buildSystem` for `custom`+dept specialists; `mailboxReady` added to the Robot API (correlated
+  subquery, SQLite/PG-portable) → roster shows "⚠ Needs a mailbox", office Mailbox panel shows
+  connected/needs-setup. 458 tests (added persona-fold + mailbox-less-on-create). Typecheck/build/boot clean.
+- **Hire-flow polish — PLAN (approved 2026-06-21).** Two gaps to close: the Hire flow doesn't prompt to
+  connect a mailbox, and every console robot is hardcoded `role:'custom'` (the customer-vs-personal reply
+  persona is never used). Approved design: (1) **Kind-first wizard** — step 1 picks Customer assistant /
+  Personal assistant / Department specialist (→ backend `role` customer_service/personal_assistant/custom);
+  Specialist reveals the existing department grid for accent + expertise. (2) **Teach** — name, mandate,
+  knowledge, escalation, signature. (3) **Connect-first but skippable** — an inline per-robot `EmailSettings`
+  step; create the robot **paused** first (so it has an id for `/robots/:rid/email`), connect+test, then
+  Activate; "connect later" leaves it paused (the poller already skips mailbox-less robots). (4) autonomy +
+  triggers. Backend: pass `role` through (not hardcoded); export `DEPARTMENT` personas from `expertise.ts`
+  and fold the department persona into `reply.ts buildSystem` for specialists; add `mailboxReady` to the
+  Robot API so the roster/office show "connected ✓ / needs setup."
 - **Unification with main's Robots console — DONE (branch `claude/pensive-feynman-ugt30p`).** Main had grown
   a polished but **backend-less** full-page Robots console (`Robots.tsx` + client-only mock `robotsStore`,
   department-agent framing). Merged main in and made that console the **single Robots UI, backed by my real
