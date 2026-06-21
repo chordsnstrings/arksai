@@ -10,12 +10,12 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 
 ---
 
-## Robots — the agentic surface (new, UI shell)
-- A **separate, full-page workspace for standing agents**, reached from a **"🤖 Robots"** link in the sidebar (next to Scheduled) and linkable at **`/robots`** — its own destination, like Code/Design are for Claude. The classic **Chat stays exactly as it is**; Robots is an additive second surface.
-- **Role-branded agents** (Finance Agent, Marketing Agent, Sales Agent… one per department, with the department's accent + icon) instead of one-shot chats. The shift from cron-style *Scheduled* runs to **standing teammates** that work on a schedule, on an event, or when a metric moves — and check in with you when they need a decision.
-- **Three surfaces**: a **roster** ("Your robots"), a **"Needs You" approval inbox** (Approve / Edit / Decline cards — the async heart of the product), and a **per-robot office** (editable plain-language **mandate**, **autonomy dial** — *Ask me before everything → Ask me for the big things → Just keep me posted* — **triggers**, an activity **journal**, and a **deliverables** shelf).
+## Robots — the agentic surface
+- A **separate, full-page workspace for standing agents**, reached from a **"🤖 Robots"** link in the sidebar and linkable at **`/robots`** — its own destination. The classic **Chat stays exactly as it is**; Robots is an additive second surface.
+- **Role-branded agents** (Finance Agent, Marketing Agent, Sales Agent… one per department, with the department's accent + icon) instead of one-shot chats — **standing teammates** that work and check in with you when they need a decision.
+- **Three surfaces**: a **roster** ("Your robots"), a **"Needs You" approval inbox** (Approve & send / Dismiss cards — the async heart of the product), and a **per-robot office** (editable plain-language **mandate**, **autonomy dial** — *Ask me before everything → Ask me for the big things → Just keep me posted* — **triggers**, journal, deliverables).
 - A **Hire flow**: pick a role → name it → set its standing mandate (pre-filled per role) → choose when it works → set how much it can do on its own.
-- This is the **UI shell with real empty states (no mock data)**; the durable agent runtime (checkpointed long runs, real triggers, live approvals) is the next build. Editorial light theme throughout; Playwright-verified end-to-end (empty states, hire→office, the `/robots` route).
+- **Backed by a real, durable per-org engine** (`/api/orgs/:id/robots`): robots persist, run on the server, and their pending work fills the "Needs You" inbox. The **first working robot type is the email robot** (below) — connect a mailbox and a robot drafts real replies you approve & send. (Department-specific automations beyond email are the next build.)
 
 ## Core product & agent
 - Autonomous agent loop — streaming, tool-calling, stall guard, context truncation, graceful error handling.
@@ -111,11 +111,11 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 - Deliver out — `send_webhook` posts a result to a Slack/Zapier/Discord hook.
 - **Email (per-org mailbox)** — each organization connects its own mailbox (SMTP for outbound, IMAP for inbound) in Settings → Email; passwords are stored **AES-256-GCM encrypted at rest** and never returned to the client. The agent can then `send_email` (with workspace attachments — a PDF, deck, sheet, or image) and `read_inbox` (triage/summarize/draft a reply), scoped strictly to the session's own org. A "Test connection" check verifies both legs before use.
 
-## Robots (standing email agents)
-- **Hire a robot** (sidebar → Robots) — onboarding **connects the mailbox first**, then you pick what the robot *is*: a **Customer assistant**, a **Personal assistant**, or a **Custom** role. Each has a tailored persona; you teach it tone, knowledge to ground replies in, escalation rules, and a signature.
-- **Drafts for approval (default)** — the robot polls inbound mail and writes a reply for each new message, surfaced in a **Drafts** inbox for one-tap **Approve & send** or edit/dismiss. Once trusted, switch it to **auto-send**.
-- **Safe by construction** — replies are **locked to the inbound sender** (a prompt-injected "forward to…" can't redirect them), the model sees only that one message plus the robot's own knowledge (data-minimized), and anything out of scope (refunds, billing, money, legal, angry complaints) **escalates to a human** instead of being answered.
-- **Model bake-off** — choose **ArksAI Max (M3)**, **ArksAI v4 (DeepSeek)**, or **Compare both** (drafts with each, you pick); a preview step lets you test a sample message before activating.
+### The email robot (the engine behind the console)
+- **Connect a mailbox** (Settings → Email, per org) and a hired robot becomes a working **email agent**: it polls inbound mail and drafts a reply per new message, grounded in its mandate/knowledge.
+- **Drafts for approval (default)** — each reply waits in the **"Needs You" inbox** for one-tap **Approve & send** or Dismiss. Once trusted, set a robot to **auto-send**.
+- **Safe by construction** — replies are **locked to the inbound sender** (a prompt-injected "forward to…" can't redirect them), the model sees only that one message plus the robot's own knowledge (data-minimized), and anything out of scope (refunds, billing, money, legal, angry complaints) **escalates to a human**.
+- **Model choice** — robots draft with **ArksAI Max (M3)** or **ArksAI v4 (DeepSeek)**, or **Compare both**.
 
 ## Visual identity & theming
 - Editorial light/warm identity — ivory canvas, Source Serif 4 + Inter + Space Grotesk (same fonts the reports use), publication masthead, hairline rules, per-department accent coding. Token-driven.

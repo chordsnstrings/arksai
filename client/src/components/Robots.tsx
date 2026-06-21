@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ICONS, type IconName } from '../lib/departments';
 import {
   AUTONOMY,
@@ -11,6 +11,7 @@ import {
   type TriggerKind,
 } from '../lib/robots';
 import { useRobots } from '../state/robotsStore';
+import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
 
 /**
@@ -42,7 +43,15 @@ type View = { v: 'home' } | { v: 'inbox' } | { v: 'hire' } | { v: 'office'; id: 
 export function Robots({ onClose }: { onClose: () => void }) {
   const robots = useRobots((s) => s.robots);
   const approvals = useRobots((s) => s.approvals);
+  const load = useRobots((s) => s.load);
+  const orgId = useStore((s) => s.me?.currentOrg ?? s.me?.orgs?.[0]?.id ?? '');
   const [view, setView] = useState<View>({ v: 'home' });
+
+  // Back the console with the real per-org engine: load robots + pending drafts on open
+  // and whenever the org changes.
+  useEffect(() => {
+    if (orgId) void load(orgId);
+  }, [orgId, load]);
 
   const open = (v: View) => setView(v);
   const office = view.v === 'office' ? robots.find((r) => r.id === view.id) : null;
@@ -172,14 +181,11 @@ function Inbox({ onHome }: { onHome: () => void }) {
             <div className="rb-approval-why">{a.why}</div>
             {a.draft && <pre className="rb-approval-draft">{a.draft}</pre>}
             <div className="rb-approval-actions">
-              <button className="rb-approve" onClick={() => resolve(a.id)}>
-                Approve
+              <button className="rb-approve" onClick={() => resolve(a.id, 'send')}>
+                Approve &amp; send
               </button>
-              <button className="rb-edit" onClick={() => resolve(a.id)}>
-                Edit…
-              </button>
-              <button className="rb-decline" onClick={() => resolve(a.id)}>
-                Decline
+              <button className="rb-decline" onClick={() => resolve(a.id, 'dismiss')}>
+                Dismiss
               </button>
             </div>
           </div>
@@ -279,8 +285,8 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
           className="rb-cta"
           style={{ ['--accent' as any]: spec?.accent }}
           disabled={!mandate.trim()}
-          onClick={() => {
-            const r = hire({ role, name, mandate, autonomy, triggers });
+          onClick={async () => {
+            const r = await hire({ role, name, mandate, autonomy, triggers });
             onDone(r.id);
           }}
         >

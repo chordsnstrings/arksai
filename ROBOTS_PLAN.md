@@ -7,6 +7,18 @@ lands quality every single time**. Grounded in `ROBOTS_RESEARCH.md`. The governi
 ---
 
 ## Build log
+- **Unification with main's Robots console — DONE (branch `claude/pensive-feynman-ugt30p`).** Main had grown
+  a polished but **backend-less** full-page Robots console (`Robots.tsx` + client-only mock `robotsStore`,
+  department-agent framing). Merged main in and made that console the **single Robots UI, backed by my real
+  engine**: rewired `state/robotsStore.ts` to call `/api/orgs/:id/robots` (+ drafts), mapping my backend
+  Robot ↔ the console's UI `Robot` (autonomy ask_all/ask_big→`ask`, autonomous→`auto`; dept/mandate/triggers
+  stored in `config`; **pending drafts → the "Needs You" approvals**, Approve&send→`sendDraft`, Dismiss→
+  `dismissDraft`). `Robots.tsx` loads on open + hires async; my standalone `RobotsDialog` retired. Kept
+  main's connectors `ConnectionsPanel` + my `EmailSettings` as two Admin tabs. 455 tests green; typecheck +
+  build clean; server boot-verified. Conflicts resolved across app.ts/config.ts/App.tsx/AdminDialog/
+  WhatsNew/theme.css. **Gap (follow-up):** the Hire flow doesn't yet prompt to connect a mailbox (do it in
+  Settings → Email); a "connect a mailbox" hint in the console + the customer/personal email-role picker are
+  the next polish. Every console robot is currently a `custom` email agent grounded in its mandate.
 - **Email robot · Stage 2 — DONE (branch `claude/pensive-feynman-ugt30p`).** The first real Robot, built on
   Stage 1. New: `robots` + `robot_drafts` tables; `robots/store.ts` (CRUD + drafts, org-scoped, idempotent
   per inbound Message-ID); `robots/reply.ts` (the §5c engine — data-minimized single-message context,

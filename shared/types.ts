@@ -529,6 +529,11 @@ export interface RobotConfig {
   escalateOn?: string;
   /** Signature appended to outgoing replies. */
   signature?: string;
+  /** Console fields: the department role the robot was hired under, its plain-language
+   *  standing mandate, and the wake triggers chosen in the Hire flow. */
+  dept?: string;
+  mandate?: string;
+  triggers?: string[];
 }
 
 export interface Robot {
