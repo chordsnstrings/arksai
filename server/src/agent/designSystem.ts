@@ -137,14 +137,16 @@ or blank; with one series, turn the legend off.`,
   the browser. CHOOSE PWA when there is no app-store requirement and the device needs are
   web-supported (camera via getUserMedia, geolocation, web push where available, offline storage).
 - NATIVE Android/iOS (only when needed — app-store presence, robust native device APIs, background/
-  push, or a true-native feel): EXPO + REACT NATIVE — NOT HTML/CSS, NOT add_ui_kit. Flow: (1) scaffold
-  a TS Expo app with expo-router (npx create-expo-app@latest); (2) add_mobile_ui_kit (tokens/components/
-  AppErrorBoundary into src/ui); (3) wire the ROOT <AppErrorBoundary><ThemeProvider theme=
-  {brandTheme('#<accent>')}> around the router; (4) build screens from the kit (Screen/AppText/Button/
+  push, or a true-native feel): EXPO + REACT NATIVE — NOT HTML/CSS, NOT add_ui_kit. Flow: (1)
+  create_expo_app (name + accent) — scaffolds a runnable Expo/expo-router app ALREADY wired
+  AppErrorBoundary → ThemeProvider(brandTheme) → Stack, a sample screen, AND the mobile UI kit in
+  src/ui/ (do NOT npx create-expo-app or add_mobile_ui_kit by hand — this one tool does it all);
+  (2) npm install; (3) build screens as files in app/ (expo-router) from the kit (Screen/AppText/Button/
   Card/Field/EmptyState/Loading) — minimal/modern, accent ~5-10%, safe-area, 8pt grid, loading+empty+
   error states. Expo modules per need: camera (expo-camera → QR), location, notifications, image-picker.
-  BACKEND when accounts/data/realtime/storage: generate a typed Fastify API + DB, publish it
-  (<slug>.apps.arksai.studio), wire the client (typed API client + auth). CRASH-SAFE: root error
+  BACKEND when accounts/data/realtime/storage: add_app_backend (typed Fastify API + SQLite, JWT auth,
+  validated, error envelope), extend the data model, publish it (<slug>.apps.arksai.studio), wire the
+  client (typed API client + auth). CRASH-SAFE: root error
   boundary + defensive data; verify the Expo WEB target boots clean before done. The installable
   ANDROID APK is built on OUR ephemeral droplet (Gradle/expo prebuild) — NEVER via EAS/expo build;
   EAS/Expo cloud build is APPLE-only. See ANDROID_PLAN.md. Range: QR scanner (small) → Tinder-style (large).

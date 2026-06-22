@@ -15,6 +15,7 @@ import { addFontsTool } from './fonts';
 import { addUiKitTool } from './ui-kit';
 import { addMobileUiKitTool } from './mobile-ui-kit';
 import { addAppBackendTool } from './app-backend';
+import { createExpoAppTool } from './expo-app';
 import { publishAppTool } from './publish';
 import { generateSpreadsheetTool } from './excel';
 import { generateDocTool } from './docx';
@@ -62,6 +63,7 @@ export const ALL_TOOLS: ToolDef[] = [
   renderChartTool,
   addFontsTool,
   addUiKitTool,
+  createExpoAppTool,
   addMobileUiKitTool,
   addAppBackendTool,
   publishAppTool,

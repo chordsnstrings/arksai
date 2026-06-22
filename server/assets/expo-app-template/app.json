@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "ArksAI App",
+    "slug": "arksai-app",
+    "version": "1.0.0",
+    "scheme": "arksaiapp",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": {
+      "package": "studio.arksai.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
