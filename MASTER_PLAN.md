@@ -93,8 +93,18 @@ Phases 1, 4, 5 are independent of 3; if Phase 3 hits a droplet‑shell blocker (
 ## 6. Risk & rollback
 Caddy is the only production‑risky change (Phase 0 audit gates it). Everything else is additive or flag‑guarded. Rollback = revert the commit (auto‑deploy restores in ~2 min).
 
-## 7. Out of scope (future)
-External hosts (DO App Platform), per‑org custom domains, the producer–verifier role split (§10.5) once the loop is proven.
+## 7. Future tracks
+- External hosts (DO App Platform), per‑org custom domains, producer–verifier role split (§10.5).
+- **True native mobile (Android + iOS) — own track, not part of this plan.** M3 can *write* native (Kotlin/Compose, React Native/Expo, Flutter); the gap is build + delivery:
+  - **Android** builds on Linux (Android SDK + JDK + Gradle → APK/AAB) — addable to the image; needs signing keystore + a Google Play account ($25 one‑time) for store delivery.
+  - **iOS** builds **require macOS + Xcode** — *impossible on the Linux droplet*. Needs a Mac builder or a cloud build (Expo **EAS Build** / Codemagic / Bitrise), an Apple Developer account ($99/yr), signing certs + provisioning, and App Store review.
+  - **Realistic single path for BOTH:** adopt **Expo (React Native) + EAS Build** — write once in TS, EAS produces the Android APK/AAB *and* the iOS IPA on managed cloud builders (no Mac to own), preview via Expo Go, submit via EAS Submit. Pipeline work: wire the EAS CLI/API + store credentials, deliver binaries (download) or auto‑submit. Verification is on‑device (Expo Go), not the web canvas.
+  - **Now:** for "make me a mobile app," default to a first‑class **PWA** (installable, instant, live at the subdomain); treat native as this deliberate track.
+
+## 8. Execution status (autonomous run)
+- ✅ **Phase 1** (NODE_ENV devDeps leak), **Phase 2** (build any node stack on publish), **Phase 4** (truthful publish + anti‑thrash *prompt*), **Phase 5** (grounded‑research loop — structural core + 9 tests) — implemented, gated (492 tests), shipped to `main`.
+- 🔒 **Phase 3 (subdomain TLS) — careful droplet deploy required (can't validate blind).** DNS wildcard `*.apps → droplet` is live. Remaining: a `*.apps.arksai.studio` Caddy site. Cleanest with the already‑running stock `caddy:2` = **on‑demand TLS** (no custom image / DO token): add a `*.apps.arksai.studio` block with `tls { on_demand }`, a global `on_demand_tls { ask http://arksai:3000/internal/tls-check }`, reverse_proxy `arksai:3000`; add a Fastify `ask` endpoint that 200s only for valid deployment hostnames + Host‑based root serving (additive — safe to land). This is NOT auto‑deployed blind (a bad Caddyfile would drop the live site); it needs a deliberate `./deploy.sh tls` + cert‑issuance check on the droplet.
+- ⏭ **Follow‑ups (need a model key + live runs):** Phase 5 live wiring (`deps.llm`→MiniMax adapter, `deps.search`→web_search, invoke on the research family behind a flag) + Phase 6 live validation (coffee prompt → subdomain; VC prompt → grounded). The runner‑level anti‑thrash backstop (C1) is a careful core‑loop refinement, intentionally not rushed.
 
 ---
 
