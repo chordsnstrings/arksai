@@ -1,0 +1,56 @@
+# ArksAI — Android Apps Section (durable build plan)
+
+> Goal: a dedicated **Android Apps** surface where a non‑technical user describes an app and gets **one finished thing** — a real installable **APK** + its **live backend** + an instant phone preview — built on **our own infra** (ephemeral DO build droplet ≈ $0.10/build). Every app is **minimal, modern, aesthetically pleasing** (a bundled mobile UI kit) and **crash‑safe**. Covers the full range: a small **QR scanner** to a large **Tinder‑style** app.
+
+## Locked decisions (recommended approach — approved)
+- **Client:** React Native + **Expo** (TypeScript). Web‑target preview in Canvas, future iOS on the same codebase, builds to APK via Gradle.
+- **Backend:** node **Fastify** + DB (SQLite dev → managed Postgres), published on the existing pipeline at `<slug>.apps.arksai.studio`.
+- **Android build:** **ephemeral DO droplet** (`s-4vcpu-8gb`) from a pre‑baked Android‑SDK **snapshot**; create→build→destroy; never the live droplet.
+- **Artifacts:** **DO Spaces** (durable, off‑droplet) → APK download link.
+- **Push:** deferred to Phase 4 (FCM).
+- **Hosting backend:** reuse the existing publish/subdomain pipeline.
+- **iOS:** NOT in this section (Linux can't build iOS) — separate EAS track later, same RN codebase.
+
+## Architecture
+1. **Monorepo per app:** `/app` (Expo/RN) + `/server` (Fastify API + DB) + `/shared` (types). Client wired to the backend's live URL (typed API client + auth).
+2. **Backend auto‑generated when needed** (auth / multi‑user / persistence → yes; calculator / single‑player → no).
+3. **Build pipeline:** app finished → create droplet from snapshot (boots ready ~60s) → push source → `expo prebuild` + `./gradlew assembleRelease` (signed) → pull APK → upload to Spaces → **destroy droplet**. Guaranteed teardown (`finally`) + **orphan reaper** (destroy `arksai-build`‑tagged droplets >30 min) + hard timeout. ≈ $0.10/build.
+
+## Aesthetics — mobile UI kit (non‑negotiable quality)
+- New bundled **`server/assets/mobile-ui-kit/`** (RN): design **tokens** (color/spacing/type scale/radius/motion), **components** (Button, Card, Input, ListItem, Tab/BottomNav, Avatar, Sheet, EmptyState, Skeleton), and **themes** — the *same* minimal/modern/typography‑first philosophy as the web kit, adapted to mobile (safe‑area, 8pt grid, system‑native feel, tasteful motion). An **`add_mobile_ui_kit`** tool installs it; app builds compose from its patterns (never default RN look).
+- **Backend quality standard:** typed, RESTful, input validation, consistent error envelope, auth middleware, migrations — clean and minimal, mirroring the front‑end's polish.
+
+## "Any app" — capability‑aware scaffolding
+Intake classifies the app's needs and wires the right **Expo modules + backend capabilities**:
+- **Device:** camera (QR/photo), location/maps, notifications, media library, biometrics, haptics.
+- **Backend:** auth, data model/CRUD, realtime (chat/matching via WebSocket), media/image storage (Spaces), search/geo, payments‑stub.
+- **Complexity tiers:** small (QR scanner = camera + a result screen, no backend) → large (Tinder = auth + profiles + geo + swipe/matching + realtime chat + media upload + push). The same pipeline builds both; the scaffold scales.
+
+## Crash‑safety (must "run smoothly, not suddenly crash")
+- App‑level **Error Boundary** + safe navigation + defensive data handling + loading/empty/error states everywhere.
+- **Gate before an APK is built:** the app must boot cleanly in the **web‑target preview** (no uncaught errors — existing Chromium gate), the **backend must pass its smoke test**, and the **build must compile**.
+- **Optional emulator smoke test** on the build droplet (it has the SDK): boot the APK in an Android emulator, assert it launches without crashing, before delivery.
+
+## The section UI
+- Distinct sidebar surface "Android Apps". Mobile intake (purpose, screens, auth?, data, device features, branding). Workspace: live **Expo‑web preview in Canvas** + **Expo Go QR**; **Backend panel** (URL, model, endpoints, logs); **Build panel** (Build APK → create→build→destroy progress → download + history + per‑build cost).
+
+## Phases (autonomous, each gated + live‑validated)
+1. **Section + RN/Expo scaffolding + mobile UI kit + in‑Canvas web preview + Expo Go QR** — software only, no infra, no accounts. *(fully autonomous + operator‑testable)*
+2. **Backend auto‑gen + auto‑publish + client wiring** (auth/DB/storage + e2e verify) — reuses the shipped pipeline. *(autonomous + operator‑testable)*
+3. **Ephemeral Android build pipeline** — snapshot bake + `androidBuild.ts` orchestrator + teardown/reaper/timeout + Spaces upload → **APK**. *(needs the external inputs below)*
+4. **Crash gate (emulator smoke) + release signing/keystore + Play Store submit.**
+5. **Per‑build cost metering → billing** (your ~$0.10 cost → charge $1–5/build).
+
+## Autonomous execution framework (per phase)
+implement → `npm run typecheck && npm test && npm run build` (fix‑loop) → commit to `main` → wait for auto‑deploy → **live‑validate via operator** (create a session in the section, build a sample app, exercise it) → self‑correct on failure → advance. Sample apps used to validate: **QR scanner** (small) and a **Tinder‑style** app (large).
+
+## What ONLY the operator can provide (hard external deps — be upfront)
+- **DO Spaces access key + secret** (separate from the API token) + a bucket — for APK storage.
+- **Go‑ahead to spend on build droplets** (~$0.10/build) + let the server register an **SSH key** with DO and **create/destroy** droplets + **bake the snapshot** (one‑time, real $).
+- **A device or emulator** for final human crash‑confirmation (the pipeline does an automated emulator smoke test, but a real‑device check is the gold standard).
+- **Google Play Developer ($25)** for store submission (not needed for APK sideload). **Apple Developer ($99/yr)** only when we add the iOS/EAS track.
+
+## Honest limits
+- APK build latency is **minutes** (preview is instant; APK builds in the background).
+- iOS is a separate later track (EAS, ~$2/build + Apple account).
+- I (the agent, from the sandbox) **cannot bake the snapshot, use Spaces, or crash‑test on a device** without the inputs above — Phases 1–2 are fully autonomous now; Phase 3+ needs that one‑time setup, after which builds are hands‑free.
