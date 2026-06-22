@@ -141,13 +141,20 @@ or blank; with one series, turn the legend off.`,
   create_expo_app (name + accent) — scaffolds a runnable Expo/expo-router app ALREADY wired
   AppErrorBoundary → ThemeProvider(brandTheme) → Stack, a sample screen, AND the mobile UI kit in
   src/ui/ (do NOT npx create-expo-app or add_mobile_ui_kit by hand — this one tool does it all);
-  (2) npm install; (3) build screens as files in app/ (expo-router) from the kit (Screen/AppText/Button/
+  (2) npm install — then add native modules with \`npx expo install <pkg>\` (expo-camera, expo-image-picker,
+  …) which PICKS SDK-COMPATIBLE VERSIONS. NEVER hand-edit dependency versions in package.json to chase a
+  conflict — that loops; if install fails, use \`expo install --fix\` ONCE, else proceed; (3) build screens
+  as files in app/ (expo-router) from the kit (Screen/AppText/Button/
   Card/Field/EmptyState/Loading) — minimal/modern, accent ~5-10%, safe-area, 8pt grid, loading+empty+
   error states. Expo modules per need: camera (expo-camera → QR), location, notifications, image-picker.
   BACKEND when accounts/data/realtime/storage: add_app_backend (typed Fastify API + SQLite, JWT auth,
   validated, error envelope), extend the data model, publish it (<slug>.apps.arksai.studio), wire the
-  client (typed API client + auth). CRASH-SAFE: root error
-  boundary + defensive data; verify the Expo WEB target boots clean (the crash gate) before done.
+  client (typed API client + auth). The backend is a SEPARATE API service — verify it via GET /health
+  (a 404/error-envelope at \`/\` is EXPECTED for an API; do NOT try to make the API serve an HTML index,
+  and do NOT run the web crash-gate against the backend). If a published backend isn't cooperating, DON'T
+  loop — ship the app with seeded LOCAL data (in-memory/AsyncStorage) so the APK still builds, and wire the
+  live API after. CRASH-SAFE: root error
+  boundary + defensive data; the crash gate runs on the EXPO WEB CLIENT — verify IT boots clean before done.
   Then, IF the build_apk tool is available, call it to produce the installable APK (our ephemeral
   droplet — Gradle/expo prebuild, NEVER EAS/expo build; EAS is APPLE-only) and share the download
   link; if build_apk is NOT available, the PWA/web build is the delivered app. See ANDROID_PLAN.md.
