@@ -49,11 +49,23 @@ export interface InboxMessage {
   text: string;
 }
 
+// Standard mail ports imply their encryption mode, and getting it wrong is the #1
+// connect footgun (e.g. SSL on 587 hangs — 587 is STARTTLS, 465 is implicit TLS).
+// For the well-known ports we derive the correct mode; non-standard ports honor the
+// user's checkbox.
+function secureForPort(port: number, implicitPort: number, starttlsPorts: number[], userChoice: boolean): boolean {
+  if (port === implicitPort) return true;
+  if (starttlsPorts.includes(port)) return false;
+  return userChoice;
+}
+
 function smtpTransport(account: EmailAccount, secrets: EmailSecrets) {
+  const secure = secureForPort(account.smtpPort, 465, [587, 25], account.smtpSecure);
   return nodemailer.createTransport({
     host: account.smtpHost,
     port: account.smtpPort,
-    secure: account.smtpSecure, // true for 465, false for 587 (STARTTLS)
+    secure, // 465 → implicit TLS; 587/25 → STARTTLS (secure:false)
+    requireTLS: !secure && account.smtpPort === 587, // still encrypt on the submission port
     auth: account.smtpUser ? { user: account.smtpUser, pass: secrets.smtpPass } : undefined,
     // Fail fast: nodemailer defaults are 2min connect / 30s greeting / 10min socket, so an
     // unreachable or silent host would hang the request until a gateway cut it ("Failed to
@@ -68,7 +80,7 @@ function imapClient(account: EmailAccount, secrets: EmailSecrets): ImapFlow {
   return new ImapFlow({
     host: account.imapHost!,
     port: account.imapPort,
-    secure: account.imapSecure,
+    secure: secureForPort(account.imapPort, 993, [143], account.imapSecure), // 993 → TLS; 143 → STARTTLS
     auth: { user: account.imapUser || account.smtpUser || account.fromEmail, pass: secrets.imapPass },
     logger: false,
     // Same fail-fast rationale as SMTP (defaults are generous → hangs look like "Failed to fetch").
