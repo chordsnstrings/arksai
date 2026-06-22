@@ -196,26 +196,51 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   } else if (startCmd) {
     kind = /python|wsgi/.test(startCmd) ? 'python' : 'node';
     if (kind === 'node' && fs.existsSync(path.join(dest, 'package.json'))) {
-      const install = fs.existsSync(path.join(dest, 'package-lock.json'))
-        ? 'npm ci --omit=dev --no-audit --no-fund'
-        : 'npm install --omit=dev --no-audit --no-fund';
-      await execBash(install, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
+      // Install WITH devDeps — build toolchains (next/vite/astro/tailwind/tsc) live there.
+      // (childEnv defaults the workspace to development; --prefer-offline hits the warm cache.)
+      const hasLock = fs.existsSync(path.join(dest, 'package-lock.json'));
+      const inst = await execBash(
+        hasLock ? 'npm ci --no-audit --no-fund --prefer-offline' : 'npm install --no-audit --no-fund --prefer-offline',
+        { cwd: dest, timeoutMs: 300_000 },
+      ).catch(() => null);
+      // Run the production build if the app defines one — a `node` app with a build step
+      // (Next/Vite/Astro/SvelteKit/…) ships its BUILT output, not raw source. The old flow
+      // installed prod-only and never built → "Could not find a production build".
+      let pkg: any = {};
+      try {
+        pkg = JSON.parse(fs.readFileSync(path.join(dest, 'package.json'), 'utf8'));
+      } catch {}
+      if (pkg?.scripts?.build) {
+        const built = await execBash('npm run build', { cwd: dest, timeoutMs: 420_000 }).catch(() => null);
+        const tail = (s?: string) => String(s ?? '').slice(-700).trim();
+        if (!built?.ok) {
+          status = 'error';
+          buildError = `The app's production build failed (\`npm run build\`). Read this error, fix it in the app, and republish:\n\n${tail(built?.output) || tail(inst?.output) || '(no output captured)'}`;
+          console.warn(`[deploy] node build failed for ${slug}: ${tail(built?.output) || tail(inst?.output)}`);
+        } else {
+          // Reclaim disk: drop devDeps now the build is done (runtime needs prod deps + built output).
+          await execBash('npm prune --omit=dev --no-audit --no-fund', { cwd: dest, timeoutMs: 120_000 }).catch(() => null);
+        }
+      }
     } else if (kind === 'python' && fs.existsSync(path.join(dest, 'requirements.txt'))) {
       await execBash('python3 -m pip install -r requirements.txt', { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
     }
-    port = deploymentRegistry.allocPort();
-    deploymentRegistry.start(slug, dest, startCmd, port);
-    // Wait for it to bind its port.
-    const deadline = Date.now() + 15_000;
-    let bound = false;
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 500));
-      if (listeningPorts().includes(port)) {
-        bound = true;
-        break;
+    // Only boot the server if the build didn't fail (a broken build → honest error, not a dead link).
+    if (status !== 'error') {
+      port = deploymentRegistry.allocPort();
+      deploymentRegistry.start(slug, dest, startCmd, port);
+      // Wait for it to bind its port.
+      const deadline = Date.now() + 15_000;
+      let bound = false;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 500));
+        if (listeningPorts().includes(port)) {
+          bound = true;
+          break;
+        }
       }
+      if (!bound) status = 'error';
     }
-    if (!bound) status = 'error';
   }
 
   const dep = await store.createDeployment({
