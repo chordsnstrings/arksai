@@ -85,7 +85,7 @@ const DEMOS: { tag: string; accent: string; prompt: string; result: React.ReactN
 ];
 
 const FOUNDING = [
-  { icon: 'dollar-sign', title: 'Flat 39 AED / month', body: 'One simple price for full access to every team’s capabilities — locked for founding members, for life. No per-seat surprises.' },
+  { icon: 'dollar-sign', title: 'One simple price', body: 'Full access to every team’s capabilities for one flat monthly price — no per-seat fees and no add-ons. Founding members come in at 39 AED/month while we’re in alpha.' },
   { icon: 'rocket', title: 'Shape what gets built', body: 'You get a direct line to the team. What founding members ask for is what we build next — you’re not a number in a queue.' },
   { icon: 'circle-check', title: 'No lock-in, ever', body: 'Invitation-only while we’re in alpha, but never a trap: cancel anytime, export your work anytime. We earn the renewal.' },
 ];
@@ -99,7 +99,7 @@ const FAQ = [
   },
   {
     q: 'How much does ArksAI cost?',
-    a: 'Founding members get full access for a flat 39 AED per month — locked for life. That covers every team’s capabilities. It’s invitation-only during alpha; apply with your work email and we review every request personally.',
+    a: 'Founding members get full access for a flat 39 AED per month while we’re in alpha, covering every team’s capabilities. It’s invitation-only; apply with your work email and we review every request personally.',
   },
   {
     q: 'Can AI handle UAE VAT, Corporate Tax and WPS?',
@@ -216,7 +216,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
           </button>
         </div>
         <p className="lnd-alpha-note">
-          <strong>Founding alpha — 39 AED/month, locked for life.</strong> We’re onboarding a small founding cohort
+          <strong>Founding alpha — 39 AED/month, invitation-only.</strong> We’re onboarding a small founding cohort
           of UAE teams and review every application personally.
         </p>
         <LandingDemo />

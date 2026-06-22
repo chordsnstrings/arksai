@@ -24,7 +24,7 @@ const ITEMS: { title: string; body: string }[] = [
   },
   {
     title: 'New: ArksAI Research + a Features page',
-    body: 'We’ve started publishing sourced, cited essays on AI, energy and the frontier at /research, and a new /features page lays out everything ArksAI does. Plus a founding cohort: full access at a flat 39 AED/month, locked for life.',
+    body: 'We’ve started publishing sourced, cited essays on AI, energy and the frontier at /research, and a new /features page lays out everything ArksAI does. Plus a founding cohort: full access at a flat 39 AED/month while we’re in alpha.',
   },
 ];
 
