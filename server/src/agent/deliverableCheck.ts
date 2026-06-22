@@ -327,8 +327,16 @@ export function detectBannerRows(wb: any): string[] {
   return out;
 }
 
+// A string cell that is ENTIRELY a cell/cross-sheet reference (e.g. "Assumptions!$B$10",
+// "'Cash Flow'!B12", "Sheet1!A1:B5") — a model wrote a link but FORGOT the leading "=",
+// so it sits as inert text and every dependent cell breaks with #VALUE!. Requires a sheet
+// "!" so real labels never match.
+export const STRINGY_REF_RE =
+  /^('[^']+'|[A-Za-z_][A-Za-z0-9_.]*)!\$?[A-Z]{1,3}\$?\d{1,7}(:\$?[A-Z]{1,3}\$?\d{1,7})?$/;
+
 export function auditFormulaModel(wb: any): { isModel: boolean; reason: string } {
   let formulas = 0;
+  let stringyRef = ''; // a cross-sheet ref stored as TEXT (missing "=") — a broken link
   let numericTotal = 0;
   let derivedWithNumbers = ''; // a derived row carrying numbers (0-formula case, ≥1)
   let derivedAllLiteral = ''; // a derived row whose numbers are ALL typed-in literals (≥2, none formulas)
@@ -356,6 +364,9 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
         if (c?.f) r.numFormulaCells++;
       }
       const isText = (c?.t === 's' || c?.t === 'str') && typeof c?.v === 'string' && c.v.trim();
+      if (isText && !c?.f && !stringyRef && STRINGY_REF_RE.test(String(c.v).trim())) {
+        stringyRef = `${name}!${addr}="${String(c.v).trim()}"`;
+      }
       if (isText && p.col < r.labelCol) {
         r.labelCol = p.col;
         r.label = String(c.v);
@@ -373,6 +384,10 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
         derivedAllLiteral = r.label.trim();
     }
   }
+  // A cross-sheet reference stored as TEXT (the model dropped the leading "=") — the link is
+  // dead and dependent cells error. Highest-priority defect (it's a broken file, not a style nit).
+  if (stringyRef)
+    return { isModel: true, reason: `a cross-sheet reference is stored as TEXT, not a formula (${stringyRef}) — it must start with "=" (e.g. =Assumptions!$B$10) so the link is live; dependent cells currently break` };
   // Partial hard-coding: a derived row (Total/Growth/Margin/…) is literals while the rest of
   // the model uses formulas — it should have been computed. Flag whether or not formulas exist.
   if (derivedAllLiteral && formulas > 0)

@@ -30,6 +30,38 @@ test('recalc: cross-sheet reference', () => {
   assert.equal(calc.get('B2')!.v, 100);
 });
 
+test('recalc: IF() with a comparison condition (the KKLM software-cost row)', () => {
+  // IF(C4>0, Assumptions!B19, 0) — comparisons must evaluate so the IF resolves,
+  // else the net-savings chain that depends on it silently stays 0.
+  const asum = grid({ B19: { v: 17628 } });
+  const bk = grid({
+    C4: { v: 76 },
+    C9: { v: 1165080 },
+    C10: { f: 'IF(C4>0,Assumptions!B19,0)', v: 0 },
+    C11: { f: 'C9-C10', v: 0 },
+  });
+  recalc(wbk({ Assumptions: asum, Breakeven: bk }));
+  assert.equal(bk.get('C10')!.v, 17628);
+  assert.equal(bk.get('C11')!.v, 1147452); // the chain now resolves through the IF
+});
+
+test('recalc: comparison operators yield 1/0', () => {
+  const g = grid({
+    A1: { v: 5 }, A2: { v: 5 },
+    B1: { f: 'A1>3', v: 0 },
+    B2: { f: 'A1<3', v: 9 },
+    B3: { f: 'A1>=A2', v: 0 },
+    B4: { f: 'A1<>A2', v: 9 },
+    B5: { f: 'IF(A1>=5, 100, 200)', v: 0 },
+  });
+  recalc(wbk({ S: g }));
+  assert.equal(g.get('B1')!.v, 1);
+  assert.equal(g.get('B2')!.v, 0);
+  assert.equal(g.get('B3')!.v, 1);
+  assert.equal(g.get('B4')!.v, 0);
+  assert.equal(g.get('B5')!.v, 100);
+});
+
 test('recalc: roll-forward chain (Feb start = Jan end)', () => {
   // C2 ending = B2 start + 500; C3 start = C2 ending; resolves transitively
   const g = grid({ B2: { v: 1000 }, C2: { f: 'B2+500', v: 0 }, C3: { f: 'C2', v: 0 } });

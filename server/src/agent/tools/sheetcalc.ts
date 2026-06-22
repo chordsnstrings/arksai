@@ -465,7 +465,7 @@ function evalFormula(formula: string, sheet: string, resolve: Resolver): number 
     }
     return v;
   }
-  function expr(): number {
+  function addsub(): number {
     let v = term();
     for (;;) {
       ws();
@@ -478,6 +478,24 @@ function evalFormula(formula: string, sheet: string, resolve: Resolver): number 
         v -= term();
       } else break;
     }
+    return v;
+  }
+
+  // Top level: a single comparison (→ 1/0) over add/subtract. Needed so IF(C4>0,…),
+  // MAX(x, 0) style conditions and any `a>b` operand evaluate instead of failing on '>'.
+  function expr(): number {
+    const v = addsub();
+    ws();
+    const two = src.slice(i, i + 2);
+    if (two === '>=' || two === '<=' || two === '<>') {
+      i += 2;
+      const r = addsub();
+      return two === '>=' ? (v >= r ? 1 : 0) : two === '<=' ? (v <= r ? 1 : 0) : v !== r ? 1 : 0;
+    }
+    const op = src[i];
+    if (op === '>') { i++; return v > addsub() ? 1 : 0; }
+    if (op === '<') { i++; return v < addsub() ? 1 : 0; }
+    if (op === '=') { i++; return v === addsub() ? 1 : 0; }
     return v;
   }
 

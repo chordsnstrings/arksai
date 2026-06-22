@@ -8,7 +8,7 @@ import { generateSpreadsheetTool, coerceNumeric } from '../src/agent/tools/excel
 import { generateDocTool } from '../src/agent/tools/docx';
 import { generatePptxTool } from '../src/agent/tools/pptx';
 import { iconSvg, hasIcon, ICON_NAMES } from '../src/agent/tools/icons';
-import { auditFormulaModel, detectEmptyPages, detectUnderfilledPages, detectBannerRows, detectSectionRows, auditNumericSanity } from '../src/agent/deliverableCheck';
+import { auditFormulaModel, detectEmptyPages, detectUnderfilledPages, detectBannerRows, detectSectionRows, auditNumericSanity, STRINGY_REF_RE } from '../src/agent/deliverableCheck';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-docgen-'));
 const ctx = (): ToolCtx => ({
@@ -57,6 +57,56 @@ test('generate_spreadsheet writes a styled, validated xlsx', async () => {
 test('generate_spreadsheet rejects empty spec', async () => {
   const res = await generateSpreadsheetTool.run({ sheets: [] }, ctx());
   assert.match(res, /^Error/);
+});
+
+test('a bare cross-sheet reference (missing "=") is healed into a live formula', async () => {
+  // The KKLM-breakeven bug: a cell held "Assumptions!$B$10" as TEXT, so dependent rows
+  // broke with #VALUE!. The tool must coerce it to a real formula so the link is live.
+  const res = await generateSpreadsheetTool.run(
+    {
+      output: 'model.xlsx',
+      sheets: [
+        { name: 'Assumptions', columns: [{ header: 'Item' }, { header: 'Value' }], rows: [['kWh/car', '=75*365']] },
+        {
+          name: 'Breakeven',
+          columns: [{ header: 'Item' }, { header: 'Y1' }],
+          rows: [
+            ['Annual Energy per Car (kWh)', 'Assumptions!$B$2'], // bare ref as text — the bug
+            ['Fleet energy', '=46*B2'], // depends on the cell above
+          ],
+        },
+      ],
+    },
+    ctx(),
+  );
+  assert.doesNotMatch(res, /^Error/);
+  const XLSX: any = await import('xlsx');
+  const wb = XLSX.read(fs.readFileSync(path.join(ws, 'model.xlsx')), { type: 'buffer', cellFormula: true });
+  const bk = wb.Sheets['Breakeven'];
+  assert.ok(bk['B2']?.f, 'the bare cross-sheet ref became a formula'); // not inert text
+  assert.match(bk['B2'].f, /Assumptions!\$?B\$?2/);
+  assert.equal(bk['B2'].v, 27375); // and recalculated to the right number
+  assert.equal(bk['B3'].v, 1259250); // the dependent cell now resolves through the live link
+});
+
+test('auditFormulaModel flags a cross-sheet ref stored as text', () => {
+  // regex: matches references, not labels
+  assert.ok(STRINGY_REF_RE.test('Assumptions!$B$10'));
+  assert.ok(STRINGY_REF_RE.test("'Cash Flow'!B12"));
+  assert.ok(STRINGY_REF_RE.test('Sheet1!A1:B5'));
+  assert.ok(!STRINGY_REF_RE.test('Annual Energy per Car (kWh)'));
+  assert.ok(!STRINGY_REF_RE.test('see the Assumptions tab'));
+  // a workbook with the broken text cell is flagged as a (broken) model
+  const wb = {
+    SheetNames: ['Assumptions', 'Breakeven'],
+    Sheets: {
+      Assumptions: { '!ref': 'A1:B2', A1: { t: 's', v: 'Item' }, B2: { t: 'n', v: 27375, f: '75*365' } },
+      Breakeven: { '!ref': 'A1:B1', A1: { t: 's', v: 'Energy' }, B1: { t: 's', v: 'Assumptions!$B$2' } },
+    },
+  };
+  const a = auditFormulaModel(wb);
+  assert.equal(a.isModel, true);
+  assert.match(a.reason, /stored as TEXT|cross-sheet/i);
 });
 
 test('coerceNumeric: number-as-text becomes a real number (so SUM works), text/IDs left alone', () => {

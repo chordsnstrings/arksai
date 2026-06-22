@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { resolveInWorkspace, type ToolDef } from './common';
 import { recalcSheetData, recalcWorkbook } from './sheetcalc';
+import { STRINGY_REF_RE } from '../deliverableCheck';
 
 type ColType = 'text' | 'number' | 'currency' | 'percent' | 'date';
 interface ColSpec {
@@ -65,6 +66,10 @@ export function toCell(v: any): any {
       }
     }
     if (s.length > 1 && s[0] === '=') return { formula: s.slice(1) };
+    // A bare cross-sheet/cell reference written WITHOUT the leading "=" (a common model
+    // mistake, e.g. "Assumptions!$B$10" typed as text). Coerce it to a LIVE formula so the
+    // link works in Excel instead of sitting as inert text that breaks every dependent cell.
+    if (STRINGY_REF_RE.test(s)) return { formula: s };
     return coerceNumeric(v);
   }
   if (v && typeof v === 'object' && typeof v.f === 'string') {
@@ -279,6 +284,9 @@ export const generateSpreadsheetTool: ToolDef = {
     try {
       const wb = new ExcelJS.Workbook();
       wb.creator = 'ArksAI';
+      // Force Excel/Sheets to fully recompute every formula on open, so the user always
+      // sees correct numbers even if our cached values are imperfect for an exotic formula.
+      wb.calcProperties.fullCalcOnLoad = true;
       // Incremental build: load the existing file so we ADD to it (a large model assembled
       // one sheet per call). Cross-sheet formulas to earlier sheets then resolve in recalc.
       if (append && fs.existsSync(absOut)) {

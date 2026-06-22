@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-22.3';
+export const WHATS_NEW_VERSION = '2026-06-22.4';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Sharper results from a short description',
-    body: 'You shouldn’t need to be a “prompt expert” to get expert output. ArksAI now quietly turns even a one-line request into a full expert brief before it works — with the right success criteria, sourcing and verification rules for the job (research, financial models, reports) — so a quick ask gets a rigorous, well-sourced result. It never makes up details; anything missing is stated as an assumption or asked once.',
-  },
-  {
-    title: 'Connect a mailbox in seconds',
-    body: 'Setting up an email robot (or your org mailbox) now just needs the email address and password — ArksAI auto-detects the server settings, verifies the login, and connects. (If it can’t, it falls back to the manual form, pre-filled.)',
+    title: 'Spreadsheet models that actually link',
+    body: 'Financial models now stay live end-to-end. A cross-sheet link written without its “=” (which used to sit as dead text and break every dependent cell) is automatically repaired into a real formula, IF()-driven rows and totals compute correctly in the preview, and every workbook is set to fully recalculate on open — so the numbers are right the moment you open it in Excel or Google Sheets.',
   },
 ];
 
