@@ -228,7 +228,7 @@ export function registerAuth(app: FastifyInstance) {
       (url === '/api/leads' && req.method === 'POST') ||
       // Ephemeral Android build droplet → source/artifact/fail. Token-gated INSIDE the
       // route (per-build one-time token); the droplet has no app session cookie.
-      /^\/api\/builds\/[^/]+\/(source|artifact|fail)$/.test(url) ||
+      /^\/api\/builds\/[^/]+\/(source|artifact|fail|bakelog)$/.test(url) ||
       !isApi;
     if (open || req.identity) return;
     return reply.code(401).send({ error: 'Unauthorized' });

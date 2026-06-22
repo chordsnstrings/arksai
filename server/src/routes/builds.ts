@@ -16,7 +16,7 @@ import {
   sourceTarPath,
   apkPath,
 } from '../build/androidBuild';
-import { setBuildToken, doToken, snapshotId } from '../build/runtime';
+import { setBuildToken, setSnapshotId, doToken, snapshotId } from '../build/runtime';
 import { startBake } from '../build/bake';
 
 function tokenOk(want: string, got: unknown): boolean {
@@ -41,10 +41,20 @@ export function registerBuildRoutes(app: FastifyInstance) {
 
   app.post('/api/admin/build/configure', async (req, reply) => {
     if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
-    const token = String((req.body as any)?.doToken || '').trim();
-    if (!token.startsWith('dop_v1_')) return reply.code(400).send({ error: 'Provide a DigitalOcean API token (dop_v1_…).' });
-    await setBuildToken(token);
-    return { ok: true, hasToken: true };
+    const body = (req.body as any) || {};
+    const token = String(body.doToken || '').trim();
+    const snap = String(body.snapshotId || '').trim();
+    if (token) {
+      if (!token.startsWith('dop_v1_')) return reply.code(400).send({ error: 'Provide a DigitalOcean API token (dop_v1_…).' });
+      await setBuildToken(token);
+    }
+    // Set/recover the baked snapshot id directly (e.g. activate with an existing snapshot).
+    if (snap) {
+      if (!/^\d+$/.test(snap)) return reply.code(400).send({ error: 'snapshotId must be a numeric DO image id.' });
+      await setSnapshotId(snap);
+    }
+    if (!token && !snap) return reply.code(400).send({ error: 'Provide doToken and/or snapshotId.' });
+    return { ok: true, hasToken: !!doToken(), snapshotId: snapshotId() || null, configured: isBuildConfigured() };
   });
 
   app.post('/api/admin/build/bake', async (req, reply) => {
@@ -147,6 +157,21 @@ export function registerBuildRoutes(app: FastifyInstance) {
       return reply.code(400).send('empty');
     }
     await updateBuild(id, { status: 'success', phase: 'done', artifact_path: dest, size_bytes: size });
+    return { ok: true };
+  });
+
+  // Neutral log sink for the bake droplet (does NOT change status — runBake owns that;
+  // it polls this log for the RESULT=OK/FAIL marker). Distinct from /fail, which is for
+  // an APK build that genuinely failed.
+  app.post('/api/builds/:id/bakelog', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const b = await getBuild(id);
+    if (!b || !tokenOk(b.token, (req.query as any)?.token)) return reply.code(404).send('not found');
+    let log = '';
+    try {
+      log = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? '');
+    } catch { /* ignore */ }
+    await updateBuild(id, { error: log.slice(-6000).trim() }); // store log only; keep status
     return { ok: true };
   });
 

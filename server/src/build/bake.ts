@@ -24,7 +24,7 @@ const BAKE_TAG = 'arksai-bake';
 const BAKE_TIMEOUT_MS = 55 * 60 * 1000; // SDK + NDK downloads are large
 
 function bakeCloudInit(bakeId: string, token: string): string {
-  const url = `${config.publicBaseUrl}/api/builds/${bakeId}/fail?token=${token}`;
+  const url = `${config.publicBaseUrl}/api/builds/${bakeId}/bakelog?token=${token}`;
   return `#!/bin/bash
 LOG=/var/log/arksai-bake.log
 exec > >(tee -a "$LOG") 2>&1
@@ -117,8 +117,13 @@ async function runBake(bake: Build): Promise<void> {
       if (Date.now() > snapDeadline) { await updateBuild(bake.id, { status: 'error', phase: 'snapshot timed out' }); return; }
     }
 
-    const snaps = await listDropletSnapshots(dropletId);
-    const newest = snaps.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+    // The snapshot can lag the action's "completed" by a few seconds — retry the listing.
+    let newest: { id: number; name: string; created_at: string } | undefined;
+    for (let attempt = 0; attempt < 8 && !newest; attempt++) {
+      const snaps = await listDropletSnapshots(dropletId).catch(() => []);
+      newest = snaps.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+      if (!newest) await new Promise((r) => setTimeout(r, 10_000));
+    }
     if (!newest) { await updateBuild(bake.id, { status: 'error', phase: 'snapshot missing after completion' }); return; }
 
     await setSnapshotId(String(newest.id)); // ← ACTIVATES the builder
