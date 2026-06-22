@@ -31,9 +31,47 @@ test('analysis family: non-visual interpretation, but NOT a visual dashboard bui
   assert.equal(briefFamily('build a sales dashboard', prof('build a sales dashboard'), null), null);
 });
 
+test('document family: formal writing (non-visual)', () => {
+  assert.equal(briefFamily('write a complaint letter to the airline that lost my bag', prof('write a complaint letter'), null), 'document');
+  assert.equal(briefFamily('draft a job description for a senior accountant', prof('draft a job description'), null), 'document');
+});
+
+test('generic fallback: a non-visual "produce a deliverable" ask not otherwise classified', () => {
+  assert.equal(briefFamily('give me a 30-day plan to launch my bakery', prof('give me a 30-day plan'), null), 'generic');
+  assert.equal(briefFamily('come up with five names for a coffee subscription box', prof('come up with five names'), null), 'generic');
+});
+
 test('no family: a plain visual build gets no scaffold (unchanged behaviour)', () => {
   assert.equal(briefFamily('build a landing page for my cafe', prof('build a landing page'), null), null);
   assert.equal(briefScaffold('build a landing page for my cafe', prof('build a landing page'), null), null);
+});
+
+test('no family: casual chat / thin non-deliverable messages are untouched', () => {
+  for (const msg of ['hi', 'thanks!', 'what can you do?', 'who are you']) {
+    assert.equal(briefFamily(msg, prof(msg), null), null, `should be null: "${msg}"`);
+  }
+});
+
+test('every scaffold carries brief-first compilation + the self-audit gate', () => {
+  for (const text of [
+    'research the top AI investors in the UAE',
+    'write a complaint letter',
+    'give me a 30-day launch plan for my bakery',
+  ]) {
+    const s = briefScaffold(text, prof(text), null)!;
+    assert.ok(s, `scaffold for "${text}"`);
+    assert.match(s, /BEFORE YOU ACT/);
+    assert.match(s, /restate the goal/);
+    assert.match(s, /ASSUMPTIONS/);
+    assert.match(s, /ask that ONE question/);
+    assert.match(s, /BEFORE YOU DELIVER/);
+  }
+});
+
+test('research scaffold uses literal High/Medium/Low confidence (not stars) + initial-cheque rule', () => {
+  const s = briefScaffold('research UAE pre-seed AI investors', prof('research UAE investors'), null)!;
+  assert.match(s, /High, Medium or Low \(not a star or emoji rating\)/);
+  assert.match(s, /typical INITIAL cheque a fund writes, NEVER the largest round/);
 });
 
 test('scaffold contains the six sections + the no-fabrication rule', () => {
