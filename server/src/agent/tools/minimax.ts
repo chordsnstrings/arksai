@@ -48,14 +48,27 @@ export const generateImageTool: ToolDef = {
     "person/character's likeness across; only ONE reference is supported); for general " +
     'STYLE/composition/palette/scene of a non-person reference, first see_image the reference, ' +
     'then capture what you saw in the prompt. Uses the MiniMax image engine (costs money). Good ' +
-    'for logos, icons, illustrations, hero/banner images, placeholders. Saved into the workspace ' +
-    'images/ folder and offered to the user as downloads — reference them from your code by path.',
+    'for logos, icons, illustrations, hero/banner/section backgrounds, placeholders. ' +
+    'IMAGES ARE TEXT-FREE BY DEFAULT — for a WEBSITE hero/section background this is what you want: ' +
+    'the page supplies the headline/copy in HTML, so the image must NOT contain words (baked-in text ' +
+    'collides with the overlaid HTML — a real bug). Leave generous empty negative space + plan a ' +
+    'dark scrim/gradient so overlaid text stays legible. Only set text_free:false for the rare case ' +
+    'you explicitly want lettering rendered into the image. (For a finished social post/ad WITH ' +
+    'composited copy, use generate_creative instead — never as a website background.) ' +
+    'Saved into the workspace images/ folder; reference them from your code by path.',
   parameters: {
     type: 'object',
     properties: {
       prompt: { type: 'string', description: 'Detailed description of the image to generate.' },
       aspect_ratio: { type: 'string', description: 'e.g. "1:1", "16:9", "9:16", "4:3" (default 1:1).' },
       n: { type: 'number', description: 'How many images (1-4, default 1).' },
+      text_free: {
+        type: 'boolean',
+        description:
+          'Default TRUE — suppress ALL text/words/lettering in the image (correct for website ' +
+          'hero/section backgrounds and most illustrations). Set false only if you truly want text ' +
+          'baked into the image.',
+      },
       reference_image: {
         type: 'string',
         description:
@@ -93,8 +106,15 @@ export const generateImageTool: ToolDef = {
         return `Error: ${e?.message ?? e}`;
       }
     }
+    // Text-free by DEFAULT: append a hard no-text constraint unless the caller explicitly
+    // opts in to baked-in text. This stops generated website backgrounds from rendering
+    // words that then collide with the page's own overlaid HTML headline.
+    const NO_TEXT =
+      'absolutely no text, no words, no letters, no typography, no captions, no labels, no watermark';
+    const basePrompt = String(args.prompt ?? '');
+    const prompt = args.text_free === false ? basePrompt : `${basePrompt}. ${NO_TEXT}.`;
     const r = await generateImage(
-      String(args.prompt ?? ''),
+      prompt,
       {
         aspectRatio: args.aspect_ratio ? String(args.aspect_ratio) : undefined,
         n: Number(args.n) || 1,

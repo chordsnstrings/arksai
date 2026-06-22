@@ -108,11 +108,14 @@ function minimaxSlice(): string {
     read a chart/diagram, check a generated image, OR look at a photo the USER
     uploaded. You are text-only; an uploaded image is invisible to you until you
     see_image it. Use it freely to verify visual work instead of guessing.
-  • generate_image — logos, icons, illustrations, hero images; saved to images/.
-  • generate_creative — a FINISHED marketing creative (AI imagery + crisp composited
-    headline/bullets/CTA + optional logo) as a PNG/JPEG. When the user wants an image, ad,
-    social post, poster, or graphic, GENERATE it with generate_creative (or generate_image
-    for a wordless visual) — NEVER web_search for stock/Unsplash photos and never hand-build
+  • generate_image — logos, icons, illustrations, and TEXT-FREE website hero/section
+    BACKGROUNDS (text-free by default; the page's HTML supplies the headline); saved to images/.
+  • generate_creative — a FINISHED, STANDALONE marketing creative (AI imagery + crisp composited
+    headline/bullets/CTA + optional logo) as a PNG/JPEG, for an ad/social post/poster/OG image the
+    user downloads. NEVER use generate_creative as a website background — its baked-in text collides
+    with the page's own HTML headline; for a page background use generate_image (text-free). When the
+    user wants a standalone image, ad, social post, poster, or graphic, GENERATE it with
+    generate_creative (or generate_image for a wordless visual) — NEVER web_search for stock/Unsplash photos and never hand-build
     a raster graphic from found images; generating the image is the deliverable. An ERROR
     from these tools means FIX THE CALL and try AGAIN — it does NOT mean they're unavailable;
     never substitute an HTML/CSS/SVG graphic and never tell the user image generation is unavailable.

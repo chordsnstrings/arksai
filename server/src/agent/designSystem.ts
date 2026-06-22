@@ -33,6 +33,15 @@ Start from the bundled design system; do not hand-roll mediocre CSS.
   content. NEVER output the generic centered-hero-with-a-glowing-box look — that's the
   commodity-AI aesthetic we exist to beat. Aim for ONE signature moment per page (a
   gradient CTA, a bento, a hero visual); restraint everywhere else.
+- IMAGERY & ICONS: for a hero/section BACKGROUND image, call generate_image (it is
+  TEXT-FREE by default) and let your HTML supply the headline — NEVER bake copy into the
+  image, and NEVER use generate_creative as a website background (its composited
+  headline/CTA collide with your overlaid text — a real, ugly bug). Always lay a
+  scrim/gradient over a photographic background so the overlaid type stays legible. Do NOT
+  add giant translucent "watermark" text that repeats the copy behind content — it reads
+  as noise and fights the foreground. For icons use the kit's line/SVG icon set (or inline
+  SVG), NEVER raw emoji as UI/feature icons. (generate_creative is for STANDALONE social
+  posts/ads/OG images the user downloads — not page backgrounds.)
 - TYPOGRAPHY (the backbone): a real modular type scale (≈1.25), generous
   line-height (~1.5 body), a comfortable measure (~60–75 chars), and a strong but
   quiet hierarchy (display → headings → body → caption). One refined font pairing.

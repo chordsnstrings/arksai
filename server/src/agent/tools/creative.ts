@@ -45,8 +45,8 @@ export const generateCreativeTool: ToolDef = {
   description:
     'Create a finished marketing creative as a single ready-to-use IMAGE (PNG or JPEG): an AI-generated, ' +
     'on-brand background with crisp, perfectly-legible headline/subhead/button text laid on top (and the ' +
-    "user's logo if they uploaded one). Use this for ads, social posts, hero/banner images, and OG images — " +
-    'NOT generate_image, because image models cannot render text reliably; this composites real type so it is always sharp. ' +
+    "user's logo if they uploaded one). Use this for STANDALONE marketing creatives the user downloads or posts — ads, social posts, OG/share images, a standalone banner. It composites real type so the text is always sharp (image models cannot render text reliably). " +
+    "Do NOT use it as a WEBSITE hero/section BACKGROUND: its headline/CTA are baked into the image and WILL collide with the page's own overlaid HTML text (a real, ugly bug). For a website background use generate_image (text-free) and let the HTML supply the headline. " +
     'SPLIT THE BRIEF — this is the #1 thing to get right: `prompt` is ONLY the imagery (scene, subject, style, mood, palette, NO text/words/letters in it); put ALL the wording in the SEPARATE fields `headline` / `subhead` / `bullets` / `cta` / `kicker`. ' +
     'Example call: {"prompt":"bright photorealistic London travel scene — a happy couple, Big Ben, the London Eye, a red double-decker bus, clean empty negative space, premium","headline":"UK Tourist Visa","subhead":"Fast & accurate processing","bullets":["Quick turnaround","Correct documentation","Embassy-ready files"],"accent":"#C8102E","aspect_ratio":"1:1","logo_placeholder":true}. ' +
     'It picks the best text placement automatically, saves to images/, and offers a download; make one per channel size (1:1 / 4:5 / 9:16 / 16:9 / 1.91:1). ' +
