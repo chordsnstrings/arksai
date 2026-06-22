@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api/client';
-import { DEPARTMENTS, ICONS, departmentById, type IconName } from '../lib/departments';
+import { DEPARTMENTS, ICONS, type IconName } from '../lib/departments';
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return (
@@ -29,16 +29,6 @@ const STEPS = [
   { no: '01', title: 'Ask in plain words', body: 'Someone on the team describes the task — a VAT return, a board deck, a dashboard, an outreach kit.' },
   { no: '02', title: 'ArksAI does the work', body: 'It builds, runs the checks, and validates the output against what actually matters — so it’s right, not just done.' },
   { no: '03', title: 'Use it the same day', body: 'A finished result: a filing-ready document, a live tool, a polished report — no back-and-forth.' },
-];
-
-// What ArksAI makes — the output types + UAE specialties (excludes internal/admin tooling).
-const CAPABILITIES: { icon: IconName; title: string; body: string }[] = [
-  { icon: 'layout', title: 'Live apps & sites', body: 'Booking pages, internal tools, microsites — built, verified, and published to a live link you can share.' },
-  { icon: 'bar-chart-3', title: 'Dashboards & analyses', body: 'Live KPI dashboards, cohort and ad-hoc analyses — from your own numbers, never invented.' },
-  { icon: 'presentation', title: 'Reports & decks', body: 'Board-ready PDFs and 16:9 decks — genuinely designed, with real charts, not templates.' },
-  { icon: 'image', title: 'Ad & social creatives', body: 'On-brand images with crisp, perfectly-legible text and your logo — not garbled AI lettering.' },
-  { icon: 'mail', title: 'Email robots', body: 'Autonomous agents with their own mailbox that read incoming mail and draft or send replies — with your approval.' },
-  { icon: 'landmark', title: 'UAE compliance', body: 'VAT 201 + FAF, Corporate Tax (CT 300), WPS payroll files, PINT AE e-invoicing, Excise — exact and validated.' },
 ];
 
 // A few concrete "watch it work" vignettes — the breadth of what ArksAI delivers, shown
@@ -100,30 +90,24 @@ const FOUNDING = [
   { icon: 'circle-check', title: 'No lock-in, ever', body: 'Invitation-only while we’re in alpha, but never a trap: cancel anytime, export your work anytime. We earn the renewal.' },
 ];
 
+// A tight, objection-clearing FAQ. Deeper questions (per-team capability, compliance
+// detail) live on /features so the landing stays focused on converting.
 const FAQ = [
   {
-    q: 'What is the best AI for UAE businesses?',
-    a: 'ArksAI is an AI platform built for UAE businesses. Anyone on the team describes what they need in plain words and ArksAI does the work and hands back a finished, verified result — a live app, a dashboard, a report or deck, an on-brand image, an email reply, or a UAE-compliant filing document. No technical skills required, and it works for every function.',
+    q: 'What is ArksAI, exactly?',
+    a: 'An AI platform built for UAE businesses. Anyone on the team describes what they need in plain words and ArksAI does the work and hands back a finished, verified result — a live app, a dashboard, a report or deck, an on-brand image, an email reply, or a UAE-compliant filing. No technical skills required, and it works for every function.',
   },
   {
     q: 'How much does ArksAI cost?',
-    a: 'Founding members get full access for a flat 39 AED per month — locked for life. That covers every team’s capabilities (apps, dashboards, reports, decks, creatives, email robots, UAE tax & legal documents). It’s invitation-only during alpha; apply with your work email and we review every request personally.',
+    a: 'Founding members get full access for a flat 39 AED per month — locked for life. That covers every team’s capabilities. It’s invitation-only during alpha; apply with your work email and we review every request personally.',
   },
   {
     q: 'Can AI handle UAE VAT, Corporate Tax and WPS?',
-    a: 'Yes. ArksAI generates the exact, validated documents each obligation requires — VAT 201 working papers plus the FAF, the Corporate Tax (CT 300) computation, monthly WPS salary files (SIF), PINT AE e-invoicing XML, and Excise returns. You review and submit them through EmaraTax, your accredited e-invoicing provider, or your WPS agent bank — ArksAI doesn’t file on your behalf.',
+    a: 'Yes. ArksAI generates the exact, validated documents each obligation requires — VAT 201 working papers + FAF, the Corporate Tax (CT 300) computation, monthly WPS salary files (SIF), PINT AE e-invoicing XML, and Excise returns. You review and submit through EmaraTax, your e-invoicing provider, or your WPS agent bank — ArksAI doesn’t file on your behalf.',
   },
   {
-    q: 'What can AI do for a marketing team in the UAE?',
-    a: 'ArksAI builds conversion-focused landing pages, generates on-brand ad and social creatives (real AI imagery with crisp text and your logo), writes campaign briefs and content calendars, and runs competitor and audience research — all on-brand and ready to publish.',
-  },
-  {
-    q: 'Is this a no-code builder? Do I need to be technical?',
+    q: 'Do I need to be technical?',
     a: 'No — it’s an enabler, not a tool to learn. You describe what you need in plain language; ArksAI plans it, does the work, checks that it actually works, and hands back something finished and correct.',
-  },
-  {
-    q: 'Which teams is it for?',
-    a: 'Every function — Finance & Tax, Marketing, Sales, HR & Ops, Engineering, BI & Analytics, and Legal (UAE). Each team gets ArksAI set up with its own skills and language; no technical people required.',
   },
 ];
 
@@ -170,9 +154,6 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
-
-  const tax = departmentById('tax');
-  const otherDepts = DEPARTMENTS.filter((d) => d.id !== 'tax');
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -230,8 +211,8 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
           <button className="lnd-primary" onClick={toForm}>
             Apply for founding access →
           </button>
-          <button className="lnd-secondary" onClick={onSignIn}>
-            Sign in
+          <button className="lnd-secondary" onClick={go('/features')}>
+            See what it does
           </button>
         </div>
         <p className="lnd-alpha-note">
@@ -252,38 +233,12 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
         </div>
       </section>
 
-      <section className="lnd-section">
-        <div className="lp-kicker">What it makes</div>
-        <h2 className="lnd-h2">One sentence in. A finished thing out.</h2>
-        <p className="lnd-lede">
-          ArksAI reads what you ask and brings the right skill to bear — it builds, designs, analyses, writes, or
-          generates, then verifies the result before you ever see it. For anything to build, it shows you the plan
-          first and waits for your go-ahead.
-        </p>
-        <div className="lnd-caps">
-          {CAPABILITIES.map((c) => (
-            <div key={c.title} className="lnd-cap">
-              <span className="lnd-cap-ico">
-                <Icon name={c.icon} size={20} />
-              </span>
-              <span className="lnd-cap-title">{c.title}</span>
-              <span className="lnd-cap-body">{c.body}</span>
-            </div>
-          ))}
-        </div>
-        <div className="lnd-more-link">
-          <button className="lnd-link" onClick={go('/features')}>
-            See everything ArksAI can do →
-          </button>
-        </div>
-      </section>
-
       <section className="lnd-section lnd-demos-sec">
         <div className="lp-kicker">See it work</div>
         <h2 className="lnd-h2">Four teams, four asks, four finished results.</h2>
         <p className="lnd-lede">
-          The same studio, speaking each function’s language. A sentence goes in; a verified, ready-to-use thing
-          comes back.
+          One studio, speaking each function’s language. A sentence goes in; a verified, ready-to-use thing comes
+          back — an app, a financial model, a bilingual legal draft, a finished ad.
         </p>
         <div className="lnd-demos">
           {DEMOS.map((d) => (
@@ -294,57 +249,10 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
             </div>
           ))}
         </div>
-      </section>
-
-      {tax && (
-        <section className="lnd-section lnd-uae" style={{ ['--dept' as any]: tax.accent }}>
-          <div className="lp-kicker">Built for the UAE</div>
-          <h2 className="lnd-h2">Compliance the FTA &amp; MOHRE actually accept.</h2>
-          <p className="lnd-lede">
-            The hard part of a UAE business is the detail. ArksAI generates the exact, validated filing
-            documents each obligation requires — you submit them through EmaraTax, your accredited e-invoicing
-            provider, or your WPS agent bank.
-          </p>
-          <div className="lnd-uae-grid">
-            {tax.plays.map((p) => (
-              <div key={p.key} className="lnd-uae-card">
-                <span className="lnd-uae-ico">
-                  <Icon name={p.icon} size={18} />
-                </span>
-                <span className="lnd-uae-title">{p.title}</span>
-                <span className="lnd-uae-blurb">{p.blurb}</span>
-              </div>
-            ))}
-          </div>
-          <p className="lnd-fineprint">
-            Working papers for professional review — ArksAI doesn’t file or pay on your behalf. Validate against
-            the official schema before submission.
-          </p>
-        </section>
-      )}
-
-      <section className="lnd-section">
-        <div className="lp-kicker">Every team, every day</div>
-        <h2 className="lnd-h2">One studio that speaks each function’s language.</h2>
-        <div className="lnd-depts">
-          {otherDepts.map((d) => (
-            <div key={d.id} className="lnd-dept" style={{ ['--dept' as any]: d.accent }}>
-              <div className="lnd-dept-head">
-                <span className="lnd-dept-ico">
-                  <Icon name={d.icon} size={20} />
-                </span>
-                <span className="lnd-dept-name">{d.name}</span>
-              </div>
-              <ul className="lnd-dept-list">
-                {d.plays.slice(0, 5).map((p) => (
-                  <li key={p.title}>
-                    <Icon name={p.icon} size={14} /> {p.title}
-                  </li>
-                ))}
-                {d.plays.length > 5 && <li className="lnd-dept-more">+{d.plays.length - 5} more</li>}
-              </ul>
-            </div>
-          ))}
+        <div className="lnd-more-link">
+          <button className="lnd-link" onClick={go('/features')}>
+            See everything ArksAI does — for every team →
+          </button>
         </div>
       </section>
 
@@ -495,6 +403,11 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
               <div className="lnd-faq-a">{f.a}</div>
             </div>
           ))}
+        </div>
+        <div className="lnd-more-link">
+          <button className="lnd-link" onClick={go('/features')}>
+            More about what ArksAI does →
+          </button>
         </div>
       </section>
 
