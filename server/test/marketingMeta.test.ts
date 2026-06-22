@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderMetaInto, normalizePath, isMarketingRoute, MARKETING_ROUTES } from '../src/seo/marketingMeta';
+import { renderMetaInto, normalizePath, isMarketingRoute, MARKETING_ROUTES, RESEARCH_SLUGS } from '../src/seo/marketingMeta';
 
 const BASE_HTML = `<!doctype html><html><head>
 <title>OLD TITLE</title>
@@ -25,9 +25,35 @@ test('isMarketingRoute matches the known marketing routes only', () => {
   assert.equal(isMarketingRoute('/'), true);
   assert.equal(isMarketingRoute('/for/finance'), true);
   assert.equal(isMarketingRoute('/for/tax/'), true);
+  assert.equal(isMarketingRoute('/features'), true);
+  assert.equal(isMarketingRoute('/research'), true);
+  assert.equal(isMarketingRoute('/research/energy-the-next-currency'), true);
+  assert.equal(isMarketingRoute('/research/energy-the-next-currency/'), true);
   assert.equal(isMarketingRoute('/s/abc'), false);
   assert.equal(isMarketingRoute('/operator'), false);
   assert.equal(isMarketingRoute('/for/unknown'), false);
+  assert.equal(isMarketingRoute('/research/not-a-real-article'), false);
+});
+
+test('Features and Research hub are first-class marketing routes', () => {
+  for (const p of ['/features', '/research']) {
+    assert.ok(MARKETING_ROUTES[p], `${p} missing from MARKETING_ROUTES`);
+    const out = renderMetaInto(BASE_HTML, p, MARKETING_ROUTES[p]);
+    assert.match(out, new RegExp(`rel="canonical" href="https://arksai\\.studio${p}"`));
+    assert.doesNotMatch(out, /OLD TITLE/);
+  }
+});
+
+test('research article meta injects JSON-LD Article structured data', () => {
+  // renderMetaInto with a jsonLd payload inserts it before </head>.
+  const ld = '<script type="application/ld+json">{"@type":"Article"}</script>';
+  const out = renderMetaInto(BASE_HTML, '/research/x', { title: 'T', description: 'D' }, ld);
+  assert.match(out, /<script type="application\/ld\+json">\{"@type":"Article"\}<\/script><\/head>/);
+});
+
+test('RESEARCH_SLUGS is non-empty and lowercase-hyphenated', () => {
+  assert.ok(RESEARCH_SLUGS.length >= 1);
+  for (const s of RESEARCH_SLUGS) assert.match(s, /^[a-z0-9-]+$/);
 });
 
 test('renderMetaInto swaps title/description/canonical/OG per route', () => {

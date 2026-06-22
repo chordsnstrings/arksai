@@ -10,6 +10,8 @@ import { Composer } from './components/Composer';
 import { CostBar } from './components/CostBar';
 import { Landing } from './components/Landing';
 import { VerticalPage, verticalSlugs } from './components/VerticalPage';
+import { FeaturesPage } from './components/FeaturesPage';
+import { ResearchHub, ResearchArticle } from './components/Research';
 import { Launchpad } from './components/Launchpad';
 import { LoginScreen } from './components/LoginScreen';
 import { InviteAccept } from './components/InviteAccept';
@@ -188,11 +190,18 @@ export default function App() {
   const isOperatorPath = path === '/operator' || path === '/operator/';
 
   const forMatch = path.match(/^\/for\/([a-z-]+)\/?$/);
+  const researchMatch = path.match(/^\/research\/([a-z0-9-]+)\/?$/);
+  const isResearchHub = path === '/research' || path === '/research/';
+  const isFeatures = path === '/features' || path === '/features/';
 
   if (authed === null) return null;
   if (!authed) {
     if (isOperatorPath) return <OperatorLogin />;
     if (showLogin) return <LoginScreen onBack={() => setShowLogin(false)} />;
+    // Public marketing pages (shareable, server-side OG meta + JSON-LD).
+    if (isFeatures) return <FeaturesPage onSignIn={() => setShowLogin(true)} />;
+    if (researchMatch) return <ResearchArticle slug={researchMatch[1]} onSignIn={() => setShowLogin(true)} />;
+    if (isResearchHub) return <ResearchHub onSignIn={() => setShowLogin(true)} />;
     // Public per-vertical marketing pages (shareable, server-side OG meta).
     if (forMatch && verticalSlugs().includes(forMatch[1]))
       return <VerticalPage slug={forMatch[1]} onSignIn={() => setShowLogin(true)} />;

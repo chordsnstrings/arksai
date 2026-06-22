@@ -67,7 +67,85 @@ export const MARKETING_ROUTES: Record<string, RouteMeta> = {
       'ArksAI drafts UAE legal documents to sign: contracts, NDAs, employment agreements, powers of attorney, corporate documents, notices and legal opinions — bilingual in eloquent English and Modern Standard Arabic where the destination requires it, citing the relevant law.',
     ogTitle: 'AI for UAE legal teams — contracts, notices & opinions',
   },
+  '/features': {
+    title: 'ArksAI Features — Apps, Reports, Email Robots & UAE Compliance | AI for UAE Business',
+    description:
+      'Everything ArksAI can do for a UAE company: live apps & dashboards, designed reports and decks, formula-driven finance models, on-brand creatives, autonomous email robots, scheduled deliveries, and exact UAE-compliant filings (VAT 201, Corporate Tax, WPS, PINT AE e-invoicing) plus bilingual UAE legal drafting.',
+    ogTitle: 'ArksAI features — every deliverable your company needs',
+  },
+  '/research': {
+    title: 'ArksAI Research — AI, Energy & the Frontier, Read for Operators',
+    description:
+      'Sourced, cited essays on where AI, energy and economics meet — written plainly for the people who run businesses. Energy as the next currency, the East and the AI frontier, and how to read AI benchmarks.',
+    ogTitle: 'ArksAI Research — the frontier, read for operators',
+  },
 };
+
+// Research article slugs (keep in sync with client/src/lib/research.ts and the JSON files
+// in client/public/research/). Article pages are dynamic marketing routes.
+export const RESEARCH_SLUGS = ['energy-the-next-currency', 'east-ai-frontier', 'reading-ai-benchmarks'];
+
+interface ArticleJson {
+  slug: string;
+  title: string;
+  dek: string;
+  date: string;
+  readingTimeMin?: number;
+  tags?: string[];
+  keyTakeaways?: string[];
+  sections?: { heading?: string; body?: string[]; list?: string[]; pull?: string }[];
+  sources?: { title: string; publisher?: string; url: string }[];
+  seo?: { title?: string; description?: string; keywords?: string[] };
+}
+
+const articleCache = new Map<string, ArticleJson | null>();
+function loadArticle(slug: string): ArticleJson | null {
+  if (articleCache.has(slug)) return articleCache.get(slug)!;
+  let parsed: ArticleJson | null = null;
+  try {
+    const raw = fs.readFileSync(path.join(config.clientDist, 'research', `${slug}.json`), 'utf8');
+    parsed = JSON.parse(raw) as ArticleJson;
+  } catch {
+    parsed = null;
+  }
+  articleCache.set(slug, parsed);
+  return parsed;
+}
+
+/** Match /research/<slug> for a known article. */
+function researchSlug(pathName: string): string | null {
+  const m = pathName.match(/^\/research\/([a-z0-9-]+)$/);
+  if (m && RESEARCH_SLUGS.includes(m[1])) return m[1];
+  return null;
+}
+
+/** Build the Article JSON-LD (with full articleBody) for an article page. */
+function articleJsonLd(a: ArticleJson, canonical: string): string {
+  const body = (a.sections ?? [])
+    .map((s) => [s.heading, ...(s.body ?? []), ...(s.list ?? [])].filter(Boolean).join(' '))
+    .join('\n\n');
+  const ld = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: a.title,
+    description: a.seo?.description || a.dek,
+    datePublished: a.date,
+    dateModified: a.date,
+    author: { '@type': 'Organization', name: 'ArksAI', url: BASE },
+    publisher: {
+      '@type': 'Organization',
+      name: 'ArksAI',
+      url: BASE,
+      logo: { '@type': 'ImageObject', url: `${BASE}/icon-512.png` },
+    },
+    mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+    image: OG_IMAGE,
+    keywords: (a.seo?.keywords || a.tags || []).join(', '),
+    articleBody: body,
+    wordCount: body.split(/\s+/).filter(Boolean).length,
+  };
+  return `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>`;
+}
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -93,24 +171,44 @@ export function normalizePath(url: string): string {
 }
 
 export function isMarketingRoute(url: string): boolean {
-  return Object.prototype.hasOwnProperty.call(MARKETING_ROUTES, normalizePath(url));
+  const p = normalizePath(url);
+  return Object.prototype.hasOwnProperty.call(MARKETING_ROUTES, p) || researchSlug(p) != null;
 }
 
 /**
  * Return the index.html with this marketing route's title/description/canonical/OG
- * swapped in. Returns null if the build or route is unavailable (caller falls back
- * to the plain SPA index.html). Pure string transform → unit-testable via renderMetaInto.
+ * swapped in (plus JSON-LD for research articles). Returns null if the build or route
+ * is unavailable (caller falls back to the plain SPA index.html). Pure string transform
+ * → unit-testable via renderMetaInto.
  */
 export function renderMarketingHtml(url: string): string | null {
   const html = baseHtml();
   if (html == null) return null;
-  const route = MARKETING_ROUTES[normalizePath(url)];
+  const p = normalizePath(url);
+
+  // Dynamic research article pages: derive meta from the article JSON + inject JSON-LD
+  // (with the full articleBody) so non-JS crawlers and answer engines get the content.
+  const slug = researchSlug(p);
+  if (slug) {
+    const a = loadArticle(slug);
+    if (!a) return null;
+    const baseTitle = a.seo?.title || a.title;
+    const route: RouteMeta = {
+      title: /arksai/i.test(baseTitle) ? baseTitle : `${baseTitle} | ArksAI Research`,
+      description: a.seo?.description || a.dek,
+      ogTitle: a.title,
+    };
+    const canonical = `${BASE}${p}`;
+    return renderMetaInto(html, p, route, articleJsonLd(a, canonical));
+  }
+
+  const route = MARKETING_ROUTES[p];
   if (!route) return null;
-  return renderMetaInto(html, normalizePath(url), route);
+  return renderMetaInto(html, p, route);
 }
 
-/** The pure core: inject a route's meta into a base HTML document. */
-export function renderMetaInto(html: string, pathName: string, route: RouteMeta): string {
+/** The pure core: inject a route's meta (and optional JSON-LD) into a base HTML document. */
+export function renderMetaInto(html: string, pathName: string, route: RouteMeta, jsonLd?: string): string {
   const canonical = pathName === '/' ? `${BASE}/` : `${BASE}${pathName}`;
   const ogTitle = esc(route.ogTitle || route.title.split('—')[0].trim() || route.title);
   const title = esc(route.title);
@@ -132,5 +230,8 @@ export function renderMetaInto(html: string, pathName: string, route: RouteMeta)
   out = out.replace(/(<meta\s+name="twitter:description"\s+content=")[\s\S]*?("\s*\/?>)/, `$1${desc}$2`);
   // Keep og:image absolute (already set in the base) — one shared cover for all routes.
   void OG_IMAGE;
+  // Article structured data (research pages): insert before </head> so crawlers and
+  // answer engines can read the headline, body and sources without running the SPA.
+  if (jsonLd) out = out.replace('</head>', `${jsonLd}</head>`);
   return out;
 }

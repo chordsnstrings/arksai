@@ -40,7 +40,17 @@ The single biggest reason it exists: **help UAE businesses adopt AI without hiri
 - Produces real, usable deliverables — not just chat answers.
 - Currently **alpha, invitation-only**; request access at https://arksai.studio with a work email.
 
+## Research & insights
+
+ArksAI publishes sourced, cited essays on AI, energy and economics — written for business operators. Each article cites 14–15 real sources.
+
+- **Energy is becoming the next currency** — why every AI "token" is ultimately priced in joules, the surge in data-centre electricity demand, compute as a strategic reserve asset, and how the Gulf's cheap, abundant energy positions the UAE to convert power into AI advantage. https://arksai.studio/research/energy-the-next-currency
+- **The East and the AI frontier** — how the centre of gravity in frontier AI is shifting eastward (Chinese open-weight models, sovereign AI), where the US still leads, and the UAE's bet (Falcon/TII, MBZUAI, G42, Stargate UAE) to be an AI hub between East and West. https://arksai.studio/research/east-ai-frontier
+- **How to read AI benchmarks (without being fooled)** — what the major benchmarks (MMLU-Pro, GPQA, SWE-bench, LMArena, FrontierMath, HLE) actually measure, why leaderboard numbers mislead (contamination, saturation, Goodhart's law), and a practical framework for evaluating a model for your own use case. https://arksai.studio/research/reading-ai-benchmarks
+
 ## Links
 
 - Home: https://arksai.studio/
+- Features (everything ArksAI can do): https://arksai.studio/features
+- Research: https://arksai.studio/research
 - Request access: https://arksai.studio/ (the "Request access" form)
