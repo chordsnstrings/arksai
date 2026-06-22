@@ -13,6 +13,7 @@ import { renderReportTool } from './report';
 import { renderChartTool } from './chart';
 import { addFontsTool } from './fonts';
 import { addUiKitTool } from './ui-kit';
+import { addMobileUiKitTool } from './mobile-ui-kit';
 import { publishAppTool } from './publish';
 import { generateSpreadsheetTool } from './excel';
 import { generateDocTool } from './docx';
@@ -60,6 +61,7 @@ export const ALL_TOOLS: ToolDef[] = [
   renderChartTool,
   addFontsTool,
   addUiKitTool,
+  addMobileUiKitTool,
   publishAppTool,
   generateSpreadsheetTool,
   generateDocTool,
