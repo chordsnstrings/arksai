@@ -54,6 +54,16 @@ implement → `npm run typecheck && npm test && npm run build` (fix‑loop) → 
 - This is a **large, multi‑session** autonomous build (new section + mobile UI kit + backend generator + build orchestrator + snapshot). It ships **phase‑by‑phase to production** and is validated via operator each phase.
 - The build **orchestrator runs on the production server** (it can reach build droplets on DO's network). From the dev sandbox I can trigger + observe via the API/operator, but cannot directly shell into a build droplet — so build‑droplet internals are validated by the server‑side run + the resulting APK, not by me reaching the droplet.
 
+## Progress log / handoff (a fresh session continues from here)
+- ✅ **Decisions locked + blockers cleared** (DO authorized; APKs on-droplet; no Spaces/extra creds).
+- ✅ **Mobile UI kit foundation** shipped — `server/assets/mobile-ui-kit/` (tokens.ts light+dark+brandTheme, components.tsx Screen/AppText/Button/Card/Field/EmptyState/Loading, ErrorBoundary.tsx, README).
+- ✅ **`add_mobile_ui_kit` tool** shipped + registered (installs the kit into an app's src/ui, returns wiring + quality rules).
+- ⏭ **NEXT (Phase 1 cont.):** an Expo/RN **scaffolding tool** (`create_expo_app` or a template the agent unpacks: App entry wired with AppErrorBoundary+ThemeProvider, expo-router, a sample screen from the kit) + the **"Android Apps" section** surface (sidebar entry, mobile intake, workspace view with Expo-web preview in Canvas + Expo Go QR) + capability-aware intake (camera/location/realtime/etc.).
+- ⏭ **Phase 2:** Fastify backend generator + auto-publish (reuse the publish/subdomain pipeline) + typed client wiring (auth/DB/storage).
+- ⏭ **Phase 3:** `androidBuild.ts` orchestrator (create build droplet from snapshot → push → `expo prebuild` + gradle → pull APK → on-droplet store → destroy; teardown/reaper/timeout) + the one-time snapshot bake via the DO API/cloud-init.
+- ⏭ **Phase 4:** emulator crash-smoke + release signing; then VALIDATE by building a **small (QR scanner)** and a **large (Tinder-style)** app to real APKs via operator, confirm they launch without crashing → REPORT BACK (the goal's done-condition).
+- ⏭ **Phase 5:** per-build cost metering → billing.
+
 ## Honest limits
 - APK build latency is **minutes** (preview is instant; APK builds in the background).
 - iOS is a separate later track (EAS, ~$2/build + Apple account).
