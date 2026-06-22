@@ -50,6 +50,9 @@ function intEnv(name: string, fallback: number): number {
 export const config = {
   isProd,
   port: intEnv('PORT', 3000),
+  // Auto-Brief: inject the deterministic per-deliverable rigor scaffold into the system
+  // prompt (Phase 1). On by default; set AUTO_BRIEF=0 to disable.
+  autoBrief: process.env.AUTO_BRIEF !== '0',
   dataDir: process.env.DATA_DIR || path.join(repoRoot, 'data'),
   databaseUrl: process.env.DATABASE_URL || '',
   clientDist:

@@ -569,7 +569,7 @@ export class AgentRun {
     // Memory: global (every session) + this repo's project memory + an optional
     // ARKS.md in the workspace. Kept around so a mode switch can rebuild the prompt.
     let memoryBlock = await this.loadMemoryBlock(dir);
-    let systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile);
+    let systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile, userText);
 
     if (this.session.title === 'New session') {
       void this.generateTitleAsync(userText);
@@ -789,7 +789,7 @@ export class AgentRun {
           ({ schemas, map } = getToolsForMode(newMode));
           this.addOnboardingTools(schemas, map);
           memoryBlock = await this.loadMemoryBlock(dir);
-          systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile);
+          systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile, userText);
           this.routeModel(userText, sysInfo);
           sysInfo(`↳ ${MODE_SWITCH_LINE[newMode]}`);
           this.emit({ type: 'session_meta_updated', meta: { id: sessionId, mode: newMode } });

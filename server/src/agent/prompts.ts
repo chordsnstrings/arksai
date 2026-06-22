@@ -2,6 +2,7 @@ import type { SessionMeta } from '../../../shared/types';
 import { config } from '../config';
 import { designContext } from './designSystem';
 import { expertiseFor } from './expertise';
+import { briefScaffold } from './brief';
 import type { TaskProfile, TaskType } from './taskProfile';
 
 /** The few targeted questions to ask up front, by deliverable type. */
@@ -199,12 +200,17 @@ export function buildSystemPrompt(
   repoDir: string,
   memoryBlock = '',
   profile?: TaskProfile,
+  userText = '',
 ): string {
   const mem = memoryBlock ? `\n\n${memoryBlock}` : '';
   // Domain-rigor layer: when started from a department task, inject the expert
   // standards that make THAT deliverable genuinely good.
   const expertise = expertiseFor(session.task);
-  const exp = expertise ? `\n\n${expertise}` : '';
+  // Auto-Brief (Phase 1): a deterministic per-deliverable operating procedure
+  // (role/criteria/method/verification/output/self-audit) that closes the gap between a
+  // thin request and an expert brief — zero latency, no fabricated specifics.
+  const scaffold = config.autoBrief ? briefScaffold(userText, profile, session.task) : null;
+  const exp = [expertise, scaffold].filter(Boolean).map((b) => `\n\n${b}`).join('');
 
   // Agent-driven ORGANIZATION ONBOARDING — a warm, fully-visible setup conversation
   // (the user watches every step) that seeds the org's shared brand + profile.
