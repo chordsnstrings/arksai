@@ -9,8 +9,8 @@
  *  3. poll the build row until terminal or the hard timeout; ALWAYS destroy the droplet
  *       (finally). An orphan reaper destroys any stray arksai-build droplet.
  *
- * Stays dormant unless config.doApiToken AND config.androidSnapshotId are set
- * (isBuildConfigured) — build_apk reports "not configured" and the reaper no-ops.
+ * Stays dormant unless a DO API token AND a baked Android-SDK snapshot id are set
+ * (isBuildConfigured, from env or app_settings) — build_apk reports "not configured".
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,13 +20,12 @@ import { config } from '../config';
 import { repoDir } from '../sessions/workspace';
 import { createDroplet, destroyDroplet, getDroplet, listDropletsByTag } from './do';
 import { getBuild, updateBuild, listActiveBuilds, type Build } from './store';
+import { isBuildConfigured, snapshotId } from './runtime';
 
 const execFileP = promisify(execFile);
 const BUILD_TAG = 'arksai-build';
 
-export function isBuildConfigured(): boolean {
-  return !!(config.doApiToken && config.androidSnapshotId);
-}
+export { isBuildConfigured } from './runtime';
 
 export function buildsDir(): string {
   return path.join(config.dataDir, 'builds');
@@ -100,7 +99,7 @@ export async function startAndroidBuild(build: Build, sessionId: string): Promis
       name: `arksai-build-${build.id.slice(0, 8)}`,
       region: config.androidBuildRegion,
       size: config.androidBuildSize,
-      snapshotId: config.androidSnapshotId,
+      snapshotId: snapshotId(),
       tags: [BUILD_TAG],
       userData: cloudInit(build),
       sshKeyIds: config.androidBuildSshKeyId ? [config.androidBuildSshKeyId] : undefined,

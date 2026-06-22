@@ -79,3 +79,8 @@ export async function listBuildsForSession(sessionId: string): Promise<Build[]> 
 export async function listActiveBuilds(): Promise<Build[]> {
   return q<Build>("SELECT * FROM builds WHERE status IN ('queued','provisioning','building')", []);
 }
+
+/** Most recent build of a platform (e.g. the latest bake), for the admin status view. */
+export async function latestBuildByPlatform(platform: string): Promise<Build | null> {
+  return qOne<Build>('SELECT * FROM builds WHERE platform = $1 ORDER BY created_at DESC LIMIT 1', [platform]);
+}

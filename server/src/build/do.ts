@@ -6,13 +6,14 @@
  * Stays dormant unless config.doApiToken is set; every call throws a clear error
  * if the token is missing so the orchestrator can degrade gracefully.
  */
-import { config } from '../config';
+import { doToken } from './runtime';
 
 const API = 'https://api.digitalocean.com/v2';
 
 function token(): string {
-  if (!config.doApiToken) throw new Error('DO_API_TOKEN is not configured');
-  return config.doApiToken;
+  const t = doToken();
+  if (!t) throw new Error('DO_API_TOKEN is not configured');
+  return t;
 }
 
 async function doFetch(path: string, init: RequestInit = {}, timeoutMs = 30_000): Promise<any> {
@@ -99,4 +100,30 @@ export async function destroyDroplet(id: number | string): Promise<void> {
 export async function listDropletsByTag(tag: string): Promise<DoDroplet[]> {
   const r = await doFetch(`/droplets?tag_name=${encodeURIComponent(tag)}&per_page=200`);
   return (r.droplets || []) as DoDroplet[];
+}
+
+export interface DoAction {
+  id: number;
+  status: string; // in-progress | completed | errored
+  type: string;
+}
+
+/** Take a snapshot of a (powered-off) droplet. Returns the action to poll. */
+export async function snapshotDroplet(id: number | string, name: string): Promise<DoAction> {
+  const r = await doFetch(`/droplets/${id}/actions`, {
+    method: 'POST',
+    body: JSON.stringify({ type: 'snapshot', name }),
+  });
+  return r.action as DoAction;
+}
+
+export async function getAction(id: number | string): Promise<DoAction> {
+  const r = await doFetch(`/actions/${id}`);
+  return r.action as DoAction;
+}
+
+/** Snapshot ids attached to a droplet (newest snapshot is what we just took). */
+export async function listDropletSnapshots(id: number | string): Promise<Array<{ id: number; name: string; created_at: string }>> {
+  const r = await doFetch(`/droplets/${id}/snapshots?per_page=200`);
+  return (r.snapshots || []) as Array<{ id: number; name: string; created_at: string }>;
 }

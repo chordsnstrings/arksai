@@ -8,6 +8,7 @@ import {
   getBuild,
   listBuildsForSession,
   updateBuild,
+  latestBuildByPlatform,
 } from '../build/store';
 import {
   startAndroidBuild,
@@ -15,6 +16,8 @@ import {
   sourceTarPath,
   apkPath,
 } from '../build/androidBuild';
+import { setBuildToken, doToken, snapshotId } from '../build/runtime';
+import { startBake } from '../build/bake';
 
 function tokenOk(want: string, got: unknown): boolean {
   if (typeof got !== 'string' || !got) return false;
@@ -33,6 +36,34 @@ export function registerBuildRoutes(app: FastifyInstance) {
   if (!app.hasContentTypeParser('text/plain')) {
     app.addContentTypeParser('text/plain', { parseAs: 'string', bodyLimit: 64 * 1024 }, (_req, body, done) => done(null, body));
   }
+
+  // ---- Operator only: configure the DO token, bake the build machine, check status ----
+
+  app.post('/api/admin/build/configure', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    const token = String((req.body as any)?.doToken || '').trim();
+    if (!token.startsWith('dop_v1_')) return reply.code(400).send({ error: 'Provide a DigitalOcean API token (dop_v1_…).' });
+    await setBuildToken(token);
+    return { ok: true, hasToken: true };
+  });
+
+  app.post('/api/admin/build/bake', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    if (!doToken()) return reply.code(400).send({ error: 'Configure the DO token first (POST /api/admin/build/configure).' });
+    const { id } = await startBake();
+    return reply.code(201).send({ id });
+  });
+
+  app.get('/api/admin/build/state', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    const bake = await latestBuildByPlatform('bake');
+    return {
+      configured: isBuildConfigured(),
+      hasToken: !!doToken(),
+      snapshotId: snapshotId() || null,
+      bake: bake ? { id: bake.id, status: bake.status, phase: bake.phase, error: bake.error, updatedAt: bake.updated_at } : null,
+    };
+  });
 
   // ---- Authenticated (the app user): start a build, poll it, download the APK ----
 

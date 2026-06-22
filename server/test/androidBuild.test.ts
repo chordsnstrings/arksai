@@ -6,6 +6,7 @@ import path from 'node:path';
 
 // Throwaway SQLite DB before any config read.
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-build-'));
+process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'test-encryption-key-1234567890';
 delete process.env.DATABASE_URL;
 
 let db: typeof import('../src/db');
@@ -75,6 +76,25 @@ test('build_apk tool is gated + reports not-configured cleanly when dormant', as
   const res = await buildApkTool.run({}, ctx);
   assert.match(res, /not configured/i);
   assert.match(res, /PWA|web/i); // points the user at the working alternative
+});
+
+test('activation via app_settings flips isBuildConfigured (no SSH/env)', async () => {
+  const RT = await import('../src/build/runtime');
+  assert.equal(RT.isBuildConfigured(), false);
+
+  await RT.setBuildToken('dop_v1_testtoken_abcdef0123456789');
+  const stored = await db.getSetting('do_api_token');
+  assert.ok(stored && !stored.includes('dop_v1_testtoken'), 'DO token is encrypted at rest, not plaintext');
+  assert.equal(RT.doToken(), 'dop_v1_testtoken_abcdef0123456789');
+  assert.equal(RT.isBuildConfigured(), false, 'a token alone is not enough — needs a snapshot');
+
+  await RT.setSnapshotId('999888');
+  assert.equal(RT.snapshotId(), '999888');
+  assert.equal(RT.isBuildConfigured(), true, 'token + snapshot → builder live');
+
+  // Reset so the rest of the suite stays dormant.
+  await RT.setSnapshotId('');
+  assert.equal(RT.isBuildConfigured(), false);
 });
 
 test('build paths live under the data dir and are per-build', () => {
