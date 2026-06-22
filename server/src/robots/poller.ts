@@ -1,5 +1,5 @@
 import { getRobotEmailAccount } from '../email/accounts';
-import { readInboxForRobot, sendEmailForRobot, type InboxMessage } from '../email/client';
+import { readInboxForRobot, sendEmailForRobot, withTimeout, type InboxMessage } from '../email/client';
 import type { Robot } from '../../../shared/types';
 import { createDraft, draftExistsFor, listActiveRobots, markDraftStatus, markPolled } from './store';
 import { draftReply } from './reply';
@@ -29,32 +29,71 @@ function reSubject(s: string | undefined): string {
   return /^re:/i.test(base) ? base : `Re: ${base}`;
 }
 
-async function processRobot(robot: Robot): Promise<void> {
+/** A human-readable account of one poll pass — returned by the manual "check now"
+ *  endpoint and useful for diagnosing why a robot "watching" the inbox stays quiet. */
+export interface PollSummary {
+  robotId: string;
+  read: number;
+  drafted: number;
+  sent: number;
+  escalated: number;
+  skipped: number;
+  reason?: string; // why nothing happened (mailbox not ready / no new mail)
+  error?: string; // a real failure (read/draft/send)
+}
+
+const READ_TIMEOUT_MS = Number(process.env.ROBOT_READ_TIMEOUT_MS || '25000') || 25_000;
+
+/** Run ONE poll pass for a robot and report exactly what happened. Never throws. */
+export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
+  const sum: PollSummary = { robotId: robot.id, read: 0, drafted: 0, sent: 0, escalated: 0, skipped: 0 };
+
   const account = await getRobotEmailAccount(robot.id);
-  if (!account || !account.enabled || !account.imapHost) return;
+  if (!account) return { ...sum, reason: 'No mailbox is connected for this robot.' };
+  if (!account.enabled) return { ...sum, reason: 'This robot’s mailbox is disabled.' };
+  if (!account.imapHost) return { ...sum, reason: 'No IMAP (inbound) settings are configured.' };
 
   let messages: InboxMessage[];
   try {
-    messages = await readInboxForRobot(robot.id, { unseenOnly: true, limit: MAX_PER_ROBOT });
-  } catch (e) {
-    console.error(`[robot ${robot.id}] inbox read failed:`, (e as any)?.message ?? e);
-    return;
+    messages = await withTimeout(
+      readInboxForRobot(robot.id, { unseenOnly: true, limit: MAX_PER_ROBOT }),
+      READ_TIMEOUT_MS,
+      'Inbox read',
+    );
+  } catch (e: any) {
+    sum.error = e?.message ?? String(e);
+    console.error(`[robot ${robot.id}] inbox read failed:`, sum.error);
+    return sum;
+  }
+  sum.read = messages.length;
+  if (!messages.length) {
+    sum.reason = 'No new (unread) mail to reply to. The robot only acts on UNREAD messages and never marks mail as read itself.';
   }
 
   for (const msg of messages) {
-    if (!msg.from) continue;
+    if (!msg.from) {
+      sum.skipped++;
+      continue;
+    }
     // Never reply to ourselves (loop guard).
-    if (msg.from.toLowerCase() === account.fromEmail.toLowerCase()) continue;
+    if (msg.from.toLowerCase() === account.fromEmail.toLowerCase()) {
+      sum.skipped++;
+      continue;
+    }
     // Already handled this message?
-    if (msg.messageId && (await draftExistsFor(robot.id, msg.messageId))) continue;
+    if (msg.messageId && (await draftExistsFor(robot.id, msg.messageId))) {
+      sum.skipped++;
+      continue;
+    }
 
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), DRAFT_TIMEOUT_MS);
     let outcome;
     try {
       outcome = await draftReply(robot, msg, ac.signal);
-    } catch (e) {
-      console.error(`[robot ${robot.id}] draft failed:`, (e as any)?.message ?? e);
+    } catch (e: any) {
+      sum.error = `draft failed: ${e?.message ?? e}`;
+      console.error(`[robot ${robot.id}] draft failed:`, e?.message ?? e);
       continue;
     } finally {
       clearTimeout(timer);
@@ -78,6 +117,8 @@ async function processRobot(robot: Robot): Promise<void> {
       escalated: primary.escalate,
       escalationReason: primary.escalate ? primary.reason : null,
     });
+    sum.drafted++;
+    if (primary.escalate) sum.escalated++;
 
     // Auto mode: send a clean (non-escalated) draft right away, locked to the sender.
     if (robot.autonomy === 'auto' && !primary.escalate && primary.text) {
@@ -90,14 +131,21 @@ async function processRobot(robot: Robot): Promise<void> {
           references: msg.messageId || undefined,
         });
         await markDraftStatus(draft.id, robot.orgId, 'sent', Date.now());
-      } catch (e) {
-        console.error(`[robot ${robot.id}] auto-send failed:`, (e as any)?.message ?? e);
+        sum.sent++;
+      } catch (e: any) {
+        sum.error = `auto-send failed: ${e?.message ?? e}`;
+        console.error(`[robot ${robot.id}] auto-send failed:`, e?.message ?? e);
         // Leave it pending so a human can send it.
       }
     }
   }
 
   await markPolled(robot.id);
+  return sum;
+}
+
+async function processRobot(robot: Robot): Promise<void> {
+  await pollRobotOnce(robot);
 }
 
 export async function tick(): Promise<void> {

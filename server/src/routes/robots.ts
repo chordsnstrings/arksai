@@ -13,6 +13,7 @@ import {
   updateRobot,
 } from '../robots/store';
 import { draftReply } from '../robots/reply';
+import { pollRobotOnce } from '../robots/poller';
 import { sendEmailForRobot, verifyAccount } from '../email/client';
 import { detectEmailConfig } from '../email/autoconfig';
 import type { InboxMessage } from '../email/client';
@@ -201,6 +202,17 @@ export function registerRobotRoutes(app: FastifyInstance) {
     } finally {
       clearTimeout(timer);
     }
+  });
+
+  // Check the inbox NOW (don't wait for the 60s tick). Runs one poll pass and reports
+  // exactly what happened — read N, drafted N, sent N, or the real error — so a robot
+  // that "watches" but stays quiet is diagnosable and the user has manual control.
+  app.post('/api/orgs/:id/robots/:rid/poll', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    if (robot.status !== 'active') return reply.code(400).send({ error: 'Activate the robot first — only active robots check their inbox.' });
+    return { summary: await pollRobotOnce(robot) };
   });
 
   // ---- drafts ----

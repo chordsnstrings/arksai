@@ -186,8 +186,8 @@ export async function draftReply(robot: Robot, msg: InboxMessage, signal: AbortS
     ]);
     return { primary: m.escalate || m.text ? m : d, alt: m.escalate || m.text ? d : m };
   }
-  if (useMini) return { primary: await runModel('minimax', system, user, signal) };
-  if (useDeep) return { primary: await runModel('deepseek', system, user, signal) };
+  if (useMini) return { primary: await runModel('minimax', system, user, signal).catch((e) => errorDraft(MINIMAX_LABEL, e)) };
+  if (useDeep) return { primary: await runModel('deepseek', system, user, signal).catch((e) => errorDraft(DEEPSEEK_LABEL, e)) };
   // Neither model is available — escalate so a human handles it.
   return { primary: { text: '', model: 'none', escalate: true, reason: 'No model is configured to draft a reply.' } };
 }
