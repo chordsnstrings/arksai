@@ -166,6 +166,16 @@ export const config = {
   // intended for trusted single-operator testing. Flip off to re-harden.
   agentUnrestricted: process.env.AGENT_UNRESTRICTED === 'true',
   workspaceTtlDays: intEnv('WORKSPACE_TTL_DAYS', 14),
+  // --- Android APK builds (ephemeral DO build droplet) ---
+  // The whole feature stays DORMANT (build_apk reports "not configured", no reaper)
+  // until BOTH a DO API token and a baked Android-SDK snapshot id are provided.
+  doApiToken: process.env.DO_API_TOKEN || process.env.DIGITALOCEAN_TOKEN || '',
+  androidSnapshotId: process.env.ANDROID_SNAPSHOT_ID || '', // id of the pre-baked Android-SDK snapshot (see BUILD_BAKE.md)
+  androidBuildRegion: process.env.ANDROID_BUILD_REGION || 'blr1',
+  androidBuildSize: process.env.ANDROID_BUILD_SIZE || 's-4vcpu-8gb',
+  androidBuildSshKeyId: process.env.ANDROID_BUILD_SSH_KEY_ID || '', // optional DO ssh key id added to the build droplet (for debugging)
+  androidBuildTimeoutMs: intEnv('ANDROID_BUILD_TIMEOUT_MS', 25 * 60 * 1000), // hard cap; droplet destroyed on timeout
+  androidBuildCost: Number(process.env.ANDROID_BUILD_COST || '0.12') || 0.12, // our infra cost per APK build (droplet-hour share)
 };
 
 export function validateConfig() {
@@ -204,5 +214,6 @@ export function secretValues(): string[] {
     config.googleAdsDeveloperToken,
     config.tiktokClientSecret,
     config.connectorEncKey,
+    config.doApiToken,
   ].filter((s) => s && s.length >= 6);
 }

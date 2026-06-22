@@ -179,6 +179,26 @@ async function migrate() {
     updated_at ${INT} NOT NULL
   )`);
 
+  // ---- Android APK builds (one row per build job on an ephemeral DO droplet) ----
+  await q(`CREATE TABLE IF NOT EXISTS builds(
+    id TEXT PRIMARY KEY,
+    session_id TEXT,
+    org_id TEXT,
+    platform TEXT NOT NULL,
+    app_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    phase TEXT,
+    droplet_id TEXT,
+    token TEXT NOT NULL,
+    artifact_path TEXT,
+    size_bytes ${INT},
+    cost ${REAL},
+    error TEXT,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_builds_session ON builds(session_id)`);
+
   // ---- Multi-org: organizations, users, memberships, invite links, auth sessions, project visibility ----
   await q(`CREATE TABLE IF NOT EXISTS orgs(
     id TEXT PRIMARY KEY,

@@ -7,6 +7,7 @@ import { startDeploymentJanitor } from './deploy/publish';
 import { startScheduler } from './schedule/scheduler';
 import { startAnalyticsDigest } from './analytics/digest';
 import { startRobotPoller } from './robots/poller';
+import { startBuildReaper } from './build/androidBuild';
 
 async function main() {
   validateConfig();
@@ -25,6 +26,7 @@ async function main() {
   startRobotPoller(); // inbound mail → robot draft replies (Stage 2)
   startDeploymentJanitor(); // 24h-preview auto-cleanup
   startAnalyticsDigest(); // periodic platform metric snapshots (+ optional webhook)
+  startBuildReaper(); // destroy any stray Android build droplet (no-op unless configured)
   console.log(`ArksAI server listening on :${config.port} (data: ${config.dataDir})`);
   // Make provider configuration self-evident at boot. MiniMax is the LLM engine AND powers
   // image gen / vision / M3 / M2.7 — one key for everything.
