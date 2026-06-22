@@ -166,7 +166,11 @@ export async function readInboxWithAccount(
 
   const client = imapClient(account, secrets);
   const out: InboxMessage[] = [];
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (e: any) {
+    throw new Error(`connect/login to ${account.imapHost}:${account.imapPort} failed — ${imapErrText(e)}`);
+  }
   try {
     let lock;
     try {
@@ -295,7 +299,7 @@ export async function verifyAccount(account: EmailAccount, secrets: EmailSecrets
       await withTimeout(client.connect(), 15000, 'IMAP check');
       return { ok: true };
     } catch (e: any) {
-      return { ok: false, error: e?.message || String(e) };
+      return { ok: false, error: imapErrText(e) };
     } finally {
       // logout cleanly if connected; otherwise force the socket closed so it can't linger.
       try {
