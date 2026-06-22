@@ -16,6 +16,7 @@ import type {
 } from '../../../shared/types';
 import { initDb, q, qOne } from '../db';
 import { bootstrapOrgs } from '../orgs/store';
+import { config } from '../config';
 
 export async function initStore() {
   await initDb();
@@ -544,18 +545,52 @@ export async function deleteDeployment(slug: string) {
   await q('DELETE FROM deployments WHERE slug = $1', [slug]);
 }
 
-/** On boot: any session left "running" by a crash/restart becomes an error. */
-export async function recoverInterruptedSessions(): Promise<string[]> {
-  const rows = await q<{ id: string }>("SELECT id FROM sessions WHERE status = 'running'");
+/**
+ * On boot: any session left "running" by a crash/restart is cleared to 'error'. We ALSO
+ * return the ids that are safe to AUTO-RESUME (recent + not already mid-resume), so the
+ * boot sequence can re-issue them — a deploy/restart then never loses an in-flight build.
+ * Crash-loop guard: if a session was ALREADY resumed last boot and died again, we stop
+ * (mark error, don't resume) so a run that crashes the server can't boot-loop.
+ */
+export async function recoverInterruptedSessions(): Promise<{ all: string[]; resume: string[] }> {
+  const rows = await q<{ id: string; updated_at: number }>(
+    "SELECT id, updated_at FROM sessions WHERE status = 'running'",
+  );
+  const RESUME_WINDOW_MS = 15 * 60 * 1000;
+  const now = Date.now();
+  const resume: string[] = [];
   for (const row of rows) {
+    // Did we already try to resume this session (last boot)? If so it crash-looped → stop.
+    let alreadyResumed = false;
+    try {
+      const tl = await getTimeline(row.id);
+      alreadyResumed = tl.slice(-4).some((e: any) => e?.kind === 'system' && /Resuming after restart/.test(e?.text || ''));
+    } catch {
+      /* ignore */
+    }
     await updateSession(row.id, { status: 'error' });
-    await appendTimeline(row.id, {
-      kind: 'system',
-      id: randomUUID(),
-      level: 'error',
-      text: 'Run interrupted by server restart. Send a new message to continue.',
-      ts: Date.now(),
-    });
+    if (alreadyResumed) {
+      await appendTimeline(row.id, {
+        kind: 'system', id: randomUUID(), level: 'error',
+        text: 'Run interrupted again right after a resume — stopping to avoid a loop. Send a message to continue.',
+        ts: now,
+      });
+      continue;
+    }
+    const recent = now - (Number(row.updated_at) || 0) < RESUME_WINDOW_MS;
+    if (config.autoResumeRuns && recent) {
+      await appendTimeline(row.id, {
+        kind: 'system', id: randomUUID(), level: 'info',
+        text: '↻ Resuming after restart…', ts: now,
+      });
+      resume.push(row.id);
+    } else {
+      await appendTimeline(row.id, {
+        kind: 'system', id: randomUUID(), level: 'error',
+        text: 'Run interrupted by server restart. Send a new message to continue.',
+        ts: now,
+      });
+    }
   }
-  return rows.map((r) => r.id);
+  return { all: rows.map((r) => r.id), resume };
 }

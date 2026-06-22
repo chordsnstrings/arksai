@@ -174,8 +174,11 @@ export const config = {
   androidBuildRegion: process.env.ANDROID_BUILD_REGION || 'blr1',
   androidBuildSize: process.env.ANDROID_BUILD_SIZE || 's-8vcpu-16gb', // headroom for the Kotlin daemon on large RN apps
   androidBuildSshKeyId: process.env.ANDROID_BUILD_SSH_KEY_ID || '', // optional DO ssh key id added to the build droplet (for debugging)
-  androidBuildTimeoutMs: intEnv('ANDROID_BUILD_TIMEOUT_MS', 25 * 60 * 1000), // hard cap; droplet destroyed on timeout
+  androidBuildTimeoutMs: intEnv('ANDROID_BUILD_TIMEOUT_MS', 35 * 60 * 1000), // hard cap; droplet destroyed on timeout (large RN apps + cold cache run long)
   androidBuildCost: Number(process.env.ANDROID_BUILD_COST || '0.12') || 0.12, // our infra cost per APK build (droplet-hour share)
+  // On boot, auto-resume a run that a restart/deploy interrupted (so a deploy never loses an
+  // in-flight build). Recency-windowed + crash-loop-guarded. AUTO_RESUME_RUNS=false to disable.
+  autoResumeRuns: process.env.AUTO_RESUME_RUNS !== 'false',
 };
 
 export function validateConfig() {

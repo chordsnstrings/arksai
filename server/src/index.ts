@@ -9,14 +9,15 @@ import { startAnalyticsDigest } from './analytics/digest';
 import { startRobotPoller } from './robots/poller';
 import { startBuildReaper } from './build/androidBuild';
 import { loadBuildRuntime } from './build/runtime';
+import * as manager from './sessions/manager';
 
 async function main() {
   validateConfig();
   await store.initStore();
 
   const recovered = await store.recoverInterruptedSessions();
-  if (recovered.length) {
-    console.log(`[boot] marked ${recovered.length} interrupted session(s) as errored`);
+  if (recovered.all.length) {
+    console.log(`[boot] cleared ${recovered.all.length} interrupted run(s); ${recovered.resume.length} eligible to auto-resume`);
   }
   await sweepWorkspaces();
   await recoverDeployments().catch((err) => console.error('[boot] deployment recovery:', err));
@@ -29,6 +30,14 @@ async function main() {
   startAnalyticsDigest(); // periodic platform metric snapshots (+ optional webhook)
   await loadBuildRuntime(); // load DO token + snapshot id from app_settings (if not in env)
   startBuildReaper(); // destroy any stray Android build droplet (no-op unless configured)
+  // Auto-resume runs a restart/deploy interrupted (recency- + crash-loop-guarded in the store),
+  // so a deploy never loses an in-flight build. Capped so a bad batch can't stampede.
+  for (const id of recovered.resume.slice(0, 5)) {
+    manager
+      .startRun(id, 'Continue from where you left off — pick up the build exactly where it stopped.')
+      .then((r) => console.log(`[boot] auto-resume ${id}: ${r.ok ? 'started' : r.error}`))
+      .catch((e) => console.error(`[boot] auto-resume ${id} failed:`, e?.message ?? e));
+  }
   console.log(`ArksAI server listening on :${config.port} (data: ${config.dataDir})`);
   // Make provider configuration self-evident at boot. MiniMax is the LLM engine AND powers
   // image gen / vision / M3 / M2.7 — one key for everything.
