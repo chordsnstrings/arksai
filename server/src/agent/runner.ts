@@ -596,13 +596,15 @@ export class AgentRun {
 
     try {
       const maxIterations = config.maxIterations;
-      // Hard per-run TOKEN budget — the backstop against a runaway loop quietly billing
-      // for ever (the "1.8M tokens" incident). The deadline fix removes the main amplifier
-      // and the budget branch completes GRACEFULLY when a deliverable already exists, so this
-      // only truly bites a no-deliverable runaway. A fully-researched report legitimately
-      // lands ~800k (≈ $0.11), so the ceiling sits ABOVE that to avoid false trips while
-      // still catching pathological loops. Env-overridable.
-      const maxRunTokens = Number(process.env.MAX_RUN_TOKENS || '1200000') || 1_200_000;
+      // Hard per-run TOKEN budget — the LAST-RESORT backstop against a runaway that escapes
+      // the real loop guards (the content-idle deadline, the STALL signature guard, and the
+      // HEAVY_RETRY publish cap). Those now catch the actual runaway patterns, so this raw
+      // ceiling must sit FAR above any legitimate build — a thorough multi-section site
+      // (dozens of edits + an icons.svg + verify + publish) legitimately runs into the
+      // millions of tokens, and it MUST finish in one run (no "continue"): unless the run
+      // errored or genuinely looped, the user gets the complete result in one click.
+      // 5M ≈ a generous backstop; env-overridable for true pathological cases.
+      const maxRunTokens = Number(process.env.MAX_RUN_TOKENS || '5000000') || 5_000_000;
       const STALL_LIMIT = 6;
       const EMPTY_RETRY_LIMIT = 2; // a thinking model that truncates mid-reasoning gets a couple of nudged retries
       const STREAM_RETRY_LIMIT = 2; // a connection dropped MID-response (premature close) gets a couple of fresh retries

@@ -159,7 +159,7 @@ export const config = {
   // =false returns the full prompt for an instant, diffable rollback.
   progressiveExpertise: process.env.EXPERTISE_PROGRESSIVE !== 'false',
   maxConcurrentRuns: intEnv('MAX_CONCURRENT_RUNS', 3),
-  maxIterations: intEnv('MAX_ITERATIONS', 200),
+  maxIterations: intEnv('MAX_ITERATIONS', 500),
   // When true the agent's shell inherits the FULL process environment (so it
   // can use tokens like DIGITALOCEAN_TOKEN), the workspace path jail is lifted,
   // and file tools may touch paths outside the workspace. Open-ended / unsafe;
