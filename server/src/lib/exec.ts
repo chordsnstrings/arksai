@@ -22,11 +22,26 @@ export const MAX_TIMEOUT_MS = 120_000;
 export function childEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   // PORT defaults to 4000 so the agent's apps never inherit ArksAI's own port
   // (3000) and kill the server. The agent can still override it explicitly.
-  const base: NodeJS.ProcessEnv = { TERM: 'dumb', GIT_TERMINAL_PROMPT: '0', CI: 'true', PORT: '4000' };
+  // NODE_ENV defaults to 'development' so a workspace `npm install` pulls devDeps
+  // (build toolchains live there). The server image runs NODE_ENV=production, which
+  // would otherwise leak in and make `npm install` skip devDeps — the build then
+  // fails (no tailwind/vite/etc.) and the agent burns turns rediscovering it. Build
+  // tools (`next build`/`vite build`) set production themselves, so this is safe.
+  const base: NodeJS.ProcessEnv = {
+    TERM: 'dumb',
+    GIT_TERMINAL_PROMPT: '0',
+    CI: 'true',
+    PORT: '4000',
+    NODE_ENV: 'development',
+  };
   if (config.agentUnrestricted) {
+    // base (incl. NODE_ENV=development) is spread AFTER process.env so it overrides
+    // the inherited production value; an explicit `extra.NODE_ENV` still wins.
     return { ...process.env, ...base, ...extra };
   }
-  const allow = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'USER', 'NODE_ENV', 'TMPDIR', 'NODE_PATH'];
+  // NODE_ENV intentionally omitted from the allowlist so the loop can't overwrite
+  // base's 'development' with the server's inherited 'production'.
+  const allow = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'USER', 'TMPDIR', 'NODE_PATH'];
   for (const key of allow) {
     if (process.env[key]) base[key] = process.env[key];
   }

@@ -41,7 +41,9 @@ class DeploymentRegistry {
     const logFd = fs.openSync(path.join(dir, '.deploy.log'), 'a');
     const child = spawn('bash', ['-c', startCmd], {
       cwd: dir,
-      env: { ...childEnv(), PORT: String(port), HOST: '127.0.0.1' },
+      // A PUBLISHED app runs in production (childEnv now defaults workspaces to
+      // development so agent-time `npm install` pulls devDeps — deployments override it).
+      env: { ...childEnv(), PORT: String(port), HOST: '127.0.0.1', NODE_ENV: 'production' },
       detached: true,
       stdio: ['ignore', logFd, logFd],
     });
