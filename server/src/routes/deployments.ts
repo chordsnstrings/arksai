@@ -88,15 +88,12 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
   });
 
   // ---- public serving at /apps/<slug>/* (NOT under /api → no auth) ----
-  const serve = async (req: FastifyRequest, reply: FastifyReply) => {
-    const { slug } = req.params as { slug: string; '*'?: string };
+  const serveDeployment = async (slug: string, rest: string, prefix: string, req: FastifyRequest, reply: FastifyReply) => {
     const dep = await store.getDeploymentBySlug(slug);
     if (!dep) return reply.code(404).type('text/html').send('<h1>404 — no such app</h1>');
     // 24h preview expired → treat as gone (the janitor hard-deletes it shortly).
     if (dep.expiresAt != null && dep.expiresAt <= Date.now())
       return reply.code(404).type('text/html').send('<h1>404 — no such app</h1>');
-    const rest = (req.params as Record<string, string>)['*'] ?? '';
-    const prefix = `/apps/${slug}/`;
 
     if (dep.kind !== 'static') {
       // Proxy to the running server app.
@@ -157,6 +154,36 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
     }
     return reply.type(type).send(fs.createReadStream(abs));
   };
+
+  // Path-based entry (/apps/<slug>/…) — backward-compatible, rewrites root-absolute URLs.
+  const serve = async (req: FastifyRequest, reply: FastifyReply) => {
+    const { slug } = req.params as { slug: string; '*'?: string };
+    const rest = (req.params as Record<string, string>)['*'] ?? '';
+    return serveDeployment(slug, rest, `/apps/${slug}/`, req, reply);
+  };
+
+  // Subdomain entry — <slug>.apps.arksai.studio served at ROOT (prefix '/', no rewriting),
+  // which is exactly why ANY stack works unmodified (an SSR app's absolute /_next/… URLs
+  // resolve correctly at root). Caddy proxies these hosts to us preserving Host; the main
+  // app and every other host fall through to normal routing untouched.
+  const APPS_HOST = /^([a-z0-9-]+)\.apps\.arksai\.studio$/;
+  app.addHook('onRequest', async (req, reply) => {
+    const host = String(req.hostname || '').toLowerCase().split(':')[0];
+    const m = APPS_HOST.exec(host);
+    if (!m) return; // not an app subdomain → normal routing (main app, /api, etc.)
+    const restPath = (req.url || '/').split('?')[0].replace(/^\//, '');
+    await serveDeployment(m[1], restPath, '/', req, reply);
+  });
+
+  // Caddy on-demand-TLS gate: only let Caddy issue a cert for a host that maps to a REAL
+  // deployment, so nobody can make us mint certs for arbitrary *.apps hostnames.
+  app.get('/internal/tls-check', async (req, reply) => {
+    const domain = String((req.query as any)?.domain || '').toLowerCase();
+    const m = APPS_HOST.exec(domain);
+    if (!m) return reply.code(404).send('no');
+    const dep = await store.getDeploymentBySlug(m[1]);
+    return dep ? reply.code(200).send('ok') : reply.code(404).send('no');
+  });
 
   for (const method of ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] as const) {
     app.route({ method, url: '/apps/:slug', handler: serve });

@@ -1,15 +1,25 @@
 # SITE_ADDRESS + CADDY_TLS come from .env (see docker-compose.tls.yml).
-#
-#  IP / no domain (default):
-#    SITE_ADDRESS=:443   CADDY_TLS=internal
-#    -> Caddy serves HTTPS with its own self-signed cert (browser warns once).
-#
-#  Real domain (A record -> this server):
-#    SITE_ADDRESS=arksai.example.com   CADDY_TLS=you@example.com
-#    -> automatic Let's Encrypt cert, no warning. (CADDY_TLS = your email.)
+#  IP / no domain:  SITE_ADDRESS=:443  CADDY_TLS=internal  -> self-signed (warns once).
+#  Real domain:     SITE_ADDRESS=arksai.studio  CADDY_TLS=you@domain  -> Let's Encrypt.
+{
+	on_demand_tls {
+		ask http://arksai:3000/internal/tls-check
+	}
+}
+
+# Main app (apex) — Let's Encrypt via CADDY_TLS, or self-signed on the IP. UNCHANGED.
 {$SITE_ADDRESS::443} {
 	encode zstd gzip
 	tls {$CADDY_TLS:internal}
-	# SSE streams pass through fine; Caddy flushes the proxy.
+	reverse_proxy arksai:3000
+}
+
+# Published apps — <slug>.apps.arksai.studio served at ROOT (no rewriting), with
+# on-demand TLS (a per-host cert issued on first request, gated by /internal/tls-check).
+*.apps.arksai.studio {
+	encode zstd gzip
+	tls {
+		on_demand
+	}
 	reverse_proxy arksai:3000
 }
