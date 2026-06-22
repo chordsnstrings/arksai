@@ -96,6 +96,17 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promis
   return Promise.race([p.finally(() => clearTimeout(timer)), timeout]);
 }
 
+/** imapflow buries the real reason in non-message fields; pull out the most useful one. */
+function imapErrText(e: any): string {
+  return (
+    e?.responseText ||
+    e?.serverResponseCode ||
+    (e?.response && typeof e.response === 'string' ? e.response : '') ||
+    e?.message ||
+    String(e)
+  );
+}
+
 function fromHeader(account: EmailAccount): string {
   return account.fromName ? `${account.fromName} <${account.fromEmail}>` : account.fromEmail;
 }
@@ -157,39 +168,70 @@ export async function readInboxWithAccount(
   const out: InboxMessage[] = [];
   await client.connect();
   try {
-    const lock = await client.getMailboxLock(mailbox);
+    let lock;
+    try {
+      lock = await client.getMailboxLock(mailbox);
+    } catch (e: any) {
+      throw new Error(`opening "${mailbox}" failed — ${imapErrText(e)}`);
+    }
     try {
       const status = client.mailbox && typeof client.mailbox === 'object' ? client.mailbox : null;
       const exists = status ? status.exists : 0;
       if (!exists) return [];
       let seqList: number[];
+      let useUid: boolean;
       if (opts.unseenOnly) {
-        const uids = await client.search({ seen: false }, { uid: true });
-        if (!uids || !uids.length) return [];
-        seqList = uids.slice(-limit);
+        try {
+          const uids = await client.search({ seen: false }, { uid: true });
+          if (!uids || !uids.length) return [];
+          seqList = uids.slice(-limit);
+          useUid = true;
+        } catch (searchErr: any) {
+          // Some IMAP servers reject UID SEARCH. Fall back to scanning the last N messages
+          // by sequence and filtering unread via their flags.
+          const scanFrom = Math.max(1, exists - Math.max(limit, 30) + 1);
+          const scan: number[] = [];
+          for (let s = scanFrom; s <= exists; s++) scan.push(s);
+          const unread: number[] = [];
+          try {
+            for await (const m of client.fetch(scan.join(','), { flags: true }, { uid: false })) {
+              const seen = m.flags && [...m.flags].some((f) => /seen/i.test(String(f)));
+              if (!seen) unread.push(m.seq);
+            }
+          } catch {
+            throw new Error(`searching for unread mail failed — ${imapErrText(searchErr)}`);
+          }
+          if (!unread.length) return [];
+          seqList = unread.slice(-limit);
+          useUid = false;
+        }
       } else {
         const start = Math.max(1, exists - limit + 1);
         seqList = [];
         for (let s = start; s <= exists; s++) seqList.push(s);
+        useUid = false;
       }
       const range = seqList.join(',');
-      const useUid = !!opts.unseenOnly;
-      for await (const msg of client.fetch(range, { envelope: true, source: true, uid: true }, { uid: useUid })) {
-        const parsed = await simpleParser(msg.source as Buffer);
-        const fromAddr = parsed.from?.value?.[0];
-        const text = (parsed.text || '').trim();
-        out.push({
-          uid: msg.uid,
-          seq: msg.seq,
-          from: fromAddr?.address || '',
-          fromName: fromAddr?.name || '',
-          to: parsed.to ? (Array.isArray(parsed.to) ? parsed.to.map((t) => t.text).join(', ') : parsed.to.text) : '',
-          subject: parsed.subject || '(no subject)',
-          date: parsed.date ? parsed.date.toISOString() : '',
-          messageId: parsed.messageId || '',
-          snippet: text.replace(/\s+/g, ' ').slice(0, 240),
-          text,
-        });
+      try {
+        for await (const msg of client.fetch(range, { envelope: true, source: true, uid: true }, { uid: useUid })) {
+          const parsed = await simpleParser(msg.source as Buffer);
+          const fromAddr = parsed.from?.value?.[0];
+          const text = (parsed.text || '').trim();
+          out.push({
+            uid: msg.uid,
+            seq: msg.seq,
+            from: fromAddr?.address || '',
+            fromName: fromAddr?.name || '',
+            to: parsed.to ? (Array.isArray(parsed.to) ? parsed.to.map((t) => t.text).join(', ') : parsed.to.text) : '',
+            subject: parsed.subject || '(no subject)',
+            date: parsed.date ? parsed.date.toISOString() : '',
+            messageId: parsed.messageId || '',
+            snippet: text.replace(/\s+/g, ' ').slice(0, 240),
+            text,
+          });
+        }
+      } catch (e: any) {
+        throw new Error(`fetching messages failed — ${imapErrText(e)}`);
       }
     } finally {
       lock.release();
