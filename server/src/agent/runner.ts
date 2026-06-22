@@ -606,6 +606,14 @@ export class AgentRun {
       const STALL_LIMIT = 6;
       const EMPTY_RETRY_LIMIT = 2; // a thinking model that truncates mid-reasoning gets a couple of nudged retries
       const STREAM_RETRY_LIMIT = 2; // a connection dropped MID-response (premature close) gets a couple of fresh retries
+      // Anti-thrash backstop: a heavy, externally-validated op (publishing) re-attempted
+      // beyond this in ONE run is the runaway the signature guard misses (the agent narrates
+      // between attempts, so the empty-text stall sig never trips). Bounds the publish loop
+      // that previously ran into the budget cutoff repeatedly. Legitimate publish→fix→
+      // republish is 2–3; 4+ is thrash.
+      const HEAVY_RETRY_LIMIT = 4;
+      const HEAVY_RETRY_TOOLS = new Set(['publish_app']);
+      const heavyRetryCalls = new Map<string, number>();
       let stallSig = '';
       let stallCount = 0;
       let emptyRetries = 0;
@@ -824,6 +832,16 @@ export class AgentRun {
           stallCount = 0;
         }
         if (stallCount >= STALL_LIMIT) {
+          stopReason = 'stall';
+          break;
+        }
+
+        // Anti-thrash backstop for heavy externally-validated ops (publishing): cap
+        // re-attempts in one run so a stuck publish can't burn into the budget cutoff.
+        for (const c of calls) {
+          if (HEAVY_RETRY_TOOLS.has(c.name)) heavyRetryCalls.set(c.name, (heavyRetryCalls.get(c.name) ?? 0) + 1);
+        }
+        if ([...heavyRetryCalls.values()].some((n) => n >= HEAVY_RETRY_LIMIT)) {
           stopReason = 'stall';
           break;
         }
