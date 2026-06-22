@@ -5,12 +5,12 @@
 ## Locked decisions (recommended approach — approved)
 - **Client:** React Native + **Expo** (TypeScript). Web‑target preview in Canvas, future iOS on the same codebase, builds to APK via Gradle.
 - **Backend:** node **Fastify** + DB (SQLite dev → managed Postgres), published on the existing pipeline at `<slug>.apps.arksai.studio`.
-- **Android build:** **ephemeral DO droplet** (`s-4vcpu-8gb`) from a pre‑baked Android‑SDK **snapshot**; create→build→destroy; never the live droplet.
+- **Android build:** **ALWAYS on our own ephemeral DO droplet** (`s-4vcpu-8gb`) from a pre‑baked Android‑SDK **snapshot** — `expo prebuild` + Gradle `assembleRelease`; create→build→destroy; never the live droplet. **NEVER via EAS / `expo build`** — Expo's cloud build is **Apple‑only** (see iOS below). (The client is still Expo/RN — one codebase; Android just builds locally with Gradle, not through EAS.)
 - **Artifacts:** stored **on the droplet** + served via a download route (no DO Spaces / no extra keys needed); APKs are ~20–50 MB with a TTL+cleanup. (Spaces remains an optional future upgrade.)
 - **DO access:** authorized for THIS project — build droplets, snapshot bake, and SSH key are created/destroyed via the DO API in the droplet's account (`gicbdfacebook@gmail.com`).
 - **Push:** deferred to Phase 4 (FCM).
 - **Hosting backend:** reuse the existing publish/subdomain pipeline.
-- **iOS:** NOT in this section (Linux can't build iOS) — separate EAS track later, same RN codebase.
+- **iOS / Apple:** built via **EAS (Expo cloud build) ONLY** — macOS is required and EAS provides it. Separate later track, same RN codebase. **EAS is used for Apple ONLY; Android never touches it.**
 
 ## Architecture
 1. **Monorepo per app:** `/app` (Expo/RN) + `/server` (Fastify API + DB) + `/shared` (types). Client wired to the backend's live URL (typed API client + auth).

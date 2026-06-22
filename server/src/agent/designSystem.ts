@@ -128,25 +128,28 @@ gridlines; label values directly and prefer no separate legend; a muted base wit
 accent on the key series only; generous spacing; legible at a glance. If you do use a
 charting lib's legend, label every series — never leave a legend reading "undefined"
 or blank; with one series, turn the legend off.`,
-  mobile: `Task: a mobile app. Decide first — PWA vs NATIVE:
-- PWA / mobile web (installable site, no store): build with the WEB kit (add_ui_kit), thumb-
-  friendly targets, bottom-anchored actions, safe-area padding, large type, test narrow widths.
-- NATIVE Android/iOS app ("android app", "expo", "react native", an app for the stores or
-  needing device APIs): build with EXPO + REACT NATIVE — NOT HTML/CSS, NOT add_ui_kit. Flow:
-  (1) scaffold a TypeScript Expo app with expo-router (npx create-expo-app@latest, default TS
-  template); (2) call add_mobile_ui_kit (installs tokens/components/AppErrorBoundary into src/ui);
-  (3) wire the ROOT: <AppErrorBoundary><ThemeProvider theme={brandTheme('#<accent>')}> around the
-  router; (4) build every screen from the kit (Screen/AppText/Button/Card/Field/EmptyState/Loading)
-  — minimal/modern, accent ~5-10%, safe-area, 8pt grid, loading+empty+error states everywhere.
-  CAPABILITIES via Expo modules as the app needs: camera (expo-camera — e.g. a QR scanner),
-  location/maps, notifications, image-picker, etc. BACKEND when the app needs accounts/data/
-  realtime/storage: generate a typed Fastify API + DB and publish it (it gets a live
-  <slug>.apps.arksai.studio URL); wire the client to that URL with a typed API client + auth.
-  CRASH-SAFE: AppErrorBoundary at the root + defensive data handling; before reporting done,
-  run the Expo WEB target and verify it boots with no uncaught errors (the verify gate reads it).
-  A real installable APK is produced by the Android build pipeline (ANDROID_PLAN.md) — keep the
-  app build-ready (clean expo prebuild). Range: small (a QR scanner, no backend) to large (a
-  Tinder-style app: auth + geo + swipe/match + realtime chat + media + push).`,
+  mobile: `Task: a mobile app. FIRST choose PWA vs NATIVE — DEFAULT to PWA unless native is truly required:
+- PWA (the DEFAULT for most "make me an app" requests — instant, free, live at a shareable URL, no
+  store and no build wait): build a real INSTALLABLE app with the WEB kit (add_ui_kit) — a web
+  manifest (name, icons, theme_color, display:standalone), a service worker for offline + caching,
+  an app shell, add-to-home-screen, thumb-friendly bottom-anchored actions, safe-area padding, large
+  readable type, simple nav; works offline; test narrow widths. Publish it → the user installs from
+  the browser. CHOOSE PWA when there is no app-store requirement and the device needs are
+  web-supported (camera via getUserMedia, geolocation, web push where available, offline storage).
+- NATIVE Android/iOS (only when needed — app-store presence, robust native device APIs, background/
+  push, or a true-native feel): EXPO + REACT NATIVE — NOT HTML/CSS, NOT add_ui_kit. Flow: (1) scaffold
+  a TS Expo app with expo-router (npx create-expo-app@latest); (2) add_mobile_ui_kit (tokens/components/
+  AppErrorBoundary into src/ui); (3) wire the ROOT <AppErrorBoundary><ThemeProvider theme=
+  {brandTheme('#<accent>')}> around the router; (4) build screens from the kit (Screen/AppText/Button/
+  Card/Field/EmptyState/Loading) — minimal/modern, accent ~5-10%, safe-area, 8pt grid, loading+empty+
+  error states. Expo modules per need: camera (expo-camera → QR), location, notifications, image-picker.
+  BACKEND when accounts/data/realtime/storage: generate a typed Fastify API + DB, publish it
+  (<slug>.apps.arksai.studio), wire the client (typed API client + auth). CRASH-SAFE: root error
+  boundary + defensive data; verify the Expo WEB target boots clean before done. The installable
+  ANDROID APK is built on OUR ephemeral droplet (Gradle/expo prebuild) — NEVER via EAS/expo build;
+  EAS/Expo cloud build is APPLE-only. See ANDROID_PLAN.md. Range: QR scanner (small) → Tinder-style (large).
+If unsure, ASK one quick question (just-an-installable-app → PWA; needs the Play/App Store or native
+device power → native) or default to PWA.`,
   report: '', // report mode has its own bespoke protocol
   api: dx,
   cli: `${dx} CLI: clear help/usage, good flags/defaults, helpful errors, sensible exit codes.`,
