@@ -55,6 +55,12 @@ function smtpTransport(account: EmailAccount, secrets: EmailSecrets) {
     port: account.smtpPort,
     secure: account.smtpSecure, // true for 465, false for 587 (STARTTLS)
     auth: account.smtpUser ? { user: account.smtpUser, pass: secrets.smtpPass } : undefined,
+    // Fail fast: nodemailer defaults are 2min connect / 30s greeting / 10min socket, so an
+    // unreachable or silent host would hang the request until a gateway cut it ("Failed to
+    // fetch"). Short, explicit timeouts surface the real error instead.
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 30000,
   });
 }
 
@@ -65,7 +71,29 @@ function imapClient(account: EmailAccount, secrets: EmailSecrets): ImapFlow {
     secure: account.imapSecure,
     auth: { user: account.imapUser || account.smtpUser || account.fromEmail, pass: secrets.imapPass },
     logger: false,
+    // Same fail-fast rationale as SMTP (defaults are generous → hangs look like "Failed to fetch").
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 30000,
   });
+}
+
+/** Reject a hung connection with a clear, actionable message instead of letting it stall. */
+export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `${label} timed out after ${Math.round(ms / 1000)}s — the mail server didn't respond. ` +
+              `Check the host, port and SSL setting, and that the mailbox allows external access.`,
+          ),
+        ),
+      ms,
+    );
+  });
+  return Promise.race([p.finally(() => clearTimeout(timer)), timeout]);
 }
 
 function fromHeader(account: EmailAccount): string {
@@ -197,24 +225,49 @@ export interface VerifyResult {
   imap: { ok: boolean; error?: string; skipped?: boolean };
 }
 
-/** Test both legs of a connection without persisting anything. */
+/** Test both legs of a connection without persisting anything. Each leg is bounded by a
+ *  hard deadline AND the two run concurrently, so even a fully-unreachable host returns a
+ *  clear error in ~15s (never a hang, never long enough for a gateway to cut it → no more
+ *  "Failed to fetch"). */
 export async function verifyAccount(account: EmailAccount, secrets: EmailSecrets): Promise<VerifyResult> {
-  const result: VerifyResult = { smtp: { ok: false }, imap: { ok: false, skipped: true } };
-  try {
-    await smtpTransport(account, secrets).verify();
-    result.smtp.ok = true;
-  } catch (e: any) {
-    result.smtp = { ok: false, error: e?.message || String(e) };
-  }
-  if (account.imapHost) {
+  const checkSmtp = async (): Promise<VerifyResult['smtp']> => {
+    const transport = smtpTransport(account, secrets);
+    try {
+      await withTimeout(transport.verify(), 15000, 'SMTP check');
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || String(e) };
+    } finally {
+      try {
+        transport.close();
+      } catch {
+        /* best effort */
+      }
+    }
+  };
+
+  const checkImap = async (): Promise<VerifyResult['imap']> => {
+    if (!account.imapHost) return { ok: false, skipped: true };
     const client = imapClient(account, secrets);
     try {
-      await client.connect();
-      await client.logout();
-      result.imap = { ok: true };
+      await withTimeout(client.connect(), 15000, 'IMAP check');
+      return { ok: true };
     } catch (e: any) {
-      result.imap = { ok: false, error: e?.message || String(e) };
+      return { ok: false, error: e?.message || String(e) };
+    } finally {
+      // logout cleanly if connected; otherwise force the socket closed so it can't linger.
+      try {
+        await withTimeout(client.logout(), 5000, 'IMAP logout');
+      } catch {
+        try {
+          client.close();
+        } catch {
+          /* best effort */
+        }
+      }
     }
-  }
-  return result;
+  };
+
+  const [smtp, imap] = await Promise.all([checkSmtp(), checkImap()]);
+  return { smtp, imap };
 }
