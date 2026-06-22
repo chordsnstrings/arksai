@@ -6,7 +6,8 @@
 - **Client:** React Native + **Expo** (TypeScript). Web‑target preview in Canvas, future iOS on the same codebase, builds to APK via Gradle.
 - **Backend:** node **Fastify** + DB (SQLite dev → managed Postgres), published on the existing pipeline at `<slug>.apps.arksai.studio`.
 - **Android build:** **ephemeral DO droplet** (`s-4vcpu-8gb`) from a pre‑baked Android‑SDK **snapshot**; create→build→destroy; never the live droplet.
-- **Artifacts:** **DO Spaces** (durable, off‑droplet) → APK download link.
+- **Artifacts:** stored **on the droplet** + served via a download route (no DO Spaces / no extra keys needed); APKs are ~20–50 MB with a TTL+cleanup. (Spaces remains an optional future upgrade.)
+- **DO access:** authorized for THIS project — build droplets, snapshot bake, and SSH key are created/destroyed via the DO API in the droplet's account (`gicbdfacebook@gmail.com`).
 - **Push:** deferred to Phase 4 (FCM).
 - **Hosting backend:** reuse the existing publish/subdomain pipeline.
 - **iOS:** NOT in this section (Linux can't build iOS) — separate EAS track later, same RN codebase.
@@ -44,11 +45,14 @@ Intake classifies the app's needs and wires the right **Expo modules + backend c
 ## Autonomous execution framework (per phase)
 implement → `npm run typecheck && npm test && npm run build` (fix‑loop) → commit to `main` → wait for auto‑deploy → **live‑validate via operator** (create a session in the section, build a sample app, exercise it) → self‑correct on failure → advance. Sample apps used to validate: **QR scanner** (small) and a **Tinder‑style** app (large).
 
-## What ONLY the operator can provide (hard external deps — be upfront)
-- **DO Spaces access key + secret** (separate from the API token) + a bucket — for APK storage.
-- **Go‑ahead to spend on build droplets** (~$0.10/build) + let the server register an **SSH key** with DO and **create/destroy** droplets + **bake the snapshot** (one‑time, real $).
-- **A device or emulator** for final human crash‑confirmation (the pipeline does an automated emulator smoke test, but a real‑device check is the gold standard).
-- **Google Play Developer ($25)** for store submission (not needed for APK sideload). **Apple Developer ($99/yr)** only when we add the iOS/EAS track.
+## External deps — now mostly cleared
+- ✅ **DO access:** authorized for this project (build droplets + snapshot + SSH key via the API, droplet account). Real spend (~$0.10/build) approved.
+- ✅ **Artifact storage:** on the droplet (no Spaces key needed).
+- **Remaining (optional):** a real **device** for the final human crash‑confirmation (the automated **emulator smoke test** covers the auto‑check). **Google Play ($25)** only for store submission (not for sideload). **Apple Developer ($99/yr)** only for the later iOS/EAS track.
+
+## Execution reality (honest)
+- This is a **large, multi‑session** autonomous build (new section + mobile UI kit + backend generator + build orchestrator + snapshot). It ships **phase‑by‑phase to production** and is validated via operator each phase.
+- The build **orchestrator runs on the production server** (it can reach build droplets on DO's network). From the dev sandbox I can trigger + observe via the API/operator, but cannot directly shell into a build droplet — so build‑droplet internals are validated by the server‑side run + the resulting APK, not by me reaching the droplet.
 
 ## Honest limits
 - APK build latency is **minutes** (preview is instant; APK builds in the background).
