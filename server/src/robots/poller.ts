@@ -38,7 +38,9 @@ export interface PollSummary {
   sent: number;
   escalated: number;
   skipped: number;
-  reason?: string; // why nothing happened (mailbox not ready / no new mail)
+  /** Breakdown of WHY messages were skipped — so "check now" isn't opaque. */
+  skippedReasons?: { alreadyHandled: number; fromSelf: number; noSender: number };
+  reason?: string; // why nothing happened (mailbox not ready / no new mail / all handled)
   error?: string; // a real failure (read/draft/send)
 }
 
@@ -66,6 +68,7 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
     return sum;
   }
   sum.read = messages.length;
+  const skips = { alreadyHandled: 0, fromSelf: 0, noSender: 0 };
   if (!messages.length) {
     sum.reason = 'No new (unread) mail to reply to. The robot only acts on UNREAD messages and never marks mail as read itself.';
   }
@@ -73,16 +76,19 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
   for (const msg of messages) {
     if (!msg.from) {
       sum.skipped++;
+      skips.noSender++;
       continue;
     }
     // Never reply to ourselves (loop guard).
     if (msg.from.toLowerCase() === account.fromEmail.toLowerCase()) {
       sum.skipped++;
+      skips.fromSelf++;
       continue;
     }
     // Already handled this message?
     if (msg.messageId && (await draftExistsFor(robot.id, msg.messageId))) {
       sum.skipped++;
+      skips.alreadyHandled++;
       continue;
     }
 
@@ -138,6 +144,22 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
         // Leave it pending so a human can send it.
       }
     }
+  }
+
+  // Explain a quiet pass: read mail but produced no drafts (the #1 source of "it's
+  // watching but did nothing" confusion — usually everything was already handled).
+  if (sum.read > 0 && sum.drafted === 0 && !sum.error) {
+    sum.skippedReasons = skips;
+    const parts: string[] = [];
+    if (skips.alreadyHandled)
+      parts.push(
+        `${skips.alreadyHandled} already handled (the robot replied earlier and dedupes by Message-ID, so it won't reply twice — send a NEW email to test)`,
+      );
+    if (skips.fromSelf) parts.push(`${skips.fromSelf} sent by the robot itself (loop guard)`);
+    if (skips.noSender) parts.push(`${skips.noSender} had no sender address`);
+    sum.reason = `Read ${sum.read} message(s) but drafted none: ${parts.join('; ')}.`;
+  } else if (sum.skipped > 0) {
+    sum.skippedReasons = skips;
   }
 
   await markPolled(robot.id);
