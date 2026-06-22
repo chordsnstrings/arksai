@@ -183,7 +183,7 @@ export function registerBuildRoutes(app: FastifyInstance) {
     try {
       log = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? '');
     } catch { /* ignore */ }
-    const tail = log.slice(-1500).trim();
+    const tail = log.slice(-6000).trim();
     await updateBuild(id, { status: 'error', phase: 'build failed', error: tail || 'The build failed on the build machine.' });
     return { ok: true };
   });

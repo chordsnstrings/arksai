@@ -172,7 +172,7 @@ export const config = {
   doApiToken: process.env.DO_API_TOKEN || process.env.DIGITALOCEAN_TOKEN || '',
   androidSnapshotId: process.env.ANDROID_SNAPSHOT_ID || '', // id of the pre-baked Android-SDK snapshot (see BUILD_BAKE.md)
   androidBuildRegion: process.env.ANDROID_BUILD_REGION || 'blr1',
-  androidBuildSize: process.env.ANDROID_BUILD_SIZE || 's-4vcpu-8gb',
+  androidBuildSize: process.env.ANDROID_BUILD_SIZE || 's-8vcpu-16gb', // headroom for the Kotlin daemon on large RN apps
   androidBuildSshKeyId: process.env.ANDROID_BUILD_SSH_KEY_ID || '', // optional DO ssh key id added to the build droplet (for debugging)
   androidBuildTimeoutMs: intEnv('ANDROID_BUILD_TIMEOUT_MS', 25 * 60 * 1000), // hard cap; droplet destroyed on timeout
   androidBuildCost: Number(process.env.ANDROID_BUILD_COST || '0.12') || 0.12, // our infra cost per APK build (droplet-hour share)

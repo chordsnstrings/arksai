@@ -53,13 +53,20 @@ function cloudInit(build: Build): string {
     'export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin"',
     'WORK=/tmp/arksai-build && rm -rf "$WORK" && mkdir -p "$WORK" && cd "$WORK"',
     'LOG="$WORK/build.log"',
-    'fail() { tail -c 4000 "$LOG" 2>/dev/null | ' +
+    // On failure, send BOTH a tail AND the grepped error lines — and put the errors LAST so
+    // they survive the server-side truncation (the real Kotlin/Gradle "e:"/"error:" lines
+    // otherwise scroll off the top of a plain tail).
+    'fail() { { echo "=== LOG TAIL ==="; tail -c 1500 "$LOG" 2>/dev/null; echo; echo "=== ERRORS ==="; ' +
+      'grep -aE "e: |error: |FAILED|Caused by|What went wrong|OutOfMemory|Metaspace|Could not|Unresolved" "$LOG" 2>/dev/null | tail -90; } | ' +
       `curl -fsS -X POST "${url}/fail?token=${tok}" -H "Content-Type: text/plain" --data-binary @- || true; poweroff; exit 1; }`,
     '{',
     `  curl -fsSL "${url}/source?token=${tok}" -o source.tgz || { echo "source download failed"; fail; }`,
     '  tar xzf source.tgz || { echo "untar failed"; fail; }',
     '  npm install --no-audit --no-fund || { echo "npm install failed"; fail; }',
     '  npx --yes expo prebuild --platform android --no-install || { echo "expo prebuild failed"; fail; }',
+    // Give Gradle + the Kotlin daemon real heap (default ~512m OOMs on a large RN app with many
+    // native modules → a generic "Compilation error"). Safe on the 16GB build droplet.
+    "  printf '\\norg.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1536m\\nkotlin.daemon.jvmargs=-Xmx4096m\\norg.gradle.workers.max=4\\n' >> android/gradle.properties",
     '  cd android && ./gradlew assembleRelease --no-daemon -x lint || { echo "gradle assembleRelease failed"; fail; }',
     '  APK=$(ls -1 app/build/outputs/apk/release/*.apk 2>/dev/null | head -1)',
     '  [ -n "$APK" ] || { echo "no apk produced"; fail; }',
