@@ -81,6 +81,15 @@ export interface EmailVerifyResult {
   smtp: { ok: boolean; error?: string };
   imap: { ok: boolean; error?: string; skipped?: boolean };
 }
+export interface DetectedEmailConfig {
+  imapHost: string;
+  imapPort: number;
+  imapSecure: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  source: string;
+}
 export interface RobotDraftResult {
   text: string;
   model: string;
@@ -318,6 +327,11 @@ export const api = {
     }).then((r) => r.result),
   deleteEmailAccount: (orgId: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/email`, { method: 'DELETE' }),
+  autoconfigEmail: (orgId: string, email: string) =>
+    request<{ config: DetectedEmailConfig | null }>(`/api/orgs/${orgId}/email/autoconfig`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }).then((r) => r.config),
   // ---- per-robot mailbox (each robot is its own email identity) ----
   getRobotEmail: (orgId: string, rid: string) =>
     request<{ account: EmailAccount | null }>(`/api/orgs/${orgId}/robots/${rid}/email`).then((r) => r.account),
@@ -327,6 +341,11 @@ export const api = {
     request<{ result: EmailVerifyResult }>(`/api/orgs/${orgId}/robots/${rid}/email/test`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.result),
   deleteRobotEmail: (orgId: string, rid: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/email`, { method: 'DELETE' }),
+  autoconfigRobotEmail: (orgId: string, rid: string, email: string) =>
+    request<{ config: DetectedEmailConfig | null }>(`/api/orgs/${orgId}/robots/${rid}/email/autoconfig`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }).then((r) => r.config),
   // ---- robots ----
   listRobots: (orgId: string) =>
     request<{ robots: Robot[] }>(`/api/orgs/${orgId}/robots`).then((r) => r.robots),

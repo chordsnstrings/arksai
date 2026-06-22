@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-22.1';
+export const WHATS_NEW_VERSION = '2026-06-22.2';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'New: ArksAI Research',
-    body: 'We’ve started publishing sourced, cited essays on AI, energy and the frontier — written plainly for operators, not researchers. First three: energy as the next currency, the East and the AI frontier, and how to read AI benchmarks. Find them at /research.',
+    title: 'Connect a mailbox in seconds',
+    body: 'Setting up an email robot (or your org mailbox) now just needs the email address and password — ArksAI auto-detects the server settings, verifies the login, and connects. No SMTP/IMAP host or port to look up. (If it can’t, it falls back to the manual form, pre-filled.)',
   },
   {
-    title: 'A full Features page + Founding membership',
-    body: 'A new /features page lays out everything ArksAI does — from email robots and finance models to UAE tax and bilingual legal drafts. And we’ve opened a founding cohort: full access at a flat 39 AED/month, locked for life.',
+    title: 'New: ArksAI Research + a Features page',
+    body: 'We’ve started publishing sourced, cited essays on AI, energy and the frontier at /research, and a new /features page lays out everything ArksAI does. Plus a founding cohort: full access at a flat 39 AED/month, locked for life.',
   },
 ];
 

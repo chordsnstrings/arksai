@@ -9,6 +9,7 @@ import {
   type EmailAccount,
 } from '../email/accounts';
 import { verifyAccount } from '../email/client';
+import { detectEmailConfig } from '../email/autoconfig';
 
 /**
  * Per-org email connection management. An org admin (or the operator) connects the
@@ -61,6 +62,16 @@ export function registerEmailRoutes(app: FastifyInstance) {
       autoReply: !!b.autoReply,
     });
     return { account };
+  });
+
+  // Auto-detect a mailbox's server settings from just the email address, so the user
+  // doesn't have to know SMTP/IMAP host/port. Returns null when nothing matches → the
+  // client falls back to manual entry. No password involved (this resolves servers only).
+  app.post('/api/orgs/:id/email/autoconfig', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const email = String(((req.body as any) || {}).email || '').trim();
+    if (!email.includes('@')) return reply.code(400).send({ error: 'A valid email address is required.' });
+    return { config: await detectEmailConfig(email) };
   });
 
   // Test the connection. Uses the submitted credentials, falling back to the stored

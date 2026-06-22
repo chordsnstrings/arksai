@@ -2,14 +2,21 @@ import { useEffect, useState } from 'react';
 import { api, type EmailAccount, type EmailAccountForm, type EmailVerifyResult } from '../api/client';
 
 /**
- * Connect an organization's mailbox: SMTP (outbound) + IMAP (inbound). Passwords are
- * write-only — they're stored encrypted and never sent back, so the field shows a
- * "saved" placeholder and a blank value keeps the existing password. "Test connection"
- * verifies both legs before the agent ever uses them.
+ * Connect an organization's (or a robot's) mailbox: SMTP (outbound) + IMAP (inbound).
+ *
+ * Quick mode (default for a new mailbox): the user gives just an email + password and we
+ * auto-detect the SMTP/IMAP host/port/security (built-in providers → MX lookup → Mozilla
+ * ISPDB), verify the login, and save — no server settings to know. If detection or the
+ * login fails, it falls back to the manual form, pre-filled with whatever we found.
+ *
+ * Passwords are write-only — stored encrypted, never sent back (the field shows a "saved"
+ * placeholder and a blank value keeps the existing password).
  */
 export function EmailSettings({ orgId, robotId }: { orgId: string; robotId?: string }) {
   const [form, setForm] = useState<EmailAccountForm>({ fromEmail: '', smtpHost: '', smtpPort: 587, imapPort: 993, imapSecure: true });
   const [account, setAccount] = useState<EmailAccount | null>(null);
+  const [mode, setMode] = useState<'quick' | 'manual'>('quick');
+  const [quick, setQuick] = useState({ fromName: '', email: '', password: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -21,12 +28,14 @@ export function EmailSettings({ orgId, robotId }: { orgId: string; robotId?: str
         get: () => api.getRobotEmail(orgId, robotId),
         save: (b: EmailAccountForm) => api.saveRobotEmail(orgId, robotId, b),
         test: (b: EmailAccountForm) => api.testRobotEmail(orgId, robotId, b),
+        autoconfig: (email: string) => api.autoconfigRobotEmail(orgId, robotId, email),
         del: () => api.deleteRobotEmail(orgId, robotId),
       }
     : {
         get: () => api.getEmailAccount(orgId),
         save: (b: EmailAccountForm) => api.saveEmailAccount(orgId, b),
         test: (b: EmailAccountForm) => api.testEmailAccount(orgId, b),
+        autoconfig: (email: string) => api.autoconfigEmail(orgId, email),
         del: () => api.deleteEmailAccount(orgId),
       };
 
@@ -36,6 +45,7 @@ export function EmailSettings({ orgId, robotId }: { orgId: string; robotId?: str
     calls.get().then((a) => {
       setAccount(a);
       if (a) {
+        setMode('manual'); // an existing mailbox → show its settings to edit
         setForm({
           fromName: a.fromName ?? '', fromEmail: a.fromEmail,
           smtpHost: a.smtpHost, smtpPort: a.smtpPort, smtpSecure: a.smtpSecure, smtpUser: a.smtpUser ?? '',
@@ -43,6 +53,7 @@ export function EmailSettings({ orgId, robotId }: { orgId: string; robotId?: str
           enabled: a.enabled, autoReply: a.autoReply,
         });
       } else {
+        setMode('quick');
         setForm({ fromEmail: '', smtpHost: '', smtpPort: 587, imapPort: 993, imapSecure: true });
       }
     }).catch(() => {});
@@ -52,6 +63,49 @@ export function EmailSettings({ orgId, robotId }: { orgId: string; robotId?: str
   const set = (patch: Partial<EmailAccountForm>) => setForm((f) => ({ ...f, ...patch }));
 
   const valid = !!form.fromEmail.trim() && !!form.smtpHost.trim();
+
+  // Quick connect: detect → fill → verify → save. Falls back to manual on any miss.
+  const connectQuick = async () => {
+    const email = quick.email.trim();
+    if (!email.includes('@') || !quick.password) {
+      setError('Enter the mailbox email address and its password.');
+      return;
+    }
+    setBusy(true); setError(''); setNote(''); setTest(null);
+    try {
+      setNote('Detecting your mail server…');
+      const cfg = await calls.autoconfig(email);
+      if (!cfg) {
+        setForm((f) => ({ ...f, fromName: quick.fromName || f.fromName, fromEmail: email, smtpUser: email, imapUser: email, smtpPass: quick.password, imapPass: quick.password }));
+        setNote('');
+        setError("We couldn't detect your mail server automatically. Please enter the details below — your email provider's help pages list the IMAP and SMTP host and port.");
+        setMode('manual');
+        return;
+      }
+      const filled: EmailAccountForm = {
+        fromName: quick.fromName || null, fromEmail: email,
+        smtpHost: cfg.smtpHost, smtpPort: cfg.smtpPort, smtpSecure: cfg.smtpSecure, smtpUser: email, smtpPass: quick.password,
+        imapHost: cfg.imapHost, imapPort: cfg.imapPort, imapSecure: cfg.imapSecure, imapUser: email, imapPass: quick.password,
+        enabled: true, autoReply: !!form.autoReply,
+      };
+      setForm(filled);
+      setNote('Verifying the connection…');
+      const r = await calls.test(filled);
+      setTest(r);
+      if (r.smtp.ok && (r.imap.ok || r.imap.skipped)) {
+        const a = await calls.save(filled);
+        setAccount(a);
+        setQuick((q) => ({ ...q, password: '' }));
+        setNote('Connected ✓ Your mailbox is ready.');
+      } else {
+        setNote('');
+        setError('We found your mail server, but the sign-in failed. Check the password below — Gmail and Outlook accounts with 2-step verification need an app password, not your normal one.');
+        setMode('manual');
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Could not connect.'); setNote('');
+    } finally { setBusy(false); }
+  };
 
   const doTest = async () => {
     setBusy(true); setError(''); setNote(''); setTest(null);
@@ -81,14 +135,56 @@ export function EmailSettings({ orgId, robotId }: { orgId: string; robotId?: str
       await calls.del();
       setAccount(null);
       setForm({ fromEmail: '', smtpHost: '', smtpPort: 587, imapPort: 993, imapSecure: true });
+      setQuick({ fromName: '', email: '', password: '' });
+      setMode('quick');
       setNote('Mailbox disconnected.');
     } catch (e: any) {
       setError(e?.message || 'Could not disconnect.');
     } finally { setBusy(false); }
   };
 
-  const inp = { width: '100%', boxSizing: 'border-box' as const };
+  const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: 'var(--accent)', font: 'inherit', fontSize: 13, cursor: 'pointer', padding: 0 };
 
+  // ---- Quick connect ----
+  if (mode === 'quick') {
+    return (
+      <div className="email-settings">
+        <p className="an-sub" style={{ marginTop: 4 }}>
+          {robotId
+            ? 'Connect this robot’s own mailbox — it sends and reads email from this address. Just enter the email and password; we’ll find the rest.'
+            : 'Connect a mailbox so this organization’s agents can send and read email. Just enter the email and password; we’ll find the server settings for you.'}
+        </p>
+
+        <label style={{ marginTop: 12 }}>Display name <span className="email-opt">(optional)</span></label>
+        <input placeholder="e.g. Acme Support" value={quick.fromName} onChange={(e) => setQuick((q) => ({ ...q, fromName: e.target.value }))} />
+
+        <label style={{ marginTop: 14 }}>Email address</label>
+        <input type="email" autoComplete="off" placeholder="you@yourcompany.com" value={quick.email} onChange={(e) => setQuick((q) => ({ ...q, email: e.target.value }))} />
+
+        <label style={{ marginTop: 14 }}>Password</label>
+        <input type="password" autoComplete="new-password" placeholder="Mailbox password" value={quick.password} onChange={(e) => setQuick((q) => ({ ...q, password: e.target.value }))} />
+        <p className="an-sub" style={{ marginTop: 7, fontSize: 12 }}>
+          Gmail, Outlook and other accounts with 2-step verification need an <strong>app password</strong> (created in your mail account’s security settings), not your normal login.
+        </p>
+
+        {note && <div className="email-note" style={{ marginTop: 12 }}>{note}</div>}
+        {error && <div className="form-error" style={{ marginTop: 10 }}>{error}</div>}
+
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16, flexWrap: 'wrap' }}>
+          <button className="send-btn" onClick={connectQuick} disabled={busy || !quick.email.trim() || !quick.password}>
+            {busy ? 'Connecting…' : 'Connect & verify'}
+          </button>
+          <button style={linkBtn} onClick={() => { setMode('manual'); setError(''); setNote(''); set({ fromEmail: quick.email || form.fromEmail, fromName: quick.fromName || form.fromName }); }}>
+            Enter server details manually
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Manual / advanced ----
+  const inp = { width: '100%', boxSizing: 'border-box' as const };
+  void inp;
   return (
     <div className="email-settings">
       <p className="an-sub" style={{ marginTop: 4 }}>
@@ -97,6 +193,11 @@ export function EmailSettings({ orgId, robotId }: { orgId: string; robotId?: str
           : 'Connect a mailbox so this organization’s agents can send email (SMTP) and read replies (IMAP).'}{' '}
         Works with any provider — a Gmail app‑password, a company mail server, or a transactional SMTP host.
       </p>
+      {!account && (
+        <p className="an-sub" style={{ marginTop: 6, fontSize: 12 }}>
+          <button style={linkBtn} onClick={() => { setMode('quick'); setError(''); setNote(''); setTest(null); }}>← Back to quick setup (just email + password)</button>
+        </p>
+      )}
 
       <label style={{ marginTop: 12 }}>From</label>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

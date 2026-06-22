@@ -14,6 +14,7 @@ import {
 } from '../robots/store';
 import { draftReply } from '../robots/reply';
 import { sendEmailForRobot, verifyAccount } from '../email/client';
+import { detectEmailConfig } from '../email/autoconfig';
 import type { InboxMessage } from '../email/client';
 import {
   deleteRobotEmailAccount,
@@ -130,6 +131,15 @@ export function registerRobotRoutes(app: FastifyInstance) {
       autoReply: !!b.autoReply,
     });
     return { account };
+  });
+
+  app.post('/api/orgs/:id/robots/:rid/email/autoconfig', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const email = String(((req.body as any) || {}).email || '').trim();
+    if (!email.includes('@')) return reply.code(400).send({ error: 'A valid email address is required.' });
+    return { config: await detectEmailConfig(email) };
   });
 
   app.post('/api/orgs/:id/robots/:rid/email/test', async (req, reply) => {
