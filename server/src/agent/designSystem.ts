@@ -147,9 +147,11 @@ or blank; with one series, turn the legend off.`,
   BACKEND when accounts/data/realtime/storage: add_app_backend (typed Fastify API + SQLite, JWT auth,
   validated, error envelope), extend the data model, publish it (<slug>.apps.arksai.studio), wire the
   client (typed API client + auth). CRASH-SAFE: root error
-  boundary + defensive data; verify the Expo WEB target boots clean before done. The installable
-  ANDROID APK is built on OUR ephemeral droplet (Gradle/expo prebuild) — NEVER via EAS/expo build;
-  EAS/Expo cloud build is APPLE-only. See ANDROID_PLAN.md. Range: QR scanner (small) → Tinder-style (large).
+  boundary + defensive data; verify the Expo WEB target boots clean (the crash gate) before done.
+  Then, IF the build_apk tool is available, call it to produce the installable APK (our ephemeral
+  droplet — Gradle/expo prebuild, NEVER EAS/expo build; EAS is APPLE-only) and share the download
+  link; if build_apk is NOT available, the PWA/web build is the delivered app. See ANDROID_PLAN.md.
+  Range: QR scanner (small) → Tinder-style (large).
 If unsure, ASK one quick question (just-an-installable-app → PWA; needs the Play/App Store or native
 device power → native) or default to PWA.`,
   report: '', // report mode has its own bespoke protocol

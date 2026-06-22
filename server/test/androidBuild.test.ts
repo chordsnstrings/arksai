@@ -62,6 +62,21 @@ test('build store round-trips with a one-time token, status updates and active l
   assert.ok(list.length >= 2);
 });
 
+test('build_apk tool is gated + reports not-configured cleanly when dormant', async () => {
+  const { buildApkTool } = await import('../src/agent/tools/build');
+  assert.equal(buildApkTool.available?.(), false); // hidden until the build machine is set up
+  const ctx: any = {
+    session: { id: 's-apk', title: 'Snap QR', orgId: null },
+    repoDir: '/tmp',
+    mode: 'code',
+    signal: new AbortController().signal,
+    addCost: () => {},
+  };
+  const res = await buildApkTool.run({}, ctx);
+  assert.match(res, /not configured/i);
+  assert.match(res, /PWA|web/i); // points the user at the working alternative
+});
+
 test('build paths live under the data dir and are per-build', () => {
   const a = AB.apkPath('abc');
   const s = AB.sourceTarPath('abc');
