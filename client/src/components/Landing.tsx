@@ -324,7 +324,6 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
                     value={form.email}
                     onChange={set('email')}
                     required
-                    autoFocus
                   />
                   <input type="text" placeholder="Company (optional)" value={form.company} onChange={set('company')} />
                   {error && <div className="lnd-error">{error}</div>}
