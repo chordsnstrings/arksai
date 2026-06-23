@@ -69,7 +69,7 @@ export function escalateModel(current: string, _o: RouteOpts): string {
   return current; // M3 is already the top
 }
 
-export type Provider = 'minimax' | 'deepseek';
+export type Provider = 'minimax';
 export interface Resolved {
   provider: Provider;
   apiModel: string; // the id actually sent to the provider's API
@@ -79,12 +79,6 @@ export interface Resolved {
 /** Map a branded/selectable model id to the MiniMax API model + a stable pricing id.
  *  Max → M3, Flash → the fast model; anything else defaults to M3. */
 export function resolveProvider(modelId: string): Resolved {
-  // ArksAI Pro = DeepSeek V4 (a DIFFERENT provider — the reliable fallback when MiniMax is in
-  // a bad window). Uses the non-thinking chat alias so it acts decisively instead of
-  // over-reasoning to 0 output (the deepseek-reasoner / thinking failure mode).
-  if (modelId === 'arksai-pro') {
-    return { provider: 'deepseek', apiModel: config.deepseekAgentModel, pricingId: 'arksai-pro' };
-  }
   if (modelId === FAST_MODEL) {
     return { provider: 'minimax', apiModel: config.minimaxFallbackModel, pricingId: FAST_MODEL };
   }

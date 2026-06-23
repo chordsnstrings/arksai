@@ -1072,11 +1072,6 @@ export class AgentRun {
     let triedFallback = false;
     for (let attempt = 0; ; attempt++) {
       try {
-        // DeepSeek (ArksAI Pro) is a different provider on an OpenAI-native surface — the loop
-        // already speaks OpenAI, so it streams straight through (no Anthropic translation).
-        if (resolveProvider(this.activeModel).provider === 'deepseek') {
-          return await this.createOpenAIStream(params);
-        }
         return await this.createMinimaxStream(params);
       } catch (err) {
         if (this.abort.signal.aborted) throw err;
@@ -1105,57 +1100,6 @@ export class AgentRun {
         await new Promise((r) => setTimeout(r, delays[attempt]));
       }
     }
-  }
-
-  /**
-   * DeepSeek (ArksAI Pro) — OpenAI-native chat/completions. The agent loop already consumes
-   * OpenAI chunks, so this streams straight through (no Anthropic translation). Uses the
-   * non-thinking chat alias (config.deepseekAgentModel) so it acts decisively. A different
-   * provider than MiniMax → the reliable fallback when M3 is in a stall window.
-   */
-  private async createOpenAIStream(params: any): Promise<AsyncIterable<any>> {
-    const r = resolveProvider(this.activeModel);
-    const key = config.deepseekApiKey;
-    if (!key) throw new Error('DEEPSEEK_API_KEY is not set — ArksAI Pro (DeepSeek) is unavailable.');
-    const base = config.deepseekBaseUrl.replace(/\/$/, '');
-    const body: Record<string, unknown> = {
-      model: r.apiModel,
-      messages: params.messages,
-      stream: true,
-      stream_options: { include_usage: true },
-      max_tokens: 8192,
-    };
-    if (params.tools?.length) body.tools = params.tools;
-
-    const ac = new AbortController();
-    const onAbort = () => ac.abort();
-    this.abort.signal.addEventListener('abort', onAbort, { once: true });
-    const cleanup = () => this.abort.signal.removeEventListener('abort', onAbort);
-    // DeepSeek is prompt-fast (no M3-style server buffering); a 60s headers cap is plenty.
-    const headersTimer = setTimeout(() => ac.abort(), 60_000);
-    let res: Response;
-    try {
-      res = await fetch(`${base}/chat/completions`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: ac.signal,
-      });
-    } catch (e) {
-      clearTimeout(headersTimer);
-      cleanup();
-      throw e;
-    }
-    clearTimeout(headersTimer);
-    if (!res.ok || !res.body) {
-      const t = res.ok ? '' : await res.text().catch(() => '');
-      cleanup();
-      const err: any = new Error(`DeepSeek ${res.status}: ${String(t).slice(0, 300)}`);
-      err.status = res.status;
-      throw err;
-    }
-    const idleMs = Number(process.env.DEEPSEEK_IDLE_MS || '90000') || 90_000;
-    return openaiSseToChunks(res.body as any, { controller: ac, idleMs, onDone: cleanup });
   }
 
   /** Anthropic-compatible base for MiniMax (…/anthropic), derived from the configured /v1 base. */
@@ -1963,72 +1907,6 @@ export function mapAnthropicStop(reason: string | undefined): string | undefined
  * `finish_reason` / `usage`). Tool-call args arrive as `input_json_delta`; the Anthropic
  * content-block index doubles as the OpenAI tool_call index (the loop filters gaps).
  */
-/**
- * Parse an OpenAI-format SSE stream (DeepSeek) into the chunk objects the runner loop already
- * consumes (`choices[0].delta` + `usage`). Pure passthrough + JSON parse, with an idle backstop
- * that aborts a silent stream so the run can't hang at 0 tokens.
- */
-export async function* openaiSseToChunks(
-  body: ReadableStream<Uint8Array>,
-  opts?: { controller?: AbortController; idleMs?: number; onDone?: () => void },
-): AsyncIterable<any> {
-  const reader = (body as any).getReader();
-  const decoder = new TextDecoder();
-  let buf = '';
-  const idleMs = opts?.idleMs ?? 0;
-  let idleTimer: ReturnType<typeof setTimeout> | undefined;
-  let rejectIdle: ((e: any) => void) | null = null;
-  const idlePromise = new Promise<never>((_, rej) => {
-    rejectIdle = rej;
-  });
-  idlePromise.catch(() => {});
-  const tripIdle = () => {
-    try {
-      opts?.controller?.abort();
-    } catch {
-      /* best-effort */
-    }
-    const e: any = new Error('DeepSeek stream idled out.');
-    e.deepseekStall = true;
-    rejectIdle?.(e);
-  };
-  const arm = () => {
-    if (!idleMs) return;
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(tripIdle, idleMs);
-  };
-  arm();
-  try {
-    for (;;) {
-      const { value, done } = (await Promise.race([reader.read(), idlePromise])) as any;
-      if (done) break;
-      arm();
-      buf += decoder.decode(value, { stream: true });
-      let nl: number;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl).trim();
-        buf = buf.slice(nl + 1);
-        if (!line || !line.startsWith('data:')) continue;
-        const data = line.slice(5).trim();
-        if (data === '[DONE]') return;
-        try {
-          yield JSON.parse(data);
-        } catch {
-          /* partial/non-JSON keepalive — skip */
-        }
-      }
-    }
-  } finally {
-    clearTimeout(idleTimer);
-    try {
-      reader.releaseLock?.();
-    } catch {
-      /* ignore */
-    }
-    opts?.onDone?.();
-  }
-}
-
 export async function* anthropicSseToOpenAI(
   body: any,
   opts?: {

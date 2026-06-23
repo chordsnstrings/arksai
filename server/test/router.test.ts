@@ -33,13 +33,3 @@ test('escalateModel: Flash steps up to M3 and M3 is the cap', () => {
   assert.equal(escalateModel(FAST_MODEL, { minimaxAvailable: true }), MAX_MODEL);
   assert.equal(escalateModel(MAX_MODEL, { minimaxAvailable: true }), MAX_MODEL);
 });
-
-test('resolveProvider: arksai-pro routes to DeepSeek (non-thinking), others to MiniMax', async () => {
-  const { resolveProvider } = await import('../src/agent/router');
-  const pro = resolveProvider('arksai-pro');
-  assert.equal(pro.provider, 'deepseek');
-  assert.equal(pro.pricingId, 'arksai-pro');
-  assert.match(pro.apiModel, /deepseek/); // the non-thinking chat alias
-  assert.equal(resolveProvider(MAX_MODEL).provider, 'minimax');
-  assert.equal(resolveProvider(FAST_MODEL).provider, 'minimax');
-});
