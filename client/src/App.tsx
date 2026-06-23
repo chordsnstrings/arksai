@@ -28,6 +28,7 @@ import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AnalyticsConsole } from './components/AnalyticsConsole';
 import { Robots } from './components/Robots';
+import { AndroidConsole } from './components/AndroidConsole';
 import { useConfirm } from './state/confirmStore';
 import { useStore, emptyLive } from './state/sessionStore';
 import type { Project } from '@shared/types';
@@ -60,6 +61,10 @@ export default function App() {
   // URL so it's a real shareable destination, and back/forward toggle it.
   const [showRobots, setShowRobots] = useState(
     typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/robots',
+  );
+  // Android Apps: its own full-page surface at /android (mirrors Robots).
+  const [showAndroid, setShowAndroid] = useState(
+    typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/android',
   );
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   // A deep link (/s/<id>) that resolved to a session we can't open (deleted / no
@@ -132,6 +137,7 @@ export default function App() {
     // Back/forward: follow the URL, including clearing to the launchpad.
     const onPop = () => {
       setShowRobots(window.location.pathname.replace(/\/$/, '') === '/robots');
+      setShowAndroid(window.location.pathname.replace(/\/$/, '') === '/android');
       const mm = window.location.pathname.match(/^\/s\/([^/]+)$/);
       if (mm) resolve(mm[1]);
       else {
@@ -145,7 +151,7 @@ export default function App() {
 
   useEffect(() => {
     if (authed !== true) return;
-    if (showRobots) return; // the Robots surface owns the URL (/robots) while it's open
+    if (showRobots || showAndroid) return; // these surfaces own the URL while open
     const p = window.location.pathname;
     if (p.startsWith('/invite/') || p === '/operator' || p === '/operator/') return;
     // A real session is open → any earlier "not available" deep link is moot.
@@ -162,7 +168,7 @@ export default function App() {
     didInitialUrlSync.current = true;
     const target = activeId ? `/s/${activeId}` : '/';
     if (p !== target) window.history.pushState({}, '', target); // guard prevents popstate loops
-  }, [activeId, authed, deepLinkNotFound, showRobots]);
+  }, [activeId, authed, deepLinkNotFound, showRobots, showAndroid]);
 
   useGlobalEvents(authed === true);
   useSessionEvents(authed === true ? activeId : null);
@@ -238,6 +244,10 @@ export default function App() {
           setShowRobots(true);
           window.history.pushState({}, '', '/robots');
         }}
+        onAndroid={() => {
+          setShowAndroid(true);
+          window.history.pushState({}, '', '/android');
+        }}
         onAdmin={() => setShowAdmin(true)}
         onAnalytics={() => setShowAnalytics(true)}
       />
@@ -290,6 +300,15 @@ export default function App() {
       {showSchedules && <SchedulesDialog onClose={() => setShowSchedules(false)} />}
       {showAdmin && <AdminDialog onClose={() => setShowAdmin(false)} />}
       {showAnalytics && <AnalyticsConsole onClose={() => setShowAnalytics(false)} />}
+      {showAndroid && (
+        <AndroidConsole
+          onClose={() => {
+            setShowAndroid(false);
+            const back = useStore.getState().activeId;
+            window.history.pushState({}, '', back ? `/s/${back}` : '/');
+          }}
+        />
+      )}
       {showRobots && (
         <Robots
           onClose={() => {

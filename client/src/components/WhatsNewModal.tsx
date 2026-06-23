@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-22.4';
+export const WHATS_NEW_VERSION = '2026-06-23.1';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Spreadsheet models that actually link',
-    body: 'Financial models now stay live end-to-end. A cross-sheet link written without its “=” (which used to sit as dead text and break every dependent cell) is automatically repaired into a real formula, IF()-driven rows and totals compute correctly in the preview, and every workbook is set to fully recalculate on open — so the numbers are right the moment you open it in Excel or Google Sheets.',
+    title: 'Android Apps — a dedicated space',
+    body: 'Building a mobile app now has its own page (📱 Android Apps in the sidebar). A short guided setup — what it does, how it runs (installable APK or web app), whether it needs accounts/data, device features, your accent — and ArksAI builds the app and its backend, checks it works, and hands back an installable APK. Native builds take a few minutes on a real build machine; you can watch the progress live.',
+  },
+  {
+    title: 'Honest, live progress',
+    body: 'Progress and timing now reflect what’s actually happening moment to moment — no more a busy build looking stuck. Published app backends also self-heal: if one ever goes down, it’s automatically brought back.',
   },
 ];
 
