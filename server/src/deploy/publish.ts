@@ -336,3 +336,46 @@ export function startDeploymentJanitor() {
   setTimeout(() => void sweepExpiredDeployments(), 10_000); // once shortly after boot
   console.log('[deploy] preview janitor started (24h TTL)');
 }
+
+/**
+ * Self-healing: restart any server-app deployment that should be running but whose process
+ * is dead (boot recovery that crashed, an OOM, a process killed by an agent run, …). Without
+ * this a published backend can silently vanish after a deploy/restart — which broke the
+ * Android "live backend" promise. Process-aliveness via the registry is the signal.
+ */
+export async function sweepDeadDeployments(): Promise<number> {
+  const deps = await store.listDeployments().catch(() => []);
+  let healed = 0;
+  for (const d of deps) {
+    if (d.kind === 'static' || d.status !== 'running' || d.port == null) continue;
+    if (d.expiresAt != null && d.expiresAt <= Date.now()) continue; // expiring preview
+    if (deploymentRegistry.isRunning(d.slug)) continue; // alive — nothing to do
+    const dir = deploymentDir(d.slug);
+    if (!fs.existsSync(dir)) {
+      await store.updateDeployment(d.slug, { status: 'error' }).catch(() => {});
+      continue;
+    }
+    const sc = detectStartCommand(dir);
+    if (!sc) continue;
+    try {
+      deploymentRegistry.start(d.slug, dir, sc, d.port);
+      healed++;
+      console.log(`[deploy] self-healed dead deployment "${d.slug}" on :${d.port}`);
+    } catch (e: any) {
+      console.warn(`[deploy] could not restart "${d.slug}":`, e?.message ?? e);
+    }
+  }
+  return healed;
+}
+
+let healthTimer: ReturnType<typeof setInterval> | null = null;
+const DEPLOY_HEALTH_MS = Number(process.env.DEPLOY_HEALTH_MS || '60000') || 60_000;
+
+/** Start the deployment health monitor (call once at boot, after recoverDeployments). */
+export function startDeploymentHealthMonitor() {
+  if (healthTimer) return;
+  healthTimer = setInterval(() => void sweepDeadDeployments(), DEPLOY_HEALTH_MS);
+  // A first pass ~30s after boot catches anything recoverDeployments failed to bring up.
+  setTimeout(() => void sweepDeadDeployments(), 30_000);
+  console.log(`[deploy] health monitor started (every ${Math.round(DEPLOY_HEALTH_MS / 1000)}s)`);
+}

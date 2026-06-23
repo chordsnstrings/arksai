@@ -3,7 +3,7 @@ import { buildApp } from './app';
 import * as store from './sessions/store';
 import { sweepWorkspaces } from './sessions/workspace';
 import { recoverDeployments } from './deploy/registry';
-import { startDeploymentJanitor } from './deploy/publish';
+import { startDeploymentJanitor, startDeploymentHealthMonitor } from './deploy/publish';
 import { startScheduler } from './schedule/scheduler';
 import { startAnalyticsDigest } from './analytics/digest';
 import { startRobotPoller } from './robots/poller';
@@ -27,6 +27,7 @@ async function main() {
   startScheduler();
   startRobotPoller(); // inbound mail → robot draft replies (Stage 2)
   startDeploymentJanitor(); // 24h-preview auto-cleanup
+  startDeploymentHealthMonitor(); // restart any published app whose process died (self-healing)
   startAnalyticsDigest(); // periodic platform metric snapshots (+ optional webhook)
   await loadBuildRuntime(); // load DO token + snapshot id from app_settings (if not in env)
   startBuildReaper(); // destroy any stray Android build droplet (no-op unless configured)
