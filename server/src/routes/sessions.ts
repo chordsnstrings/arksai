@@ -58,6 +58,14 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const mode = SESSION_MODES.includes(modeIn as any) ? (modeIn as any) : 'chat';
     const modelIn = body.model ?? project?.defaultModel ?? undefined;
     const model = modelIn && (await isValidModel(modelIn)) ? modelIn : DEFAULT_MODEL;
+    // A per-user GitHub connection to push with — only honoured if it belongs to the caller.
+    let githubConnectionId: string | null = null;
+    const connIn = asStr((body as any).githubConnectionId).trim();
+    if (connIn && req.identity?.userId) {
+      const { getConnectionByIdForUser } = await import('../github/store');
+      const conn = await getConnectionByIdForUser(connIn, req.identity.userId);
+      if (conn) githubConnectionId = conn.id;
+    }
     const session = await store.createSession({
       repoUrl,
       repoName,
@@ -68,6 +76,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
       task: typeof body.task === 'string' ? body.task.slice(0, 60) : null,
       orgId: req.identity?.orgId ?? null,
       createdBy: req.identity?.userId ?? null,
+      githubConnectionId,
     });
     bus.emitGlobal({ type: 'session_status', session });
     void setupWorkspace(session).catch((err) => console.error('[workspace]', err));
@@ -94,6 +103,28 @@ export function registerSessionRoutes(app: FastifyInstance) {
       if (manager.isRunning(id)) return reply.code(409).send({ error: 'Cannot change mode/model mid-run' });
       if (SESSION_MODES.includes(body.mode as any)) patch.mode = body.mode;
       if (body.model && (await isValidModel(body.model))) patch.model = body.model;
+    }
+    // Attach / change the GitHub push target (repo + the user's connection). No re-clone — push
+    // goes from the existing workspace to the chosen remote. The connection must be the caller's.
+    const b: any = body;
+    if (typeof b.repoUrl === 'string') {
+      if (manager.isRunning(id)) return reply.code(409).send({ error: 'Cannot change the repo mid-run' });
+      if (b.repoUrl.trim() === '') {
+        (patch as any).repoUrl = null; (patch as any).repoName = null; (patch as any).githubConnectionId = null;
+      } else {
+        const parsed = parseRepoUrl(b.repoUrl);
+        if (!parsed) return reply.code(400).send({ error: 'Invalid repo. Use https://github.com/owner/repo or owner/repo.' });
+        patch.repoUrl = parsed.url; (patch as any).repoName = parsed.name;
+        if (typeof b.branch === 'string' && b.branch.trim()) patch.branch = b.branch.trim();
+        let connId: string | null = null;
+        const cIn = asStr(b.githubConnectionId).trim();
+        if (cIn && req.identity?.userId) {
+          const { getConnectionByIdForUser } = await import('../github/store');
+          const conn = await getConnectionByIdForUser(cIn, req.identity.userId);
+          if (conn) connId = conn.id;
+        }
+        (patch as any).githubConnectionId = connId;
+      }
     }
     await store.updateSession(id, patch);
     const updated = (await store.getSession(id))!;

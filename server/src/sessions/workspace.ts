@@ -52,13 +52,32 @@ export function parseRepoUrl(input: string): { url: string; name: string } | nul
   return { url: `https://github.com/${m[1]}/${m[2]}.git`, name: `${m[1]}/${m[2]}` };
 }
 
-function authedUrl(cleanUrl: string): string {
-  if (!config.githubToken) return cleanUrl;
-  return cleanUrl.replace('https://', `https://x-access-token:${config.githubToken}@`);
+function authedUrl(cleanUrl: string, token?: string | null): string {
+  const t = token || config.githubToken;
+  if (!t) return cleanUrl;
+  return cleanUrl.replace('https://', `https://x-access-token:${t}@`);
 }
 
-async function git(dir: string, args: string, timeoutMs = 120_000) {
-  return execBash(`git ${args}`, { cwd: dir, timeoutMs });
+/**
+ * Resolve the GitHub token for a session's clone/push: the connected USER's token (per-user
+ * OAuth) when the session has one, else the global PAT (operator self-host). Returns null if
+ * neither is available. Decrypted only here; callers must scrub it from any command output.
+ */
+export async function resolveSessionToken(session: SessionMeta): Promise<string | null> {
+  if (session.githubConnectionId) {
+    try {
+      const { getConnectionById } = await import('../github/store');
+      const c = await getConnectionById(session.githubConnectionId);
+      if (c && c.status !== 'revoked' && c.accessToken) return c.accessToken;
+    } catch {
+      /* fall through to the global PAT */
+    }
+  }
+  return config.githubToken || null;
+}
+
+async function git(dir: string, args: string, timeoutMs = 120_000, redact?: (string | null | undefined)[]) {
+  return execBash(`git ${args}`, { cwd: dir, timeoutMs, redact });
 }
 
 /**
@@ -73,10 +92,12 @@ export async function setupWorkspace(session: SessionMeta): Promise<void> {
   if (session.repoUrl) {
     bus.emit(session.id, { type: 'clone_progress', phase: 'cloning', detail: `Cloning ${session.repoName}...` });
     const branchArg = session.branch ? `-b ${JSON.stringify(session.branch)}` : '';
+    const token = await resolveSessionToken(session);
     const res = await git(
       wsDir,
-      `clone --depth 50 ${branchArg} ${JSON.stringify(authedUrl(session.repoUrl))} repo`,
+      `clone --depth 50 ${branchArg} ${JSON.stringify(authedUrl(session.repoUrl, token))} repo`,
       300_000,
+      [token],
     );
     if (!res.ok) {
       bus.emit(session.id, { type: 'clone_progress', phase: 'error', detail: res.output.slice(-1000) });
@@ -164,9 +185,14 @@ export async function listFiles(sessionId: string): Promise<string[]> {
   return files.sort().slice(0, 400);
 }
 
-export function pushUrl(session: SessionMeta): string | null {
+/**
+ * The authenticated push URL + the raw token to scrub from output. Uses the session's connected
+ * user token (per-user OAuth) when present, else the global PAT. Returns null if no repo.
+ */
+export async function resolvePushUrl(session: SessionMeta): Promise<{ url: string; token: string | null } | null> {
   if (!session.repoUrl) return null;
-  return authedUrl(session.repoUrl);
+  const token = await resolveSessionToken(session);
+  return { url: authedUrl(session.repoUrl, token), token };
 }
 
 export function deleteWorkspace(sessionId: string) {

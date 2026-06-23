@@ -1,5 +1,5 @@
 import { execBash } from '../../lib/exec';
-import { pushUrl } from '../../sessions/workspace';
+import { resolvePushUrl } from '../../sessions/workspace';
 import type { ToolDef } from './common';
 
 export const gitDiffStatTool: ToolDef = {
@@ -56,8 +56,9 @@ export const gitPushTool: ToolDef = {
   modes: ['code'],
   summarize: (args) => (args.branch ? `push ${args.branch}` : 'push current branch'),
   async run(args, ctx) {
-    const url = pushUrl(ctx.session);
-    if (!url) return 'Error: this session has no GitHub repository connected.';
+    const target = await resolvePushUrl(ctx.session);
+    if (!target) return 'Error: this session has no GitHub repository connected. Ask the user to connect a GitHub account and pick a repo (Connect GitHub → choose a repo) so pushes have a destination.';
+    const { url, token } = target;
 
     let branch = String(args.branch ?? '').trim();
     if (args.create_branch && branch) {
@@ -71,11 +72,12 @@ export const gitPushTool: ToolDef = {
       const cur = await execBash('git rev-parse --abbrev-ref HEAD', { cwd: ctx.repoDir, timeoutMs: 15_000 });
       branch = cur.output.trim();
     }
-    // Token is injected only for this invocation; exec scrubs it from output.
+    // Token is injected only for this invocation; exec scrubs it (global + this user's) from output.
     const res = await execBash(`git push ${JSON.stringify(url)} HEAD:${JSON.stringify(branch)}`, {
       cwd: ctx.repoDir,
       timeoutMs: 120_000,
       signal: ctx.signal,
+      redact: [token],
     });
     return res.ok ? `Pushed to ${branch}.\n${res.output}` : `Push failed:\n${res.output}`;
   },

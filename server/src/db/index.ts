@@ -430,6 +430,24 @@ async function migrate() {
   await q(`CREATE INDEX IF NOT EXISTS idx_connectors_org ON connectors(org_id)`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_connectors_uniq ON connectors(org_id, provider, account_id)`);
 
+  // GitHub OAuth links — per USER (each member connects their own GitHub account; their
+  // sessions push generated code to repos they pick). Token stored ENCRYPTED (AES-256-GCM),
+  // never plaintext. One row per user (reconnect replaces). org_id is for visibility/analytics.
+  await q(`CREATE TABLE IF NOT EXISTS github_connections(
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    org_id TEXT,
+    github_login TEXT,
+    github_user_id TEXT,
+    avatar_url TEXT,
+    access_token_enc TEXT NOT NULL,
+    scopes TEXT,
+    status TEXT NOT NULL,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_github_conn_user ON github_connections(user_id)`);
+
   // Self-healing: captured errors/timeouts/cost-spikes (METADATA + scrubbed context) the
   // operator can review and an auto-fix agent can act on. Deduped by fingerprint (count++).
   await q(`CREATE TABLE IF NOT EXISTS incidents(
@@ -466,6 +484,7 @@ async function migrate() {
     `project_id TEXT`,
     `task TEXT`,
     `awaiting_plan ${INT} NOT NULL DEFAULT 0`,
+    `github_connection_id TEXT`,
   ]) {
     try {
       await q(`ALTER TABLE sessions ADD COLUMN ${col}`);

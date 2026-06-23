@@ -3,6 +3,7 @@ import type { ModelId, SessionMode } from '@shared/types';
 import { AUTO_MODEL, DEFAULT_MODEL, FALLBACK_MODEL_IDS, modelLabel } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
+import { GithubRepoPicker } from './GithubRepoPicker';
 
 /** One-line, confidence-building description of what each mode does. */
 const MODE_DESC: Record<SessionMode, string> = {
@@ -25,6 +26,7 @@ export function NewSessionDialog({
   const [projectId, setProjectId] = useState<string | null>(initialProjectId);
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('');
+  const [connId, setConnId] = useState<string | null>(null);
   const [mode, setMode] = useState<SessionMode>('chat');
   // Default to ArksAI Auto — the orchestrator picks the best engine per task.
   const [model, setModel] = useState<ModelId>(
@@ -47,6 +49,7 @@ export function NewSessionDialog({
         projectId: projectId ?? undefined,
         repoUrl: repoUrl.trim() || undefined,
         branch: branch.trim() || undefined,
+        githubConnectionId: connId ?? undefined,
         mode,
         model,
       });
@@ -82,13 +85,26 @@ export function NewSessionDialog({
             )}
           </div>
         )}
+        <GithubRepoPicker
+          onSelect={(sel) => {
+            if (sel) {
+              setRepoUrl(sel.repoUrl);
+              setBranch(sel.branch || '');
+              setConnId(sel.connectionId);
+            } else {
+              setConnId(null);
+            }
+          }}
+        />
         <div>
-          <label>GitHub repository (optional)</label>
+          <label>…or a repo by URL (optional)</label>
           <input
             placeholder="owner/repo or https://github.com/owner/repo"
             value={repoUrl}
-            autoFocus
-            onChange={(e) => setRepoUrl(e.target.value)}
+            onChange={(e) => {
+              setRepoUrl(e.target.value);
+              setConnId(null); // a hand-typed URL isn't tied to a connection (uses the server PAT)
+            }}
           />
         </div>
         <div className="row">

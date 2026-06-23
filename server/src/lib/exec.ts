@@ -69,7 +69,7 @@ export function truncateMiddle(text: string, cap = OUTPUT_CAP): string {
 
 export function execBash(
   command: string,
-  opts: { cwd: string; timeoutMs?: number; signal?: AbortSignal; env?: Record<string, string> },
+  opts: { cwd: string; timeoutMs?: number; signal?: AbortSignal; env?: Record<string, string>; redact?: (string | null | undefined)[] },
 ): Promise<ExecResult> {
   const timeoutMs = Math.min(opts.timeoutMs ?? 60_000, MAX_TIMEOUT_MS);
   const started = Date.now();
@@ -116,6 +116,8 @@ export function execBash(
       clearTimeout(timer);
       opts.signal?.removeEventListener('abort', onAbort);
       let text = scrubSecrets(truncateMiddle(output));
+      // Per-call secrets (e.g. a user's GitHub token injected into a git URL for this push only).
+      for (const r of opts.redact ?? []) if (r && r.length >= 6) text = text.split(r).join('[redacted]');
       if (timedOut) text += `\n[command timed out after ${timeoutMs}ms and was killed]`;
       resolve({
         ok: exitCode === 0,

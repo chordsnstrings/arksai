@@ -178,6 +178,8 @@ export interface SessionMeta {
   repoUrl: string | null;
   repoName: string | null;
   branch: string | null;
+  /** The user's GitHub connection used to clone/push this session's repo (per-user OAuth). */
+  githubConnectionId?: string | null;
   mode: SessionMode;
   model: ModelId;
   status: SessionStatus;
@@ -298,6 +300,23 @@ export interface CreateSessionRequest {
   projectId?: string;
   /** department task key (e.g. "finance.cashflow") for expert standards */
   task?: string;
+  /** the caller's GitHub connection id to push this session's repo with (per-user OAuth) */
+  githubConnectionId?: string;
+}
+
+/** A token-free GitHub connection + a repo, as the client picker sees them. */
+export interface GithubStatus {
+  enabled: boolean;
+  connected: boolean;
+  login?: string | null;
+  avatarUrl?: string | null;
+}
+export interface GithubRepo {
+  fullName: string;
+  private: boolean;
+  defaultBranch: string;
+  pushedAt: string | null;
+  cloneUrl: string;
 }
 
 // ---- Projects (persistent workspaces: instructions + knowledge + defaults) ----
@@ -447,6 +466,10 @@ export interface PatchSessionRequest {
   mode?: SessionMode;
   model?: ModelId;
   title?: string;
+  /** Attach/change the push target (no re-clone): repo + the caller's GitHub connection. */
+  repoUrl?: string;
+  branch?: string;
+  githubConnectionId?: string;
 }
 
 export interface ProcessInfo {

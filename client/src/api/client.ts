@@ -2,6 +2,8 @@ import type {
   CreateProjectRequest,
   CreateRobotRequest,
   CreateSessionRequest,
+  GithubStatus,
+  GithubRepo,
   CustomCommand,
   Deployment,
   MemoryEntry,
@@ -181,6 +183,13 @@ export const api = {
   listConnectors: () =>
     request<{ connectors: { id: string; provider: string; accountId: string; accountName: string | null; status: string }[] }>('/api/connectors').then((r) => r.connectors),
   deleteConnector: (id: string) => request<{ ok: true }>(`/api/connectors/${id}`, { method: 'DELETE' }),
+  // GitHub OAuth (connect your account + pick a repo to push to)
+  githubStatus: () => request<GithubStatus & { connectionId?: string }>('/api/github/status'),
+  githubRepos: (query: string) =>
+    request<{ repos: GithubRepo[] }>(`/api/github/repos${query ? `?query=${encodeURIComponent(query)}` : ''}`).then((r) => r.repos),
+  githubCreateRepo: (name: string, isPrivate: boolean) =>
+    request<{ repo: GithubRepo }>('/api/github/repos', { method: 'POST', body: JSON.stringify({ name, private: isPrivate }) }).then((r) => r.repo),
+  githubDisconnect: () => request<{ ok: boolean }>('/api/github/connection', { method: 'DELETE' }),
   listSessions: () => request<SessionMeta[]>('/api/sessions'),
   createSession: (body: CreateSessionRequest) =>
     request<SessionMeta>('/api/sessions', { method: 'POST', body: JSON.stringify(body) }),

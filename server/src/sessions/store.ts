@@ -28,7 +28,7 @@ export async function initStore() {
 // org on each app open / sidebar refresh; SELECT * pulled + parsed + discarded that
 // blob N times. Projecting the metadata columns keeps the hot path lean.
 const META_COLS =
-  'id, title, org_id, project_id, repo_url, repo_name, branch, mode, model, status, task, ' +
+  'id, title, org_id, project_id, repo_url, repo_name, branch, github_connection_id, mode, model, status, task, ' +
   'awaiting_plan, diff_stat, total_tokens, prompt_tokens, completion_tokens, cost_usd, created_at, updated_at';
 
 function rowToMeta(row: any): SessionMeta {
@@ -40,6 +40,7 @@ function rowToMeta(row: any): SessionMeta {
     repoUrl: row.repo_url,
     repoName: row.repo_name,
     branch: row.branch,
+    githubConnectionId: row.github_connection_id ?? null,
     mode: row.mode as SessionMode,
     model: row.model as ModelId,
     status: row.status as SessionStatus,
@@ -75,13 +76,14 @@ export async function createSession(opts: {
   task?: string | null;
   orgId?: string | null;
   createdBy?: string | null;
+  githubConnectionId?: string | null;
 }): Promise<SessionMeta> {
   const now = Date.now();
   const id = randomUUID();
   await q(
-    `INSERT INTO sessions(id, title, project_id, org_id, created_by, repo_url, repo_name, branch, mode, model, status, task, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'idle', $11, $12, $13)`,
-    [id, 'New session', opts.projectId ?? null, opts.orgId ?? null, opts.createdBy ?? null, opts.repoUrl, opts.repoName, opts.branch, opts.mode, opts.model, opts.task ?? null, now, now],
+    `INSERT INTO sessions(id, title, project_id, org_id, created_by, repo_url, repo_name, branch, github_connection_id, mode, model, status, task, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'idle', $12, $13, $14)`,
+    [id, 'New session', opts.projectId ?? null, opts.orgId ?? null, opts.createdBy ?? null, opts.repoUrl, opts.repoName, opts.branch, opts.githubConnectionId ?? null, opts.mode, opts.model, opts.task ?? null, now, now],
   );
   return (await getSession(id))!;
 }
@@ -113,6 +115,7 @@ const COLUMN: Record<string, string> = {
   costUsd: 'cost_usd',
   repoUrl: 'repo_url',
   repoName: 'repo_name',
+  githubConnectionId: 'github_connection_id',
   projectId: 'project_id',
   task: 'task',
 };

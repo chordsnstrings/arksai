@@ -25,6 +25,7 @@ import { registerAnalyticsRoutes } from './routes/analytics';
 import { registerEmailRoutes } from './routes/email';
 import { registerRobotRoutes } from './routes/robots';
 import { registerConnectorRoutes } from './routes/connectors';
+import { registerGithubRoutes } from './routes/github';
 import { registerIncidentRoutes } from './routes/incidents';
 import { registerBuildRoutes } from './routes/builds';
 import { registerPlayRoutes } from './routes/play';
@@ -90,6 +91,7 @@ export async function buildApp() {
   registerEmailRoutes(app);
   registerRobotRoutes(app);
   registerConnectorRoutes(app);
+  registerGithubRoutes(app);
   registerIncidentRoutes(app);
   registerBuildRoutes(app);
   registerPlayRoutes(app);

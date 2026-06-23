@@ -125,6 +125,11 @@ export const config = {
   // it's hashed to 32 bytes. MUST be set in production — without it connectors are
   // disabled so tokens are never stored in plaintext.
   connectorEncKey: process.env.CONNECTOR_ENC_KEY || '',
+  // GitHub OAuth App — lets a user connect their own GitHub account and pick a repo to push
+  // generated code to (per-user; tokens encrypted at rest via connectorEncKey). Dormant until
+  // both creds are set + connectorEncKey. Callback: <publicBaseUrl>/api/github/callback.
+  githubOauthClientId: process.env.GITHUB_OAUTH_CLIENT_ID || '',
+  githubOauthClientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET || '',
   // Ad-platform connector apps (each connector lights up only when its creds are set).
   metaAppId: process.env.META_APP_ID || '',
   metaAppSecret: process.env.META_APP_SECRET || '',
@@ -220,5 +225,6 @@ export function secretValues(): string[] {
     config.tiktokClientSecret,
     config.connectorEncKey,
     config.doApiToken,
+    config.githubOauthClientSecret,
   ].filter((s) => s && s.length >= 6);
 }
