@@ -147,9 +147,13 @@ or blank; with one series, turn the legend off.`,
   as files in app/ (expo-router) from the kit (Screen/AppText/Button/
   Card/Field/EmptyState/Loading) — minimal/modern, accent ~5-10%, safe-area, 8pt grid, loading+empty+
   error states. Expo modules per need: camera (expo-camera → QR), location, notifications, image-picker.
-  BACKEND when accounts/data/realtime/storage: add_app_backend (typed Fastify API + SQLite, JWT auth,
-  validated, error envelope), extend the data model, publish it (<slug>.apps.arksai.studio), wire the
-  client (typed API client + auth). The backend is a SEPARATE API service — verify it via GET /health
+  BACKEND when accounts/data/realtime/storage — DO THIS AUTOMATICALLY, don't skip it or stub data:
+  (a) add_app_backend (installs the Fastify+SQLite API into server/ AND a typed client into src/api/);
+  (b) expo install @react-native-async-storage/async-storage; (c) extend the real data model in
+  server/db.js + routes in server/server.js (keep validation/envelope/JWT) and add matching typed calls;
+  (d) publish_app the backend → it returns the live https URL; (e) set API_BASE_URL in src/api/config.ts
+  to that URL; (f) build screens that call the API via src/api (login/register/me + api('/...')) — JWT is
+  attached automatically. The backend deploys to OUR infra (<slug>.apps.arksai.studio), zero-config. The backend is a SEPARATE API service — verify it via GET /health
   (a 404/error-envelope at \`/\` is EXPECTED for an API; do NOT try to make the API serve an HTML index,
   and do NOT run the web crash-gate against the backend). If a published backend isn't cooperating, DON'T
   loop — ship the app with seeded LOCAL data (in-memory/AsyncStorage) so the APK still builds, and wire the

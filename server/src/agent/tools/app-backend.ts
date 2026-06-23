@@ -5,7 +5,8 @@ import { resolveInWorkspace, type ToolDef } from './common';
 
 const BACKEND_KIT_DIR = path.join(repoRoot, 'server', 'assets', 'mobile-backend-kit');
 
-function copyDirInto(src: string, dest: string) {
+/** Copy only the FILES in src (not subdirs) into dest. */
+function copyFilesInto(src: string, dest: string) {
   if (!fs.existsSync(src)) return;
   fs.mkdirSync(dest, { recursive: true });
   for (const f of fs.readdirSync(src)) {
@@ -15,50 +16,58 @@ function copyDirInto(src: string, dest: string) {
 }
 
 /**
- * Install the ArksAI app backend kit (Fastify + SQLite) — a clean, typed, validated API
- * starter (JWT auth, error envelope, a sample resource) — into an app's backend folder so
- * a mobile/PWA app's backend matches the front-end's quality. Publish it on the normal
- * pipeline to get a live URL the client calls. The backend counterpart of add_mobile_ui_kit.
+ * Install the ArksAI app backend kit (Fastify + SQLite) AND its matching typed client API
+ * module — so a mobile/PWA app's backend matches the front-end's quality AND the client
+ * talks to it the same safe way from every screen. Publish the backend on the normal
+ * pipeline to get a live URL; set it in src/api/config.ts. The backend counterpart of the kits.
  */
 export const addAppBackendTool: ToolDef = {
   name: 'add_app_backend',
   description:
-    'Install the ArksAI app backend kit (Fastify + SQLite) into an app: server.js (health, JWT auth ' +
-    '/auth/register|/auth/login|/me, a sample CRUD resource, a consistent error envelope, per-route ' +
-    'JSON-schema validation, CORS, binds PORT), db.js (SQLite + idempotent migrate), package.json. ' +
-    'Use it whenever an app needs accounts/data/persistence; then extend with the real data model ' +
-    '(keep the validation/envelope/auth patterns) and publish it to get a live <slug>.apps URL the ' +
-    'mobile/PWA client calls. The backend counterpart of add_mobile_ui_kit.',
+    'Install a complete app backend + its client: into server/ — server.js (health, JWT auth ' +
+    '/auth/register|/auth/login|/me, a sample CRUD resource, a consistent { error:{message,code} } ' +
+    'envelope, per-route JSON-schema validation, CORS, binds PORT), db.js (SQLite + idempotent migrate), ' +
+    'package.json; AND into src/api/ a typed CLIENT (client.ts = fetch wrapper w/ JWT + AsyncStorage + ' +
+    'error-envelope handling, auth.ts = login/register/me, config.ts = the ONE API_BASE_URL). ' +
+    'Use whenever an app needs accounts/data/persistence; then extend the real data model + matching ' +
+    'client calls, publish the backend (publish_app), and set API_BASE_URL in src/api/config.ts to the ' +
+    'live <slug>.apps.arksai.studio URL. Backend + client come wired together.',
   parameters: {
     type: 'object',
     properties: {
-      dest: { type: 'string', description: 'Workspace subfolder to install into (default "server").' },
+      dest: { type: 'string', description: 'Backend subfolder (default "server"). The client always goes to src/api/.' },
     },
   },
   modes: ['code'],
-  summarize: () => 'install app backend kit',
+  summarize: () => 'install app backend + client',
   async run(args, ctx) {
     if (!fs.existsSync(BACKEND_KIT_DIR)) return 'Error: the bundled app backend kit is missing from this build.';
     const destRel = String(args.dest ?? 'server').replace(/[^a-zA-Z0-9._/-]/g, '-') || 'server';
-    let destAbs: string;
+    let serverAbs: string;
+    let clientAbs: string;
     try {
-      destAbs = resolveInWorkspace(ctx.repoDir, destRel);
+      serverAbs = resolveInWorkspace(ctx.repoDir, destRel);
+      clientAbs = resolveInWorkspace(ctx.repoDir, 'src/api');
     } catch (e: any) {
       return `Error: ${e?.message ?? e}`;
     }
     try {
-      copyDirInto(BACKEND_KIT_DIR, destAbs);
+      copyFilesInto(BACKEND_KIT_DIR, serverAbs); // top-level files = the backend
+      copyFilesInto(path.join(BACKEND_KIT_DIR, 'client'), clientAbs); // client/ = the typed client
     } catch (e: any) {
       return `Error: could not install the backend kit — ${e?.message ?? e}`;
     }
     return (
-      `Installed the app backend kit into ${destRel}/ (server.js, db.js, package.json, README.md).\n` +
-      `Run: cd ${destRel} && npm install && npm start (binds process.env.PORT). Endpoints: GET /health, ` +
-      `POST /auth/register, POST /auth/login, GET /me, GET/POST /items.\n` +
-      `EXTEND with the app's real data model in db.js (a migration) + routes in server.js — KEEP the ` +
-      `patterns: per-route JSON-schema validation, the { error: { message, code } } envelope, and the ` +
-      `JWT 'auth' preHandler on protected routes. Then PUBLISH it (publish_app) to get the live ` +
-      `<slug>.apps.arksai.studio URL; wire the mobile/PWA client to that base URL with the JWT from login.`
+      `Installed the BACKEND into ${destRel}/ (server.js, db.js, package.json) and the matching typed CLIENT into ` +
+      `src/api/ (client.ts, auth.ts, config.ts).\n` +
+      `BACKEND: cd ${destRel} && npm install && npm start (binds process.env.PORT). Endpoints: GET /health, ` +
+      `POST /auth/register, POST /auth/login, GET /me, GET/POST /items. EXTEND with the app's real data model in ` +
+      `db.js (a migration) + routes in server.js — KEEP the per-route JSON-schema validation, the ` +
+      `{ error:{message,code} } envelope, and the JWT 'auth' preHandler.\n` +
+      `CLIENT: import { login, register, me } from 'src/api/auth' and { api } from 'src/api/client' in your ` +
+      `screens (api('/items') etc. — JWT is attached automatically). Add matching typed calls as you extend the API.\n` +
+      `DEPLOY: publish the backend with publish_app → it returns the live https URL → set API_BASE_URL in ` +
+      `src/api/config.ts to that URL. Needs @react-native-async-storage/async-storage (expo install it).`
     );
   },
 };

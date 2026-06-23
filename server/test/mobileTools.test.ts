@@ -68,11 +68,11 @@ test('add_mobile_ui_kit installs the RN kit', async () => {
   }
 });
 
-test('add_app_backend installs a validated Fastify + SQLite backend', async () => {
+test('add_app_backend installs a validated Fastify + SQLite backend AND a typed client', async () => {
   const dir = ws();
   const res = await addAppBackendTool.run({}, ctx(dir));
   assert.doesNotMatch(res, /^Error/);
-  for (const f of ['server.js', 'db.js', 'package.json', 'README.md']) {
+  for (const f of ['server.js', 'db.js', 'package.json']) {
     assert.ok(fs.existsSync(path.join(dir, 'server', f)), `missing server/${f}`);
   }
   const server = fs.readFileSync(path.join(dir, 'server', 'server.js'), 'utf8');
@@ -83,4 +83,17 @@ test('add_app_backend installs a validated Fastify + SQLite backend', async () =
   assert.match(server, /process\.env\.PORT/);
   const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'server', 'package.json'), 'utf8'));
   assert.ok(pkg.dependencies.fastify);
+
+  // The matching typed CLIENT lands in src/api/ (backend + client wired together).
+  for (const f of ['client.ts', 'auth.ts', 'config.ts']) {
+    assert.ok(fs.existsSync(path.join(dir, 'src', 'api', f)), `missing src/api/${f}`);
+  }
+  const client = fs.readFileSync(path.join(dir, 'src', 'api', 'client.ts'), 'utf8');
+  assert.match(client, /Authorization.*Bearer/); // attaches the JWT
+  assert.match(client, /data\?\.error/); // unwraps the backend's error envelope
+  const auth = fs.readFileSync(path.join(dir, 'src', 'api', 'auth.ts'), 'utf8');
+  assert.match(auth, /\/auth\/login/);
+  assert.match(auth, /\/auth\/register/);
+  const cfg = fs.readFileSync(path.join(dir, 'src', 'api', 'config.ts'), 'utf8');
+  assert.match(cfg, /API_BASE_URL/);
 });
