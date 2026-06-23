@@ -74,13 +74,14 @@ export const generateLogoTool: ToolDef = {
     }
     const d = r.directive!;
     const palette = d.palette.map((p) => `${p.name} ${p.hex}`).join(', ');
-    const files = [r.zipPath, r.brandSheetPath, r.heroPath].filter(Boolean).join(', ');
     return (
       `Designed the "${d.brandName}" identity. Concept: ${d.concept} ` +
       `Palette: ${palette}. Typeface: ${d.typography.display}. (${r.notes}) ` +
-      `Delivered: ${files} — the ZIP holds SVG + PNG + JPEG at multiple sizes on light & dark backgrounds, ` +
-      `app-icon, favicon, website placement, and a brand-directive. The brand sheet opens in the canvas. ` +
-      `Tell the user it's ready, summarize the concept + palette in one line, and offer to tweak colours/typeface or explore another direction.`
+      `Delivered (all surfaced as download chips — do NOT paste these paths as if they were clickable links): ` +
+      `${r.brandSheetPath ? 'a brand-kit PDF (the full identity — it auto-opens in the canvas and is downloadable) and ' : ''}` +
+      `the complete asset ZIP (${r.zipPath}) holding light & dark SVGs, PNG + JPEG at 1024/512/256/128/64 on light & dark backgrounds, ` +
+      `app-icon, favicon, website placement, and the brand-directive. ` +
+      `Tell the user it's ready, summarize the concept + palette in one short line, point them to the PDF and the download chip for the ZIP (don't print raw file paths), and offer to tweak colours/typeface or explore another direction.`
     );
   },
 };

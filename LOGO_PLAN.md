@@ -45,14 +45,18 @@ other, never merge.
 
 ## The deliverable — a designer submission (zipped)
 - `brand-directive.md` — concept rationale, palette table (hex + role), typography, usage do/don't.
-- `brand-sheet.html` — the visual presentation (mark on light + dark, palette swatches,
-  type specimen, placements) — also copied to the workspace so it auto-opens in the canvas.
+- `brand-sheet.html` (in the zip, for web) + a single-page **`brand-kit.pdf`** rendered from it —
+  the PDF is copied to the workspace so it **auto-opens in the canvas and surfaces as a download
+  chip** (a raw `.html` does neither — it's not in the deliverable glob, so its path would be a
+  dead, unclickable reference in chat). The visual presentation: mark on light + dark, palette
+  swatches, type specimen, placements.
 - `svg/` — `logo-light.svg`, `logo-dark.svg` (self-contained, fonts embedded).
 - `png/` — light **and** dark backgrounds at 1024/512/256/128/64.
 - `jpeg/` — 1024 light + dark (for places that need a flat raster).
 - `app-icon-{light,dark}.png` (rounded-square) + `favicon-64.png`.
 - `placement-website-{light,dark}.png` (navbar mockup).
-- The zip lands as a download chip; a hero PNG auto-opens in the canvas.
+- Surfaced to the user: the **brand-kit PDF** (auto-opens in the canvas) + the asset **ZIP**, both
+  as download chips.
 
 ## Intake (the agent asks first)
 The play/persona steer the agent to gather, in ONE short round, before calling the tool:

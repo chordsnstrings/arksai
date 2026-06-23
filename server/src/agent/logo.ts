@@ -307,7 +307,7 @@ interface RenderJob {
   w: number;
   h: number;
   out: string; // absolute
-  format: 'png' | 'jpeg';
+  format: 'png' | 'jpeg' | 'pdf';
 }
 
 async function renderJobs(jobs: RenderJob[]): Promise<void> {
@@ -322,10 +322,18 @@ async function renderJobs(jobs: RenderJob[]): Promise<void> {
     const ctx = await browser.newContext({ deviceScaleFactor: 2 });
     const page = await ctx.newPage();
     for (const j of jobs) {
-      await page.setViewportSize({ width: j.w, height: j.h });
+      await page.setViewportSize({ width: j.w, height: j.h || 1000 });
       await page.setContent(j.html, { waitUntil: 'load', timeout: 30_000 });
       await page.evaluate('document.fonts && document.fonts.ready').catch(() => {});
       await page.waitForTimeout(150);
+      if (j.format === 'pdf') {
+        // One tall page sized to the content → the brand sheet as a single-page PDF poster
+        // (universally viewable + a real download chip + auto-opens in the canvas).
+        let h = 1400;
+        try { h = Math.ceil(Number(await page.evaluate('document.body.scrollHeight')) || h); } catch {}
+        await page.pdf({ path: j.out, width: `${j.w}px`, height: `${h + 24}px`, printBackground: true, pageRanges: '1' });
+        continue;
+      }
       await page.screenshot(j.format === 'jpeg' ? { path: j.out, type: 'jpeg', quality: 92 } : { path: j.out, type: 'png' });
     }
   } finally {
@@ -499,7 +507,10 @@ export async function composeLogo(input: LogoInput, repoDir: string, signal: Abo
     jobs.push({ html: buildWebsiteHtml(darkSvg, directive, 'dark', usedCss), w: 1600, h: 1000, out: path.join(stage, 'placement-website-dark.png'), format: 'png' });
 
     const brandSheet = buildBrandSheetHtml(directive, lightSvg, darkSvg, fontFaceCss());
-    fs.writeFileSync(path.join(stage, 'brand-sheet.html'), brandSheet);
+    fs.writeFileSync(path.join(stage, 'brand-sheet.html'), brandSheet); // web copy (in the zip)
+    // The brand sheet as a single-page PDF — universally viewable, a real download chip, and it
+    // auto-opens in the canvas (HTML does neither: .html isn't in the deliverable glob).
+    jobs.push({ html: brandSheet, w: 1000, h: 0, out: path.join(stage, 'brand-sheet.pdf'), format: 'pdf' });
 
     await renderJobs(jobs);
 
@@ -510,19 +521,22 @@ export async function composeLogo(input: LogoInput, repoDir: string, signal: Abo
     const zipAbs = path.join(outDir, zipName);
     try { fs.unlinkSync(zipAbs); } catch {}
     const zipped = await zipDir(stage, zipAbs);
-    // a hero PNG + the brand sheet + a quick SVG land in the workspace so they auto-surface
+    // The brand-sheet PDF (auto-opens in the canvas + a download chip), a hero PNG, and a quick
+    // SVG land in the workspace so they auto-surface. (We do NOT drop the .html here — it isn't
+    // in the deliverable glob, so its path would be a dead, unclickable reference in the chat.)
     const heroName = `${slug}-logo.png`;
     fs.copyFileSync(path.join(pngDir, 'logo-light-1024.png'), path.join(outDir, heroName));
-    const sheetName = `${slug}-brand-sheet.html`;
-    fs.writeFileSync(path.join(outDir, sheetName), brandSheet);
+    const sheetName = `${slug}-brand-kit.pdf`;
+    try { fs.copyFileSync(path.join(stage, 'brand-sheet.pdf'), path.join(outDir, sheetName)); } catch {}
     fs.writeFileSync(path.join(outDir, `${slug}-logo.svg`), lightSvg);
+    const sheetMade = fs.existsSync(path.join(outDir, sheetName));
     try { fs.rmSync(stage, { recursive: true, force: true }); } catch {}
 
     const finalZip = zipped ? (fs.existsSync(zipAbs) ? `images/${zipName}` : `images/${zipName.replace(/\.zip$/, '.tar.gz')}`) : undefined;
     return {
       ok: true,
       zipPath: finalZip,
-      brandSheetPath: `images/${sheetName}`,
+      brandSheetPath: sheetMade ? `images/${sheetName}` : undefined,
       heroPath: `images/${heroName}`,
       directive,
       notes: `route=${directive.route}, font=${directive.typography.display}, ${svgs.length} candidate(s)${log.length ? ' · ' + log.join('; ') : ''}`,

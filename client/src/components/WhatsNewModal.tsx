@@ -20,7 +20,7 @@ export function shouldShowWhatsNew(): boolean {
 const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Logo & brand identity, done properly',
-    body: 'Marketing has a new “Logo & brand identity” play. Tell ArksAI your brand, a direction or two, and a colour — it designs a distinctive vector mark (clean, never warped), then hands you a full designer kit: a brand directive with palette and typography, light & dark variants, app-icon and website placements, and a downloadable zip with SVG, PNG and JPEG in several sizes on light & dark backgrounds.',
+    body: 'Marketing has a new “Logo & brand identity” play. Tell ArksAI your brand, a direction or two, and a colour — it designs a distinctive vector mark (clean, never warped), then hands you a full designer kit: a brand-kit PDF (palette, typography, light & dark marks, placements) that opens right in the canvas, plus a downloadable zip with SVG, PNG and JPEG in several sizes on light & dark backgrounds.',
   },
 ];
 
