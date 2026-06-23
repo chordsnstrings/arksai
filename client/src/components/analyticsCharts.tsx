@@ -5,12 +5,14 @@
  * any message or document content.
  */
 import type { ReactNode } from 'react';
+import { formatMoney } from '@shared/currency';
 
 export const DAY_MS = 86_400_000;
 export const fmtDay = (epochDay: number) => new Date(epochDay * DAY_MS).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 export const fmtWeek = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 export const fmtNum = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n ?? 0));
-export const fmtMoney = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : `$${(n ?? 0).toFixed(n < 0.01 ? 4 : 2)}`);
+/** USD amount → the given display currency (defaults to the platform default when omitted). */
+export const fmtMoney = (n: number, currency?: string | null) => formatMoney(n ?? 0, currency);
 export const ago = (ts: number | null) => (ts ? `${Math.max(0, Math.round((Date.now() - ts) / DAY_MS))}d ago` : '—');
 
 /** Compact human duration (e.g. "3d", "5h", "12m", "<1m"). */
@@ -135,7 +137,7 @@ export function LineChart({ data, fmt }: { data: { x: number; y: number }[]; fmt
   );
 }
 
-export function BarList({ items, money }: { items: { key: string; value: number }[]; money?: boolean }) {
+export function BarList({ items, money, currency }: { items: { key: string; value: number }[]; money?: boolean; currency?: string | null }) {
   if (!items?.length) return <div className="an-empty">No data yet.</div>;
   const max = Math.max(1, ...items.map((i) => i.value));
   return (
@@ -144,7 +146,7 @@ export function BarList({ items, money }: { items: { key: string; value: number 
         <div className="an-bar-row" key={it.key} title={it.key}>
           <span className="an-bar-k">{it.key}</span>
           <span className="an-bar-track"><span className="an-bar-fill" style={{ width: `${(it.value / max) * 100}%` }} /></span>
-          <span className="an-bar-v">{money ? fmtMoney(it.value) : fmtNum(it.value)}</span>
+          <span className="an-bar-v">{money ? fmtMoney(it.value, currency) : fmtNum(it.value)}</span>
         </div>
       ))}
     </div>

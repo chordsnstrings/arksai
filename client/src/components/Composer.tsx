@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SessionMeta, SessionMode } from '@shared/types';
 import { computeCost, expandTemplate, FALLBACK_MODEL_IDS } from '@shared/types';
+import { formatMoney } from '@shared/currency';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { clearLoopTimer, startLoopTimer } from '../api/useAutomation';
@@ -89,6 +90,7 @@ export function Composer({
   const setAutomation = useStore((s) => s.setAutomation);
   const revisingPlan = useStore((s) => s.revisingPlan[meta.id] ?? false);
   const setRevisingPlan = useStore((s) => s.setRevisingPlan);
+  const me = useStore((s) => s.me);
 
   const modelIds = models.map((m) => m.id);
   const customMetas: CommandMeta[] = customCommands.map((c) => ({
@@ -211,7 +213,8 @@ export function Composer({
           (live?.running
             ? computeCost(meta.model, { cacheHit: live.cacheHitTokens, cacheMiss: live.cacheMissTokens, completion: live.completionTokens })
             : 0);
-        sys(`Session cost (${meta.model})\ninput:  ${p} tokens\noutput: ${o} tokens\ntotal:  ${p + o} tokens\ncost:   $${c < 0.01 ? c.toFixed(5) : c.toFixed(2)}`);
+        const curCode = me?.orgs.find((x) => x.id === me?.currentOrg)?.currency ?? undefined;
+        sys(`Session cost (${meta.model})\ninput:  ${p} tokens\noutput: ${o} tokens\ntotal:  ${p + o} tokens\ncost:   ${formatMoney(c, curCode)}`);
         break;
       }
       case 'new': {

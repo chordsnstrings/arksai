@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { isFreeEmailDomain } from '../../../shared/types';
+import { CURRENCIES } from '../../../shared/currency';
 import { config } from '../config';
 import { q } from '../db';
 import { SESS_COOKIE } from '../auth';
@@ -19,6 +20,7 @@ import {
   roleInOrg,
   setSessionOrg,
   updateOrgName,
+  updateOrgCurrency,
   deleteOrg,
   DEFAULT_ORG_ID,
 } from '../orgs/store';
@@ -147,6 +149,11 @@ export function registerOrgRoutes(app: FastifyInstance) {
     if (!(await canAdminOrg(req, orgId))) return reply.code(403).send({ error: 'Admins only.' });
     const name = String((req.body as any)?.name ?? '').trim();
     if (name) await updateOrgName(orgId, name.slice(0, 80));
+    const currency = String((req.body as any)?.currency ?? '').trim().toUpperCase();
+    if (currency) {
+      if (!CURRENCIES[currency]) return reply.code(400).send({ error: 'Unsupported currency.' });
+      await updateOrgCurrency(orgId, currency);
+    }
     return { ok: true, org: await getOrg(orgId) };
   });
 

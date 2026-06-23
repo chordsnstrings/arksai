@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { emailDomain, isFreeEmailDomain } from '@shared/types';
+import { CURRENCY_CODES, CURRENCIES, DEFAULT_CURRENCY, currencyOf } from '@shared/currency';
 import { api, type Lead, type Org, type OrgMember } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
@@ -14,6 +15,7 @@ import { ConnectionsPanel } from './ConnectionsPanel';
  */
 export function AdminDialog({ onClose }: { onClose: () => void }) {
   const me = useStore((s) => s.me);
+  const setMe = useStore((s) => s.setMe);
   const isSuper = !!me?.isSuperadmin;
   const [orgs, setOrgs] = useState<Org[]>(me?.orgs ?? []);
   const [orgId, setOrgId] = useState<string>(me?.currentOrg ?? me?.orgs[0]?.id ?? '');
@@ -46,6 +48,18 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
       api.adminListLeads().then(setLeads).catch(() => {});
     }
   }, [isSuper]);
+
+  const changeCurrency = async (currency: string) => {
+    if (!orgId) return;
+    setOrgs((list) => list.map((o) => (o.id === orgId ? { ...o, currency } : o)));
+    try {
+      await api.updateOrg(orgId, { currency });
+      // Refresh `me` so the cost bar + analytics pick up the new currency immediately.
+      api.me().then(setMe).catch(() => {});
+    } catch (e: any) {
+      setError(e?.message || 'Could not update the currency.');
+    }
+  };
 
   const invite = async () => {
     const addr = email.trim();
@@ -187,8 +201,23 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
+        <label>Currency <span style={{ color: 'var(--text-faint)', fontWeight: 400 }}>· how costs are shown for this organization</span></label>
+        <select
+          aria-label="Display currency"
+          value={(orgs.find((o) => o.id === orgId)?.currency || DEFAULT_CURRENCY).toUpperCase()}
+          onChange={(e) => changeCurrency(e.target.value)}
+          disabled={!orgId || busy}
+          style={{ width: '100%' }}
+        >
+          {CURRENCY_CODES.map((code) => (
+            <option key={code} value={code}>
+              {CURRENCIES[code].code} — {CURRENCIES[code].name} ({CURRENCIES[code].symbol})
+            </option>
+          ))}
+        </select>
+
         {tab === 'usage' ? (
-          orgId ? <OrgAnalytics orgId={orgId} /> : <div className="an-empty">Select an organization.</div>
+          orgId ? <OrgAnalytics orgId={orgId} currency={currencyOf(orgs.find((o) => o.id === orgId)?.currency).code} /> : <div className="an-empty">Select an organization.</div>
         ) : tab === 'email' ? (
           orgId ? <EmailSettings orgId={orgId} /> : <div className="an-empty">Select an organization.</div>
         ) : tab === 'connections' ? (

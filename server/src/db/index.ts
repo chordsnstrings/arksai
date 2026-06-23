@@ -204,8 +204,11 @@ async function migrate() {
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
+    currency TEXT,
     created_at ${INT} NOT NULL
   )`);
+  // Backfill the currency column on databases created before it existed.
+  await q(`ALTER TABLE orgs ADD COLUMN currency TEXT`).catch(() => {});
   // Per-org shared profile (brand + "about" + onboarding answers), seeded by the
   // agent-driven onboarding. One row per org; NEVER shared across orgs.
   await q(`CREATE TABLE IF NOT EXISTS org_profiles(

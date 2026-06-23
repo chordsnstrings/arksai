@@ -16,6 +16,7 @@ export interface Org {
   id: string;
   name: string;
   slug: string;
+  currency?: string | null;
   createdAt: number;
 }
 export interface User {
@@ -80,7 +81,7 @@ const slugify = (name: string) =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 40) || 'org';
 
 // ---- orgs ----
-const rowToOrg = (r: any): Org => ({ id: r.id, name: r.name, slug: r.slug, createdAt: Number(r.created_at) });
+const rowToOrg = (r: any): Org => ({ id: r.id, name: r.name, slug: r.slug, currency: r.currency ?? null, createdAt: Number(r.created_at) });
 
 export async function createOrg(name: string): Promise<Org> {
   const id = randomUUID();
@@ -99,6 +100,9 @@ export async function listOrgs(): Promise<Org[]> {
 }
 export async function updateOrgName(id: string, name: string): Promise<void> {
   await q('UPDATE orgs SET name = $1 WHERE id = $2', [name, id]);
+}
+export async function updateOrgCurrency(id: string, currency: string): Promise<void> {
+  await q('UPDATE orgs SET currency = $1 WHERE id = $2', [currency, id]);
 }
 
 /**

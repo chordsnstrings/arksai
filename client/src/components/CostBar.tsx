@@ -1,4 +1,6 @@
 import { computeCost, type SessionMeta } from '@shared/types';
+import { formatMoney } from '@shared/currency';
+import { useStore } from '../state/sessionStore';
 import type { LiveState } from '../state/sessionStore';
 
 function fmtTokens(n: number): string {
@@ -7,14 +9,10 @@ function fmtTokens(n: number): string {
   return String(n);
 }
 
-function fmtCost(n: number): string {
-  if (n === 0) return '$0.00';
-  if (n < 0.01) return `$${n.toFixed(4)}`;
-  return `$${n.toFixed(2)}`;
-}
-
 /** Persistent per-session usage + cost, shown at the very bottom. */
 export function CostBar({ meta, live }: { meta: SessionMeta; live: LiveState }) {
+  const me = useStore((s) => s.me);
+  const currency = me?.orgs.find((o) => o.id === me?.currentOrg)?.currency ?? undefined;
   const running = live.running;
   const prompt = meta.promptTokens + (running ? live.promptTokens : 0);
   const completion = meta.completionTokens + (running ? live.completionTokens : 0);
@@ -45,7 +43,7 @@ export function CostBar({ meta, live }: { meta: SessionMeta; live: LiveState }) 
       </span>
       <span className="spacer" />
       <span className="seg cost" title="Estimated cost for this session">
-        {fmtCost(cost)}
+        {formatMoney(cost, currency)}
         {running && <span className="live-dot" />}
       </span>
     </div>

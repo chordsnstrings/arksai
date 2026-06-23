@@ -172,3 +172,13 @@ test('deleteOrg cascades: removes the org + data + orphan users, keeps shared us
   assert.ok(res.deletedUsers.some((u) => u.email === 'orphan@deleteme.com'));
   await assert.rejects(() => orgs.deleteOrg(orgs.DEFAULT_ORG_ID), /default workspace cannot be deleted/i);
 });
+
+test('org currency: defaults to null and persists when set', async () => {
+  const org = await orgs.createOrg('Currency Co');
+  assert.equal(org.currency ?? null, null, 'new org has no currency (falls back to default at display)');
+  await orgs.updateOrgCurrency(org.id, 'AED');
+  const got = await orgs.getOrg(org.id);
+  assert.equal(got?.currency, 'AED');
+  await orgs.updateOrgCurrency(org.id, 'SAR');
+  assert.equal((await orgs.getOrg(org.id))?.currency, 'SAR');
+});

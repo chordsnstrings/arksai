@@ -10,7 +10,8 @@ import { AlertsCard } from './AnalyticsAlerts';
  * the shared chart primitives + the `/api/orgs/:id/analytics/*` endpoints. METADATA ONLY
  * — never any chat or document content. Rendered inside AdminDialog's "Usage" tab.
  */
-export function OrgAnalytics({ orgId }: { orgId: string }) {
+export function OrgAnalytics({ orgId, currency }: { orgId: string; currency?: string | null }) {
+  const money = (n: number) => fmtMoney(n, currency);
   const [days, setDays] = useState(30);
   const [ov, setOv] = useState<any>(null);
   const [ts, setTs] = useState<any>(null);
@@ -56,7 +57,7 @@ export function OrgAnalytics({ orgId }: { orgId: string }) {
       <div className="an-strip hero">
         <Stat label="Active · 7d" value={fmtNum(o.activeUsers7d ?? 0)} delta={<Delta cur={o.activeUsers7d ?? 0} prev={o.activeUsersPrev7d} />} spark={spark(ts?.activeUsers, 'count')} />
         <Stat label="Sessions · 7d" value={fmtNum(o.sessions7d ?? 0)} delta={<Delta cur={o.sessions7d ?? 0} prev={o.sessionsPrev7d} />} spark={spark(ts?.sessions, 'value')} />
-        <Stat label="Cost · 7d" value={fmtMoney(o.cost7d ?? 0)} delta={<Delta cur={o.cost7d ?? 0} prev={o.costPrev7d} invert />} spark={spark(ts?.cost, 'value')} />
+        <Stat label="Cost · 7d" value={money(o.cost7d ?? 0)} delta={<Delta cur={o.cost7d ?? 0} prev={o.costPrev7d} invert />} spark={spark(ts?.cost, 'value')} />
         <Stat label="Success rate" value={`${o.successRate ?? 100}%`} sub="completed runs" />
         <Stat label="Members" value={fmtNum(o.members ?? members.length)} sub={`${o.liveDeployments ?? 0} live apps`} />
         <Stat label="Time to first build" value={fmtDur(o.timeToFirstBuildMs)} sub="median, from signup" />
@@ -73,7 +74,7 @@ export function OrgAnalytics({ orgId }: { orgId: string }) {
         </section>
         <section className="an-card">
           <h3>Cost / day</h3>
-          <LineChart data={(ts?.cost ?? []).map((d: any) => ({ x: d.day, y: d.value }))} fmt={fmtMoney} />
+          <LineChart data={(ts?.cost ?? []).map((d: any) => ({ x: d.day, y: d.value }))} fmt={money} />
         </section>
       </div>
 
@@ -131,7 +132,7 @@ export function OrgAnalytics({ orgId }: { orgId: string }) {
                 <tr key={r.id} onClick={() => setDrillUser(r.id)} title="View this member's usage">
                   <td>{r.email}</td>
                   <td>{r.sessions}</td>
-                  <td>{fmtMoney(r.cost)}</td>
+                  <td>{money(r.cost)}</td>
                   <td>{ago(r.lastActive)}</td>
                 </tr>
               ))}
@@ -141,7 +142,7 @@ export function OrgAnalytics({ orgId }: { orgId: string }) {
         </section>
       </div>
       <p className="an-note">Aggregate usage metadata only — never your team's chat or document content.</p>
-      {drillUser && <UserDetailPanel userId={drillUser} orgId={orgId} onClose={() => setDrillUser(null)} />}
+      {drillUser && <UserDetailPanel userId={drillUser} orgId={orgId} currency={currency} onClose={() => setDrillUser(null)} />}
     </div>
   );
 }

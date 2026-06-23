@@ -31,6 +31,7 @@ export interface Org {
   id: string;
   name: string;
   slug: string;
+  currency?: string | null;
   createdAt: number;
 }
 export interface OrgMember {
@@ -317,6 +318,8 @@ export const api = {
     }),
   switchOrg: (orgId: string) =>
     request<{ ok: true; currentOrg: string }>(`/api/orgs/${orgId}/switch`, { method: 'POST' }),
+  updateOrg: (orgId: string, patch: { name?: string; currency?: string }) =>
+    request<{ ok: true; org: Org }>(`/api/orgs/${orgId}`, { method: 'PATCH', body: JSON.stringify(patch) }).then((r) => r.org),
   getOrgProfile: (orgId: string) =>
     request<{ profile: OrgProfile }>(`/api/orgs/${orgId}/profile`).then((r) => r.profile),
   patchOrgProfile: (orgId: string, patch: Partial<OrgProfile>) =>
