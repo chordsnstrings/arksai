@@ -2,6 +2,17 @@
 
 > Goal: a dedicated **Android Apps** surface where a non‑technical user describes an app and gets **one finished thing** — a real installable **APK** + its **live backend** + an instant phone preview — built on **our own infra** (ephemeral DO build droplet ≈ $0.10/build). Every app is **minimal, modern, aesthetically pleasing** (a bundled mobile UI kit) and **crash‑safe**. Covers the full range: a small **QR scanner** to a large **Tinder‑style** app.
 
+## ▶ NEXT ARC — dedicated "Android Apps" page + smooth end-to-end flow (operator brief 2026-06-23)
+Both APKs are now proven (QR runs on a phone; Sparkmatch 75MB built). The operator's next directive: make Android a **first-class product surface**, not just agent tools. Scope:
+1. **Dedicated page like Robots** — a sidebar surface (`/android`, `AndroidConsole.tsx`) that owns the whole flow: intake → build → backend → APK → (future) Play Store. Not buried in chat.
+2. **Capability/deployment INTAKE wizard (the key UX)** — before building, ASK the user the things that make the result actually deployable + runnable: *what the app does · how they want it to run (PWA vs native APK vs both) · does it need accounts/data/realtime → a backend? · WHERE the backend deploys (our infra `<slug>.apps.arksai.studio` default, or bring-your-own host) · device features (camera/location/push) · branding*. Deterministic, ~one short round, then autonomous.
+3. **Backend plugged in by default** — when the app needs data/accounts, the flow auto-generates the Fastify+SQLite backend (`add_app_backend`), publishes it, and wires the client to its live URL with JWT — no manual step. "Always tackle general practices" (auth, validation, error envelope, persistence, a real data model) instead of stubs.
+4. **Honest "this takes longer" UX** — native APK builds are minutes (cold ~18min, warm ~3–5min). The page sets the expectation up front, shows real per-stage progress (provision → install → prebuild → Gradle → APK) + an ETA, never looks hung. (Live-progress is now fixed, so the in-app telemetry is truthful.)
+5. **Play Store track (scoped now, built next)** — publish from the page: needs a Google Play Developer account ($25, operator), a managed **release keystore** (generate + store encrypted, reuse per app), an **AAB** build (`bundleRelease`) + upload via the Play Developer API. Plan keystore/AAB/track(internal→production); gate on the account.
+6. **Build-server hygiene (VERIFIED 2026-06-23)** — the app auto-destroys every build droplet itself (watcher `finally` + 10-min orphan reaper); a live DO check showed **0** build/bake droplets, only the prod server. No operator cleanup needed.
+
+**Build order:** (a) `/android` page + intake wizard, (b) backend auto-deploy + deployment questions wired in, (c) longer-build progress UX, (d) Play Store keystore+AAB pipeline (gate on the Google account). iOS/EAS = separate later track.
+
 ## Locked decisions (recommended approach — approved)
 - **Client:** React Native + **Expo** (TypeScript). Web‑target preview in Canvas, future iOS on the same codebase, builds to APK via Gradle.
 - **Backend:** node **Fastify** + DB (SQLite dev → managed Postgres), published on the existing pipeline at `<slug>.apps.arksai.studio`.
