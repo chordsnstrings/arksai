@@ -9,6 +9,7 @@ import { verifyTool } from './verify';
 import { generateMusicTool, extendMusicTool, generateLyricsTool, coverAudioTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
 import { generateCreativeTool } from './creative';
+import { generateLogoTool } from './logo';
 import { renderReportTool } from './report';
 import { renderChartTool } from './chart';
 import { addFontsTool } from './fonts';
@@ -45,6 +46,7 @@ export const ALL_TOOLS: ToolDef[] = [
   seeImageTool,
   generateImageTool,
   generateCreativeTool,
+  generateLogoTool,
   textToSpeechTool,
   generateVideoTool,
   bashTool,
@@ -103,6 +105,7 @@ const REPORT_TOOLS = new Set([
   'see_image',
   'generate_image',
   'generate_creative',
+  'generate_logo',
   'add_fonts',
   'render_report',
   'render_chart',

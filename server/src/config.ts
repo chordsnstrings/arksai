@@ -99,6 +99,8 @@ export const config = {
   minimaxVideoModel: process.env.MINIMAX_VIDEO_MODEL || 'MiniMax-Hailuo-02',
   // Estimated USD cost per call, added to the session cost bar (tune to billing).
   minimaxVisionCost: Number(process.env.MINIMAX_VISION_COST || '0.003') || 0.003,
+  // Estimated cost of one M3 text completion (e.g. a logo SVG / brand-directive turn).
+  minimaxTextCost: Number(process.env.MINIMAX_TEXT_COST || '0.004') || 0.004,
   minimaxImageCost: Number(process.env.MINIMAX_IMAGE_COST || '0.02') || 0.02,
   minimaxTtsCost: Number(process.env.MINIMAX_TTS_COST || '0.03') || 0.03,
   minimaxVideoCost: Number(process.env.MINIMAX_VIDEO_COST || '0.43') || 0.43,

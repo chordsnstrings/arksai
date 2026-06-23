@@ -146,6 +146,62 @@ export async function analyzeImage(
   }
 }
 
+/**
+ * One-shot M3 TEXT completion via the Anthropic-compatible surface (where M3's thinking is
+ * off by default, so it answers fast and decisively — the OpenAI /v1 surface stalls). Used by
+ * the logo generator to write SVG + a brand directive. Bounded by a content-idle deadline so a
+ * buffered/stalled stream degrades to {ok:false} instead of hanging the run.
+ */
+export async function generateTextM3(
+  prompt: string,
+  signal: AbortSignal,
+  opts: { maxTokens?: number; system?: string } = {},
+): Promise<{ ok: boolean; text?: string; error?: string }> {
+  const ac = new AbortController();
+  const onAbort = () => ac.abort();
+  if (signal.aborted) ac.abort();
+  else signal.addEventListener('abort', onAbort, { once: true });
+  let rejectDeadline: ((e: any) => void) | null = null;
+  const deadline = new Promise<never>((_, rej) => {
+    rejectDeadline = rej;
+  });
+  deadline.catch(() => {});
+  const ms = Number(process.env.MINIMAX_LOGO_TIMEOUT_MS || '150000') || 150_000;
+  const timer = setTimeout(() => {
+    ac.abort();
+    rejectDeadline?.(new Error(`M3 text timed out after ${Math.round(ms / 1000)}s`));
+  }, ms);
+  try {
+    const body: any = {
+      model: config.minimaxModel,
+      max_tokens: opts.maxTokens ?? 4000,
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+    };
+    if (opts.system) body.system = opts.system;
+    const res = await Promise.race([
+      fetch(`${anthropicBase()}/v1/messages`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'anthropic-version': '2023-06-01' },
+        signal: ac.signal,
+        body: JSON.stringify(body),
+      }),
+      deadline,
+    ]);
+    const data: any = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${JSON.stringify(data).slice(0, 300)}` };
+    const text = Array.isArray(data?.content)
+      ? data.content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('').trim()
+      : undefined;
+    if (typeof text !== 'string' || !text) return { ok: false, error: `unexpected response: ${JSON.stringify(data).slice(0, 300)}` };
+    return { ok: true, text };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) };
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+
 /** Read a workspace image file as a data URL (for analyzeImage). */
 export function fileToDataUrl(absPath: string): string {
   const ext = path.extname(absPath).slice(1).toLowerCase() || 'png';

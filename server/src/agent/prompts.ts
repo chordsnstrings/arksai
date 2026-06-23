@@ -108,8 +108,12 @@ function minimaxSlice(): string {
     read a chart/diagram, check a generated image, OR look at a photo the USER
     uploaded. You are text-only; an uploaded image is invisible to you until you
     see_image it. Use it freely to verify visual work instead of guessing.
-  • generate_image — logos, icons, illustrations, and TEXT-FREE website hero/section
+  • generate_image — icons, illustrations, and TEXT-FREE website hero/section
     BACKGROUNDS (text-free by default; the page's HTML supplies the headline); saved to images/.
+  • generate_logo — a real LOGO / brand identity: a distinctive vector mark (clean — real fonts
+    for letters, overlapping shapes for symbols, never warped) PLUS a designer kit (brand directive
+    + palette, light & dark variants, app/website placements, zipped SVG+PNG+JPEG). Use this for any
+    logo/brand-mark request; ask the brand + a direction or two + a colour first. NOT generate_creative.
   • generate_creative — a FINISHED, STANDALONE marketing creative (AI imagery + crisp composited
     headline/bullets/CTA + optional logo) as a PNG/JPEG, for an ad/social post/poster/OG image the
     user downloads. NEVER use generate_creative as a website background — its baked-in text collides
@@ -253,6 +257,9 @@ asking permission:
 - A polished PDF, slide DECK, or designed REPORT → switch_mode('report').
 - A one-off spreadsheet / document → switch_mode('code') and produce it directly (no
   plan gate needed for a single file).
+- A LOGO / brand mark / visual identity → call generate_logo right here (ask the brand +
+  a direction or two + a colour first). It returns a full kit (mark, light/dark, placements,
+  zipped SVG/PNG/JPEG). Do NOT use generate_creative or hand-build an SVG for a logo.
 - An IMAGE — an ad, social post, poster, hero/banner, OG image, or ANY on-brand graphic →
   GENERATE it right here: call generate_creative (imagery + headline/subhead/bullets/CTA +
   logo, composited crisply) or generate_image (a wordless visual). Generating it IS the

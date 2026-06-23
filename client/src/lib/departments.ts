@@ -79,6 +79,7 @@ export type IconName =
   | 'clipboard'
   | 'search'
   | 'image'
+  | 'pen-tool'
   | 'landmark'
   | 'scale';
 
@@ -118,6 +119,8 @@ export const ICONS: Record<IconName, string> = {
   search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
   image:
     '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  'pen-tool':
+    '<path d="M15.707 21.293a1 1 0 0 1-1.414 0l-1.586-1.586a1 1 0 0 1 0-1.414l5.586-5.586a1 1 0 0 1 1.414 0l1.586 1.586a1 1 0 0 1 0 1.414z"/><path d="m18 13-1.375-6.874a1 1 0 0 0-.746-.776L3.235 2.028a1 1 0 0 0-1.207 1.207L5.35 15.879a1 1 0 0 0 .776.746L13 18"/><path d="m2.3 2.3 7.286 7.286"/><circle cx="11" cy="11" r="2"/>',
   landmark:
     '<path d="M10 18v-7"/><path d="M11.12 2.198a2 2 0 0 1 1.76.006l7.866 3.847c.476.233.31.949-.22.949H3.474c-.53 0-.695-.716-.22-.949z"/><path d="M14 18v-7"/><path d="M18 18v-7"/><path d="M3 22h18"/><path d="M6 18v-7"/>',
   scale:
@@ -141,6 +144,8 @@ export const DEPARTMENTS: Department[] = [
         prompt: 'Design a small launch kit: a responsive HTML marketing email and three on-brand social post graphics — generate the visuals as real finished images (AI background + crisp headline/CTA text composited on top, not grey placeholders). Ask me for the product, the headline, and a colour, and you can upload your logo to drop onto them; then build them.' },
       { key: 'marketing.creative', title: 'Ad & social creative', blurb: 'AI images with crisp text.', mode: 'code', model: A, category: 'create', icon: 'image',
         prompt: 'Create a set of finished, ready-to-post, high-converting marketing creatives: an AI-generated on-brand background with a scroll-stopping benefit headline, a short check-marked benefit list, and one clear call-to-action laid on as crisp, perfectly-legible text — sized per channel (square 1:1, portrait 4:5, story 9:16, wide 16:9). First ask me to upload my logo and confirm my brand colour (I’ll leave a clean logo spot if I don’t have one), and ask the product/audience/offer; then generate the images and hand me the downloadable files.' },
+      { key: 'marketing.logo', title: 'Logo & brand identity', blurb: 'A full kit, light & dark.', mode: 'chat', model: A, category: 'create', icon: 'pen-tool',
+        prompt: 'Design a logo and brand identity for me. Ask me the brand name and what it does, a direction or two to explore (or propose your own), and a colour preference — then create a distinctive vector mark and hand me a full kit: a brand directive with the palette and typography, light and dark variants, app-icon and website placements, and a downloadable zip with SVG, PNG and JPEG in several sizes.' },
       { key: 'marketing.blog', title: 'Blog post / article', blurb: 'An editable, structured draft.', mode: 'code', model: A, category: 'create', icon: 'file-text',
         prompt: 'Write a structured, on-brand blog post / article (an editable .docx): a strong headline, intro, well-organised sections, and a closing CTA. Tell me the topic and audience; research anything factual and cite it, never invent.' },
       { key: 'marketing.brief', title: 'Campaign brief', blurb: 'A one-page plan, in PDF.', mode: 'report', category: 'create', icon: 'clipboard',

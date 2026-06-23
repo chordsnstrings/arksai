@@ -48,6 +48,7 @@ export const EXPERTISE_KEYS = [
   'marketing.landing',
   'marketing.emailkit',
   'marketing.creative',
+  'marketing.logo',
   'marketing.blog',
   'marketing.brief',
   'marketing.eventsite',
