@@ -74,3 +74,33 @@ test('proxyFetch: forwards non-GET method to the upstream', async () => {
     s.close();
   }
 });
+
+test('proxyFetch: re-serializes a parsed JSON body + forwards content-type & authorization', async () => {
+  let received: { body: string; ctype?: string; auth?: string } = { body: '' };
+  const s = await listen((req, res) => {
+    let buf = '';
+    req.on('data', (c) => (buf += c));
+    req.on('end', () => {
+      received = { body: buf, ctype: req.headers['content-type'], auth: req.headers['authorization'] };
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+  });
+  try {
+    // Fastify hands proxyFetch a PARSED object body + headers — the bug was sending the
+    // object straight to fetch ("[object Object]") and dropping content-type/authorization.
+    const req: any = {
+      method: 'POST',
+      body: { email: 't@t.com', password: 'secret123' },
+      headers: { 'content-type': 'application/json', authorization: 'Bearer abc.def.ghi' },
+    };
+    const r = await proxyFetch(`http://127.0.0.1:${s.port}/`, req);
+    assert.ok(r);
+    // The upstream received VALID JSON (re-serialized), not "[object Object]".
+    assert.deepEqual(JSON.parse(received.body), { email: 't@t.com', password: 'secret123' });
+    assert.match(received.ctype || '', /application\/json/);
+    assert.equal(received.auth, 'Bearer abc.def.ghi'); // JWT forwarded
+  } finally {
+    s.close();
+  }
+});

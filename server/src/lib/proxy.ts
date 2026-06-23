@@ -34,14 +34,36 @@ const FORWARD_HEADERS = ['content-type', 'cache-control'];
 export async function proxyFetch(upstream: string, req: FastifyRequest, timeoutMs = 30_000): Promise<ProxyResult | null> {
   const method = req.method;
   const hasBody = !['GET', 'HEAD'].includes(method);
+
+  // Forward the REQUEST headers the upstream app actually needs — most importantly
+  // content-type (so it parses the body) and authorization (so JWT/Bearer auth works).
+  // Without these, a published API backend rejects every POST ("body must be object")
+  // and every authed call. accept-encoding:identity so we can rewrite HTML responses.
+  const reqHeaders: Record<string, string> = { 'accept-encoding': 'identity' };
+  const inHeaders = req.headers || {};
+  for (const h of ['content-type', 'authorization', 'accept', 'cookie', 'x-requested-with']) {
+    const v = (inHeaders as any)[h];
+    if (typeof v === 'string' && v) reqHeaders[h] = v;
+  }
+
+  // Fastify already PARSED the body (req.body is an object for JSON) — fetch can't take an
+  // object, so re-serialize it. JSON objects → JSON string; strings/Buffers pass through.
+  let reqBody: string | Buffer | undefined;
+  if (hasBody && req.body != null && req.body !== '') {
+    if (typeof req.body === 'string' || Buffer.isBuffer(req.body)) {
+      reqBody = req.body as any;
+    } else {
+      reqBody = JSON.stringify(req.body);
+      if (!reqHeaders['content-type']) reqHeaders['content-type'] = 'application/json';
+    }
+  }
+
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await fetch(upstream, {
         method,
-        // identity so we can rewrite HTML; connection mgmt is undici's, but a retry
-        // sidesteps a stale pooled socket.
-        headers: { 'accept-encoding': 'identity' },
-        body: hasBody ? ((req.body as any) ?? undefined) : undefined,
+        headers: reqHeaders,
+        body: reqBody,
         redirect: 'manual',
         signal: AbortSignal.timeout(timeoutMs),
       });
