@@ -88,6 +88,8 @@ interface StoreState {
   canvasTarget: { port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc' | 'image'; at: number } | null;
   navOpen: boolean;
   automation: Record<string, Automation>;
+  /** Sessions where the user clicked "Revise" on the plan gate — drives the compose affordance. */
+  revisingPlan: Record<string, boolean>;
   /** current user + org context from /api/auth/me (null until fetched / for the legacy operator before fetch) */
   me: {
     user: { id: string; email: string; name: string | null; isSuperadmin: boolean } | null;
@@ -104,6 +106,7 @@ interface StoreState {
   setAuthed(v: boolean): void;
   setMe(me: StoreState['me']): void;
   toggleNav(open?: boolean): void;
+  setRevisingPlan(sessionId: string, v: boolean): void;
   setModels(models: ModelInfo[]): void;
   setCommands(commands: CustomCommand[]): void;
   toggleCanvas(open?: boolean): void;
@@ -134,6 +137,7 @@ export const useStore = create<StoreState>((set, get) => ({
   // Open by default on wide screens, collapsed on phones.
   navOpen: typeof window === 'undefined' ? true : window.innerWidth > 860,
   automation: {},
+  revisingPlan: {},
   me: null,
 
   setProjects: (list) => set({ projects: list }),
@@ -153,6 +157,7 @@ export const useStore = create<StoreState>((set, get) => ({
   setAuthed: (v) => set({ authed: v }),
   setMe: (me) => set({ me }),
   toggleNav: (open) => set((s) => ({ navOpen: open ?? !s.navOpen })),
+  setRevisingPlan: (sessionId, v) => set((s) => ({ revisingPlan: { ...s.revisingPlan, [sessionId]: v } })),
   setModels: (models) => set({ models }),
   setCommands: (commands) => set({ commands }),
   toggleCanvas: (open) => set((s) => ({ canvasOpen: open ?? !s.canvasOpen })),
@@ -212,13 +217,16 @@ export const useStore = create<StoreState>((set, get) => ({
 
   // Optimistic: the instant the user sends, show the run as live so the progress
   // bar + footer appear with zero perceptible gap (the real run_started reconciles).
-  beginRun: (sessionId) =>
+  beginRun: (sessionId) => {
+    // Sending a message (incl. a plan revision) clears the "revising" affordance.
+    set((s) => (s.revisingPlan[sessionId] ? { revisingPlan: { ...s.revisingPlan, [sessionId]: false } } : {}));
     mutateLive(set, sessionId, (live) => ({
       ...live,
       running: true,
       completion: null,
       progress: live.progress ?? { phase: 'understanding', label: 'Getting started…', pct: 4, at: Date.now() },
-    })),
+    }));
+  },
 
   forceStop: (sessionId) =>
     mutateLive(set, sessionId, (live) => ({ ...live, running: false, pendingAssistant: null, pendingTools: null })),

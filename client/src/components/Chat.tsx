@@ -359,6 +359,7 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
 function PlanApprovalCard({ sessionId }: { sessionId: string }) {
   const addUserMessage = useStore((s) => s.addUserMessage);
   const beginRun = useStore((s) => s.beginRun);
+  const setRevisingPlan = useStore((s) => s.setRevisingPlan);
   const [busy, setBusy] = useState(false);
 
   const approve = async () => {
@@ -374,6 +375,13 @@ function PlanApprovalCard({ sessionId }: { sessionId: string }) {
     }
   };
 
+  // Revise → hide this card and drop the user into a clearly-labelled "revising the plan"
+  // compose mode (the Composer shows a banner + revision-specific placeholder).
+  const revise = () => {
+    setRevisingPlan(sessionId, true);
+    window.dispatchEvent(new Event('arksai:revise-plan'));
+  };
+
   return (
     <div className="plan-card reveal">
       <div className="pc-head">
@@ -384,11 +392,7 @@ function PlanApprovalCard({ sessionId }: { sessionId: string }) {
         <button className="pc-approve" onClick={approve} disabled={busy}>
           {busy ? 'Starting…' : '✓ Approve & build'}
         </button>
-        <button
-          className="pc-revise"
-          disabled={busy}
-          onClick={() => window.dispatchEvent(new Event('arksai:focus-composer'))}
-        >
+        <button className="pc-revise" disabled={busy} onClick={revise}>
           Revise
         </button>
       </div>
@@ -399,6 +403,7 @@ function PlanApprovalCard({ sessionId }: { sessionId: string }) {
 export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const awaitingPlan = useStore((s) => s.sessions.find((x) => x.id === sessionId)?.awaitingPlan ?? false);
+  const revisingPlan = useStore((s) => s.revisingPlan[sessionId] ?? false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const itemCount =
     live.items.length +
@@ -433,7 +438,7 @@ export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }
           </div>
         )}
         {live.running && <StatusFooter live={live} sessionId={sessionId} />}
-        {!live.running && awaitingPlan && <PlanApprovalCard sessionId={sessionId} />}
+        {!live.running && awaitingPlan && !revisingPlan && <PlanApprovalCard sessionId={sessionId} />}
         {!live.running && live.completion && (
           <CompletionCard completion={live.completion} sessionId={sessionId} />
         )}

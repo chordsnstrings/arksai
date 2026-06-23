@@ -1285,6 +1285,34 @@ button { font-family: inherit; cursor: pointer; }
 .pc-revise:hover:not(:disabled) { border-color: var(--text-muted); }
 .pc-revise:disabled { opacity: 0.5; }
 
+/* Plan-revision compose mode: a clear banner above the box so the user knows
+   their next message edits the plan (the approval card is hidden meanwhile). */
+.revise-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 7px;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  background: var(--accent-dim);
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.revise-banner .rb-icon { color: var(--accent); font-weight: 700; }
+.revise-banner .rb-text { flex: 1; }
+.revise-banner .rb-cancel {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.revise-banner .rb-cancel:hover { color: var(--text); border-color: var(--text-muted); }
+.composer.revising { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+
 /* ---- Launchpad — department-aware editorial entry ---- */
 /* deep link to a chat we can't open (deleted / no access) — an explicit, calm panel */
 .deeplink-missing { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px 28px; }

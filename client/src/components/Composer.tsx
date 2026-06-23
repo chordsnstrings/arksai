@@ -57,11 +57,21 @@ export function Composer({
         ta.setSelectionRange(ta.value.length, ta.value.length);
       });
     };
+    // "Revise" on the plan gate → focus the box (the banner + placeholder make the mode clear).
+    const onRevise = () =>
+      requestAnimationFrame(() => {
+        const ta = taRef.current;
+        if (!ta) return;
+        ta.scrollIntoView({ block: 'nearest' });
+        ta.focus();
+      });
     window.addEventListener('arksai:focus-composer', onFocus);
     window.addEventListener('arksai:compose', onCompose as EventListener);
+    window.addEventListener('arksai:revise-plan', onRevise);
     return () => {
       window.removeEventListener('arksai:focus-composer', onFocus);
       window.removeEventListener('arksai:compose', onCompose as EventListener);
+      window.removeEventListener('arksai:revise-plan', onRevise);
     };
   }, []);
 
@@ -77,6 +87,8 @@ export function Composer({
   const customCommands = useStore((s) => s.commands);
   const toggleCanvas = useStore((s) => s.toggleCanvas);
   const setAutomation = useStore((s) => s.setAutomation);
+  const revisingPlan = useStore((s) => s.revisingPlan[meta.id] ?? false);
+  const setRevisingPlan = useStore((s) => s.setRevisingPlan);
 
   const modelIds = models.map((m) => m.id);
   const customMetas: CommandMeta[] = customCommands.map((c) => ({
@@ -364,8 +376,17 @@ export function Composer({
           ))}
         </div>
       )}
+      {revisingPlan && (
+        <div className="revise-banner">
+          <span className="rb-icon">✎</span>
+          <span className="rb-text">Revising the plan — describe the changes you want, then send.</span>
+          <button className="rb-cancel" onClick={() => setRevisingPlan(meta.id, false)} type="button">
+            Keep plan
+          </button>
+        </div>
+      )}
       <div
-        className={`composer ${dragOver ? 'drag-over' : ''}`}
+        className={`composer ${dragOver ? 'drag-over' : ''} ${revisingPlan ? 'revising' : ''}`}
         onDragOver={(e) => {
           e.preventDefault();
           setDragOver(true);
@@ -380,7 +401,11 @@ export function Composer({
         <textarea
           ref={taRef}
           rows={1}
-          placeholder="Message ArksAI — ask, build, design, or generate. I'll pick the right tools."
+          placeholder={
+            revisingPlan
+              ? 'What should change about the plan? e.g. “Add a favourites screen and use a dark theme.”'
+              : "Message ArksAI — ask, build, design, or generate. I'll pick the right tools."
+          }
           value={text}
           onChange={(e) => {
             setText(e.target.value);

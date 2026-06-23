@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-23.2';
+export const WHATS_NEW_VERSION = '2026-06-23.3';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -27,8 +27,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'Admins can connect their company’s own Google Play Developer account on the Android page, so apps publish under your name and billing — not a shared account. Direct-to-Play upload is coming next; today native builds still hand back an installable APK.',
   },
   {
-    title: 'Dark mode polish',
-    body: 'Fixed the Android setup screens in dark mode — inputs, option cards and labels now switch to dark correctly.',
+    title: 'Clearer plan revisions',
+    body: 'When ArksAI proposes a build plan, choosing “Revise” now clearly puts you into a “Revising the plan” mode — the approval card steps aside and the message box asks for exactly what to change (with a “Keep plan” escape). Plus a dark-mode fix on the Android setup screens.',
   },
 ];
 
