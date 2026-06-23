@@ -64,6 +64,9 @@ export const config = {
   // Non-thinking DeepSeek alias used for one-shot robot reply drafting (fast, decisive;
   // the thinking v4-pro is slow for short outputs). Env-overridable.
   deepseekReplyModel: process.env.DEEPSEEK_REPLY_MODEL || 'deepseek-chat',
+  // The DeepSeek model the AGENT uses (ArksAI Pro). 'deepseek-chat' = DeepSeek V4 NON-thinking
+  // (decisive tool use); 'deepseek-reasoner' over-reasons on big agent prompts → avoid.
+  deepseekAgentModel: process.env.DEEPSEEK_AGENT_MODEL || 'deepseek-chat',
   githubToken: process.env.GITHUB_TOKEN || '',
   serperApiKey: process.env.SERPER_API_KEY || '',
   braveApiKey: process.env.BRAVE_API_KEY || '',

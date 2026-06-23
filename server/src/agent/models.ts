@@ -5,8 +5,11 @@ import { AUTO_MODEL, FAST_MODEL, MAX_MODEL, pricingFor, type ModelInfo } from '.
  *  uses), then the directly-selectable tiers (Max = M3, Flash = M2.7-highspeed).
  *  Flash/Max only appear when the MiniMax key is configured. */
 function lineup(): string[] {
-  if (!config.minimaxApiKey) return [AUTO_MODEL];
-  return [AUTO_MODEL, MAX_MODEL, FAST_MODEL];
+  const ids = [AUTO_MODEL];
+  if (config.minimaxApiKey) ids.push(MAX_MODEL, FAST_MODEL);
+  // ArksAI Pro = DeepSeek V4 (a different provider) — appears when the DeepSeek key is set.
+  if (config.deepseekApiKey) ids.push('arksai-pro');
+  return ids;
 }
 
 export async function listModels(): Promise<ModelInfo[]> {
@@ -21,5 +24,6 @@ export async function isValidModel(id: string): Promise<boolean> {
   if (!id) return false;
   if (id === AUTO_MODEL) return true;
   if (id === MAX_MODEL || id === FAST_MODEL) return !!config.minimaxApiKey;
+  if (id === 'arksai-pro') return !!config.deepseekApiKey;
   return false;
 }

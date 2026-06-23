@@ -139,6 +139,9 @@ export const KNOWN_MODELS: Record<string, ModelPricing> = {
   // ArksAI Flash = MiniMax M2.7-highspeed (fast/cheap tier). Output priced lower
   // than M3 as an ESTIMATE — validate against MiniMax billing and tune.
   'arksai-flash': { label: 'ArksAI Flash', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.2, outputPerM: 0.6 },
+  // ArksAI Pro = DeepSeek V4 (non-thinking) — a different PROVIDER, the reliable fallback when
+  // MiniMax stalls. Pricing per DeepSeek's published rates (ESTIMATE — tune against billing).
+  'arksai-pro': { label: 'ArksAI Pro', inputCacheHitPerM: 0.07, inputCacheMissPerM: 0.27, outputPerM: 1.1 },
 };
 
 export function pricingFor(model: string): ModelPricing {
