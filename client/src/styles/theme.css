@@ -2105,10 +2105,10 @@ button { font-family: inherit; cursor: pointer; }
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: var(--bg, #faf8f4);
-  color: var(--text, #1a1a1a);
+  background: var(--bg);
+  color: var(--text);
   overflow-y: auto;
-  padding: 0 0 64px;
+  padding: 0 0 72px;
 }
 .android-top {
   display: flex;
@@ -2119,22 +2119,22 @@ button { font-family: inherit; cursor: pointer; }
   padding: 28px 22px 6px;
 }
 .android-back {
-  background: none;
-  border: 1px solid var(--line, #e3ded3);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
   border-radius: 10px;
   width: 38px;
   height: 38px;
   font-size: 18px;
   cursor: pointer;
-  color: var(--muted, #6b675e);
+  color: var(--text-muted);
   flex: 0 0 auto;
 }
-.android-back:hover { background: var(--surface, #fff); }
+.android-back:hover { background: var(--bg-hover); color: var(--text); }
 .android-eyebrow {
   font-family: var(--font-label, 'Space Grotesk', sans-serif);
   font-size: 11px;
   letter-spacing: 0.14em;
-  color: var(--accent, #3a5a78);
+  color: var(--accent);
   font-weight: 600;
 }
 .android-masthead h1 {
@@ -2142,61 +2142,105 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 28px;
   line-height: 1.15;
   margin: 6px 0 8px;
+  color: var(--text);
 }
-.android-masthead p { color: var(--muted, #6b675e); margin: 0; max-width: 56ch; line-height: 1.5; }
+.android-masthead p { color: var(--text-muted); margin: 0; max-width: 56ch; line-height: 1.5; }
 
-.android-wizard { max-width: 600px; margin: 18px auto 0; padding: 0 22px; display: flex; flex-direction: column; gap: 20px; }
+.android-wizard { max-width: 600px; margin: 18px auto 0; padding: 0 22px; display: flex; flex-direction: column; gap: 22px; }
+.aw-step { font-family: var(--font-label, 'Space Grotesk', sans-serif); font-size: 10.5px; letter-spacing: 0.12em; color: var(--text-faint); font-weight: 600; text-transform: uppercase; margin: 2px 0 -4px; }
 .aw-field { display: flex; flex-direction: column; gap: 8px; }
-.aw-label { font-family: var(--font-label, 'Space Grotesk', sans-serif); font-size: 13px; font-weight: 600; }
-.aw-label em { color: var(--muted, #6b675e); font-style: normal; font-weight: 400; }
+.aw-label { font-family: var(--font-label, 'Space Grotesk', sans-serif); font-size: 13px; font-weight: 600; color: var(--text); }
+.aw-label em { color: var(--text-muted); font-style: normal; font-weight: 400; }
+.aw-sub { font-size: 12.5px; color: var(--text-muted); margin: -2px 0 2px; }
 .aw-input {
-  border: 1px solid var(--line, #e3ded3);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--surface, #fff);
+  background: var(--bg-input);
   padding: 12px 14px;
   font: inherit;
-  color: inherit;
+  color: var(--text);
   resize: vertical;
 }
-.aw-input:focus { outline: none; border-color: var(--accent, #3a5a78); }
+.aw-input::placeholder { color: var(--text-faint); }
+.aw-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
 
 .aw-segs { display: flex; gap: 10px; flex-wrap: wrap; }
 .aw-seg {
   flex: 1 1 140px;
   text-align: left;
-  border: 1px solid var(--line, #e3ded3);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--surface, #fff);
+  background: var(--bg-elev);
   padding: 11px 13px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  color: var(--text);
 }
-.aw-seg strong { font-size: 14px; }
-.aw-seg span { font-size: 12px; color: var(--muted, #6b675e); }
-.aw-seg.on { border-color: var(--accent, #3a5a78); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #3a5a78) 18%, transparent); }
+.aw-seg strong { font-size: 14px; color: var(--text); }
+.aw-seg span { font-size: 12px; color: var(--text-muted); }
+.aw-seg:hover { border-color: var(--text-faint); }
+.aw-seg.on { border-color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent); }
+
+/* Two-up grid of selectable cards (app type, UI-kit/style) */
+.aw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
+.aw-card {
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elev);
+  padding: 11px 13px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--text);
+}
+.aw-card:hover { border-color: var(--text-faint); }
+.aw-card strong { font-size: 13.5px; color: var(--text); }
+.aw-card span { font-size: 11.5px; color: var(--text-muted); line-height: 1.35; }
+.aw-card.on { border-color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent); }
+.aw-card .aw-kit-bar { display: flex; gap: 4px; margin-bottom: 3px; }
+.aw-card .aw-kit-bar i { height: 8px; border-radius: 3px; display: block; }
 
 .aw-chips, .aw-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
 .aw-chip {
-  border: 1px solid var(--line, #e3ded3);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--surface, #fff);
+  background: var(--bg-elev);
   padding: 7px 14px;
   font-size: 13px;
   cursor: pointer;
-  color: inherit;
+  color: var(--text);
 }
-.aw-chip.on { border-color: var(--accent, #3a5a78); background: color-mix(in srgb, var(--accent, #3a5a78) 10%, var(--surface, #fff)); }
-.aw-swatch { width: 32px; height: 32px; border-radius: 9px; border: 2px solid transparent; cursor: pointer; }
-.aw-swatch.on { border-color: var(--text, #1a1a1a); box-shadow: 0 0 0 2px var(--bg, #faf8f4); }
+.aw-chip:hover { border-color: var(--text-faint); }
+.aw-chip.on { border-color: var(--accent); background: var(--accent-dim); color: var(--text); }
+.aw-swatch { width: 30px; height: 30px; border-radius: 9px; border: 2px solid transparent; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); }
+.aw-swatch.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--bg); }
 
-.aw-note { font-size: 13px; color: var(--muted, #6b675e); margin: 2px 0 0; }
-.aw-err { color: #c0392b; font-size: 13px; margin: 0; }
+.aw-note { font-size: 13px; color: var(--text-muted); margin: 2px 0 0; }
+.aw-err { color: #e2554b; font-size: 13px; margin: 0; }
+
+/* Optional collapsible: Publish to Google Play (per-org, admin) */
+.aw-play { border: 1px solid var(--border); border-radius: 14px; background: var(--bg-elev); overflow: hidden; }
+.aw-play-head { width: 100%; display: flex; align-items: center; gap: 10px; padding: 13px 15px; background: none; border: none; cursor: pointer; color: var(--text); text-align: left; }
+.aw-play-head .aw-play-title { font-family: var(--font-label, 'Space Grotesk', sans-serif); font-size: 13px; font-weight: 600; }
+.aw-play-head .aw-play-state { margin-left: auto; font-size: 11.5px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.aw-play-head .aw-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); }
+.aw-play-head .aw-dot.ok { background: #2ea043; }
+.aw-play-body { padding: 0 15px 15px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--border-soft); }
+.aw-play-body .aw-steps { margin: 10px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+.aw-play-body .aw-steps li { margin: 2px 0; }
+.aw-mini { font-size: 12px; color: var(--text-muted); margin: 0; }
+.aw-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.aw-mini-btn { border: 1px solid var(--border); background: var(--bg-input); color: var(--text); border-radius: 9px; padding: 8px 13px; font-size: 12.5px; cursor: pointer; }
+.aw-mini-btn:hover { border-color: var(--text-faint); }
+.aw-mini-btn.danger { color: #e2554b; }
 
 .aw-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .aw-build {
-  background: var(--accent, #3a5a78);
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 12px;
@@ -2205,5 +2249,6 @@ button { font-family: inherit; cursor: pointer; }
   font-weight: 600;
   cursor: pointer;
 }
+.aw-build:hover:not(:disabled) { background: var(--accent-strong); }
 .aw-build:disabled { opacity: 0.5; cursor: default; }
-.aw-time { font-size: 12.5px; color: var(--muted, #6b675e); margin: 0; text-align: center; line-height: 1.45; }
+.aw-time { font-size: 12.5px; color: var(--text-muted); margin: 0; text-align: center; line-height: 1.45; }

@@ -27,6 +27,7 @@ import { registerRobotRoutes } from './routes/robots';
 import { registerConnectorRoutes } from './routes/connectors';
 import { registerIncidentRoutes } from './routes/incidents';
 import { registerBuildRoutes } from './routes/builds';
+import { registerPlayRoutes } from './routes/play';
 import { isMarketingRoute, renderMarketingHtml } from './seo/marketingMeta';
 
 export async function buildApp() {
@@ -91,6 +92,7 @@ export async function buildApp() {
   registerConnectorRoutes(app);
   registerIncidentRoutes(app);
   registerBuildRoutes(app);
+  registerPlayRoutes(app);
 
   // Serve the built SPA with an index.html fallback for client-side routes.
   if (fs.existsSync(path.join(config.clientDist, 'index.html'))) {

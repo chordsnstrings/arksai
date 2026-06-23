@@ -195,3 +195,50 @@ test('RED TEAM: the waitlist is operator-only, and an org-less user gets NO sess
   const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'orphan@nowhere.com', password: 'password123' } });
   assert.equal(login.statusCode, 403, 'an org-less user was granted a session');
 });
+
+test('RED TEAM: the per-org Google Play connection is admin-gated + org-isolated', async () => {
+  const sa = JSON.stringify({
+    type: 'service_account',
+    project_id: 'orga-play',
+    private_key: '-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----\n',
+    client_email: 'pub@orga-play.iam.gserviceaccount.com',
+  });
+
+  // Org A admin connects its OWN Play account.
+  const connect = await app.inject({
+    method: 'POST',
+    url: `/api/orgs/${orgAId}/play`,
+    headers: { cookie: cookieA },
+    payload: { serviceAccountJson: sa, developerName: 'Org A Mobile' },
+  });
+  assert.equal(connect.statusCode, 200, 'org A admin could not connect its own Play account');
+  assert.equal(connect.json().account.hasCredentials, true);
+  // The secret JSON is never returned.
+  assert.equal(connect.json().account.saJson, undefined, 'Play response leaked the service-account JSON');
+
+  // Org A admin reads its own connection.
+  assert.equal((await app.inject({ url: `/api/orgs/${orgAId}/play`, headers: { cookie: cookieA } })).statusCode, 200);
+
+  // Org B admin CANNOT read or write org A's Play connection.
+  assert.equal((await app.inject({ url: `/api/orgs/${orgAId}/play`, headers: { cookie: cookieB } })).statusCode, 403, 'org B read org A Play');
+  assert.equal(
+    (await app.inject({ method: 'POST', url: `/api/orgs/${orgAId}/play`, headers: { cookie: cookieB }, payload: { developerName: 'HACK' } })).statusCode,
+    403,
+    'org B wrote org A Play',
+  );
+  assert.equal(
+    (await app.inject({ method: 'DELETE', url: `/api/orgs/${orgAId}/play`, headers: { cookie: cookieB } })).statusCode,
+    403,
+    'org B deleted org A Play',
+  );
+
+  // A plain MEMBER of org A (not admin) is forbidden — connecting a developer identity is admin-only.
+  const member = await orgs.createUser({ email: 'member@orga.com', password: 'password123', name: 'Member' });
+  await orgs.addMembership(member.id, orgAId, 'member');
+  const mLogin = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'member@orga.com', password: 'password123' } });
+  const mCookie = cookieOf(mLogin, 'arksai_sess');
+  assert.equal((await app.inject({ url: `/api/orgs/${orgAId}/play`, headers: { cookie: mCookie } })).statusCode, 403, 'a plain member reached the Play connection');
+
+  // The operator can read any org's connection.
+  assert.equal((await app.inject({ url: `/api/orgs/${orgAId}/play`, headers: { cookie: opCookie } })).statusCode, 200, 'operator blocked from per-org Play');
+});

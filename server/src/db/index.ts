@@ -238,6 +238,27 @@ async function migrate() {
     created_at ${INT} NOT NULL,
     updated_at ${INT} NOT NULL
   )`);
+  // Per-org Google Play Developer connection (one per org). MULTI-TENANT: each company
+  // connects its OWN Play account, so apps publish under that company's developer identity
+  // and billing — NEVER a shared ArksAI account. The service-account JSON (a GCP service
+  // account the org granted the Play Android Publisher role) is stored AES-256-GCM encrypted
+  // at rest (lib/crypto), write-only over the API. DORMANT until connected; the AAB build +
+  // Play upload pipeline reads sa_json through the server only. default_track =
+  // internal|closed|production. verified_at = last successful credential check.
+  await q(`CREATE TABLE IF NOT EXISTS org_play_accounts(
+    org_id TEXT PRIMARY KEY,
+    developer_name TEXT,
+    developer_id TEXT,
+    package_prefix TEXT,
+    default_track TEXT NOT NULL DEFAULT 'internal',
+    sa_email TEXT,
+    sa_project TEXT,
+    sa_json TEXT,
+    enabled ${INT} NOT NULL DEFAULT 1,
+    verified_at ${INT},
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
   // Robots: a standing email agent per org. role = what it does (customer_service /
   // personal_assistant / custom); autonomy = shadow|ask|auto (ask = draft for approval,
   // the safe default); model = which engine drafts (arksai-max=M3 / deepseek-v4 / compare).

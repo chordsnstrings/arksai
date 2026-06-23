@@ -81,6 +81,27 @@ export interface EmailVerifyResult {
   smtp: { ok: boolean; error?: string };
   imap: { ok: boolean; error?: string; skipped?: boolean };
 }
+export type PlayTrack = 'internal' | 'closed' | 'production';
+export interface PlayAccount {
+  orgId: string;
+  developerName: string | null;
+  developerId: string | null;
+  packagePrefix: string | null;
+  defaultTrack: PlayTrack;
+  saEmail: string | null;
+  saProject: string | null;
+  enabled: boolean;
+  verifiedAt: number | null;
+  hasCredentials: boolean;
+  updatedAt: number;
+}
+export interface PlayAccountForm {
+  serviceAccountJson?: string;
+  developerName?: string | null;
+  developerId?: string | null;
+  packagePrefix?: string | null;
+  defaultTrack?: PlayTrack;
+}
 export interface DetectedEmailConfig {
   imapHost: string;
   imapPort: number;
@@ -346,6 +367,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email }),
     }).then((r) => r.config),
+  // ---- per-org Google Play connection (each company connects its OWN developer account) ----
+  getPlayAccount: (orgId: string) =>
+    request<{ account: PlayAccount | null }>(`/api/orgs/${orgId}/play`).then((r) => r.account),
+  savePlayAccount: (orgId: string, body: PlayAccountForm) =>
+    request<{ account: PlayAccount }>(`/api/orgs/${orgId}/play`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.account),
+  validatePlayCredentials: (orgId: string, serviceAccountJson: string) =>
+    request<{ ok: true; clientEmail: string; projectId: string }>(`/api/orgs/${orgId}/play/validate`, {
+      method: 'POST',
+      body: JSON.stringify({ serviceAccountJson }),
+    }),
+  deletePlayAccount: (orgId: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/play`, { method: 'DELETE' }),
   // ---- robots ----
   listRobots: (orgId: string) =>
     request<{ robots: Robot[] }>(`/api/orgs/${orgId}/robots`).then((r) => r.robots),
