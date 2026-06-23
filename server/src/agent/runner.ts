@@ -526,7 +526,31 @@ export class AgentRun {
     // the timeline — drop it from the replay buffer so reconnects don't dupe.
     bus.clear(sessionId);
     await store.updateSession(sessionId, { status: 'running' });
-    bus.sessionChanged((await store.getSession(sessionId))!);
+    const startMeta = (await store.getSession(sessionId))!;
+    bus.sessionChanged(startMeta);
+    // LIVE PROGRESS: tokens + timeline were only persisted at run END, so GET /api/sessions/:id
+    // (and any in-app telemetry that reads it) showed a stale pre-run state mid-build — the bug
+    // that made a thriving run look "stalled". We now flush incrementally at each turn boundary.
+    const baseTok = {
+      t: startMeta.totalTokens ?? 0,
+      p: startMeta.promptTokens ?? 0,
+      c: startMeta.completionTokens ?? 0,
+      cost: startMeta.costUsd ?? 0,
+    };
+    let persisted = 0; // how many liveItems are already written to the DB
+    const flushLive = async () => {
+      try {
+        for (; persisted < liveItems.length; persisted++) await store.appendTimeline(sessionId, liveItems[persisted]);
+        await store.updateSession(sessionId, {
+          totalTokens: baseTok.t + this.usage.totalTokens,
+          promptTokens: baseTok.p + this.usage.promptTokens,
+          completionTokens: baseTok.c + this.usage.completionTokens,
+          costUsd: baseTok.cost + this.accruedCostUsd + this.engineCostUsd,
+        });
+      } catch {
+        /* best-effort live persistence — never block the run */
+      }
+    };
     this.emit({ type: 'run_started', runId: this.runId, mode: this.session.mode });
     this.progressPct = 0;
     this.emitProgress('understanding', 'Understanding your request…');
@@ -633,6 +657,7 @@ export class AgentRun {
           break;
         }
         truncateContext(context);
+        await flushLive(); // persist prior turn's items + running token/cost totals (live progress)
 
         let text = '';
         let reasoning = ''; // M3 reasoning (reasoning_split) — echoed back next turn so multi-turn tool use doesn't 400
@@ -976,7 +1001,7 @@ export class AgentRun {
         bus.clear(sessionId);
         return;
       }
-      for (const item of liveItems) await store.appendTimeline(sessionId, item);
+      for (; persisted < liveItems.length; persisted++) await store.appendTimeline(sessionId, liveItems[persisted]);
       await store.setContext(sessionId, context);
       // Cross-chat recall: distill a compact note into THIS org's shared memory (its
       // own org ONLY) so future sessions in the org can recall what was done here.
@@ -986,10 +1011,12 @@ export class AgentRun {
       await store.updateSession(sessionId, {
         status: finalStatus,
         diffStat: stat,
-        totalTokens: (prev.totalTokens ?? 0) + this.usage.totalTokens,
-        promptTokens: (prev.promptTokens ?? 0) + this.usage.promptTokens,
-        completionTokens: (prev.completionTokens ?? 0) + this.usage.completionTokens,
-        costUsd: (prev.costUsd ?? 0) + this.accruedCostUsd + this.engineCostUsd,
+        // Use the run-start base (not the just-flushed `prev`) so the per-turn live flushes
+        // above aren't double-counted — this.usage.* is the cumulative run total.
+        totalTokens: baseTok.t + this.usage.totalTokens,
+        promptTokens: baseTok.p + this.usage.promptTokens,
+        completionTokens: baseTok.c + this.usage.completionTokens,
+        costUsd: baseTok.cost + this.accruedCostUsd + this.engineCostUsd,
       });
 
       // What the run produced — drives the "it's ready" completion card.
