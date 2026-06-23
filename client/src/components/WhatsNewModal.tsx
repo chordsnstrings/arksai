@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-23.6';
+export const WHATS_NEW_VERSION = '2026-06-23.7';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -18,6 +18,10 @@ export function shouldShowWhatsNew(): boolean {
 
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
+  {
+    title: 'A new look',
+    body: 'ArksAI has a new logo — a compass mark whose needle is the “A”. You’ll see it in the tab, the sidebar, and when you install ArksAI to your home screen.',
+  },
   {
     title: 'Connect your GitHub & push to your own repo',
     body: 'You can now connect your GitHub account and choose which repository ArksAI pushes the generated code to (or create a new repo on the spot). In “New session”, hit Connect GitHub, pick a repo, and your builds push there with your account. Tokens are encrypted and scoped to you. (Your workspace operator enables it by adding a GitHub OAuth app.)',

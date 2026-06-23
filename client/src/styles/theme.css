@@ -135,26 +135,19 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- shared marks ---------- */
 
+/* The ArksAI compass mark (navy tile, gold ring, white "A" needle). Self-contained, so it
+   reads on both light and dark backgrounds — the simplified `fav` for small sizes, the full
+   `icon` for the large empty-state mark. */
 .logo-mark {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
-  background: linear-gradient(140deg, var(--accent), #133f5b 92%);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 4px 14px rgba(31, 95, 139, 0.18);
+  background: url('/fav.svg') center / contain no-repeat;
   position: relative;
   flex-shrink: 0;
 }
-.logo-mark::after {
-  content: '';
-  position: absolute;
-  inset: 6px;
-  border-radius: 3px;
-  background: var(--bg-sidebar);
-}
-.logo-mark.sm { width: 18px; height: 18px; border-radius: 5px; }
-.logo-mark.sm::after { inset: 5px; border-radius: 2px; }
-.empty-state .logo-mark { width: 44px; height: 44px; border-radius: 12px; }
-.empty-state .logo-mark::after { inset: 12px; border-radius: 6px; }
+.logo-mark::after { content: none; }
+.logo-mark.sm { width: 18px; height: 18px; }
+.empty-state .logo-mark { width: 44px; height: 44px; background-image: url('/icon.svg'); }
 
 /* CSS spinner (replaces the old asterisk glyph) */
 .spinner {
