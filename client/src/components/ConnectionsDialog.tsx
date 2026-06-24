@@ -49,6 +49,8 @@ function GithubCard() {
     await api.githubDisconnect().catch(() => {});
     setRepos([]);
     await load();
+    // Keep the under-chat RepoBar in sync without a reload.
+    window.dispatchEvent(new Event('arksai:github-changed'));
     setBusy(false);
   };
   const create = async () => {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-24.5';
+export const WHATS_NEW_VERSION = '2026-06-24.6';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -25,6 +25,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Smarter “time remaining”',
     body: 'The estimate now learns from how long past requests of the same kind actually took — a financial model and a quick tweak get different, increasingly accurate countdowns the more you use ArksAI.',
+  },
+  {
+    title: 'GitHub status shows in chat',
+    body: 'Once your GitHub account is connected, the bar under the chat now reflects it (“GitHub connected as @you — choose a repo”) instead of still asking you to connect, and it updates instantly when you connect or disconnect.',
   },
 ];
 

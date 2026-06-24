@@ -112,7 +112,11 @@ export default function App() {
     const sp = new URLSearchParams(window.location.search);
     const g = sp.get('github');
     if (!g) return;
-    if (g === 'connected') setShowConnections(true);
+    if (g === 'connected') {
+      setShowConnections(true);
+      // Let the under-chat RepoBar (and anything else) refresh its GitHub status now.
+      window.dispatchEvent(new Event('arksai:github-changed'));
+    }
     window.history.replaceState({}, '', window.location.pathname);
   }, [authed]);
 

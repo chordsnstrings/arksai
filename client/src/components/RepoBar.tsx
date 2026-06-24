@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { SessionMeta } from '@shared/types';
+import type { GithubStatus, SessionMeta } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { GithubRepoPicker } from './GithubRepoPicker';
@@ -12,15 +12,26 @@ import { GithubRepoPicker } from './GithubRepoPicker';
  */
 export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean }) {
   const upsertSession = useStore((s) => s.upsertSession);
-  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [status, setStatus] = useState<GithubStatus | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const enabled = status?.enabled ?? null;
+  const connected = !!status?.connected;
 
   useEffect(() => {
     let live = true;
-    api.githubStatus().then((s) => live && setEnabled(s.enabled)).catch(() => live && setEnabled(false));
+    const refresh = () =>
+      api
+        .githubStatus()
+        .then((s) => live && setStatus(s))
+        .catch(() => live && setStatus({ enabled: false, connected: false }));
+    refresh();
+    // Reflect a connect/disconnect that happened elsewhere (the Connections dialog, or the
+    // OAuth return) without needing a reload — both dispatch this event.
+    window.addEventListener('arksai:github-changed', refresh);
     return () => {
       live = false;
+      window.removeEventListener('arksai:github-changed', refresh);
     };
   }, []);
 
@@ -51,12 +62,16 @@ export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean
           <span className="repo-bar-target">
             Pushing to <strong>{meta.repoName ?? meta.repoUrl}</strong>
           </span>
+        ) : connected ? (
+          <span className="repo-bar-target">
+            GitHub connected{status?.login ? <> as <strong>@{status.login}</strong></> : null} — choose a repo to push to
+          </span>
         ) : (
           <span className="repo-bar-target muted">Connect GitHub to push this build to a repo</span>
         )}
         {enabled && (
           <button className="repo-bar-btn" disabled={running || busy} onClick={() => setOpen((v) => !v)} title={running ? 'Finish the current run first' : undefined}>
-            {meta.repoUrl ? 'Change' : 'Connect & choose repo'}
+            {meta.repoUrl ? 'Change' : connected ? 'Choose repo' : 'Connect & choose repo'}
           </button>
         )}
         {meta.repoUrl && enabled && (
