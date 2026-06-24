@@ -2440,8 +2440,11 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- push-target (GitHub) bar under the chat ---------- */
 .repo-bar { padding: 5px 14px; border-top: 1px solid var(--border); background: var(--bg-sidebar); }
-.repo-bar-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-muted); }
+/* Wrap on narrow screens + let the repo-name shrink — otherwise the row (name + status
+   chip + Change + detach) is wider than a phone and forces the whole page to overflow. */
+.repo-bar-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 9px; font-size: 12.5px; color: var(--text-muted); }
 .repo-bar-row > svg { color: var(--text-faint); flex: 0 0 auto; }
+.repo-bar-target { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repo-bar-target strong { color: var(--text); font-weight: 600; }
 .repo-bar-target.muted { color: var(--text-faint); }
 .repo-bar-btn { margin-left: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 3px 10px; font-size: 12px; color: var(--text); cursor: pointer; }
