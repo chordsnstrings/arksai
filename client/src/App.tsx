@@ -18,12 +18,14 @@ import { InviteAccept } from './components/InviteAccept';
 import { OperatorLogin } from './components/OperatorLogin';
 import { OrgOnboarding } from './components/OrgOnboarding';
 import { AdminDialog } from './components/AdminDialog';
+import { ConnectionsDialog } from './components/ConnectionsDialog';
 import { NewSessionDialog } from './components/NewSessionDialog';
 import { ProgressBar } from './components/ProgressBar';
 import { ProjectDialog } from './components/ProjectDialog';
 import { SchedulesDialog } from './components/SchedulesDialog';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
+import { RepoBar } from './components/RepoBar';
 import { LowBalanceBanner } from './components/LowBalanceBanner';
 import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
 import { ConfirmModal } from './components/ConfirmModal';
@@ -58,6 +60,7 @@ export default function App() {
   const [showSchedules, setShowSchedules] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showConnections, setShowConnections] = useState(false);
   // Robots: the separate, full-page agentic surface. Linkable at /robots; opening it pushes the
   // URL so it's a real shareable destination, and back/forward toggle it.
   const [showRobots, setShowRobots] = useState(
@@ -101,6 +104,17 @@ export default function App() {
       if (shouldShowWhatsNew()) setShowWhatsNew(true);
     }
   }, [authed, setModels, setCommands, setProjects, setMe]);
+
+  // Returning from the GitHub OAuth round-trip (callback redirects to /?github=<status>):
+  // reopen Connections so the user sees the result, then strip the query param.
+  useEffect(() => {
+    if (authed !== true) return;
+    const sp = new URLSearchParams(window.location.search);
+    const g = sp.get('github');
+    if (!g) return;
+    if (g === 'connected') setShowConnections(true);
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [authed]);
 
   // Deep-linkable chats: keep the URL in sync with the active session as /s/<id>, so every
   // chat has a real shareable/bookmarkable link (and reload/back-forward reopen it).
@@ -251,6 +265,7 @@ export default function App() {
         }}
         onAdmin={() => setShowAdmin(true)}
         onAnalytics={() => setShowAnalytics(true)}
+        onConnections={() => setShowConnections(true)}
       />
       <div className="nav-backdrop" onClick={() => toggleNav(false)} />
       <div className="main">
@@ -263,6 +278,7 @@ export default function App() {
             <LowBalanceBanner />
             <ProgressBar live={liveOrEmpty} />
             <Chat live={liveOrEmpty} sessionId={activeMeta.id} />
+            <RepoBar meta={activeMeta} running={liveOrEmpty.running} />
             <Composer
               meta={activeMeta}
               running={liveOrEmpty.running}
@@ -301,6 +317,7 @@ export default function App() {
       {showMemory && <MemoryDialog meta={activeMeta} onClose={() => setShowMemory(false)} />}
       {showSchedules && <SchedulesDialog onClose={() => setShowSchedules(false)} />}
       {showAdmin && <AdminDialog onClose={() => setShowAdmin(false)} />}
+      {showConnections && <ConnectionsDialog onClose={() => setShowConnections(false)} />}
       {showAnalytics && <AnalyticsConsole onClose={() => setShowAnalytics(false)} />}
       {showAndroid && (
         <AndroidConsole

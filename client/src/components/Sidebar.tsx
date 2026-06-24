@@ -42,6 +42,7 @@ export function Sidebar({
   onAndroid,
   onAdmin,
   onAnalytics,
+  onConnections,
 }: {
   onNewSession: (projectId?: string) => void;
   onNewProject: () => void;
@@ -51,6 +52,7 @@ export function Sidebar({
   onAndroid: () => void;
   onAdmin: () => void;
   onAnalytics: () => void;
+  onConnections: () => void;
 }) {
   const sessions = useStore((s) => s.sessions);
   const projects = useStore((s) => s.projects);
@@ -176,6 +178,9 @@ export function Sidebar({
       </button>
       <button className="nav-btn subtle" onClick={onAndroid}>
         <span className="plus">📱</span> Android Apps
+      </button>
+      <button className="nav-btn subtle" onClick={onConnections}>
+        <span className="plus">🔌</span> Connections
       </button>
       {(me?.isSuperadmin || me?.role === 'admin') && (
         <button className="nav-btn subtle" onClick={onAdmin}>

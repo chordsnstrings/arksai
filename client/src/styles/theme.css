@@ -2286,3 +2286,36 @@ button { font-family: inherit; cursor: pointer; }
 .aw-build:hover:not(:disabled) { background: var(--accent-strong); }
 .aw-build:disabled { opacity: 0.5; cursor: default; }
 .aw-time { font-size: 12.5px; color: var(--text-muted); margin: 0; text-align: center; line-height: 1.45; }
+
+/* ---------- push-target (GitHub) bar under the chat ---------- */
+.repo-bar { padding: 6px 16px; border-top: 1px solid var(--border); background: var(--bg-sidebar); }
+.repo-bar-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-muted); }
+.repo-bar-row > svg { color: var(--text-faint); flex: 0 0 auto; }
+.repo-bar-target strong { color: var(--text); font-weight: 600; }
+.repo-bar-target.muted { color: var(--text-faint); }
+.repo-bar-btn { margin-left: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 3px 10px; font-size: 12px; color: var(--text); cursor: pointer; }
+.repo-bar-btn:hover:not(:disabled) { border-color: var(--text-faint); }
+.repo-bar-btn:disabled { opacity: .5; cursor: default; }
+.repo-bar-link { background: none; border: none; color: var(--text-faint); font-size: 12px; cursor: pointer; padding: 3px 4px; }
+.repo-bar-link:hover:not(:disabled) { color: var(--text); }
+.repo-bar-picker { margin-top: 8px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+.repo-bar-picker label { font-size: 12px; }
+
+/* ---------- Connections hub ---------- */
+.conn-dialog { max-width: 620px; }
+.conn-title-row { display: flex; align-items: center; justify-content: space-between; }
+.conn-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; background: var(--bg-sidebar); }
+.conn-head { display: flex; align-items: center; gap: 9px; font-size: 15px; }
+.conn-head strong { font-weight: 650; }
+.conn-badge { font-size: 11px; color: var(--text-faint); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+.conn-badge.ok { color: #fff; background: var(--accent); border-color: transparent; }
+.conn-note { color: var(--text-faint); font-size: 12.5px; margin: 8px 0; line-height: 1.5; }
+.conn-create { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.conn-create input[type=text], .conn-create input:not([type]) { flex: 1; min-width: 140px; }
+.conn-priv { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+.conn-ok { color: var(--green); font-size: 12.5px; margin-top: 6px; }
+.conn-err { color: var(--red); font-size: 12.5px; margin-top: 6px; }
+.conn-repos { margin-top: 12px; }
+.conn-sub { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
+.conn-repo { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-top: 1px solid var(--border); }
+.conn-repo-meta { color: var(--text-faint); font-size: 12px; }
