@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SessionMode } from '@shared/types';
 import { AUTO_MODEL } from '@shared/types';
 import { api } from '../api/client';
@@ -13,6 +13,7 @@ import {
   type IconName,
 } from '../lib/departments';
 import { applyDeptTheme } from '../lib/theme';
+import { GithubRepoPicker, type RepoSelection } from './GithubRepoPicker';
 
 const LS_KEY = 'arksai.department';
 
@@ -62,6 +63,11 @@ export function StartZone({
   const [files, setFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [startingKey, setStartingKey] = useState<string | null>(null);
+  // Connector at the START: pick the GitHub repo this build should push to (or future
+  // connectors) before the session even exists, so work goes to the right place from the get-go.
+  const [ghEnabled, setGhEnabled] = useState(false);
+  const [repo, setRepo] = useState<RepoSelection | null>(null);
+  const [showRepo, setShowRepo] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const upsertSession = useStore((s) => s.upsertSession);
@@ -71,6 +77,31 @@ export function StartZone({
   const forceStop = useStore((s) => s.forceStop);
   const addLocalSystem = useStore((s) => s.addLocalSystem);
   const dept = departmentById(deptId);
+
+  // Is the GitHub connector available on this workspace? (gates the repo selector)
+  useEffect(() => {
+    let live = true;
+    api.githubStatus().then((s) => live && setGhEnabled(s.enabled)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  // Attach the chosen repo as the new session's push target (mirrors the under-chat RepoBar —
+  // no re-clone; the build pushes from its workspace to the chosen remote).
+  const applyRepo = async (sessionId: string) => {
+    if (!repo) return;
+    try {
+      const m = await api.patchSession(sessionId, {
+        repoUrl: repo.repoUrl,
+        branch: repo.branch,
+        githubConnectionId: repo.connectionId,
+      });
+      upsertSession(m);
+    } catch {
+      /* non-fatal — the build still runs, just without the push target */
+    }
+  };
 
   const addFiles = (list: FileList | File[]) => {
     const incoming = [...list];
@@ -105,6 +136,7 @@ export function StartZone({
     let session;
     try {
       session = await api.createSession({ mode, model, task });
+      await applyRepo(session.id);
       if (attach && attach.length) await api.uploadSessionFiles(session.id, attach);
     } catch (e: any) {
       setError(e?.message ?? 'Hit a snag starting that — give it another tap.');
@@ -132,6 +164,7 @@ export function StartZone({
     setError('');
     try {
       const session = await api.createSession({ mode: 'chat', model: AUTO_MODEL, task: key });
+      await applyRepo(session.id);
       upsertSession(session);
       setActive(session.id);
     } catch (e: any) {
@@ -261,6 +294,29 @@ export function StartZone({
             >
               + Attach
             </button>
+            {/* Connector picker — choose where the work goes BEFORE it starts. GitHub repo today;
+                "More connectors" opens the hub for email / ad platforms. */}
+            <button
+              className={`lp-attach${repo ? ' on' : ''}`}
+              title={ghEnabled ? 'Choose a GitHub repo to push this build to' : 'Connect your tools (GitHub, email, ad platforms)'}
+              onClick={() => (ghEnabled ? setShowRepo((v) => !v) : onConnections())}
+              disabled={busy}
+            >
+              {repo ? `⎇ ${repo.repoUrl.replace(/^https?:\/\/github\.com\//, '')}` : '⎇ Connect'}
+              {repo && (
+                <span
+                  className="att-x"
+                  role="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRepo(null);
+                  }}
+                  aria-label="Clear repo"
+                >
+                  ✕
+                </span>
+              )}
+            </button>
             <span className="spacer" style={{ flex: 1 }} />
             <button
               className="lp-go"
@@ -270,6 +326,19 @@ export function StartZone({
               {busy ? 'Starting…' : 'Make it →'}
             </button>
           </div>
+          {showRepo && ghEnabled && (
+            <div className="sz-repo-pop">
+              <GithubRepoPicker
+                onSelect={(sel) => {
+                  if (sel) setRepo(sel);
+                  setShowRepo(false);
+                }}
+              />
+              <button className="sz-morecon" onClick={onConnections}>
+                More connectors (email, ad platforms) →
+              </button>
+            </div>
+          )}
         </div>
         {error && <div className="lp-error">{error}</div>}
       </div>

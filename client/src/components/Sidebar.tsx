@@ -194,56 +194,21 @@ export function Sidebar({
         <span className="plus">+</span> New session
       </button>
 
-      {/* Make — start & organize work */}
-      <button className="nav-btn subtle" onClick={() => { onHome(); if (window.innerWidth <= 860) toggleNav(false); }}>
-        <span className="plus">⌂</span> Home
-      </button>
-      <button className="nav-btn subtle" onClick={() => { onActivity(); if (window.innerWidth <= 860) toggleNav(false); }}>
-        <span className="plus">🔔</span> Activity <NavBadge n={actBadge} />
-      </button>
-      <button className="nav-btn subtle" onClick={onNewProject}>
-        <span className="plus">▤</span> New project
-      </button>
-
-      <div className="nav-group">Automations</div>
-      <button className="nav-btn subtle" onClick={onRobots}>
-        <span className="plus">🤖</span> Robots <NavBadge n={draftCount} />
-      </button>
-      <button className="nav-btn subtle" onClick={onSchedules}>
-        <span className="plus">⏱</span> Scheduled
-      </button>
-
-      <div className="nav-group">Live</div>
-      <button className="nav-btn subtle" onClick={onDeployments}>
-        <span className="plus">🌐</span> Live apps <NavBadge n={failedCount} tone="amber" />
-      </button>
-      <button className="nav-btn subtle" onClick={onAndroid}>
-        <span className="plus">📱</span> Android Apps
-      </button>
-
-      <div className="nav-group">Connect</div>
-      <button className="nav-btn subtle" onClick={onConnections}>
-        <span className="plus">🔌</span> Connections
-      </button>
-
-      {(isAdmin || me?.isSuperadmin) && <div className="nav-group">Settings</div>}
-      {isAdmin && (
-        <button className="nav-btn subtle" onClick={onAdmin}>
-          <span className="plus">▦</span> {me?.isSuperadmin ? 'Admin' : 'Members'} {lowBalance && <NavBadge dot tone="amber" />}
-        </button>
-      )}
-      {me?.isSuperadmin && (
-        <button className="nav-btn subtle" onClick={onAnalytics}>
-          <span className="plus">📊</span> Analytics
-        </button>
-      )}
-
+      {/* Recent chats are the primary, most-used content — keep them HIGH, right under the
+          new-session button + search, taking the main scroll space. Secondary tools live in
+          the compact strip pinned at the bottom. */}
       <input
         className="search-box"
         placeholder="Search chats…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
+      <div className="recents-header">
+        <span>Recent</span>
+        <button className="recents-home" onClick={() => { onHome(); if (window.innerWidth <= 860) toggleNav(false); }} title="Workspace home">
+          ⌂ Home
+        </button>
+      </div>
 
       <div className="session-list">
         {/* Projects */}
@@ -287,16 +252,42 @@ export function Sidebar({
           );
         })}
 
-        {/* Ungrouped */}
-        <div className="recents-header">
-          <span>{projects.length ? 'Recents' : 'Recents'}</span>
-        </div>
+        {/* Ungrouped — only label them when projects are above (else the top "Recent" header covers it). */}
+        {projects.length > 0 && (
+          <div className="recents-header">
+            <span>Recent</span>
+          </div>
+        )}
         {ungrouped.map(sessionRow)}
         {ungrouped.length === 0 && projects.length === 0 && (
           <div style={{ color: 'var(--text-faint)', fontSize: 13, padding: '6px 10px' }}>
             {sessions.length === 0 ? 'No sessions yet' : 'No matches'}
           </div>
         )}
+      </div>
+
+      {/* Compact tools strip — everything beyond chats, one tap away, pinned at the bottom so
+          it never pushes the recent chats down. Labeled (discoverable) + live badges. */}
+      <div className="sb-tools">
+        <button className="sb-tool" onClick={() => { onActivity(); if (window.innerWidth <= 860) toggleNav(false); }}>
+          🔔 Activity {actBadge > 0 && <NavBadge n={actBadge} />}
+        </button>
+        <button className="sb-tool" onClick={onRobots}>
+          🤖 Robots {draftCount > 0 && <NavBadge n={draftCount} />}
+        </button>
+        <button className="sb-tool" onClick={onSchedules}>⏱ Scheduled</button>
+        <button className="sb-tool" onClick={onDeployments}>
+          🌐 Live apps {failedCount > 0 && <NavBadge n={failedCount} tone="amber" />}
+        </button>
+        <button className="sb-tool" onClick={onAndroid}>📱 Android</button>
+        <button className="sb-tool" onClick={onConnections}>🔌 Connect</button>
+        <button className="sb-tool" onClick={onNewProject}>▤ New project</button>
+        {isAdmin && (
+          <button className="sb-tool" onClick={onAdmin}>
+            ▦ {me?.isSuperadmin ? 'Admin' : 'Members'} {lowBalance && <NavBadge dot tone="amber" />}
+          </button>
+        )}
+        {me?.isSuperadmin && <button className="sb-tool" onClick={onAnalytics}>📊 Analytics</button>}
       </div>
 
       <div className="sidebar-footer">

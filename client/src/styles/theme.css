@@ -283,8 +283,31 @@ button { font-family: inherit; cursor: pointer; }
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: 20px 10px 8px;
+  padding: 12px 10px 8px;
 }
+.recents-home {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-family: var(--label); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: none; padding: 2px 4px; border-radius: 6px;
+}
+.recents-home:hover { color: var(--accent); background: var(--bg-hover); }
+
+/* compact bottom tools strip — secondary nav, pinned below the recents list */
+.sb-tools {
+  flex-shrink: 0;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  padding: 8px 0 6px; margin-top: 6px; border-top: 1px solid var(--border);
+}
+.sb-tool {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  color: var(--text-muted); font-size: 12px; font-weight: 500;
+  padding: 7px 9px; text-align: left; cursor: pointer; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.sb-tool:hover { background: var(--bg-elev); border-color: var(--border); color: var(--text); }
+.sb-tool .nav-badge { margin-left: auto; }
 
 .search-box {
   margin: 12px 6px 8px;
@@ -1432,9 +1455,18 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.5; min-height: 46px;
 }
 .lp-box-bar { display: flex; align-items: center; gap: 10px; }
-.lp-attach { background: none; border: 1px dashed var(--border); color: var(--text-muted); border-radius: 9px; padding: 7px 12px; font-size: 13px; font-family: var(--label); white-space: nowrap; }
+.lp-attach { display: inline-flex; align-items: center; gap: 6px; background: none; border: 1px dashed var(--border); color: var(--text-muted); border-radius: 9px; padding: 7px 12px; font-size: 13px; font-family: var(--label); white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .lp-attach:hover:not(:disabled) { color: var(--text); border-color: var(--text-muted); }
 .lp-attach:disabled { opacity: 0.5; }
+.lp-attach.on { border-style: solid; border-color: var(--dept, var(--accent)); color: var(--text); }
+.lp-attach .att-x { color: var(--text-faint); cursor: pointer; line-height: 1; }
+.lp-attach .att-x:hover { color: var(--red); }
+/* connector popover under the describe box */
+.sz-repo-pop { margin-top: 10px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.sz-repo-pop label { font-family: var(--label); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.sz-repo-pop input, .sz-repo-pop select { width: 100%; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; color: var(--text); font-size: 13px; margin-top: 4px; }
+.sz-morecon { align-self: flex-start; background: none; border: none; color: var(--accent); font-family: var(--label); font-size: 12px; cursor: pointer; padding: 2px 0; }
+.sz-morecon:hover { text-decoration: underline; }
 .lp-attached { display: flex; flex-wrap: wrap; gap: 6px; }
 .lp-attached .att-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px 4px 11px; font-size: 12px; color: var(--text); }
 .att-x { background: none; border: none; color: var(--text-faint); font-size: 11px; cursor: pointer; padding: 0 1px; line-height: 1; }
