@@ -741,7 +741,10 @@ SHIP IT: the user wants a finished, usable result — not just code. Once a web 
 is built and verified, call publish_app to put it live at a durable URL the user can
 open and use. Publishing BUILDS your app for you — static sites/SPAs AND node/python
 servers — and serves it; it runs your "npm run build", so Next.js/Vite/Astro/SvelteKit
-and plain static ALL work. It survives restarts. Give them the link. Don't make a
+and plain static ALL work. It survives restarts. Give them the EXACT url that publish_app
+returns, copied verbatim (it looks like https://arksai.studio/apps/<slug>/) — never shorten
+it, drop the "/apps/…/" path, or invent a cleaner subdomain like "<name>.arksai.studio"
+(that host does not exist and will not load). Don't make a
 non-technical user run anything.
 PUBLISHING WORKS — don't invent infrastructure failures. There is NO separate "CDN" or
 third-party host; ArksAI serves the app itself. NEVER tell the user that publishing / the
