@@ -1,27 +1,29 @@
 import { config } from '../config';
+import { githubCreds } from './runtime';
 
 /**
  * GitHub OAuth App integration: connect a user's GitHub account and push generated code to a
  * repo they choose. OAuth App (not a GitHub App) → one `repo` grant covering the user's repos
  * (documented trade-off; a GitHub App would scope to chosen repos). Pure URL/parse helpers are
  * exported for tests; the async fns do the network I/O. Tokens are encrypted at rest by the
- * caller (github/store) and never exposed to the model/UI.
+ * caller (github/store) and never exposed to the model/UI. Credentials resolve from env or
+ * app_settings (github/runtime), so the feature can be turned on without editing .env.
  */
 
 export const GITHUB_SCOPES = 'repo read:user';
 
 export function githubConfigured(): boolean {
-  return !!config.githubOauthClientId && !!config.githubOauthClientSecret && !!config.connectorEncKey;
+  return !!githubCreds();
 }
 
 export function callbackUrl(): string {
   return `${config.publicBaseUrl}/api/github/callback`;
 }
 
-/** The consent URL to redirect the user to. Pure. */
+/** The consent URL to redirect the user to. */
 export function buildAuthorizeUrl(state: string): string {
   const p = new URLSearchParams({
-    client_id: config.githubOauthClientId,
+    client_id: githubCreds()?.clientId ?? '',
     redirect_uri: callbackUrl(),
     scope: GITHUB_SCOPES,
     state,
@@ -75,13 +77,15 @@ const ua = { 'User-Agent': 'ArksAI', Accept: 'application/vnd.github+json' };
 
 /** Exchange the OAuth `code` for an access token. */
 export async function exchangeCode(code: string, signal?: AbortSignal): Promise<{ accessToken: string; scopes: string | null }> {
+  const creds = githubCreds();
+  if (!creds) throw new Error('GitHub OAuth is not configured');
   const res = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     signal,
     body: JSON.stringify({
-      client_id: config.githubOauthClientId,
-      client_secret: config.githubOauthClientSecret,
+      client_id: creds.clientId,
+      client_secret: creds.clientSecret,
       code,
       redirect_uri: callbackUrl(),
     }),

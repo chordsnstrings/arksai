@@ -9,6 +9,7 @@ import { startAnalyticsDigest } from './analytics/digest';
 import { startRobotPoller } from './robots/poller';
 import { startBuildReaper } from './build/androidBuild';
 import { loadBuildRuntime } from './build/runtime';
+import { loadGithubRuntime } from './github/runtime';
 import * as manager from './sessions/manager';
 
 async function main() {
@@ -30,6 +31,7 @@ async function main() {
   startDeploymentHealthMonitor(); // restart any published app whose process died (self-healing)
   startAnalyticsDigest(); // periodic platform metric snapshots (+ optional webhook)
   await loadBuildRuntime(); // load DO token + snapshot id from app_settings (if not in env)
+  await loadGithubRuntime(); // load GitHub OAuth-app creds from app_settings (if not in env)
   startBuildReaper(); // destroy any stray Android build droplet (no-op unless configured)
   // Auto-resume runs a restart/deploy interrupted (recency- + crash-loop-guarded in the store),
   // so a deploy never loses an in-flight build. Capped so a bad batch can't stampede.

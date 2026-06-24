@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { scopeOf } from '../auth';
 import { signState, verifyState } from '../connectors/crypto';
 import {
-  buildAuthorizeUrl, createRepo, exchangeCode, getIdentity, githubConfigured, listRepos,
+  buildAuthorizeUrl, callbackUrl, createRepo, exchangeCode, getIdentity, githubConfigured, listRepos,
 } from '../github/oauth';
 import {
   deleteConnectionForUser, getConnectionForUser, saveConnection, toPublic,
@@ -15,6 +15,19 @@ import {
  * The token is never returned by any endpoint.
  */
 export function registerGithubRoutes(app: FastifyInstance) {
+  // Operator configures the OAuth app (client id + secret) WITHOUT editing .env — stored in
+  // app_settings (secret encrypted). Flips the feature on for everyone immediately.
+  app.post('/api/admin/github/configure', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Super-admin only.' });
+    const b = (req.body ?? {}) as { clientId?: string; clientSecret?: string };
+    const clientId = String(b.clientId ?? '').trim();
+    const clientSecret = String(b.clientSecret ?? '').trim();
+    if (!clientId || !clientSecret) return reply.code(400).send({ error: 'clientId and clientSecret are required.' });
+    const { setGithubCreds } = await import('../github/runtime');
+    await setGithubCreds(clientId, clientSecret);
+    return { ok: true, enabled: githubConfigured(), callbackUrl: callbackUrl() };
+  });
+
   // Is the feature configured, and is the caller connected? (token-free)
   app.get('/api/github/status', async (req) => {
     const s = scopeOf(req);

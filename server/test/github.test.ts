@@ -8,6 +8,7 @@ import path from 'node:path';
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-github-'));
 delete process.env.DATABASE_URL;
 process.env.CONNECTOR_ENC_KEY = 'github-test-key-rotate-me';
+process.env.ENCRYPTION_KEY = 'github-test-encryption-key'; // token store now uses lib/crypto
 process.env.GITHUB_OAUTH_CLIENT_ID = 'Iv1.testclientid';
 process.env.GITHUB_OAUTH_CLIENT_SECRET = 'shhh-secret-value';
 process.env.PUBLIC_BASE_URL = 'https://arksai.studio';

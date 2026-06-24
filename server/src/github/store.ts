@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { q, qOne } from '../db';
-import { encryptSecret, decryptSecret } from '../connectors/crypto';
+import { encryptSecret, decryptSecret } from '../lib/crypto';
 
 /**
  * Per-user GitHub connection store. The access token is AES-256-GCM encrypted at rest (reusing
