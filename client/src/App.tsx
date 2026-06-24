@@ -12,7 +12,9 @@ import { Landing } from './components/Landing';
 import { VerticalPage, verticalSlugs } from './components/VerticalPage';
 import { FeaturesPage } from './components/FeaturesPage';
 import { ResearchHub, ResearchArticle } from './components/Research';
-import { Launchpad } from './components/Launchpad';
+import { Home } from './components/Home';
+import { Activity } from './components/Activity';
+import { DeploymentsDialog } from './components/DeploymentsDialog';
 import { LoginScreen } from './components/LoginScreen';
 import { InviteAccept } from './components/InviteAccept';
 import { OperatorLogin } from './components/OperatorLogin';
@@ -43,6 +45,7 @@ export default function App() {
   const setProjects = useStore((s) => s.setProjects);
   const setModels = useStore((s) => s.setModels);
   const setCommands = useStore((s) => s.setCommands);
+  const setHome = useStore((s) => s.setHome);
   const setMe = useStore((s) => s.setMe);
   const me = useStore((s) => s.me);
   const sessions = useStore((s) => s.sessions);
@@ -70,6 +73,12 @@ export default function App() {
   const [showAndroid, setShowAndroid] = useState(
     typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/android',
   );
+  // Activity: the unified "needs you / delivered" feed at /activity (mirrors Robots).
+  const [showActivity, setShowActivity] = useState(
+    typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/activity',
+  );
+  // Global "Live apps" view (all the org's deployments) — a dialog, not a URL surface.
+  const [showDeployments, setShowDeployments] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   // A deep link (/s/<id>) that resolved to a session we can't open (deleted / no
   // access). We keep the URL and show an explicit panel instead of silently
@@ -104,6 +113,17 @@ export default function App() {
       if (shouldShowWhatsNew()) setShowWhatsNew(true);
     }
   }, [authed, setModels, setCommands, setProjects, setMe]);
+
+  // Keep the Home/Workspace + sidebar-badge snapshot warm (running apps, schedules, robots,
+  // pending drafts). One light poll so background work surfaces without a reload; cheap,
+  // org-scoped read. Home + Activity also refresh on open.
+  useEffect(() => {
+    if (authed !== true) return;
+    const tick = () => api.getHome().then(setHome).catch(() => {});
+    tick();
+    const t = setInterval(tick, 45_000);
+    return () => clearInterval(t);
+  }, [authed, setHome]);
 
   // Returning from the GitHub OAuth round-trip (callback redirects to /?github=<status>):
   // reopen Connections so the user sees the result, then strip the query param.
@@ -157,6 +177,7 @@ export default function App() {
     const onPop = () => {
       setShowRobots(window.location.pathname.replace(/\/$/, '') === '/robots');
       setShowAndroid(window.location.pathname.replace(/\/$/, '') === '/android');
+      setShowActivity(window.location.pathname.replace(/\/$/, '') === '/activity');
       const mm = window.location.pathname.match(/^\/s\/([^/]+)$/);
       if (mm) resolve(mm[1]);
       else {
@@ -170,7 +191,7 @@ export default function App() {
 
   useEffect(() => {
     if (authed !== true) return;
-    if (showRobots || showAndroid) return; // these surfaces own the URL while open
+    if (showRobots || showAndroid || showActivity) return; // these surfaces own the URL while open
     const p = window.location.pathname;
     if (p.startsWith('/invite/') || p === '/operator' || p === '/operator/') return;
     // A real session is open → any earlier "not available" deep link is moot.
@@ -187,7 +208,7 @@ export default function App() {
     didInitialUrlSync.current = true;
     const target = activeId ? `/s/${activeId}` : '/';
     if (p !== target) window.history.pushState({}, '', target); // guard prevents popstate loops
-  }, [activeId, authed, deepLinkNotFound, showRobots, showAndroid]);
+  }, [activeId, authed, deepLinkNotFound, showRobots, showAndroid, showActivity]);
 
   useGlobalEvents(authed === true);
   useSessionEvents(authed === true ? activeId : null);
@@ -258,6 +279,7 @@ export default function App() {
         onNewSession={(projectId) => setShowNew({ projectId: projectId ?? null })}
         onNewProject={() => setProjectDialog('new')}
         onEditProject={(p) => setProjectDialog(p)}
+        onHome={() => setActive(null)}
         onSchedules={() => setShowSchedules(true)}
         onRobots={() => {
           setShowRobots(true);
@@ -267,6 +289,11 @@ export default function App() {
           setShowAndroid(true);
           window.history.pushState({}, '', '/android');
         }}
+        onActivity={() => {
+          setShowActivity(true);
+          window.history.pushState({}, '', '/activity');
+        }}
+        onDeployments={() => setShowDeployments(true)}
         onAdmin={() => setShowAdmin(true)}
         onAnalytics={() => setShowAnalytics(true)}
         onConnections={() => setShowConnections(true)}
@@ -306,7 +333,21 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <Launchpad onAdvanced={() => setShowNew({ projectId: null })} />
+          <Home
+            onAdvanced={() => setShowNew({ projectId: null })}
+            onRobots={() => {
+              setShowRobots(true);
+              window.history.pushState({}, '', '/robots');
+            }}
+            onSchedules={() => setShowSchedules(true)}
+            onConnections={() => setShowConnections(true)}
+            onActivity={() => {
+              setShowActivity(true);
+              window.history.pushState({}, '', '/activity');
+            }}
+            onDeployments={() => setShowDeployments(true)}
+            onAdmin={() => setShowAdmin(true)}
+          />
         )}
       </div>
       {canvasOpen && activeMeta && <Canvas sessionId={activeMeta.id} />}
@@ -341,6 +382,18 @@ export default function App() {
           }}
         />
       )}
+      {showActivity && (
+        <Activity
+          onClose={() => {
+            setShowActivity(false);
+            const back = useStore.getState().activeId;
+            window.history.pushState({}, '', back ? `/s/${back}` : '/');
+          }}
+          onDeployments={() => setShowDeployments(true)}
+          onAdmin={() => setShowAdmin(true)}
+        />
+      )}
+      {showDeployments && <DeploymentsDialog meta={null} onClose={() => setShowDeployments(false)} />}
       {showWhatsNew && <WhatsNewModal onClose={() => setShowWhatsNew(false)} />}
       <ConfirmModal />
     </div>

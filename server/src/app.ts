@@ -20,6 +20,7 @@ import { registerDeploymentRoutes } from './routes/deployments';
 import { registerDocviewRoutes } from './routes/docview';
 import { registerLeadRoutes } from './routes/leads';
 import { registerScheduleRoutes } from './routes/schedules';
+import { registerHomeRoutes } from './routes/home';
 import { registerOrgRoutes } from './routes/orgs';
 import { registerAnalyticsRoutes } from './routes/analytics';
 import { registerEmailRoutes } from './routes/email';
@@ -87,6 +88,7 @@ export async function buildApp() {
   registerDocviewRoutes(app);
   registerLeadRoutes(app);
   registerScheduleRoutes(app);
+  registerHomeRoutes(app);
   registerOrgRoutes(app);
   registerAnalyticsRoutes(app);
   registerEmailRoutes(app);

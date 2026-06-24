@@ -4,6 +4,7 @@ import type {
   AgentEvent,
   CustomCommand,
   GlobalEvent,
+  HomeSnapshot,
   ModelInfo,
   Project,
   ProgressPhase,
@@ -88,6 +89,10 @@ interface StoreState {
   /** what the canvas should auto-load (set by the open_canvas event) */
   canvasTarget: { port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc' | 'image'; at: number } | null;
   navOpen: boolean;
+  /** Aggregated Home/Workspace snapshot (deployments / schedules / robots / pending drafts). */
+  home: HomeSnapshot | null;
+  /** ms epoch the user last opened the Activity feed — drives the "new deliveries" badge. */
+  lastActivitySeenAt: number;
   automation: Record<string, Automation>;
   /** Sessions where the user clicked "Revise" on the plan gate — drives the compose affordance. */
   revisingPlan: Record<string, boolean>;
@@ -103,6 +108,8 @@ interface StoreState {
     wallet?: { balanceUsd: number; lowBalance: boolean; enforced: boolean } | null;
   } | null;
 
+  setHome(home: HomeSnapshot | null): void;
+  markActivitySeen(): void;
   setProjects(list: Project[]): void;
   upsertProject(p: Project): void;
   removeProject(id: string): void;
@@ -139,10 +146,28 @@ export const useStore = create<StoreState>((set, get) => ({
   canvasTarget: null,
   // Open by default on wide screens, collapsed on phones.
   navOpen: typeof window === 'undefined' ? true : window.innerWidth > 860,
+  home: null,
+  lastActivitySeenAt: (() => {
+    try {
+      return Number(localStorage.getItem('arksai.activitySeenAt')) || 0;
+    } catch {
+      return 0;
+    }
+  })(),
   automation: {},
   revisingPlan: {},
   me: null,
 
+  setHome: (home) => set({ home }),
+  markActivitySeen: () => {
+    const at = Date.now();
+    try {
+      localStorage.setItem('arksai.activitySeenAt', String(at));
+    } catch {
+      /* private mode */
+    }
+    set({ lastActivitySeenAt: at });
+  },
   setProjects: (list) => set({ projects: list }),
   upsertProject: (p) =>
     set((s) => {

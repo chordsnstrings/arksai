@@ -648,3 +648,16 @@ export interface CreateRobotRequest {
   autonomy?: RobotAutonomy;
   config?: RobotConfig;
 }
+
+/** One org-scoped read of everything the Home/Workspace + Activity surfaces need to
+ *  show "what's running for you" and "what needs you" — aggregated server-side so the
+ *  client makes a single call instead of fanning out. All lists are filtered to the
+ *  caller's org (never the client's claim). */
+export interface HomeSnapshot {
+  /** Live + recent deployments (the client derives failed = status==='error'). */
+  deployments: Deployment[];
+  schedules: Schedule[];
+  robots: Robot[];
+  /** Robot reply drafts awaiting the user's approval. */
+  pendingDrafts: RobotDraft[];
+}

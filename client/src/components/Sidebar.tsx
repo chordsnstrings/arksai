@@ -4,6 +4,14 @@ import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
 import { isDark, toggleTheme } from '../lib/theme';
+import { activityBadge, failedDeployments } from '../lib/activity';
+
+/** A small count/dot badge on a nav item. `dot` shows a marker with no number. */
+function NavBadge({ n, dot, tone = 'accent' }: { n?: number; dot?: boolean; tone?: 'accent' | 'amber' }) {
+  if (dot) return <span className={`nav-badge dot ${tone}`} />;
+  if (!n) return null;
+  return <span className={`nav-badge ${tone}`}>{n > 99 ? '99+' : n}</span>;
+}
 
 function StatusDot({ status }: { status: SessionStatus }) {
   return <span className={`status-dot ${status}`} />;
@@ -37,9 +45,12 @@ export function Sidebar({
   onNewSession,
   onNewProject,
   onEditProject,
+  onHome,
   onSchedules,
   onRobots,
   onAndroid,
+  onActivity,
+  onDeployments,
   onAdmin,
   onAnalytics,
   onConnections,
@@ -47,9 +58,12 @@ export function Sidebar({
   onNewSession: (projectId?: string) => void;
   onNewProject: () => void;
   onEditProject: (p: Project) => void;
+  onHome: () => void;
   onSchedules: () => void;
   onRobots: () => void;
   onAndroid: () => void;
+  onActivity: () => void;
+  onDeployments: () => void;
   onAdmin: () => void;
   onAnalytics: () => void;
   onConnections: () => void;
@@ -63,6 +77,15 @@ export function Sidebar({
   const setAuthed = useStore((s) => s.setAuthed);
   const toggleNav = useStore((s) => s.toggleNav);
   const me = useStore((s) => s.me);
+  const home = useStore((s) => s.home);
+  const lastActivitySeenAt = useStore((s) => s.lastActivitySeenAt);
+
+  // Live badge counts (org-scoped snapshot, kept warm by App's poll).
+  const draftCount = home?.pendingDrafts.length ?? 0;
+  const failedCount = failedDeployments(home).length;
+  const lowBalance = !!me?.wallet?.lowBalance;
+  const actBadge = activityBadge(home, me, sessions, lastActivitySeenAt);
+  const isAdmin = me?.isSuperadmin || me?.role === 'admin';
 
   const pickSession = (id: string) => {
     setActive(id);
@@ -170,21 +193,43 @@ export function Sidebar({
       >
         <span className="plus">+</span> New session
       </button>
+
+      {/* Make — start & organize work */}
+      <button className="nav-btn subtle" onClick={() => { onHome(); if (window.innerWidth <= 860) toggleNav(false); }}>
+        <span className="plus">⌂</span> Home
+      </button>
+      <button className="nav-btn subtle" onClick={() => { onActivity(); if (window.innerWidth <= 860) toggleNav(false); }}>
+        <span className="plus">🔔</span> Activity <NavBadge n={actBadge} />
+      </button>
       <button className="nav-btn subtle" onClick={onNewProject}>
         <span className="plus">▤</span> New project
       </button>
+
+      <div className="nav-group">Automations</div>
       <button className="nav-btn subtle" onClick={onRobots}>
-        <span className="plus">🤖</span> Robots
+        <span className="plus">🤖</span> Robots <NavBadge n={draftCount} />
+      </button>
+      <button className="nav-btn subtle" onClick={onSchedules}>
+        <span className="plus">⏱</span> Scheduled
+      </button>
+
+      <div className="nav-group">Live</div>
+      <button className="nav-btn subtle" onClick={onDeployments}>
+        <span className="plus">🌐</span> Live apps <NavBadge n={failedCount} tone="amber" />
       </button>
       <button className="nav-btn subtle" onClick={onAndroid}>
         <span className="plus">📱</span> Android Apps
       </button>
+
+      <div className="nav-group">Connect</div>
       <button className="nav-btn subtle" onClick={onConnections}>
         <span className="plus">🔌</span> Connections
       </button>
-      {(me?.isSuperadmin || me?.role === 'admin') && (
+
+      {(isAdmin || me?.isSuperadmin) && <div className="nav-group">Settings</div>}
+      {isAdmin && (
         <button className="nav-btn subtle" onClick={onAdmin}>
-          <span className="plus">▦</span> {me?.isSuperadmin ? 'Admin' : 'Members'}
+          <span className="plus">▦</span> {me?.isSuperadmin ? 'Admin' : 'Members'} {lowBalance && <NavBadge dot tone="amber" />}
         </button>
       )}
       {me?.isSuperadmin && (

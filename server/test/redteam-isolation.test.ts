@@ -91,6 +91,10 @@ test('positive control: org A sees its OWN data', async () => {
   assert.ok(items(await app.inject({ url: '/api/commands', headers: h })).some((c) => c.name === 'secret-cmd'));
   assert.ok(items(await app.inject({ url: '/api/schedules', headers: h })).some((s) => s.label === 'A nightly report'));
   assert.ok(items(await app.inject({ url: '/api/deployments', headers: h })).some((d) => d.slug === 'orga-secret-app'));
+  // The Home aggregation is org-scoped too: org A's snapshot carries its own rows.
+  const homeA = (await app.inject({ url: '/api/home', headers: h })).json();
+  assert.ok(homeA.deployments.some((d: any) => d.slug === 'orga-secret-app'), 'home missing own deployment');
+  assert.ok(homeA.schedules.some((s: any) => s.label === 'A nightly report'), 'home missing own schedule');
 });
 
 test('operator is scoped to its OWN workspace (Default), not a commingled all-orgs list', async () => {
@@ -109,6 +113,11 @@ test('operator is scoped to its OWN workspace (Default), not a commingled all-or
   assert.ok(!items(await app.inject({ url: '/api/schedules', headers: h })).some((s) => s.label === 'A nightly report'), 'operator sees another org schedule');
   assert.ok(!items(await app.inject({ url: '/api/deployments', headers: h })).some((d) => d.slug === 'orga-secret-app'), 'operator sees another org deployment');
 
+  // …and the Home aggregation never leaks another org's rows.
+  const homeOp = (await app.inject({ url: '/api/home', headers: h })).json();
+  assert.ok(!homeOp.deployments.some((d: any) => d.slug === 'orga-secret-app'), 'operator home leaked another org deployment');
+  assert.ok(!homeOp.schedules.some((s: any) => s.label === 'A nightly report'), 'operator home leaked another org schedule');
+
   // BUT it keeps platform-admin oversight: the provisioning surface still lists every org.
   assert.ok((await app.inject({ url: '/api/admin/orgs', headers: h })).json().orgs.some((o: any) => o.id === orgAId), 'operator lost its admin org list');
 });
@@ -122,6 +131,10 @@ test('RED TEAM: org B cannot reach org A data on any route', async () => {
   assert.ok(!items(await app.inject({ url: '/api/commands', headers: h })).some((c) => c.name === 'secret-cmd'), 'commands list leak');
   assert.ok(!items(await app.inject({ url: '/api/schedules', headers: h })).some((s) => s.label === 'A nightly report'), 'schedules list leak');
   assert.ok(!items(await app.inject({ url: '/api/deployments', headers: h })).some((d) => d.slug === 'orga-secret-app'), 'deployments list leak');
+  // the Home aggregation is org-scoped — org B never sees org A's rows
+  const homeB = (await app.inject({ url: '/api/home', headers: h })).json();
+  assert.ok(!homeB.deployments.some((d: any) => d.slug === 'orga-secret-app'), 'home deployments leak');
+  assert.ok(!homeB.schedules.some((s: any) => s.label === 'A nightly report'), 'home schedules leak');
   assert.ok(!items(await app.inject({ url: '/api/memory', headers: h })).some((m: any) => String(m.text).includes('A confidential memory')), 'memory leak');
 
   // direct-by-id / slug access → 404 or blocked

@@ -14,7 +14,7 @@ function expiresLabel(ms?: number | null): string {
   return h > 0 ? `expires in ${h}h ${m}m` : `expires in ${m}m`;
 }
 
-export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClose: () => void }) {
+export function DeploymentsDialog({ meta, onClose }: { meta?: SessionMeta | null; onClose: () => void }) {
   const [deps, setDeps] = useState<Deployment[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -34,11 +34,13 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
-  const refresh = () => api.listDeployments(meta.id).then(setDeps).catch(() => {});
+  // meta present → this session's deployments (+ publish controls); no meta → the whole
+  // org's live apps (a global "Live" view from the sidebar), read-only management.
+  const refresh = () => api.listDeployments(meta?.id).then(setDeps).catch(() => {});
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta.id]);
+  }, [meta?.id]);
 
   const fullUrl = (u: string) => `${window.location.origin}${u}`;
   // The session's CURRENT live link (running + not expired). Once it exists the user just
@@ -52,6 +54,7 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
   };
 
   const publish = async () => {
+    if (!meta) return;
     setBusy(true);
     setError('');
     setLatest('');
@@ -89,9 +92,9 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog wide" onClick={(e) => e.stopPropagation()}>
-        <h2>Publish & share</h2>
+        <h2>{meta ? 'Publish & share' : 'Your live apps'}</h2>
 
-        {liveUrl ? (
+        {meta && liveUrl ? (
           /* PUBLISHED → lead with the live link; sharing it, not re-publishing, is the default. */
           <div
             style={{
@@ -129,21 +132,28 @@ export function DeploymentsDialog({ meta, onClose }: { meta: SessionMeta; onClos
               you change the app.
             </div>
           </div>
-        ) : (
+        ) : meta ? (
           <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 0 }}>
             Publish a <strong>24-hour preview link</strong> anyone can open and share — no login needed to view. It
             auto-deletes after 24 hours.
           </p>
+        ) : (
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 0 }}>
+            Every app you’ve published, across this workspace. Open, stop, restart, or remove them here — or open a
+            chat to publish a new one.
+          </p>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-          <button className={liveUrl ? 'cancel' : 'send-btn'} onClick={publish} disabled={busy}>
-            {busy ? PUB_PHASES[phase] : liveUrl ? '↻ Republish (after changes)' : '🚀 Publish 24-hour preview'}
-          </button>
-          {liveUrl && !busy && (
-            <span style={{ color: 'var(--text-faint)', fontSize: 12 }}>Only needed if you've updated the app.</span>
-          )}
-        </div>
+        {meta && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            <button className={liveUrl ? 'cancel' : 'send-btn'} onClick={publish} disabled={busy}>
+              {busy ? PUB_PHASES[phase] : liveUrl ? '↻ Republish (after changes)' : '🚀 Publish 24-hour preview'}
+            </button>
+            {liveUrl && !busy && (
+              <span style={{ color: 'var(--text-faint)', fontSize: 12 }}>Only needed if you've updated the app.</span>
+            )}
+          </div>
+        )}
 
         {error && (
           <div style={{ color: 'var(--red)', fontSize: 13, whiteSpace: 'pre-wrap', marginTop: 6 }}>{error}</div>

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-24.6';
+export const WHATS_NEW_VERSION = '2026-06-24.7';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'See how long each result took',
-    body: 'Every finished reply now shows a quiet “Completed in 3m 12s” — the time from your message to the result. It’s saved with the chat, so it’s still there when you come back.',
+    title: 'A real Home for your workspace',
+    body: 'The opening screen is now a workspace, not just a launcher: a personalized greeting, anything that needs you, what’s running for you in the background (live apps, schedules, robots), recent work to continue, and your team’s tools — plus the familiar “pick a team and describe it”.',
   },
   {
-    title: 'Smarter “time remaining”',
-    body: 'The estimate now learns from how long past requests of the same kind actually took — a financial model and a quick tweak get different, increasingly accurate countdowns the more you use ArksAI.',
-  },
-  {
-    title: 'GitHub status shows in chat',
-    body: 'Once your GitHub account is connected, the bar under the chat now reflects it (“GitHub connected as @you — choose a repo”) instead of still asking you to connect, and it updates instantly when you connect or disconnect.',
+    title: 'One place for everything that needs you',
+    body: 'A new Activity inbox (sidebar → 🔔) gathers robot replies to approve, failed publishes to fix, low balance, and finished scheduled deliveries — so background work is never invisible. The sidebar is reorganized by what you’re doing (Automations · Live · Connect) with live badges.',
   },
 ];
 

@@ -442,3 +442,75 @@ export const DEPARTMENTS: Department[] = [
 export function departmentById(id: string | null | undefined): Department | undefined {
   return DEPARTMENTS.find((d) => d.id === id);
 }
+
+/**
+ * "Your team can also…" — deferred-disclosure cards that surface the platform's breadth
+ * (standing robots, recurring schedules, connectors, and a couple of signature plays) in
+ * each team's own language, so a non-technical user discovers what's possible without a
+ * feature menu. Each card deep-links into the right flow. Content-only differentiation —
+ * the layout/look is identical for every team.
+ */
+export type CapabilityAction =
+  | { kind: 'robots' }
+  | { kind: 'schedules' }
+  | { kind: 'connections' }
+  | { kind: 'play'; play: ExpertiseKey };
+
+export interface CapabilityCard {
+  title: string;
+  blurb: string;
+  icon: IconName;
+  action: CapabilityAction;
+}
+
+export const deptCapabilities: Record<string, CapabilityCard[]> = {
+  marketing: [
+    { title: 'Design an ad creative', blurb: 'On-brand image + crisp copy.', icon: 'image', action: { kind: 'play', play:'marketing.creative' } },
+    { title: 'Schedule a weekly report', blurb: 'Auto-built on a cadence.', icon: 'calendar', action: { kind: 'schedules' } },
+    { title: 'Hire an inbox robot', blurb: 'Drafts replies for your approval.', icon: 'mail', action: { kind: 'robots' } },
+    { title: 'Connect your ad platforms', blurb: 'Pull live performance in.', icon: 'target', action: { kind: 'connections' } },
+  ],
+  sales: [
+    { title: 'Build a battlecard', blurb: 'Win the competitive deal.', icon: 'target', action: { kind: 'play', play:'sales.battlecard' } },
+    { title: 'Hire a lead-reply robot', blurb: 'Fast first responses, drafted.', icon: 'mail', action: { kind: 'robots' } },
+    { title: 'Schedule a pipeline digest', blurb: 'A recurring snapshot.', icon: 'calendar', action: { kind: 'schedules' } },
+  ],
+  finance: [
+    { title: 'Build a live KPI dashboard', blurb: 'Metrics, interactive.', icon: 'bar-chart-3', action: { kind: 'play', play:'finance.kpidashboard' } },
+    { title: 'Schedule a board digest', blurb: 'Numbers, on a cadence.', icon: 'calendar', action: { kind: 'schedules' } },
+    { title: 'Connect your tools', blurb: 'GitHub, email, ad data.', icon: 'git-branch', action: { kind: 'connections' } },
+  ],
+  people: [
+    { title: 'Hire an HR inbox robot', blurb: 'Triages and drafts replies.', icon: 'mail', action: { kind: 'robots' } },
+    { title: 'Build a people dashboard', blurb: 'Headcount and trends.', icon: 'bar-chart-3', action: { kind: 'play', play:'people.peopledash' } },
+    { title: 'Schedule a reminder run', blurb: 'Recurring people ops.', icon: 'calendar', action: { kind: 'schedules' } },
+  ],
+  engineering: [
+    { title: 'Connect GitHub', blurb: 'Push builds to your repo.', icon: 'git-branch', action: { kind: 'connections' } },
+    { title: 'Build an internal tool', blurb: 'A web app for the team.', icon: 'code', action: { kind: 'play', play:'engineering.internaltool' } },
+    { title: 'Schedule a recurring job', blurb: 'Run something on a cadence.', icon: 'calendar', action: { kind: 'schedules' } },
+  ],
+  bi: [
+    { title: 'Build a BI dashboard', blurb: 'Live KPIs, F-pattern.', icon: 'bar-chart-3', action: { kind: 'play', play:'bi.dashboard' } },
+    { title: 'Schedule a metrics digest', blurb: 'A standing summary.', icon: 'calendar', action: { kind: 'play', play:'bi.digest' } },
+    { title: 'Set up a KPI alert', blurb: 'Flag only what matters.', icon: 'circle-check', action: { kind: 'play', play:'bi.alert' } },
+  ],
+  tax: [
+    { title: 'Run a readiness check', blurb: 'Obligations, gaps, deadlines.', icon: 'search', action: { kind: 'play', play:'tax.readiness' } },
+    { title: 'Prepare a VAT 201', blurb: 'Working papers + FAF.', icon: 'clipboard', action: { kind: 'play', play:'tax.vat_return' } },
+    { title: 'Schedule filing reminders', blurb: 'Never miss a deadline.', icon: 'calendar', action: { kind: 'schedules' } },
+  ],
+  legal: [
+    { title: 'Review a contract', blurb: 'Clause-by-clause redlines.', icon: 'clipboard', action: { kind: 'play', play:'legal.review' } },
+    { title: 'Build a legal calendar', blurb: 'Renewals, UBO, filings.', icon: 'calendar', action: { kind: 'play', play:'legal.calendar' } },
+    { title: 'Schedule renewal reminders', blurb: 'On a recurring cadence.', icon: 'calendar', action: { kind: 'schedules' } },
+  ],
+  personal: [
+    { title: 'Make a monthly budget', blurb: 'See what’s left each month.', icon: 'wallet', action: { kind: 'play', play:'personal.budget' } },
+    { title: 'Plan a trip', blurb: 'A realistic day-by-day plan.', icon: 'calendar', action: { kind: 'play', play:'personal.trip' } },
+  ],
+  learning: [
+    { title: 'Make a study guide', blurb: 'Structured, with practice.', icon: 'graduation-cap', action: { kind: 'play', play:'learning.studyguide' } },
+    { title: 'Explain a concept', blurb: 'At exactly your level.', icon: 'lightbulb', action: { kind: 'play', play:'learning.explainer' } },
+  ],
+};

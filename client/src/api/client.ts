@@ -8,6 +8,7 @@ import type {
   WalletLedgerEntry,
   CustomCommand,
   Deployment,
+  HomeSnapshot,
   MemoryEntry,
   ModelInfo,
   OrgProfile,
@@ -201,6 +202,8 @@ export const api = {
   getFxRate: (code: string) => request<{ code: string; rate: number; asOf: number | null; pegged: boolean; source: string }>(`/api/fx/${code}`),
   setFxRate: (code: string, rate: number) =>
     request<{ code: string; rate: number; asOf: number | null }>('/api/admin/fx', { method: 'POST', body: JSON.stringify({ code, rate }) }),
+  // Home/Workspace + Activity: one org-scoped read of running/needs-you state.
+  getHome: () => request<HomeSnapshot>('/api/home'),
   listSessions: () => request<SessionMeta[]>('/api/sessions'),
   createSession: (body: CreateSessionRequest) =>
     request<SessionMeta>('/api/sessions', { method: 'POST', body: JSON.stringify(body) }),
