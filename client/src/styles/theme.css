@@ -480,7 +480,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- chat ---------- */
 
-.chat { flex: 1; overflow-y: auto; padding: 28px 0; }
+.chat { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 28px 0; }
 .chat-ready { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 46vh; text-align: center; }
 .chat-ready .logo-mark { width: 30px; height: 30px; opacity: 0.55; }
 .chat-ready p { font-size: 15px; color: var(--text-muted); max-width: 34ch; line-height: 1.5; }
@@ -512,6 +512,7 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text);
   font-size: 15px;
   line-height: 1.68;
+  overflow-wrap: break-word; /* a long URL / token wraps instead of forcing the chat sideways */
 }
 .assistant-prose > *:first-child { margin-top: 0; }
 .assistant-prose > *:last-child { margin-bottom: 0; }
@@ -543,7 +544,9 @@ button { font-family: inherit; cursor: pointer; }
 }
 .assistant-prose pre code { background: none; padding: 0; border: none; }
 .assistant-prose a { color: var(--accent); }
-.assistant-prose table { border-collapse: collapse; }
+/* A wide markdown table scrolls WITHIN its own block (capped at the message width) instead of
+   pushing the whole chat column sideways — the GitHub-markdown responsive-table pattern. */
+.assistant-prose table { border-collapse: collapse; display: block; width: max-content; max-width: 100%; overflow-x: auto; }
 .assistant-prose th, .assistant-prose td { border: 1px solid var(--border); padding: 5px 11px; }
 
 /* "Completed in 3m 12s" — subtle run-timing footnote under a finished reply */
