@@ -221,6 +221,11 @@ export const api = {
   clear: (id: string) => request<{ ok: true }>(`/api/sessions/${id}/clear`, { method: 'POST' }),
   diff: (id: string) => request<{ diff: string }>(`/api/sessions/${id}/diff`),
   gitStatus: (id: string) => request<GitStatus>(`/api/sessions/${id}/git`),
+  gitCommit: (id: string, message?: string) =>
+    request<{ committed: boolean; pushed: boolean; pushError?: string; git: GitStatus }>(`/api/sessions/${id}/git/commit`, {
+      method: 'POST',
+      body: JSON.stringify(message ? { message } : {}),
+    }),
   verify: (id: string) => request<{ report: string }>(`/api/sessions/${id}/verify`),
   tree: (id: string) => request<{ files: string[] }>(`/api/sessions/${id}/tree`),
   processes: (id: string) => request<{ processes: ProcessInfo[] }>(`/api/sessions/${id}/processes`),

@@ -17,6 +17,8 @@ export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [git, setGit] = useState<GitStatus | null>(null);
+  const [committing, setCommitting] = useState(false);
+  const [commitErr, setCommitErr] = useState('');
   const enabled = status?.enabled ?? null;
   const connected = !!status?.connected;
 
@@ -71,6 +73,21 @@ export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean
     }
   };
 
+  // One-tap commit & push of the latest changes — deterministic, no model turn.
+  const commit = async () => {
+    setCommitting(true);
+    setCommitErr('');
+    try {
+      const r = await api.gitCommit(meta.id);
+      setGit(r.git);
+      if (r.pushError) setCommitErr(r.pushError);
+    } catch (e: any) {
+      setCommitErr(e?.message ?? 'Could not commit — try again.');
+    } finally {
+      setCommitting(false);
+    }
+  };
+
   return (
     <div className="repo-bar">
       <div className="repo-bar-row">
@@ -102,6 +119,16 @@ export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean
             );
           })()
         )}
+        {meta.repoUrl && git?.hasRepo && git.dirty > 0 && !open && (
+          <button
+            className="repo-commit-btn"
+            disabled={running || committing}
+            onClick={commit}
+            title={running ? 'Finish the current run first' : 'Commit all changes and push to the connected repo'}
+          >
+            {committing ? 'Committing…' : 'Commit & push'}
+          </button>
+        )}
         {enabled && (
           <button className="repo-bar-btn" disabled={running || busy} onClick={() => setOpen((v) => !v)} title={running ? 'Finish the current run first' : undefined}>
             {open ? 'Close' : meta.repoUrl ? 'Change' : connected ? 'Choose repo' : 'Connect & choose repo'}
@@ -113,6 +140,7 @@ export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean
           </button>
         )}
       </div>
+      {commitErr && <div className="repo-bar-err">{commitErr}</div>}
       {open && enabled && (
         <div className="repo-bar-picker">
           <GithubRepoPicker compact onSelect={(sel) => sel && apply(sel.repoUrl, sel.branch, sel.connectionId)} />

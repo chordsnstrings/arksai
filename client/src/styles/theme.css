@@ -2475,6 +2475,11 @@ button { font-family: inherit; cursor: pointer; }
 .repo-git.ok { color: var(--text); }
 .repo-git.ok::before { background: #1f9d55; }
 .repo-git.pending::before { background: #c98a1b; }
+/* One-tap "commit & push the latest changes" — the primary action when the tree is dirty. */
+.repo-commit-btn { flex: 0 0 auto; background: var(--accent); color: #fff; border: 1px solid var(--accent); border-radius: 7px; padding: 3px 11px; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.repo-commit-btn:hover:not(:disabled) { filter: brightness(1.06); }
+.repo-commit-btn:disabled { opacity: .55; cursor: default; }
+.repo-bar-err { margin-top: 5px; font-size: 11.5px; color: var(--red); }
 
 /* ---------- Connections hub ---------- */
 .conn-dialog { max-width: 620px; }

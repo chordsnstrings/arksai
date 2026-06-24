@@ -12,7 +12,9 @@ import * as manager from '../sessions/manager';
 import { isValidModel } from '../agent/models';
 import { DEFAULT_ORG_ID } from '../orgs/store';
 import { walletBalanceUsd } from '../wallet/store';
-import { deleteWorkspace, fullDiff, gitStatus, listFiles, parseRepoUrl, repoDir, setupWorkspace } from '../sessions/workspace';
+import { deleteWorkspace, fullDiff, gitStatus, listFiles, parseRepoUrl, recordPush, repoDir, resolvePushUrl, setupWorkspace } from '../sessions/workspace';
+import { execBash } from '../lib/exec';
+import path from 'node:path';
 import { bus } from '../events/bus';
 import { processRegistry } from '../agent/processes';
 import { detectStartCommand, verifyProject } from '../agent/verify';
@@ -226,6 +228,53 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     return await gitStatus(id);
+  });
+
+  // One-tap "commit & push the latest changes" — stage everything, commit, and (if a repo is
+  // connected) push, deterministically and WITHOUT spending a model turn. The workspace is
+  // ephemeral, so committing without pushing would be lost — push is what makes changes durable.
+  app.post('/api/sessions/:id/git/commit', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const session = await store.getSession(id);
+    if (!session) return reply.code(404).send({ error: 'Not found' });
+    const dir = repoDir(id);
+    if (!fs.existsSync(path.join(dir, '.git'))) return reply.code(400).send({ error: 'This workspace has no git repository yet.' });
+    const body = (req.body ?? {}) as { message?: string };
+    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const msg = (typeof body.message === 'string' && body.message.trim()) || `Update ${stamp}`;
+
+    await execBash('git add -A', { cwd: dir, timeoutMs: 30_000 });
+    const dirty = await execBash('git status --porcelain', { cwd: dir, timeoutMs: 15_000 });
+    let committed = false;
+    if (dirty.output.trim()) {
+      const c = await execBash(`git commit -m ${JSON.stringify(msg)}`, { cwd: dir, timeoutMs: 30_000 });
+      if (!c.ok && !/nothing to commit/i.test(c.output)) return reply.code(500).send({ error: 'Commit failed', detail: c.output });
+      committed = c.ok;
+    }
+
+    // Push to the connected repo (resolvePushUrl injects the token for this call only; exec scrubs it).
+    let pushed = false;
+    let pushError: string | undefined;
+    const target = await resolvePushUrl(session);
+    if (target) {
+      const cur = await execBash('git rev-parse --abbrev-ref HEAD', { cwd: dir, timeoutMs: 15_000 });
+      const branch = cur.output.trim() || 'main';
+      const push = await execBash(`git push ${JSON.stringify(target.url)} HEAD:${JSON.stringify(branch)}`, {
+        cwd: dir,
+        timeoutMs: 120_000,
+        redact: [target.token],
+      });
+      if (push.ok) {
+        const sha = (await execBash('git rev-parse HEAD', { cwd: dir, timeoutMs: 15_000 })).output.trim();
+        if (sha) recordPush(id, sha, branch);
+        pushed = true;
+      } else {
+        pushError = push.output.slice(-400);
+      }
+    } else {
+      pushError = 'No GitHub repo connected — committed locally only. Connect a repo (Choose repo) to push.';
+    }
+    return { committed, pushed, pushError, git: await gitStatus(id) };
   });
 
   app.get('/api/sessions/:id/verify', async (req, reply) => {
