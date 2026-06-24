@@ -11,8 +11,9 @@ export const DAY_MS = 86_400_000;
 export const fmtDay = (epochDay: number) => new Date(epochDay * DAY_MS).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 export const fmtWeek = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 export const fmtNum = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n ?? 0));
-/** USD amount → the given display currency (defaults to the platform default when omitted). */
-export const fmtMoney = (n: number, currency?: string | null) => formatMoney(n ?? 0, currency);
+/** USD amount → the given display currency. `rate` supplies an operator-set rate for a floating
+ *  currency (BDT) so cross-org views aren't shown at the stale table default. */
+export const fmtMoney = (n: number, currency?: string | null, rate?: number | null) => formatMoney(n ?? 0, currency, rate);
 export const ago = (ts: number | null) => (ts ? `${Math.max(0, Math.round((Date.now() - ts) / DAY_MS))}d ago` : '—');
 
 /** Compact human duration (e.g. "3d", "5h", "12m", "<1m"). */

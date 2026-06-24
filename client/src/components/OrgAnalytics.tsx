@@ -11,7 +11,8 @@ import { AlertsCard } from './AnalyticsAlerts';
  * — never any chat or document content. Rendered inside AdminDialog's "Usage" tab.
  */
 export function OrgAnalytics({ orgId, currency }: { orgId: string; currency?: string | null }) {
-  const money = (n: number) => fmtMoney(n, currency);
+  const [fxRate, setFxRate] = useState<number | null>(null);
+  const money = (n: number) => fmtMoney(n, currency, fxRate);
   const [days, setDays] = useState(30);
   const [ov, setOv] = useState<any>(null);
   const [ts, setTs] = useState<any>(null);
@@ -26,6 +27,9 @@ export function OrgAnalytics({ orgId, currency }: { orgId: string; currency?: st
     if (!orgId) return;
     setOv(null);
     setDrillUser(null);
+    // Resolve the org's operator-set rate so a floating currency (BDT) isn't shown at the stale default.
+    if (currency) api.getFxRate(currency).then((r) => setFxRate(r.rate)).catch(() => setFxRate(null));
+    else setFxRate(null);
     api.analyticsOverview(orgId).then(setOv).catch(() => {});
     api.analyticsFunnel(orgId).then(setFunnel).catch(() => setFunnel([]));
     api.analyticsRetention(orgId).then(setRetention).catch(() => setRetention([]));
@@ -142,7 +146,7 @@ export function OrgAnalytics({ orgId, currency }: { orgId: string; currency?: st
         </section>
       </div>
       <p className="an-note">Aggregate usage metadata only — never your team's chat or document content.</p>
-      {drillUser && <UserDetailPanel userId={drillUser} orgId={orgId} currency={currency} onClose={() => setDrillUser(null)} />}
+      {drillUser && <UserDetailPanel userId={drillUser} orgId={orgId} currency={currency} rate={fxRate} onClose={() => setDrillUser(null)} />}
     </div>
   );
 }

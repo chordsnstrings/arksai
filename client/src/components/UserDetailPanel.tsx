@@ -8,7 +8,7 @@ import { BarList, KPI, LineChart, ago, fmtDur, fmtMoney, fmtNum } from './analyt
  * from a users/members table. Works for both the operator (no orgId) and a per-org admin
  * (orgId scopes the data to that org). Shown as a centered overlay drawer.
  */
-export function UserDetailPanel({ userId, orgId, currency, onClose }: { userId: string; orgId?: string; currency?: string | null; onClose: () => void }) {
+export function UserDetailPanel({ userId, orgId, currency, rate, onClose }: { userId: string; orgId?: string; currency?: string | null; rate?: number | null; onClose: () => void }) {
   useEscClose(onClose);
   const [u, setU] = useState<any>(null);
   const [err, setErr] = useState(false);
@@ -42,7 +42,7 @@ export function UserDetailPanel({ userId, orgId, currency, onClose }: { userId: 
             <div className="an-kpis an-kpis-4">
               <KPI label="Sessions" value={fmtNum(u.sessions ?? 0)} />
               <KPI label="Success rate" value={`${u.successRate ?? 100}%`} />
-              <KPI label="Cost" value={fmtMoney(u.cost ?? 0, currency)} />
+              <KPI label="Cost" value={fmtMoney(u.cost ?? 0, currency, rate)} />
               <KPI label="Time to first build" value={fmtDur(u.timeToFirstBuildMs)} sub="from signup" />
             </div>
 
