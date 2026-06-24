@@ -151,8 +151,7 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="wordmark">
-        <span className="logo-mark sm" />
-        <span className="name">ArksAI</span>
+        <span className="brand-lockup" role="img" aria-label="ArksAI" />
         <span className="badge">studio</span>
         <ThemeToggle />
         <span className="spacer" style={{ flex: 1 }} />

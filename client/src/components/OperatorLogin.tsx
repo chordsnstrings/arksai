@@ -28,8 +28,7 @@ export function OperatorLogin() {
     <div className="login-screen">
       <form className="login-card" onSubmit={submit}>
         <h1>
-          <span className="logo-mark" />
-          <span className="name">ArksAI</span>
+          <span className="brand-lockup lg" role="img" aria-label="ArksAI" />
           <span className="badge">operator</span>
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 8px' }}>Platform operator sign-in.</p>

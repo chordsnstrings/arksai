@@ -149,6 +149,19 @@ button { font-family: inherit; cursor: pointer; }
 .logo-mark.sm { width: 18px; height: 18px; }
 .empty-state .logo-mark { width: 44px; height: 44px; background-image: url('/icon.svg'); }
 
+/* The official ArksAI lockup (mark + wordmark). Light variant by default; the dark variant
+   (cream "Arks") swaps in under the dark theme so it always reads on its background. */
+.brand-lockup {
+  display: inline-block;
+  height: 24px;
+  width: 75px; /* lockup viewBox 470×150 ≈ 3.13:1 (explicit — empty inline-block ignores aspect-ratio) */
+  background: url('/lockup-light.svg') left center / contain no-repeat;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.brand-lockup.lg { height: 34px; width: 107px; }
+:root[data-theme='dark'] .brand-lockup { background-image: url('/lockup-dark.svg'); }
+
 /* CSS spinner (replaces the old asterisk glyph) */
 .spinner {
   width: 13px;
