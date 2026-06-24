@@ -256,9 +256,13 @@ export function registerSessionRoutes(app: FastifyInstance) {
     let pushed = false;
     let pushError: string | undefined;
     const target = await resolvePushUrl(session);
-    if (target) {
-      const cur = await execBash('git rev-parse --abbrev-ref HEAD', { cwd: dir, timeoutMs: 15_000 });
-      const branch = cur.output.trim() || 'main';
+    const hasHead = (await execBash('git rev-parse --verify HEAD', { cwd: dir, timeoutMs: 15_000 })).ok;
+    if (!hasHead) {
+      pushError = 'Nothing to push yet — there are no commits in this workspace.';
+    } else if (target) {
+      // symbolic-ref resolves the branch even with an unusual HEAD; fall back to main.
+      const cur = await execBash('git symbolic-ref --short HEAD', { cwd: dir, timeoutMs: 15_000 });
+      const branch = (cur.ok && cur.output.trim()) || 'main';
       const push = await execBash(`git push ${JSON.stringify(target.url)} HEAD:${JSON.stringify(branch)}`, {
         cwd: dir,
         timeoutMs: 120_000,
