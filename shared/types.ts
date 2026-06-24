@@ -679,6 +679,30 @@ export interface GitStatus {
   pushed: boolean;
 }
 
+/** A user's rating of something the agent produced (a deliverable or a reply). */
+export interface Feedback {
+  id: string;
+  orgId: string | null;
+  sessionId: string;
+  messageId: string | null;
+  kind: 'deliverable' | 'reply' | 'app';
+  rating: 'up' | 'down';
+  /** The user's own words about what's wrong (down only). */
+  complaint: string | null;
+  /** Non-content context: mode, task, deliverable kind, name. */
+  meta: Record<string, string> | null;
+  status: 'new' | 'reviewed' | 'dismissed';
+  createdAt: number;
+}
+
+export interface CreateFeedbackRequest {
+  messageId?: string;
+  kind: Feedback['kind'];
+  rating: Feedback['rating'];
+  complaint?: string;
+  meta?: Record<string, string>;
+}
+
 /** Map git state → a short status chip (tone + text) for the repo bar. Pure + unit-tested. */
 export function describeGitState(s: GitStatus): { tone: 'ok' | 'pending' | 'idle'; text: string } {
   if (!s.hasRepo) return { tone: 'idle', text: 'No repo yet' };

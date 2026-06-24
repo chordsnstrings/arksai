@@ -23,6 +23,7 @@ import { registerScheduleRoutes } from './routes/schedules';
 import { registerHomeRoutes } from './routes/home';
 import { registerOrgRoutes } from './routes/orgs';
 import { registerAnalyticsRoutes } from './routes/analytics';
+import { registerFeedbackRoutes } from './routes/feedback';
 import { registerEmailRoutes } from './routes/email';
 import { registerRobotRoutes } from './routes/robots';
 import { registerConnectorRoutes } from './routes/connectors';
@@ -91,6 +92,7 @@ export async function buildApp() {
   registerHomeRoutes(app);
   registerOrgRoutes(app);
   registerAnalyticsRoutes(app);
+  registerFeedbackRoutes(app);
   registerEmailRoutes(app);
   registerRobotRoutes(app);
   registerConnectorRoutes(app);

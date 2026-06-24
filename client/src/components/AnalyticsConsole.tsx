@@ -26,6 +26,8 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
   const [alerts, setAlerts] = useState<any>(null);
   const [digests, setDigests] = useState<any[]>([]);
   const [drillUser, setDrillUser] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ items: any[]; summary: { up: number; down: number; openComplaints: number } } | null>(null);
+  const loadFeedback = () => api.adminFeedback().then(setFeedback).catch(() => {});
 
   useEffect(() => {
     api.analyticsOverview().then(setOv).catch(() => {});
@@ -35,6 +37,7 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
     api.analyticsUsers().then(setUsers).catch(() => {});
     api.analyticsAlerts().then(setAlerts).catch(() => {});
     api.analyticsDigests().then(setDigests).catch(() => {});
+    loadFeedback();
   }, []);
   useEffect(() => {
     api.analyticsTimeseries(days).then(setTs).catch(() => {});
@@ -132,6 +135,46 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
           <section className="an-card">
             <h3>Cost by model</h3>
             <BarList items={cost?.byModel ?? []} money />
+          </section>
+
+          <section className="an-card an-wide">
+            <div className="an-card-head">
+              <h3>
+                What users said
+                {feedback && (
+                  <span className="an-fb-sum">
+                    {' '}· {feedback.summary.up}👍 {feedback.summary.down}👎
+                    {feedback.summary.openComplaints ? ` · ${feedback.summary.openComplaints} open` : ''}
+                  </span>
+                )}
+              </h3>
+            </div>
+            <div className="an-fb-list">
+              {(feedback?.items ?? [])
+                .filter((f) => f.rating === 'down')
+                .slice(0, 14)
+                .map((f) => (
+                  <div key={f.id} className={`an-fb-row ${f.status}`}>
+                    <span className="an-fb-tag">
+                      {f.meta?.deliverableKind ?? f.kind}
+                      {f.meta?.name ? ` · ${f.meta.name}` : ''}
+                    </span>
+                    <span className="an-fb-text">{f.complaint || '(no detail given)'}</span>
+                    {f.status === 'new' && (
+                      <button
+                        className="an-fb-x"
+                        title="Mark reviewed"
+                        onClick={() => api.setFeedbackStatus(f.id, 'reviewed').then(loadFeedback).catch(() => {})}
+                      >
+                        ✓
+                      </button>
+                    )}
+                  </div>
+                ))}
+              {feedback && feedback.items.filter((f) => f.rating === 'down').length === 0 && (
+                <div className="an-fb-empty">No complaints yet — all clear.</div>
+              )}
+            </div>
           </section>
 
           <section className="an-card an-wide">

@@ -233,7 +233,29 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
   const [failed, setFailed] = useState(false);
   const [err, setErr] = useState('');
   const [phase, setPhase] = useState(0);
+  const [rated, setRated] = useState(false);
+  const [showComplaint, setShowComplaint] = useState(false);
+  const [complaint, setComplaint] = useState('');
+  const [ratingBusy, setRatingBusy] = useState(false);
   const noun = DELIVERABLE_NOUN[completion.kind] ?? 'result';
+
+  const sendRating = async (rating: 'up' | 'down') => {
+    if (ratingBusy) return;
+    setRatingBusy(true);
+    setRated(true);
+    try {
+      await api.submitFeedback(sessionId, {
+        kind: completion.kind === 'app' ? 'app' : 'deliverable',
+        rating,
+        complaint: rating === 'down' ? complaint.trim() || undefined : undefined,
+        meta: { deliverableKind: String(completion.kind), ...(completion.name ? { name: completion.name } : {}) },
+      });
+    } catch {
+      /* a lost rating shouldn't surface an error to the user */
+    } finally {
+      setRatingBusy(false);
+    }
+  };
 
   // Walk the real publish phases so the 30-60s wait shows visible motion, not a freeze.
   const PUB_PHASES = ['Snapshotting your app…', 'Installing what it needs…', 'Booting it up…', 'Checking the live URL…'];
@@ -366,6 +388,35 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
           ))}
         </div>
       )}
+      <div className="cc-rate">
+        {rated ? (
+          <span className="cc-rate-thanks">Thanks — we’ll use this to make it better.</span>
+        ) : showComplaint ? (
+          <div className="cc-rate-complaint">
+            <textarea
+              value={complaint}
+              autoFocus
+              placeholder="What’s wrong with it? (the more specific, the better)"
+              onChange={(e) => setComplaint(e.target.value)}
+            />
+            <div className="cc-rate-crow">
+              <button className="cc-rate-send" disabled={ratingBusy} onClick={() => sendRating('down')}>
+                Send feedback
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="cc-rate-ask">
+            <span>Is this right?</span>
+            <button className="cc-rate-btn" disabled={ratingBusy} onClick={() => sendRating('up')} title="Yes, this is good">
+              👍
+            </button>
+            <button className="cc-rate-btn" disabled={ratingBusy} onClick={() => setShowComplaint(true)} title="No, something's wrong">
+              👎
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

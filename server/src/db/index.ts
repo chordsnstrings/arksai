@@ -123,6 +123,24 @@ async function migrate() {
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at)`);
 
+  // User feedback on the agent's output (thumbs up/down + an optional complaint) — so the
+  // team SEES what's failing. Org-scoped; complaint is the user's own words (never cross-org).
+  await q(`CREATE TABLE IF NOT EXISTS feedback(
+    id TEXT PRIMARY KEY,
+    org_id TEXT,
+    session_id TEXT,
+    message_id TEXT,
+    kind TEXT,
+    rating TEXT,
+    complaint TEXT,
+    meta TEXT,
+    status TEXT,
+    created_at ${INT} NOT NULL,
+    day ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_feedback_org ON feedback(org_id)`);
+
   // Scheduled / recurring tasks (durable, server-side).
   await q(`CREATE TABLE IF NOT EXISTS schedules(
     id TEXT PRIMARY KEY,

@@ -7,7 +7,9 @@ import type {
   WalletView,
   WalletLedgerEntry,
   CustomCommand,
+  CreateFeedbackRequest,
   Deployment,
+  Feedback,
   GitStatus,
   HomeSnapshot,
   MemoryEntry,
@@ -221,6 +223,16 @@ export const api = {
   clear: (id: string) => request<{ ok: true }>(`/api/sessions/${id}/clear`, { method: 'POST' }),
   diff: (id: string) => request<{ diff: string }>(`/api/sessions/${id}/diff`),
   gitStatus: (id: string) => request<GitStatus>(`/api/sessions/${id}/git`),
+  submitFeedback: (id: string, body: CreateFeedbackRequest) =>
+    request<Feedback>(`/api/sessions/${id}/feedback`, { method: 'POST', body: JSON.stringify(body) }),
+  adminFeedback: (params?: { rating?: 'up' | 'down'; status?: string }) => {
+    const qs = new URLSearchParams(params as Record<string, string>).toString();
+    return request<{ items: Feedback[]; summary: { up: number; down: number; openComplaints: number } }>(
+      `/api/admin/feedback${qs ? `?${qs}` : ''}`,
+    );
+  },
+  setFeedbackStatus: (fid: string, status: 'new' | 'reviewed' | 'dismissed') =>
+    request<{ ok: true }>(`/api/admin/feedback/${fid}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   gitCommit: (id: string, message?: string) =>
     request<{ committed: boolean; pushed: boolean; pushError?: string; git: GitStatus }>(`/api/sessions/${id}/git/commit`, {
       method: 'POST',
