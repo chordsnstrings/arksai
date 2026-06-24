@@ -60,6 +60,7 @@ export function Activity({
 
   return (
     <div className="fullpage activity">
+      <div className="fp-inner">
       <div className="fp-head">
         <div>
           <div className="fp-kicker">Activity</div>
@@ -160,6 +161,7 @@ export function Activity({
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }
