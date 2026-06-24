@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-24.8';
+export const WHATS_NEW_VERSION = '2026-06-24.9';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A tighter GitHub bar',
-    body: 'The “push to GitHub” controls under the chat are now a single compact, on-brand card — no duplicated headings, properly styled search and repo picker, and about half the height on mobile so the message box sits higher.',
+    title: 'We now test your mobile menu before shipping',
+    body: 'The build’s quality gate taps the hamburger menu on a phone-sized screen and fails the check if the navigation doesn’t open — so a dead mobile menu gets caught and fixed automatically instead of reaching you.',
   },
 ];
 

@@ -37,6 +37,27 @@ export function detectLeakedValues(visibleText: string): string[] {
   return out;
 }
 
+/**
+ * Decide whether a mobile hamburger/menu toggle is broken. Pure (unit-testable): given
+ * whether a menu toggle exists on the phone layout, how many nav links were visible before
+ * tapping it, and how many after — a toggle that reveals NO navigation is the single most
+ * common "the menu doesn't work" defect on phones (the desktop interaction pass can't see it,
+ * because the hamburger is hidden and the links show inline at desktop width). One actionable
+ * line, or '' when there's nothing wrong / nothing to verify.
+ */
+export function judgeMobileNav(p: { hasToggle: boolean; before: number; after: number }): string {
+  if (!p.hasToggle) return ''; // no hamburger pattern → nothing to verify
+  if (p.before > 1) return ''; // nav links already visible at mobile → no toggle needed
+  if (p.after > p.before) return ''; // tapping it revealed navigation → it works
+  return (
+    'Broken mobile menu — the phone layout has a menu/hamburger button, but tapping it does not ' +
+    'reveal the navigation (no nav links become visible). Wire the toggle to actually open the menu: ' +
+    'on click, flip an open state (toggle a class / aria-expanded) and SHOW the nav panel ' +
+    '(display / transform / max-height), and make sure the panel’s links are visible and tappable when ' +
+    'open. Verify by tapping the ☰ at 390px wide — the links must appear.'
+  );
+}
+
 const VISION_PROMPT =
   'You are reviewing a screenshot of a web app under automated test. Is the UI rendered ' +
   'correctly and visually coherent? Check for: a blank/empty page, broken or unstyled layout, ' +
@@ -224,6 +245,7 @@ export async function browserSmokeTest(
     // a layout wider than the screen is a hard responsiveness defect. Reset to desktop
     // after so the visual design review (below) still sees the desktop composition.
     let responsiveIssue = '';
+    let mobileNavIssue = '';
     if (!blank) {
       try {
         await page.setViewportSize({ width: 390, height: 844 });
@@ -239,6 +261,115 @@ export async function browserSmokeTest(
         const over = Math.round((ov.scrollW || 0) - (ov.innerW || 390));
         if (over > 24)
           responsiveIssue = `Not responsive — horizontal overflow at 390px: content is ${over}px wider than the screen (the user has to scroll sideways on a phone). Fix with max-width:100%, flex-wrap, fluid units, image/table containers (overflow-x:auto on the container, not the page), and no fixed pixel widths wider than the viewport.`;
+
+        // MOBILE MENU (deterministic, no vision): the desktop interaction pass can't catch a
+        // dead hamburger — at desktop width it's hidden and the nav shows inline. Here, on the
+        // phone layout, find a menu/hamburger toggle, count visible nav links, TAP it, and
+        // re-count. A toggle that reveals no navigation is a broken mobile menu (a hard defect).
+        if (!signal.aborted) {
+          const nav: any = await page
+            .evaluate(() => {
+              const d: any = (globalThis as any).document;
+              const w: any = globalThis as any;
+              const vh = w.innerHeight || 844;
+              // "rendered & laid out" — used for counting nav links (an opened drawer may sit
+              // below the fold, so don't require it to be in the viewport vertically).
+              const shown = (el: any) => {
+                if (!el) return false;
+                const cs = w.getComputedStyle(el);
+                if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.1) return false;
+                const r = el.getBoundingClientRect();
+                return r.width >= 12 && r.height >= 8 && el.offsetParent !== null;
+              };
+              const countNav = () => {
+                const set = new Set<any>();
+                d.querySelectorAll(
+                  'nav a, [role="navigation"] a, header a, .navbar a, .nav a, .menu a, .navigation a, .nav-links a, [class*="nav"] a, [class*="menu"] a',
+                ).forEach((a: any) => {
+                  if (shown(a) && (a.innerText || '').trim()) set.add(a);
+                });
+                return set.size;
+              };
+              // A control is a menu toggle if it advertises itself as one (aria / class / id),
+              // exposes aria-expanded, or its only label is a hamburger glyph / the word "menu".
+              const isToggle = (el: any) => {
+                const meta = (
+                  (el.getAttribute('aria-label') || '') +
+                  ' ' +
+                  (el.getAttribute('aria-controls') || '') +
+                  ' ' +
+                  (el.className || '') +
+                  ' ' +
+                  (el.id || '')
+                ).toLowerCase();
+                if (el.hasAttribute('aria-expanded')) return true;
+                if (/menu|hamburger|navbar-toggl|nav-toggle|nav-open|navtoggle|drawer|burger/.test(meta)) return true;
+                const txt = (el.innerText || el.textContent || '').trim();
+                if (/^(☰|≡|menu)$/i.test(txt)) return true;
+                return false;
+              };
+              // On-screen at mobile (a real, tappable button up top).
+              const visTop = (el: any) => {
+                if (!shown(el)) return false;
+                const r = el.getBoundingClientRect();
+                return r.bottom > 0 && r.top < vh;
+              };
+              const cands = Array.from(
+                d.querySelectorAll('button, a, [role="button"], summary, label, div, span, i, svg'),
+              ) as any[];
+              let toggle: any = null;
+              for (const el of cands) {
+                if (!visTop(el)) continue;
+                if (el.tagName === 'A') {
+                  const h = el.getAttribute('href');
+                  if (h && h !== '#' && !h.startsWith('#') && !isToggle(el)) continue; // a real nav link, not a toggle
+                }
+                if (isToggle(el)) {
+                  toggle = el;
+                  break;
+                }
+              }
+              if (toggle) {
+                const clickable = toggle.closest('button,a,[role="button"],summary,label') || toggle;
+                clickable.setAttribute('data-arks-navtoggle', '1');
+              }
+              return { hasToggle: !!toggle, before: countNav() };
+            })
+            .catch(() => ({ hasToggle: false, before: 0 }));
+
+          let after = nav.before;
+          if (nav.hasToggle && nav.before <= 1) {
+            await page
+              .evaluate(() => {
+                const el: any = (globalThis as any).document.querySelector('[data-arks-navtoggle]');
+                if (el) el.click();
+              })
+              .catch(() => {});
+            await page.waitForTimeout(550); // let the menu open / animate
+            after = await page
+              .evaluate(() => {
+                const d: any = (globalThis as any).document;
+                const w: any = globalThis as any;
+                const shown = (el: any) => {
+                  if (!el) return false;
+                  const cs = w.getComputedStyle(el);
+                  if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.1) return false;
+                  const r = el.getBoundingClientRect();
+                  return r.width >= 12 && r.height >= 8 && el.offsetParent !== null;
+                };
+                const set = new Set<any>();
+                d.querySelectorAll(
+                  'nav a, [role="navigation"] a, header a, .navbar a, .nav a, .menu a, .navigation a, .nav-links a, [class*="nav"] a, [class*="menu"] a',
+                ).forEach((a: any) => {
+                  if (shown(a) && (a.innerText || '').trim()) set.add(a);
+                });
+                return set.size;
+              })
+              .catch(() => nav.before);
+          }
+          mobileNavIssue = judgeMobileNav({ hasToggle: nav.hasToggle, before: nav.before, after });
+        }
+
         await page.setViewportSize({ width: 1280, height: 800 });
         await page.waitForTimeout(250);
       } catch {
@@ -442,7 +573,14 @@ export async function browserSmokeTest(
     const pe = dedupe(pageErrors);
     const fr = dedupe(failedRequests);
     const hardFail =
-      docFailed || blank || pe.length > 0 || fr.length > 0 || !!responsiveIssue || !!contrastIssue || !!hoverIssue;
+      docFailed ||
+      blank ||
+      pe.length > 0 ||
+      fr.length > 0 ||
+      !!responsiveIssue ||
+      !!mobileNavIssue ||
+      !!contrastIssue ||
+      !!hoverIssue;
 
     // True visual judgment: if vision is configured, actually LOOK at the page
     // (the text-only model can't). For visual tasks run the DESIGN RUBRIC (gating
@@ -490,6 +628,7 @@ export async function browserSmokeTest(
     if (pe.length) lines.push(`✗ Uncaught JS errors:\n  - ${pe.join('\n  - ')}`);
     if (fr.length) lines.push(`✗ Failed requests (same-origin):\n  - ${fr.join('\n  - ')}`);
     if (responsiveIssue) lines.push(`✗ ${responsiveIssue}`);
+    if (mobileNavIssue) lines.push(`✗ ${mobileNavIssue}`);
     if (contrastIssue) lines.push(`✗ ${contrastIssue}`);
     if (hoverIssue) lines.push(`✗ ${hoverIssue}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);

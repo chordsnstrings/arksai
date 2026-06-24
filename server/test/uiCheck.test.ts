@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDesignVerdict, detectLeakedValues } from '../src/agent/uiCheck';
+import { parseDesignVerdict, detectLeakedValues, judgeMobileNav } from '../src/agent/uiCheck';
 
 // A value leaking into the UI (e.g. an unlabelled chart series → "undefined" legend,
 // an object rendered as "[object Object]", a bad calc as "NaN") must be caught so the
@@ -38,4 +38,24 @@ test('parseDesignVerdict: caps defects at 5', () => {
 test('parseDesignVerdict: garbage / missing verdict → unknown', () => {
   assert.equal(parseDesignVerdict('looks good to me').verdict, 'unknown');
   assert.equal(parseDesignVerdict('').verdict, 'unknown');
+});
+
+// A hamburger that doesn't open the menu on a phone is the #1 "the menu doesn't work" defect —
+// and it sails through the desktop-width interaction pass. judgeMobileNav is the deterministic
+// gate; it must flag a dead toggle and NEVER false-positive on the legitimate patterns.
+test('judgeMobileNav: dead hamburger (nav stays hidden after tap) → flagged', () => {
+  const msg = judgeMobileNav({ hasToggle: true, before: 0, after: 0 });
+  assert.match(msg, /Broken mobile menu/);
+  // a toggle present but only a logo link visible, and tapping reveals nothing
+  assert.notEqual(judgeMobileNav({ hasToggle: true, before: 1, after: 1 }), '');
+});
+
+test('judgeMobileNav: working hamburger (tap reveals nav links) → clean', () => {
+  assert.equal(judgeMobileNav({ hasToggle: true, before: 0, after: 6 }), '');
+  assert.equal(judgeMobileNav({ hasToggle: true, before: 1, after: 5 }), '');
+});
+
+test('judgeMobileNav: no toggle, or nav already shown inline at mobile → nothing to verify', () => {
+  assert.equal(judgeMobileNav({ hasToggle: false, before: 0, after: 0 }), ''); // no hamburger pattern
+  assert.equal(judgeMobileNav({ hasToggle: true, before: 5, after: 5 }), ''); // full nav visible, no toggle needed
 });
