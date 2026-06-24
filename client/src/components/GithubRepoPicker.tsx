@@ -29,7 +29,7 @@ const linkish: React.CSSProperties = {
  * on the server. When connected it lists the user's pushable repos (searchable) and can create a
  * new one. Calls onSelect with the chosen repo (+ the user's connection id) or null.
  */
-export function GithubRepoPicker({ onSelect }: { onSelect: (sel: RepoSelection | null) => void }) {
+export function GithubRepoPicker({ onSelect, compact }: { onSelect: (sel: RepoSelection | null) => void; compact?: boolean }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [repos, setRepos] = useState<GithubRepo[]>([]);
   const [q, setQ] = useState('');
@@ -102,12 +102,20 @@ export function GithubRepoPicker({ onSelect }: { onSelect: (sel: RepoSelection |
   const filtered = q.trim() ? repos.filter((r) => r.fullName.toLowerCase().includes(q.toLowerCase())) : repos;
   return (
     <div>
-      <label>
-        Push to GitHub — @{status.login}{' '}
-        <button type="button" onClick={disconnect} style={linkish}>
-          disconnect
-        </button>
-      </label>
+      {compact ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={disconnect} style={{ ...linkish, color: 'var(--text-faint)' }}>
+            disconnect @{status.login}
+          </button>
+        </div>
+      ) : (
+        <label>
+          Push to GitHub — @{status.login}{' '}
+          <button type="button" onClick={disconnect} style={linkish}>
+            disconnect
+          </button>
+        </label>
+      )}
       {!creating ? (
         <>
           <input
@@ -142,7 +150,7 @@ export function GithubRepoPicker({ onSelect }: { onSelect: (sel: RepoSelection |
           </button>
         </div>
       )}
-      {picked && <div style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 4 }}>Code will push to {picked}.</div>}
+      {picked && !compact && <div style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 4 }}>Code will push to {picked}.</div>}
       {err && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 4 }}>{err}</div>}
     </div>
   );

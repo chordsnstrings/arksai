@@ -64,14 +64,18 @@ export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean
           </span>
         ) : connected ? (
           <span className="repo-bar-target">
-            GitHub connected{status?.login ? <> as <strong>@{status.login}</strong></> : null} — choose a repo to push to
+            {open ? (
+              'Choose a repo to push to'
+            ) : (
+              <>GitHub connected{status?.login ? <> as <strong>@{status.login}</strong></> : null} — choose a repo to push to</>
+            )}
           </span>
         ) : (
           <span className="repo-bar-target muted">Connect GitHub to push this build to a repo</span>
         )}
         {enabled && (
           <button className="repo-bar-btn" disabled={running || busy} onClick={() => setOpen((v) => !v)} title={running ? 'Finish the current run first' : undefined}>
-            {meta.repoUrl ? 'Change' : connected ? 'Choose repo' : 'Connect & choose repo'}
+            {open ? 'Close' : meta.repoUrl ? 'Change' : connected ? 'Choose repo' : 'Connect & choose repo'}
           </button>
         )}
         {meta.repoUrl && enabled && (
@@ -82,7 +86,7 @@ export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean
       </div>
       {open && enabled && (
         <div className="repo-bar-picker">
-          <GithubRepoPicker onSelect={(sel) => sel && apply(sel.repoUrl, sel.branch, sel.connectionId)} />
+          <GithubRepoPicker compact onSelect={(sel) => sel && apply(sel.repoUrl, sel.branch, sel.connectionId)} />
         </div>
       )}
     </div>

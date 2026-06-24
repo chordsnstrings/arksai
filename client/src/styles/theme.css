@@ -1188,7 +1188,8 @@ button { font-family: inherit; cursor: pointer; }
 @media (max-width: 860px) {
   .composer textarea, .dialog input, .dialog select, .dialog .tmpl,
   .login-card input, .search-box, .canvas-port, .title-edit,
-  .email-settings input, .email-settings select, .rb-field input, .rb-field textarea { font-size: 16px; }
+  .email-settings input, .email-settings select, .rb-field input, .rb-field textarea,
+  .repo-bar-picker input:not([type="checkbox"]), .repo-bar-picker select { font-size: 16px; }
 }
 
 /* ---- Live "smart-work" progress bar ---- */
@@ -2438,7 +2439,7 @@ button { font-family: inherit; cursor: pointer; }
 .aw-time { font-size: 12.5px; color: var(--text-muted); margin: 0; text-align: center; line-height: 1.45; }
 
 /* ---------- push-target (GitHub) bar under the chat ---------- */
-.repo-bar { padding: 6px 16px; border-top: 1px solid var(--border); background: var(--bg-sidebar); }
+.repo-bar { padding: 5px 14px; border-top: 1px solid var(--border); background: var(--bg-sidebar); }
 .repo-bar-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-muted); }
 .repo-bar-row > svg { color: var(--text-faint); flex: 0 0 auto; }
 .repo-bar-target strong { color: var(--text); font-weight: 600; }
@@ -2448,8 +2449,16 @@ button { font-family: inherit; cursor: pointer; }
 .repo-bar-btn:disabled { opacity: .5; cursor: default; }
 .repo-bar-link { background: none; border: none; color: var(--text-faint); font-size: 12px; cursor: pointer; padding: 3px 4px; }
 .repo-bar-link:hover:not(:disabled) { color: var(--text); }
-.repo-bar-picker { margin-top: 8px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+.repo-bar-picker { margin-top: 6px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+.repo-bar-picker > div { display: flex; flex-direction: column; gap: 6px; }
 .repo-bar-picker label { font-size: 12px; }
+.repo-bar-picker input:not([type="checkbox"]), .repo-bar-picker select {
+  width: 100%; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); padding: 7px 10px; font-size: 13px; outline: none;
+}
+.repo-bar-picker input:not([type="checkbox"]):focus, .repo-bar-picker select:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim);
+}
 
 /* ---------- Connections hub ---------- */
 .conn-dialog { max-width: 620px; }

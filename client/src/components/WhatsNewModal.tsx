@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-24.7';
+export const WHATS_NEW_VERSION = '2026-06-24.8';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A real Home for your workspace',
-    body: 'The opening screen is now a workspace, not just a launcher: a personalized greeting, anything that needs you, what’s running for you in the background (live apps, schedules, robots), recent work to continue, and your team’s tools — plus the familiar “pick a team and describe it”.',
-  },
-  {
-    title: 'One place for everything that needs you',
-    body: 'A new Activity inbox (sidebar → 🔔) gathers robot replies to approve, failed publishes to fix, low balance, and finished scheduled deliveries — so background work is never invisible. The sidebar is reorganized by what you’re doing (Automations · Live · Connect) with live badges.',
+    title: 'A tighter GitHub bar',
+    body: 'The “push to GitHub” controls under the chat are now a single compact, on-brand card — no duplicated headings, properly styled search and repo picker, and about half the height on mobile so the message box sits higher.',
   },
 ];
 
