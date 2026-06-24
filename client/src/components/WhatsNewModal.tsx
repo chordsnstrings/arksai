@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-24.1';
+export const WHATS_NEW_VERSION = '2026-06-24.2';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Workspace wallet + invoicing',
-    body: 'Each organization now has a prepaid balance. Usage is deducted automatically as you build, and an itemized statement (top-ups + usage, with running balance) is available in Admin → Wallet and exportable to CSV. Admins can top up the wallet; a low-balance banner warns you before you run out.',
-  },
-  {
-    title: 'Costs in Bangladeshi Taka (৳)',
-    body: 'Costs can now display in BDT. Since the Taka floats against the dollar, USD stays the exact number and BDT is shown as an indicative figure at an operator-set rate, with the rate and date always visible — so the picture is clear and honest.',
+    title: 'Scanned PDFs → accurate spreadsheets',
+    body: 'Uploading a scanned PDF (bank challans, invoices, statements)? ArksAI now reads the pages by sight instead of relying on a text layer that scanned files don’t really have — so tables come across intact. For document→Excel work it transcribes every line item, builds the summary with live formulas, and reconciles each document’s total back to its printed total, so a missing row or a wrong month gets caught, not shipped.',
   },
 ];
 

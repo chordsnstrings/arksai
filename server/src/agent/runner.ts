@@ -490,16 +490,18 @@ export class AgentRun {
       const files = fs
         .readdirSync(upDir)
         .filter((f) => !f.endsWith('.extracted.txt'))
-        .filter((f) => {
+        .map((f) => {
           try {
             const st = fs.statSync(path.join(upDir, f));
-            return st.isFile() && st.mtimeMs >= cutoff;
+            return st.isFile() && st.mtimeMs >= cutoff ? { f, m: st.mtimeMs } : null;
           } catch {
-            return false;
+            return null;
           }
         })
-        .slice(0, 12)
-        .map((f) => `uploads/${f}`);
+        .filter((x): x is { f: string; m: number } => !!x)
+        .sort((a, b) => b.m - a.m) // most-recent first so a big multi-file upload isn't truncated
+        .slice(0, 60) // headroom for several PDFs + their per-page renders
+        .map((x) => `uploads/${x.f}`);
       const note = buildUploadNote(files, this.minimaxAvailable, paletteAvailable);
       if (note) context.push({ role: 'user', content: note });
     } catch {

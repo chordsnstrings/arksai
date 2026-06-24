@@ -40,6 +40,9 @@ export async function extractText(absPath: string): Promise<string | null> {
 }
 
 const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
+// Page images we render from a scanned PDF (named "<file>.pdf.page-N.png"); routed to see_image,
+// not treated as a standalone uploaded image.
+const PAGE_RENDER_RE = /\.pdf\.page-\d+\.png$/i;
 
 /**
  * Build the per-run "the user just uploaded …" note injected for the (text-only)
@@ -52,13 +55,23 @@ const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
 export function buildUploadNote(files: string[], minimaxAvailable: boolean, paletteAvailable = false): string | null {
   if (!files.length) return null;
   const ext = (f: string) => path.extname(f).toLowerCase();
-  const images = files.filter((f) => IMAGE_RE.test(f));
-  const sheets = files.filter((f) => !IMAGE_RE.test(f) && SPREADSHEET.has(ext(f)));
-  const decks = files.filter((f) => !IMAGE_RE.test(f) && PRESENTATION.has(ext(f)));
-  const docs = files.filter((f) => !IMAGE_RE.test(f) && EXTRACTABLE.has(ext(f)));
-  const others = files.filter(
+  // Page renders of a scanned PDF are handled WITH their PDF (read by sight), not as loose images.
+  const pageRenders = files.filter((f) => PAGE_RENDER_RE.test(f));
+  const rest = files.filter((f) => !PAGE_RENDER_RE.test(f));
+  const rendersFor = (pdf: string) => {
+    const pre = `${path.basename(pdf)}.page-`;
+    return pageRenders.filter((p) => path.basename(p).startsWith(pre));
+  };
+  const images = rest.filter((f) => IMAGE_RE.test(f));
+  const sheets = rest.filter((f) => !IMAGE_RE.test(f) && SPREADSHEET.has(ext(f)));
+  const decks = rest.filter((f) => !IMAGE_RE.test(f) && PRESENTATION.has(ext(f)));
+  const docs = rest.filter((f) => !IMAGE_RE.test(f) && EXTRACTABLE.has(ext(f)));
+  const others = rest.filter(
     (f) => !IMAGE_RE.test(f) && !SPREADSHEET.has(ext(f)) && !PRESENTATION.has(ext(f)) && !EXTRACTABLE.has(ext(f)),
   );
+  // A PDF with page renders is SCANNED → read by sight; the rest read their text sidecar.
+  const scannedPdfs = docs.filter((d) => ext(d) === '.pdf' && rendersFor(d).length > 0);
+  const textDocs = docs.filter((d) => !(ext(d) === '.pdf' && rendersFor(d).length > 0));
   const clauses: string[] = [];
   if (sheets.length)
     clauses.push(
@@ -69,10 +82,17 @@ export function buildUploadNote(files: string[], minimaxAvailable: boolean, pale
     clauses.push(
       `presentation(s): ${decks.join(', ')} — call read_presentation on each (NOT read_file) to read every slide + speaker notes`,
     );
-  if (docs.length)
+  if (textDocs.length)
     clauses.push(
-      `document file(s): ${docs.map((f) => `${f} (read its extracted text at ${f}.extracted.txt)`).join('; ')}`,
+      `document file(s): ${textDocs.map((f) => `${f} (read its extracted text at ${f}.extracted.txt)`).join('; ')}`,
     );
+  if (scannedPdfs.length) {
+    const parts = scannedPdfs.map((d) => `${d} → page images: ${rendersFor(d).join(', ')}`);
+    clauses.push(
+      `SCANNED PDF(s) whose text layer is UNRELIABLE — do NOT trust ${scannedPdfs.map((d) => `${d}.extracted.txt`).join('/')}; instead READ THE PAGE IMAGES with see_image (one call per page) and transcribe every table row exactly: ${parts.join('; ')}. ` +
+        `For tabular / financial data: (1) transcribe EVERY line item — read each row's OWN date/month column, never infer it — and tag which source document each row came from; (2) build the spreadsheet from that line-item list (keep an audit-trail sheet); (3) RECONCILE each document's extracted total to its printed total and flag any mismatch; (4) DE-DUPE identical documents. Missing a row, a supplier, or a month is a failure — cross-check totals before finishing.`,
+    );
+  }
   if (others.length) clauses.push(`file(s): ${others.join(', ')} (read with read_file)`);
   if (images.length) {
     // When extract_palette is in the toolset (onboarding/code/report), a LOGO's brand

@@ -8,6 +8,7 @@ import * as store from '../sessions/store';
 import { repoDir } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import { extractText } from '../lib/extract';
+import { rasterizePdfPages, textLooksUnreliable } from '../lib/pdfRender';
 
 // SECURITY: an uploaded filename is untrusted. path.basename() strips any directory
 // component (defeating ../ traversal and absolute paths), then the allowlist removes
@@ -72,6 +73,22 @@ export function registerUploadRoutes(app: FastifyInstance) {
           text: `Extracted text → ${sidecar} (readable by the agent)`,
           ts: Date.now(),
         });
+      }
+      // A SCANNED / image-only / garbled PDF yields useless text (tables don't survive
+      // pdf-parse) — render its pages to images so the agent can READ them by sight. The page
+      // PNGs land in uploads/ next to the source, so the upload-note routes them to see_image.
+      if (path.extname(abs).toLowerCase() === '.pdf' && textLooksUnreliable(extracted)) {
+        const pdfName = path.basename(abs);
+        const pages = await rasterizePdfPages(abs, uploadsDir, pdfName, 12);
+        if (pages.length) {
+          await emit({
+            kind: 'system',
+            id: randomUUID(),
+            level: 'info',
+            text: `Scanned PDF — rendered ${pages.length} page image(s) for accurate reading.`,
+            ts: Date.now(),
+          });
+        }
       }
     }
     await store.updateSession(id, {});

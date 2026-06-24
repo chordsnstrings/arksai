@@ -210,7 +210,14 @@ export const generateSpreadsheetTool: ToolDef = {
     'AGAIN with "append": true to add ONE more sheet each time (e.g. CAPEX schedule, then OPEX schedule, then Personnel, ' +
     'then a Summary/P&L), each referencing the earlier sheets with cross-sheet formulas (=Assumptions!$B$2). Append keeps ' +
     'the SAME file, preserves prior sheets, restyles, and re-checks the whole workbook; re-sending a sheet name REPLACES it. ' +
-    'This is how you reliably ship a big, detailed, formula-driven model without one giant payload.',
+    'This is how you reliably ship a big, detailed, formula-driven model without one giant payload. ' +
+    'EXTRACTING FROM SOURCE DOCUMENTS (PDFs/scans → a spreadsheet): NEVER pivot straight to the final grid. First ' +
+    'transcribe EVERY line item into a flat audit-trail sheet (one row per source line, with its OWN date/month read ' +
+    'from the row — never inferred — plus which document it came from); build the summary/pivot sheet FROM that with ' +
+    'live formulas; then RECONCILE each source document\'s extracted total back to its printed total and surface any ' +
+    'mismatch; and DE-DUPE identical documents. Dropping a row, a supplier, or a whole document — or mis-filing a row ' +
+    'into the wrong month — is the #1 failure here; the reconciliation is what catches it, so always include it. For a ' +
+    'SCANNED PDF read the page IMAGES with see_image (its text layer is unreliable).',
   parameters: {
     type: 'object',
     properties: {

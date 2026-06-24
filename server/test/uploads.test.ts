@@ -1,11 +1,42 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildUploadNote } from '../src/lib/extract';
+import { textLooksUnreliable } from '../src/lib/pdfRender';
 import { sanitizeFilename } from '../src/routes/upload';
 import { contentDisposition } from '../src/routes/files';
 
 test('buildUploadNote: null when nothing was uploaded', () => {
   assert.equal(buildUploadNote([], true), null);
+});
+
+test('textLooksUnreliable: empty / scanned-garbage flagged; rich born-digital text trusted', () => {
+  assert.equal(textLooksUnreliable(''), true);
+  assert.equal(textLooksUnreliable(null), true);
+  const garbage = 'A B 6t N I cl .ll Gt a x 6 c V r o o fr a U I a o a a F '.repeat(20);
+  assert.equal(textLooksUnreliable(garbage), true);
+  const clean =
+    'WAADAA Limited recorded total purchases of 49188140 BDT across nine months from twelve suppliers. ' +
+    'The advance income tax withheld at five percent reconciles to 2459407 across six challans deposited between January and June.';
+  assert.equal(textLooksUnreliable(clean.repeat(3)), false);
+});
+
+test('buildUploadNote: a scanned PDF with page renders routes to see_image + reconcile discipline', () => {
+  const note = buildUploadNote(
+    ['uploads/challan.pdf', 'uploads/challan.pdf.page-1.png', 'uploads/challan.pdf.page-2.png'],
+    true,
+  )!;
+  assert.match(note, /SCANNED PDF/);
+  assert.match(note, /see_image/);
+  assert.match(note, /challan\.pdf\.page-1\.png/);
+  assert.match(note, /RECONCILE/i);
+  assert.match(note, /DE-DUPE/i);
+  assert.ok(!/challan\.pdf \(read its extracted text/.test(note), 'scanned PDF should not be sent to its text sidecar');
+});
+
+test('buildUploadNote: a born-digital PDF (no renders) still uses its text sidecar', () => {
+  const note = buildUploadNote(['uploads/contract.pdf'], true)!;
+  assert.match(note, /contract\.pdf \(read its extracted text at uploads\/contract\.pdf\.extracted\.txt\)/);
+  assert.ok(!/SCANNED PDF/.test(note));
 });
 
 // SECURITY: an upload filename is untrusted input — it must never escape the uploads dir.
