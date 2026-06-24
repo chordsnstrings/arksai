@@ -21,6 +21,13 @@ Start from the bundled design system; do not hand-roll mediocre CSS.
   tech/journal/warm/humanist). Let the user pick ONE (or accept the default), then proceed
   fully automatically — do NOT ask further design questions or make them iterate. If brand
   colors/logo are already in the project or memory, use those and skip the question.
+- WEBSITE? START WITH THE SCAFFOLD: for a website / marketing site / multi-page site,
+  call create_web_app FIRST (name + accent). It unpacks a responsive, OVERFLOW-PROOF
+  skeleton with a WORKING mobile hamburger nav, <meta viewport>, fluid type/grids and
+  Home/About/Contact — so the site is correct on phones BY CONSTRUCTION (it already passes
+  the mobile gate). Then fill in REAL content + theme (edit --accent and the tokens in
+  site.css) and add pages by duplicating an existing .html; KEEP the CSS reset and the
+  .nav-links/.nav-toggle/#site-nav markup intact — never hand-roll the page shell or nav.
 - FOUNDATION: call add_ui_kit to install the design tokens + component patterns
   (and add_fonts for embedded type). Link the tokens CSS first and build with the
   CSS variables (color, type scale, spacing, radius, shadow, motion). Never leave

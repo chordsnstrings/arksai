@@ -1,0 +1,107 @@
+/* ArksAI website baseline — overflow-proof + responsive by construction.
+   Edit freely, but KEEP the reset and the responsive nav: they are why this site can never
+   break on a phone. Theme by changing --accent (and the type/colour tokens). */
+
+/* ---- reset: the structural guarantees ---- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; max-width: 100%; overflow-x: hidden; }
+img, svg, video, iframe, canvas { max-width: 100%; height: auto; }
+/* A wide table scrolls inside its own block, never the page. */
+.table-wrap { max-width: 100%; overflow-x: auto; }
+table { border-collapse: collapse; }
+a { color: inherit; }
+
+/* ---- tokens (theme here) ---- */
+:root {
+  --accent: #3a5a78;          /* the one brand accent — used sparingly */
+  --accent-ink: #ffffff;       /* readable text on the accent */
+  --ink: #16181d;              /* primary text */
+  --muted: #565b66;            /* secondary text — still AA on --bg */
+  --bg: #ffffff;
+  --surface: #f6f6f3;
+  --border: #e6e6e0;
+  --maxw: 1080px;
+  --pad: clamp(16px, 4vw, 36px);
+  --radius: 12px;
+  --font: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  --display: "Source Serif 4", Georgia, "Times New Roman", serif;
+}
+
+html { font-family: var(--font); color: var(--ink); background: var(--bg); line-height: 1.6; -webkit-text-size-adjust: 100%; }
+body { font-size: clamp(15px, 0.9rem + 0.2vw, 17px); }
+h1, h2, h3 { font-family: var(--display); line-height: 1.2; font-weight: 600; margin: 0 0 .4em; letter-spacing: -0.01em; }
+h1 { font-size: clamp(2rem, 1.4rem + 3.2vw, 3.4rem); }
+h2 { font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem); }
+h3 { font-size: 1.2rem; }
+p { margin: 0 0 1em; max-width: 68ch; }
+.muted { color: var(--muted); }
+
+.container { width: 100%; max-width: var(--maxw); margin: 0 auto; padding-left: var(--pad); padding-right: var(--pad); }
+.section { padding: clamp(48px, 8vw, 96px) 0; }
+.section.surface { background: var(--surface); }
+
+/* ---- header + RESPONSIVE NAV (the bulletproof part) ---- */
+.site-header { position: relative; border-bottom: 1px solid var(--border); background: var(--bg); }
+.nav-bar { display: flex; align-items: center; gap: 16px; min-height: 60px; }
+.brand { font-family: var(--display); font-weight: 600; font-size: 1.15rem; color: var(--ink); text-decoration: none; margin-right: auto; }
+.nav-toggle {
+  margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 38px; font-size: 1.25rem; line-height: 1;
+  background: none; border: 1px solid var(--border); border-radius: 9px; color: var(--ink); cursor: pointer;
+}
+.nav-links {
+  display: none; flex-direction: column; gap: 2px;
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 20;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  padding: 6px var(--pad) 14px;
+}
+.nav-links.open { display: flex; }
+.nav-links a { color: var(--ink); text-decoration: none; padding: 11px 2px; font-weight: 500; }
+.nav-links a:hover { color: var(--accent); }
+
+@media (min-width: 721px) {
+  .nav-toggle { display: none; }
+  .nav-links {
+    display: flex; flex-direction: row; gap: 26px;
+    position: static; padding: 0; border: none; background: none;
+  }
+  .nav-links a { padding: 6px 0; }
+}
+
+/* ---- buttons ---- */
+.btn {
+  display: inline-block; padding: 11px 22px; border-radius: 10px; font-weight: 600;
+  text-decoration: none; cursor: pointer; border: 1px solid transparent; font-size: 0.97rem;
+}
+.btn-primary { background: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { filter: brightness(1.07); }
+.btn-ghost { background: none; color: var(--ink); border-color: var(--border); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---- hero + layout helpers ---- */
+.hero { padding: clamp(56px, 10vw, 120px) 0; }
+.hero p.lead { font-size: clamp(1.05rem, 1rem + 0.5vw, 1.3rem); color: var(--muted); max-width: 60ch; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+.eyebrow { font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-bottom: 12px; }
+
+/* auto-fit grid that never overflows a small phone (min() caps the track at 100%) */
+.grid { display: grid; gap: clamp(16px, 3vw, 28px); grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+.card h3 { margin-top: 0; }
+
+/* ---- forms (responsive: inputs never overflow) ---- */
+.form { max-width: 520px; margin-top: 28px; }
+.field { display: block; margin-bottom: 16px; }
+.field label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; }
+.field input, .field textarea {
+  width: 100%; max-width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px;
+}
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.field textarea { min-height: 130px; resize: vertical; }
+
+/* ---- footer ---- */
+.site-footer { border-top: 1px solid var(--border); padding: 40px 0; color: var(--muted); font-size: 0.9rem; }
+.site-footer .container { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; justify-content: space-between; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

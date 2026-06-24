@@ -240,27 +240,34 @@ export async function browserSmokeTest(
       }
     }
 
-    // RESPONSIVE (deterministic, no vision): a real product must not overflow
-    // horizontally on a phone. Render at 390px wide and measure content vs viewport;
-    // a layout wider than the screen is a hard responsiveness defect. Reset to desktop
-    // after so the visual design review (below) still sees the desktop composition.
+    // RESPONSIVE (deterministic, no vision): a real product must not overflow horizontally on a
+    // phone OR a small tablet. Measure content vs viewport at several common widths (320 small
+    // phone, 390 phone, 768 tablet); a layout wider than the screen at ANY of them is a hard
+    // defect. Reset to desktop after so the visual design review (below) sees the desktop layout.
     let responsiveIssue = '';
     let mobileNavIssue = '';
     if (!blank) {
       try {
+        for (const vw of [320, 390, 768]) {
+          if (responsiveIssue || signal.aborted) break;
+          await page.setViewportSize({ width: vw, height: vw < 500 ? 844 : 1024 });
+          await page.waitForTimeout(vw === 320 ? 450 : 350);
+          const ov: any = await page
+            .evaluate(() => {
+              const d: any = (globalThis as any).document;
+              const w: any = globalThis as any;
+              const sw = Math.max(d?.documentElement?.scrollWidth || 0, d?.body?.scrollWidth || 0);
+              return { scrollW: sw, innerW: w.innerWidth || 0 };
+            })
+            .catch(() => ({ scrollW: 0, innerW: vw }));
+          const over = Math.round((ov.scrollW || 0) - (ov.innerW || vw));
+          if (over > 24)
+            responsiveIssue = `Not responsive — horizontal overflow at ${vw}px: content is ${over}px wider than the screen (the user has to scroll sideways). Fix with max-width:100%, flex-wrap, fluid units, image/table containers (overflow-x:auto on the container, not the page), and no fixed pixel widths wider than the viewport.`;
+        }
+
+        // Back to a phone width for the mobile-nav check below.
         await page.setViewportSize({ width: 390, height: 844 });
-        await page.waitForTimeout(450);
-        const ov: any = await page
-          .evaluate(() => {
-            const d: any = (globalThis as any).document;
-            const w: any = globalThis as any;
-            const sw = Math.max(d?.documentElement?.scrollWidth || 0, d?.body?.scrollWidth || 0);
-            return { scrollW: sw, innerW: w.innerWidth || 390 };
-          })
-          .catch(() => ({ scrollW: 0, innerW: 390 }));
-        const over = Math.round((ov.scrollW || 0) - (ov.innerW || 390));
-        if (over > 24)
-          responsiveIssue = `Not responsive — horizontal overflow at 390px: content is ${over}px wider than the screen (the user has to scroll sideways on a phone). Fix with max-width:100%, flex-wrap, fluid units, image/table containers (overflow-x:auto on the container, not the page), and no fixed pixel widths wider than the viewport.`;
+        await page.waitForTimeout(300);
 
         // MOBILE MENU (deterministic, no vision): the desktop interaction pass can't catch a
         // dead hamburger — at desktop width it's hidden and the nav shows inline. Here, on the

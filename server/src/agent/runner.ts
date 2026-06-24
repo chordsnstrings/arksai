@@ -25,6 +25,7 @@ import { probeApp } from './runtimeCheck';
 import { checkDeliverable, type DeliverableKind } from './deliverableCheck';
 import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
+import { auditWebHygiene } from './webHygiene';
 import { escalateModel, resolveProvider, selectModel } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
 import { routeExpertise } from './expertiseRouter';
@@ -1570,18 +1571,30 @@ export class AgentRun {
       }
     }
 
-    // 2) Runtime + flow — for apps, ArksAI boots it and exercises the endpoints.
-    const startCmd = detectStartCommand(dir);
-    if (!startCmd) {
+    // 2) Runtime + flow — for apps, ArksAI boots it and exercises the endpoints. A STATIC
+    //    site has no start command, but it must STILL be browser-checked (responsive overflow,
+    //    mobile nav, contrast) — never waved through — so serve it and run the same gate.
+    let probeDir = dir;
+    let probeCmd = detectStartCommand(dir);
+    let staticSite = false;
+    if (!probeCmd) {
+      const r = detectRenderable(dir);
+      if (r.staticDir) {
+        probeDir = path.join(dir, r.staticDir);
+        probeCmd = 'python3 -m http.server 4000 --bind 0.0.0.0';
+        staticSite = true;
+      }
+    }
+    if (!probeCmd) {
       sys('info', report.ran ? `✓ Verified — ${report.summary}` : report.summary);
       return 'ok';
     }
 
     // Clean any dev server the agent left running so the probe gets the port.
     processRegistry.killAllForSession(this.session.id);
-    sys('info', '⟳ Booting the app and exercising its endpoints (seeding real data)…');
-    this.emitProgress('testing', 'Booting a live instance…');
-    const probe = await probeApp(this.session.id, dir, startCmd, this.abort.signal, {
+    sys('info', staticSite ? '⟳ Serving the site and checking it renders in a real browser…' : '⟳ Booting the app and exercising its endpoints (seeding real data)…');
+    this.emitProgress('testing', staticSite ? 'Checking it renders on phone + desktop…' : 'Booting a live instance…');
+    const probe = await probeApp(this.session.id, probeDir, probeCmd, this.abort.signal, {
       visual: this.taskProfile?.isVisual,
       onPhase: (label) => this.emitProgress('testing', label),
     });
@@ -1591,6 +1604,13 @@ export class AgentRun {
     }
     if (probe.ui?.hardFail) {
       return failFix('The browser check', probe.detail, 'testing');
+    }
+    // Deterministic mobile-web hygiene the headless browser CAN'T see — most importantly a missing
+    // <meta viewport> (Playwright sets the viewport, so the page never renders desktop-width-and-
+    // zoomed-out the way it does on a real phone). Gate on it too, with no browser/vision needed.
+    const hygiene = auditWebHygiene(probeDir);
+    if (hygiene.defects.length) {
+      return failFix('Mobile web checks', hygiene.defects.map((d) => `- ${d}`).join('\n'), 'testing');
     }
     // Gating DESIGN critique (visual tasks): the agent must fix concrete defects
     // and re-render, bounded — so the user gets a polished result without
