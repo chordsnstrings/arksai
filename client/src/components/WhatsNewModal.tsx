@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-24.3';
+export const WHATS_NEW_VERSION = '2026-06-24.4';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Connections — start with GitHub',
-    body: 'A new Connections hub (sidebar → 🔌) is where you link the tools your work lives in. Connect your GitHub account and even create a new repo right from the app. And under any chat there’s now a slim bar to connect GitHub and pick (or create) the repo that build pushes to — inline, no dialog.',
+    title: 'See how long each result took',
+    body: 'Every finished reply now shows a quiet “Completed in 3m 12s” — the time from your message to the result. It’s saved with the chat, so it’s still there when you come back.',
   },
 ];
 

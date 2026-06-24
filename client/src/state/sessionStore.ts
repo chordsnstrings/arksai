@@ -386,6 +386,15 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
           { kind: 'assistant', id: live.pendingAssistant.id, text: live.pendingAssistant.text, ts: Date.now() },
         ];
       }
+      // Stamp the run duration onto the final assistant message so the live view shows
+      // "Completed in 3m 12s" immediately (matches what the server persisted).
+      for (let i = items.length - 1; i >= 0; i--) {
+        if (items[i].kind === 'assistant') {
+          items = [...items];
+          items[i] = { ...items[i], durationMs: ev.durationMs } as TimelineItem;
+          break;
+        }
+      }
       return {
         ...live,
         items,

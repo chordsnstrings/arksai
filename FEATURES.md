@@ -6,7 +6,7 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 
 > **Maintenance:** keep this file current — every shipped change that adds, removes, or
 > meaningfully alters a feature should update this list in the same commit.
-> _Last updated: 2026-06-21._
+> _Last updated: 2026-06-24._
 
 ---
 
@@ -70,6 +70,7 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 - Live "smart-work" progress bar — named phases with an anticipation creep so it never looks frozen; technical work stays visible (visible competence = trust). It also shows an **estimated time remaining** that counts down through the phases (slightly generous so a run usually beats it — a small positive surprise, not a broken countdown); when a build runs past the estimate it eases into a soft "larger job — hang tight / almost there" instead of a stuck 0:00. The estimate is **self-calibrating** — each completed run folds its real per-phase durations into a per-mode rolling average, so the countdown converges on what THIS deployment actually does (a slower host, a heavy-report tenant) instead of a fixed guess.
 - **Build you can watch (engagement-tuned)** — the moment you hit go the bar + footer appear (optimistic, zero gap); a live **play-by-play ticker** names the current action in human terms ("Looking at your image", "Setting the typography", "Designing the PDF", "Publishing it live") and auto-expands while working; switching chats never flashes; if a step needs retrying the studio says so kindly (plain language, never a scary error).
 - **A real "it's ready" moment** — a successful build ends on a staged completion card with a **live thumbnail** of the finished app/document, one-tap **Open** and **Share** (✓ Live · Copied ✓), and a one-tap **"Fix & republish"** if a publish check fails — fires for every build, including static single-file sites. Publishing walks its real phases (Snapshotting → Installing → Booting → Checking the live URL) so the wait shows motion.
+- **Completion time on every result** — each finished reply shows a quiet "Completed in 3m 12s" — the wall-clock from your message (input) to the result (output). It's **stored with the chat** (in the timeline), so it's still there on reload and across devices, letting you see how long each input vs output actually took.
 - **Pick up where you left off + calm dialogs** — the home screen shows a "Jump back in" row of your recent work; destructive actions use a styled in-app confirm (no jarring browser popup) and **Esc closes any dialog**; the live preview locks onto the exact port the build produced (no more wrong-port "Error").
 - Self-healing reframed as confident "hardening it (pass N)" forward progress, not failure.
 - Delivery moment — "Booting your live app…" loading + retry, and a completion card ("✓ Your app is ready" → Open / Get a shareable link) with a **"What's next?"** row of contextual follow-up chips (e.g. add a feature, tweak the design, turn a report into a deck) that pre-fill the message box so there's always an obvious next step.

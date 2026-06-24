@@ -1003,7 +1003,23 @@ export class AgentRun {
         bus.clear(sessionId);
         return;
       }
+      // Stamp the run's total processing time (user input → output) onto the FINAL
+      // assistant message so the user can see "Completed in 3m 12s" — and it persists
+      // in the timeline JSON, surviving reload.
+      const runDurationMs = Date.now() - this.usage.startedAt;
+      let finalAssistant: Extract<TimelineItem, { kind: 'assistant' }> | null = null;
+      for (let i = liveItems.length - 1; i >= 0; i--) {
+        const it = liveItems[i];
+        if (it.kind === 'assistant') {
+          it.durationMs = runDurationMs;
+          finalAssistant = it;
+          break;
+        }
+      }
       for (; persisted < liveItems.length; persisted++) await store.appendTimeline(sessionId, liveItems[persisted]);
+      // The final assistant item may have been flushed LIVE earlier (before the duration
+      // was known) — rewrite it in place so the persisted timeline carries the duration.
+      if (finalAssistant) await store.updateTimelineItem(sessionId, finalAssistant);
       await store.setContext(sessionId, context);
       // Cross-chat recall: distill a compact note into THIS org's shared memory (its
       // own org ONLY) so future sessions in the org can recall what was done here.
@@ -1040,6 +1056,7 @@ export class AgentRun {
         status: finalStatus,
         totalTokens: this.usage.totalTokens,
         diffStat: stat,
+        durationMs: runDurationMs,
         ...(deliverable ? { deliverable } : {}),
       });
       // Analytics (metadata only, fire-and-forget): the richest usage/quality/cost signal.
@@ -1053,7 +1070,7 @@ export class AgentRun {
           model: this.activeModel,
           task: this.session.task ?? undefined,
           deliverable: deliverable?.kind,
-          durationMs: Date.now() - this.usage.startedAt,
+          durationMs: runDurationMs,
           totalTokens: this.usage.totalTokens,
           costUsd: Math.round((this.accruedCostUsd + this.engineCostUsd) * 1e6) / 1e6,
         },

@@ -194,6 +194,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
         status: 'idle',
         totalTokens: 0,
         diffStat: updated.diffStat,
+        durationMs: 0,
       });
       bus.sessionChanged(updated);
     }

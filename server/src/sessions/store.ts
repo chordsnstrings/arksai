@@ -192,6 +192,17 @@ export async function appendTimeline(sessionId: string, item: TimelineItem) {
   ]);
 }
 
+/** Rewrite an already-persisted timeline item in place (matched by its id). Used to
+ *  back-fill a field — e.g. stamp the final assistant message's run duration — when the
+ *  item was flushed live mid-run before that field was known. No-op if the id isn't found. */
+export async function updateTimelineItem(sessionId: string, item: TimelineItem) {
+  await q('UPDATE timeline SET payload = $3 WHERE session_id = $1 AND id = $2', [
+    sessionId,
+    item.id,
+    JSON.stringify(item),
+  ]);
+}
+
 export async function getTimeline(sessionId: string): Promise<TimelineItem[]> {
   const rows = await q<{ payload: string }>(
     'SELECT payload FROM timeline WHERE session_id = $1 ORDER BY seq ASC',

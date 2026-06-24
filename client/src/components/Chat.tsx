@@ -122,6 +122,16 @@ function fmtBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/** Human run duration: "8.4s" under a minute, "3m 12s" over. */
+function formatDuration(ms: number): string {
+  if (ms < 1000) return '<1s';
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return rem ? `${m}m ${rem}s` : `${m}m`;
+}
+
 function TimelineRow({ item, sessionId }: { item: TimelineItem; sessionId: string }) {
   switch (item.kind) {
     case 'user':
@@ -130,6 +140,11 @@ function TimelineRow({ item, sessionId }: { item: TimelineItem; sessionId: strin
       return (
         <div className="assistant-prose">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
+          {item.durationMs !== undefined && (
+            <div className="run-duration" title="Time from your message to this result">
+              Completed in {formatDuration(item.durationMs)}
+            </div>
+          )}
         </div>
       );
     case 'tools':

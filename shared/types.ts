@@ -208,7 +208,16 @@ export interface ToolCallRecord {
 
 export type TimelineItem =
   | { kind: 'user'; id: string; text: string; ts: number }
-  | { kind: 'assistant'; id: string; text: string; ts: number }
+  | {
+      kind: 'assistant';
+      id: string;
+      text: string;
+      ts: number;
+      /** Wall-clock the run took to produce this output (ms), set on the run's FINAL
+       *  assistant message — so the user sees "Completed in 3m 12s". Persisted in the
+       *  timeline JSON, so it survives reload. */
+      durationMs?: number;
+    }
   | { kind: 'tools'; id: string; calls: ToolCallRecord[]; ts: number }
   | { kind: 'system'; id: string; level: 'info' | 'error'; text: string; ts: number }
   | { kind: 'file'; id: string; path: string; name: string; size: number; ts: number };
@@ -268,6 +277,9 @@ export type AgentEvent =
       status: SessionStatus;
       totalTokens: number;
       diffStat: string | null;
+      /** Wall-clock from run start (user input) to finish (output), in ms — so the
+       *  live view can show "Completed in 3m 12s" without a reload. */
+      durationMs: number;
       /** What the run produced, for the "it's ready" completion card. */
       deliverable?: { kind: 'app' | 'pdf' | 'sheet' | 'doc' | 'image'; name?: string };
     }
