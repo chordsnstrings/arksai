@@ -2459,6 +2459,16 @@ button { font-family: inherit; cursor: pointer; }
 .repo-bar-picker input:not([type="checkbox"]):focus, .repo-bar-picker select:focus {
   border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim);
 }
+/* Glanceable commit/push state chip — so the user never has to guess whether code landed. */
+.repo-git {
+  display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
+  font-size: 11.5px; line-height: 1; white-space: nowrap;
+  padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-muted);
+}
+.repo-git::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); }
+.repo-git.ok { color: var(--text); }
+.repo-git.ok::before { background: #1f9d55; }
+.repo-git.pending::before { background: #c98a1b; }
 
 /* ---------- Connections hub ---------- */
 .conn-dialog { max-width: 620px; }

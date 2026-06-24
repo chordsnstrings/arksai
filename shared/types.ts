@@ -661,3 +661,29 @@ export interface HomeSnapshot {
   /** Robot reply drafts awaiting the user's approval. */
   pendingDrafts: RobotDraft[];
 }
+
+/** Read-only git state of a session's workspace — surfaced so the user can SEE whether
+ *  their code is committed and pushed to the connected repo (never had to guess). */
+export interface GitStatus {
+  /** Is the workspace an initialized git repo? */
+  hasRepo: boolean;
+  /** Current branch name (empty if unknown / detached). */
+  branch: string;
+  /** The HEAD commit, or null if nothing is committed yet. */
+  head: { sha: string; subject: string } | null;
+  /** Count of uncommitted (staged + unstaged + untracked) changes. */
+  dirty: number;
+  /** The last successful push from this workspace, or null if it was never pushed. */
+  lastPush: { sha: string; branch: string; at: string } | null;
+  /** True when the current HEAD has been pushed and there are no pending changes. */
+  pushed: boolean;
+}
+
+/** Map git state → a short status chip (tone + text) for the repo bar. Pure + unit-tested. */
+export function describeGitState(s: GitStatus): { tone: 'ok' | 'pending' | 'idle'; text: string } {
+  if (!s.hasRepo) return { tone: 'idle', text: 'No repo yet' };
+  if (s.dirty > 0) return { tone: 'pending', text: `${s.dirty} uncommitted change${s.dirty === 1 ? '' : 's'}` };
+  if (s.head && s.pushed) return { tone: 'ok', text: `Pushed · ${s.head.sha}` };
+  if (s.head) return { tone: 'pending', text: `Committed, not pushed · ${s.head.sha}` };
+  return { tone: 'idle', text: 'Nothing committed yet' };
+}

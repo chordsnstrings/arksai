@@ -12,7 +12,7 @@ import * as manager from '../sessions/manager';
 import { isValidModel } from '../agent/models';
 import { DEFAULT_ORG_ID } from '../orgs/store';
 import { walletBalanceUsd } from '../wallet/store';
-import { deleteWorkspace, fullDiff, listFiles, parseRepoUrl, repoDir, setupWorkspace } from '../sessions/workspace';
+import { deleteWorkspace, fullDiff, gitStatus, listFiles, parseRepoUrl, repoDir, setupWorkspace } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import { processRegistry } from '../agent/processes';
 import { detectStartCommand, verifyProject } from '../agent/verify';
@@ -218,6 +218,14 @@ export function registerSessionRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
     return { diff: await fullDiff(id) };
+  });
+
+  // Read-only git state (branch / HEAD / dirty count / last push) so the repo bar can show
+  // whether the code is committed and pushed. No agent run, no token cost.
+  app.get('/api/sessions/:id/git', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
+    return await gitStatus(id);
   });
 
   app.get('/api/sessions/:id/verify', async (req, reply) => {

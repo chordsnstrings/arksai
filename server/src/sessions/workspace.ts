@@ -5,7 +5,7 @@ import { execBash } from '../lib/exec';
 import { extractText } from '../lib/extract';
 import { bus } from '../events/bus';
 import * as store from './store';
-import type { SessionMeta } from '../../../shared/types';
+import type { GitStatus, SessionMeta } from '../../../shared/types';
 
 export function workspaceRoot(): string {
   return path.join(config.dataDir, 'workspaces');
@@ -144,6 +144,52 @@ export async function diffStat(sessionId: string): Promise<string | null> {
   const del = res.output.match(/(\d+) deletion/);
   if (!ins && !del) return null;
   return `+${ins ? ins[1] : 0} −${del ? del[1] : 0}`;
+}
+
+/** Sidecar that remembers the last commit successfully pushed from this workspace. Lives in
+ *  the session dir (the PARENT of the repo) so it never shows up in `git status` or gets committed. */
+const pushMarkerPath = (sessionId: string) => path.join(workspaceRoot(), sessionId, 'last-push.json');
+
+/** Record a successful push so the UI can show "pushed" with certainty (local git can't tell, since
+ *  we push to an explicit URL without setting an upstream). Best-effort; never throws. */
+export function recordPush(sessionId: string, sha: string, branch: string): void {
+  try {
+    fs.writeFileSync(pushMarkerPath(sessionId), JSON.stringify({ sha, branch, at: new Date().toISOString() }));
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Read-only git state of a session's workspace (branch, HEAD, dirty count, last push). */
+export async function gitStatus(sessionId: string): Promise<GitStatus> {
+  const dir = repoDir(sessionId);
+  const empty: GitStatus = { hasRepo: false, branch: '', head: null, dirty: 0, lastPush: null, pushed: false };
+  if (!fs.existsSync(path.join(dir, '.git'))) return empty;
+  const branchRes = await execBash('git rev-parse --abbrev-ref HEAD 2>/dev/null', { cwd: dir, timeoutMs: 15_000 });
+  const branch = branchRes.ok ? branchRes.output.trim() : '';
+  const headRes = await execBash('git log -1 --format=%H%x1f%h%x1f%s 2>/dev/null', { cwd: dir, timeoutMs: 15_000 });
+  let head: GitStatus['head'] = null;
+  let fullSha = '';
+  if (headRes.ok && headRes.output.trim()) {
+    const [full, short, subject] = headRes.output.trim().split('\x1f');
+    fullSha = full || '';
+    head = { sha: short || '', subject: subject || '' };
+  }
+  const statusRes = await execBash('git status --porcelain 2>/dev/null', { cwd: dir, timeoutMs: 15_000 });
+  const dirty = statusRes.ok ? statusRes.output.split('\n').filter((l) => l.trim()).length : 0;
+  let lastPush: GitStatus['lastPush'] = null;
+  let pushedFull = '';
+  try {
+    const j = JSON.parse(fs.readFileSync(pushMarkerPath(sessionId), 'utf8'));
+    if (j && typeof j.sha === 'string') {
+      pushedFull = String(j.sha);
+      lastPush = { sha: pushedFull.slice(0, 7), branch: String(j.branch || ''), at: String(j.at || '') };
+    }
+  } catch {
+    /* never pushed */
+  }
+  const pushed = !!fullSha && pushedFull === fullSha && dirty === 0;
+  return { hasRepo: true, branch, head, dirty, lastPush, pushed };
 }
 
 /** Full uncommitted diff (status + git diff), capped. */

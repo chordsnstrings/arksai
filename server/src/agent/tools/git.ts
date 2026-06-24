@@ -1,5 +1,5 @@
 import { execBash } from '../../lib/exec';
-import { resolvePushUrl } from '../../sessions/workspace';
+import { recordPush, resolvePushUrl } from '../../sessions/workspace';
 import type { ToolDef } from './common';
 
 export const gitDiffStatTool: ToolDef = {
@@ -79,6 +79,11 @@ export const gitPushTool: ToolDef = {
       signal: ctx.signal,
       redact: [token],
     });
-    return res.ok ? `Pushed to ${branch}.\n${res.output}` : `Push failed:\n${res.output}`;
+    if (!res.ok) return `Push failed:\n${res.output}`;
+    // Remember the pushed commit so the UI can show "pushed" with certainty (we push to an
+    // explicit URL without an upstream, so local git alone can't tell what's been pushed).
+    const sha = (await execBash('git rev-parse HEAD', { cwd: ctx.repoDir, timeoutMs: 15_000 })).output.trim();
+    if (sha) recordPush(ctx.session.id, sha, branch);
+    return `Pushed to ${branch} (${sha.slice(0, 7)}).\n${res.output}`;
   },
 };

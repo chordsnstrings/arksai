@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { GithubStatus, SessionMeta } from '@shared/types';
+import type { GitStatus, GithubStatus, SessionMeta } from '@shared/types';
+import { describeGitState } from '@shared/types';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { GithubRepoPicker } from './GithubRepoPicker';
@@ -15,6 +16,7 @@ export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean
   const [status, setStatus] = useState<GithubStatus | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [git, setGit] = useState<GitStatus | null>(null);
   const enabled = status?.enabled ?? null;
   const connected = !!status?.connected;
 
@@ -34,6 +36,23 @@ export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean
       window.removeEventListener('arksai:github-changed', refresh);
     };
   }, []);
+
+  // Clear stale status when switching sessions so we never flash the previous repo's state.
+  useEffect(() => setGit(null), [meta.id]);
+
+  // Read the workspace's git state so the user can SEE whether code is committed & pushed.
+  // Re-reads whenever a run finishes (running → false), since that's when the agent commits/pushes.
+  useEffect(() => {
+    if (!meta.repoUrl || running) return;
+    let live = true;
+    api
+      .gitStatus(meta.id)
+      .then((g) => live && setGit(g))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [meta.id, meta.repoUrl, running]);
 
   // Nothing to show: feature off AND no repo attached.
   if (enabled === false && !meta.repoUrl) return null;
@@ -72,6 +91,16 @@ export function RepoBar({ meta, running }: { meta: SessionMeta; running: boolean
           </span>
         ) : (
           <span className="repo-bar-target muted">Connect GitHub to push this build to a repo</span>
+        )}
+        {meta.repoUrl && git?.hasRepo && !open && (
+          (() => {
+            const d = describeGitState(git);
+            return (
+              <span className={`repo-git ${d.tone}`} title={git.head ? `${git.head.sha} — ${git.head.subject}` : undefined}>
+                {d.text}
+              </span>
+            );
+          })()
         )}
         {enabled && (
           <button className="repo-bar-btn" disabled={running || busy} onClick={() => setOpen((v) => !v)} title={running ? 'Finish the current run first' : undefined}>
