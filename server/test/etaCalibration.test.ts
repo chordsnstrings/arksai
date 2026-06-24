@@ -49,3 +49,42 @@ test('outliers and sub-second blips are ignored', () => {
   E.recordRunDurations('chat', { building: 99999 }); // > MAX_SEC
   assert.equal(E.calibratedTypical('chat'), undefined); // nothing recorded
 });
+
+test('a (mode, task) bucket gives a more specific estimate than the mode aggregate', () => {
+  // A slow task in `code`: a multi-sheet financial model.
+  for (let i = 0; i < 3; i++) E.recordRunDurations('code', { building: 300 }, 'finance.cashflow');
+  // A fast task in the same mode: a quick tweak.
+  for (let i = 0; i < 3; i++) E.recordRunDurations('code', { building: 20 }, 'misc.tweak');
+  const slow = E.calibratedTypical('code', 'finance.cashflow')!;
+  const fast = E.calibratedTypical('code', 'misc.tweak')!;
+  assert.ok(slow.building! > 250, `slow task ~300s, got ${slow.building}`);
+  assert.ok(fast.building! < 60, `fast task ~20s, got ${fast.building}`);
+  assert.ok(slow.building! > fast.building! * 3); // genuinely distinguished
+});
+
+test('a task with too few samples falls back to the mode aggregate, per phase', () => {
+  // Isolated mode so no other test has seeded its aggregate.
+  // Build a trusted mode aggregate for `verifying` only (the bare-mode bucket).
+  for (let i = 0; i < 4; i++) E.recordRunDurations('isolmode', { verifying: 40 });
+  // A brand-new task with only ONE building sample (< MIN_SAMPLES): its building isn't
+  // trusted yet AND the mode aggregate has no building, so building is omitted entirely;
+  // verifying is filled from the mode aggregate.
+  E.recordRunDurations('isolmode', { building: 500 }, 'rare.deck');
+  const t = E.calibratedTypical('isolmode', 'rare.deck')!;
+  assert.equal(t.building, undefined); // neither the task (1 sample) nor the mode has trusted building
+  assert.ok(t.verifying! > 30 && t.verifying! < 50); // inherited from the mode aggregate
+});
+
+test('recording a task also improves the mode aggregate (broad prior keeps learning)', () => {
+  for (let i = 0; i < 3; i++) E.recordRunDurations('plan', { understanding: 15 }, 'sales.battlecard');
+  // The bare-mode lookup sees the aggregate built up purely from task-tagged runs.
+  const agg = E.calibratedTypical('plan');
+  assert.ok(agg && agg.understanding! > 5);
+});
+
+test('an old file keyed by bare mode still reads as the mode aggregate', () => {
+  for (let i = 0; i < 3; i++) E.recordRunDurations('code', { polishing: 18 }); // no task
+  assert.ok(E.calibratedTypical('code')!.polishing! > 10);
+  // and a task lookup in that mode inherits it
+  assert.ok(E.calibratedTypical('code', 'never.seen')!.polishing! > 10);
+});

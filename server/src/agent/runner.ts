@@ -443,7 +443,14 @@ export class AgentRun {
     const target = Math.min(ceil, Math.max(floor, this.progressPct + 2));
     this.progressPct = Math.max(this.progressPct, target);
     const elapsedInPhase = (Date.now() - this.phaseStartedAt) / 1000;
-    const etaSeconds = estimateRemainingSeconds(phase, elapsedInPhase, this.session.mode, calibratedTypical(this.session.mode));
+    const etaSeconds = estimateRemainingSeconds(
+      phase,
+      elapsedInPhase,
+      this.session.mode,
+      // As specific as history allows: this mode + this kind of task (e.g.
+      // code::finance.cashflow), falling back to the per-mode aggregate.
+      calibratedTypical(this.session.mode, this.session.task),
+    );
     this.emit({ type: 'progress', phase, label, pct: Math.round(this.progressPct), detail, etaSeconds });
   }
 
@@ -1048,7 +1055,7 @@ export class AgentRun {
       if (finalStatus === 'done') this.emitProgress('done', 'Ready');
       // Self-calibrate the ETA: fold this run's REAL per-phase durations into the per-mode
       // EWMA (only clean, completed runs — a failed/aborted run's phases are misleading).
-      if (finalStatus === 'done') recordRunDurations(this.session.mode, this.phaseDurations);
+      if (finalStatus === 'done') recordRunDurations(this.session.mode, this.phaseDurations, this.session.task);
 
       this.emit({
         type: 'run_finished',
