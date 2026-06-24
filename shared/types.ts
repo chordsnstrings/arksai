@@ -319,6 +319,37 @@ export interface GithubRepo {
   cloneUrl: string;
 }
 
+/** Org wallet summary (USD canonical + the org's display currency). */
+export interface WalletView {
+  orgId: string;
+  currency: string;
+  pegged: boolean;
+  fxRate: number;
+  fxAsOf: number | null;
+  fxSource: string;
+  balanceUsd: number;
+  balanceMicros: number;
+  balanceDisplay: string;
+  balanceUsdDisplay: string;
+  balanceBasis: string;
+  lowBalance: boolean;
+  enforced: boolean;
+  providers: { id: string }[];
+}
+export interface WalletLedgerEntry {
+  id: string;
+  ts: number;
+  type: string;
+  source: string;
+  ref: string | null;
+  note: string | null;
+  amountUsd: number;
+  amountUsdDisplay: string;
+  amountDisplay: string;
+  balanceAfterUsd: number;
+  balanceAfterDisplay: string;
+}
+
 // ---- Projects (persistent workspaces: instructions + knowledge + defaults) ----
 
 export interface ProjectBranding {

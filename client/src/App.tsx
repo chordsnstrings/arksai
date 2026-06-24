@@ -24,6 +24,7 @@ import { ProjectDialog } from './components/ProjectDialog';
 import { SchedulesDialog } from './components/SchedulesDialog';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
+import { LowBalanceBanner } from './components/LowBalanceBanner';
 import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AnalyticsConsole } from './components/AnalyticsConsole';
@@ -259,6 +260,7 @@ export default function App() {
         {activeMeta ? (
           <>
             <TopBar meta={activeMeta} />
+            <LowBalanceBanner />
             <ProgressBar live={liveOrEmpty} />
             <Chat live={liveOrEmpty} sessionId={activeMeta.id} />
             <Composer

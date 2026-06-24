@@ -142,6 +142,18 @@ test('RED TEAM: org B cannot reach org A data on any route', async () => {
   await app.inject({ method: 'DELETE', url: `/api/schedules/${aSched.id}`, headers: h });
   const stillThere = items(await app.inject({ url: '/api/schedules', headers: { cookie: cookieA } })).find((s) => s.id === aSched.id);
   assert.ok(stillThere && stillThere.enabled === true, 'B disabled/deleted A schedule');
+
+  // wallet: B cannot view A's wallet/ledger; A can view its own; only the operator tops up.
+  assert.equal((await app.inject({ url: `/api/orgs/${orgAId}/wallet`, headers: h })).statusCode, 403, 'B read A wallet');
+  assert.equal((await app.inject({ url: `/api/orgs/${orgAId}/wallet/ledger`, headers: h })).statusCode, 403, 'B read A ledger');
+  assert.equal((await app.inject({ url: `/api/orgs/${orgAId}/wallet`, headers: { cookie: cookieA } })).statusCode, 200, 'A blocked from its own wallet');
+  // a non-superadmin org admin cannot top up or set FX rates
+  assert.equal((await app.inject({ method: 'POST', url: `/api/admin/orgs/${orgAId}/wallet/topup`, headers: { cookie: cookieA }, payload: { amount: 5 } })).statusCode, 403, 'org admin topped up');
+  assert.equal((await app.inject({ method: 'POST', url: '/api/admin/fx', headers: { cookie: cookieA }, payload: { code: 'BDT', rate: 100 } })).statusCode, 403, 'org admin set FX');
+  // the operator CAN top up A's wallet → balance reflects it
+  const topup = await app.inject({ method: 'POST', url: `/api/admin/orgs/${orgAId}/wallet/topup`, headers: { cookie: opCookie }, payload: { amount: 5, currency: 'USD' } });
+  assert.equal(topup.statusCode, 200, 'operator could not top up A');
+  assert.equal(topup.json().balanceUsd, 5, 'top-up did not credit A');
 });
 
 test('RED TEAM: analytics are operator-gated and per-org isolated (metadata only)', async () => {

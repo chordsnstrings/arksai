@@ -3,6 +3,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from './config';
 import { track } from './analytics/track';
 import { getSetting, setSetting } from './db';
+import { getRate } from './lib/fx';
+import { walletBalanceUsd } from './wallet/store';
+import { currencyOf } from '../../shared/currency';
 import {
   DEFAULT_ORG_ID,
   type Identity,
@@ -183,6 +186,19 @@ export function registerAuth(app: FastifyInstance) {
     const orgs = id.isSuperadmin ? await listOrgs() : await orgsForUser(id.userId);
     // Onboarding status for the current org → the client gates the first-run wizard on it.
     const prof = id.orgId ? await getOrgProfile(id.orgId).catch(() => null) : null;
+    // Current org's display-currency rate (for honest BDT formatting) + a tiny wallet summary
+    // (balance + low-balance flag) so the client can format costs + show a top-up banner.
+    const meCur = currencyOf(orgs.find((o) => o.id === id.orgId)?.currency).code;
+    const fx = await getRate(meCur).catch(() => null);
+    let wallet: { balanceUsd: number; lowBalance: boolean; enforced: boolean } | null = null;
+    if (id.orgId && id.orgId !== DEFAULT_ORG_ID) {
+      try {
+        const balanceUsd = await walletBalanceUsd(id.orgId);
+        wallet = { balanceUsd, lowBalance: balanceUsd <= config.walletLowUsd, enforced: config.walletEnforce };
+      } catch {
+        /* wallet optional */
+      }
+    }
     return {
       user: user ? pubUser(user) : null,
       orgs,
@@ -190,6 +206,8 @@ export function registerAuth(app: FastifyInstance) {
       currentOrgOnboarded: prof ? prof.onboardingComplete : true,
       role: id.role,
       isSuperadmin: id.isSuperadmin,
+      fx: fx ? { code: fx.code, rate: fx.rate, asOf: fx.asOf, pegged: fx.pegged } : null,
+      wallet,
     };
   });
 

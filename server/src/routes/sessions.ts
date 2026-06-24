@@ -10,6 +10,8 @@ import { randomUUID } from 'node:crypto';
 import * as store from '../sessions/store';
 import * as manager from '../sessions/manager';
 import { isValidModel } from '../agent/models';
+import { DEFAULT_ORG_ID } from '../orgs/store';
+import { walletBalanceUsd } from '../wallet/store';
 import { deleteWorkspace, fullDiff, listFiles, parseRepoUrl, repoDir, setupWorkspace } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import { processRegistry } from '../agent/processes';
@@ -159,6 +161,15 @@ export function registerSessionRoutes(app: FastifyInstance) {
     // feed the agent garbage. A non-string becomes '' → a clean 400.
     const text = asStr(body.text).trim();
     if (!text) return reply.code(400).send({ error: 'Empty message' });
+
+    // Prepaid wallet enforcement (observe-first: OFF unless WALLET_ENFORCE=true). Block a NEW run
+    // only when a real tenant org's balance is exhausted; the operator workspace isn't metered.
+    if (config.walletEnforce && meta.orgId && meta.orgId !== DEFAULT_ORG_ID) {
+      const balanceUsd = await walletBalanceUsd(meta.orgId).catch(() => 0);
+      if (balanceUsd <= 0) {
+        return reply.code(402).send({ error: 'Your workspace is out of credit. Ask your admin to top up the wallet to keep building.' });
+      }
+    }
 
     await store.appendTimeline(id, { kind: 'user', id: randomUUID(), text, ts: Date.now() });
     const result = await manager.startRun(id, text);

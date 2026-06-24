@@ -7,6 +7,7 @@ import { confirmDialog } from '../state/confirmStore';
 import { OrgAnalytics } from './OrgAnalytics';
 import { EmailSettings } from './EmailSettings';
 import { ConnectionsPanel } from './ConnectionsPanel';
+import { WalletCard } from './WalletCard';
 
 /**
  * Admin panel. Org admins manage their members (invite via a link, change/remove);
@@ -215,6 +216,8 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
             </option>
           ))}
         </select>
+
+        {orgId && <WalletCard orgId={orgId} isSuper={isSuper} />}
 
         {tab === 'usage' ? (
           orgId ? <OrgAnalytics orgId={orgId} currency={currencyOf(orgs.find((o) => o.id === orgId)?.currency).code} /> : <div className="an-empty">Select an organization.</div>

@@ -130,6 +130,11 @@ export const config = {
   // both creds are set + connectorEncKey. Callback: <publicBaseUrl>/api/github/callback.
   githubOauthClientId: process.env.GITHUB_OAUTH_CLIENT_ID || '',
   githubOauthClientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET || '',
+  // Org prepaid wallet. Usage is always RECORDED (debited at run_finished). Enforcement (blocking
+  // a run when the balance is exhausted) is OFF by default — observe-first during the BD pilot;
+  // set WALLET_ENFORCE=true to hard-block at zero. Low-balance warning fires below this USD level.
+  walletEnforce: process.env.WALLET_ENFORCE === 'true',
+  walletLowUsd: Number(process.env.WALLET_LOW_USD || '2') || 2,
   // Ad-platform connector apps (each connector lights up only when its creds are set).
   metaAppId: process.env.META_APP_ID || '',
   metaAppSecret: process.env.META_APP_SECRET || '',

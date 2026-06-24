@@ -4,6 +4,8 @@ import type {
   CreateSessionRequest,
   GithubStatus,
   GithubRepo,
+  WalletView,
+  WalletLedgerEntry,
   CustomCommand,
   Deployment,
   MemoryEntry,
@@ -190,6 +192,15 @@ export const api = {
   githubCreateRepo: (name: string, isPrivate: boolean) =>
     request<{ repo: GithubRepo }>('/api/github/repos', { method: 'POST', body: JSON.stringify({ name, private: isPrivate }) }).then((r) => r.repo),
   githubDisconnect: () => request<{ ok: boolean }>('/api/github/connection', { method: 'DELETE' }),
+  // Org wallet / invoicing
+  getWallet: (orgId: string) => request<WalletView>(`/api/orgs/${orgId}/wallet`),
+  getWalletLedger: (orgId: string, limit = 100) =>
+    request<{ currency: string; fxRate: number; fxAsOf: number | null; entries: WalletLedgerEntry[] }>(`/api/orgs/${orgId}/wallet/ledger?limit=${limit}`),
+  topupWallet: (orgId: string, amount: number, currency: string, note?: string) =>
+    request<WalletView>(`/api/admin/orgs/${orgId}/wallet/topup`, { method: 'POST', body: JSON.stringify({ amount, currency, note }) }),
+  getFxRate: (code: string) => request<{ code: string; rate: number; asOf: number | null; pegged: boolean; source: string }>(`/api/fx/${code}`),
+  setFxRate: (code: string, rate: number) =>
+    request<{ code: string; rate: number; asOf: number | null }>('/api/admin/fx', { method: 'POST', body: JSON.stringify({ code, rate }) }),
   listSessions: () => request<SessionMeta[]>('/api/sessions'),
   createSession: (body: CreateSessionRequest) =>
     request<SessionMeta>('/api/sessions', { method: 'POST', body: JSON.stringify(body) }),

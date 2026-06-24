@@ -1,5 +1,6 @@
 import { computeCost, type SessionMeta } from '@shared/types';
-import { formatMoney } from '@shared/currency';
+import { currencyOf } from '@shared/currency';
+import { money, moneyBasis } from '../lib/money';
 import { useStore } from '../state/sessionStore';
 import type { LiveState } from '../state/sessionStore';
 
@@ -13,6 +14,7 @@ function fmtTokens(n: number): string {
 export function CostBar({ meta, live }: { meta: SessionMeta; live: LiveState }) {
   const me = useStore((s) => s.me);
   const currency = me?.orgs.find((o) => o.id === me?.currentOrg)?.currency ?? undefined;
+  const floating = !currencyOf(currency).pegged; // BDT etc. → show the rate basis in the tooltip
   const running = live.running;
   const prompt = meta.promptTokens + (running ? live.promptTokens : 0);
   const completion = meta.completionTokens + (running ? live.completionTokens : 0);
@@ -42,8 +44,11 @@ export function CostBar({ meta, live }: { meta: SessionMeta; live: LiveState }) 
         <span className="lbl">tokens</span> {fmtTokens(total)}
       </span>
       <span className="spacer" />
-      <span className="seg cost" title="Estimated cost for this session">
-        {formatMoney(cost, currency)}
+      <span
+        className="seg cost"
+        title={floating ? `Estimated cost · ${moneyBasis(cost)} (indicative — billed in USD)` : 'Estimated cost for this session'}
+      >
+        {money(cost, currency)}
         {running && <span className="live-dot" />}
       </span>
     </div>

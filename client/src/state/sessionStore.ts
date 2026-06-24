@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { setMoneyContext } from '../lib/money';
 import type {
   AgentEvent,
   CustomCommand,
@@ -98,6 +99,8 @@ interface StoreState {
     currentOrgOnboarded?: boolean;
     role: string | null;
     isSuperadmin: boolean;
+    fx?: { code: string; rate: number; asOf: number | null; pegged: boolean } | null;
+    wallet?: { balanceUsd: number; lowBalance: boolean; enforced: boolean } | null;
   } | null;
 
   setProjects(list: Project[]): void;
@@ -155,7 +158,16 @@ export const useStore = create<StoreState>((set, get) => ({
       sessions: s.sessions.map((x) => (x.projectId === id ? { ...x, projectId: null } : x)),
     })),
   setAuthed: (v) => set({ authed: v }),
-  setMe: (me) => set({ me }),
+  setMe: (me) => {
+    // Keep the money formatter in sync with the org's display currency + resolved (BDT) rate.
+    try {
+      const cur = me?.orgs?.find((o) => o.id === me.currentOrg)?.currency ?? me?.fx?.code;
+      setMoneyContext(cur, me?.fx?.rate ?? null, me?.fx?.asOf ?? null);
+    } catch {
+      /* non-fatal */
+    }
+    set({ me });
+  },
   toggleNav: (open) => set((s) => ({ navOpen: open ?? !s.navOpen })),
   setRevisingPlan: (sessionId, v) => set((s) => ({ revisingPlan: { ...s.revisingPlan, [sessionId]: v } })),
   setModels: (models) => set({ models }),

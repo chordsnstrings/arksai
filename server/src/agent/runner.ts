@@ -1056,6 +1056,23 @@ export class AgentRun {
           costUsd: Math.round((this.accruedCostUsd + this.engineCostUsd) * 1e6) / 1e6,
         },
       });
+      // Wallet: debit the org for this run's USD cost (real tenant orgs only; the operator
+      // workspace isn't metered). Idempotent on the runId so a re-fire never double-charges.
+      // Fire-and-forget — the work is already done; we only RECORD the charge here.
+      {
+        const wOrg = this.session.orgId;
+        const runCost = this.accruedCostUsd + this.engineCostUsd;
+        if (wOrg && wOrg !== DEFAULT_ORG_ID && runCost > 0) {
+          void (async () => {
+            try {
+              const { debitOrg, usdToMicros } = await import('../wallet/store');
+              await debitOrg(wOrg, usdToMicros(runCost), { type: 'usage', source: 'system', ref: `run:${this.runId}`, note: `${this.session.mode} run` });
+            } catch (e) {
+              console.error('[wallet] debit failed', e);
+            }
+          })();
+        }
+      }
       if (openCanvasEvent) {
         this.emit({ type: 'open_canvas', ...openCanvasEvent });
       }

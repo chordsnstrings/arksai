@@ -448,6 +448,31 @@ async function migrate() {
   )`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_github_conn_user ON github_connections(user_id)`);
 
+  // Org prepaid wallet (cached balance) + append-only ledger (the statement/invoice source of
+  // truth). ALL amounts are integer MICRO-USD (USD×1e6) so balances never drift. USD is canonical;
+  // a floating display currency (BDT) is shown as an indicative conversion only.
+  await q(`CREATE TABLE IF NOT EXISTS org_wallets(
+    org_id TEXT PRIMARY KEY,
+    balance_micros ${INT} NOT NULL DEFAULT 0,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE TABLE IF NOT EXISTS wallet_ledger(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    ts ${INT} NOT NULL,
+    type TEXT NOT NULL,
+    amount_micros ${INT} NOT NULL,
+    balance_after_micros ${INT} NOT NULL,
+    source TEXT NOT NULL,
+    ref TEXT,
+    note TEXT,
+    created_by TEXT
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_wallet_ledger_org ON wallet_ledger(org_id, ts)`);
+  // Idempotency: (org, source, ref) is unique when ref is set — a retried top-up / re-fired
+  // run_finished can't double-charge. (NULL refs don't collide in either SQLite or Postgres.)
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_ledger_idem ON wallet_ledger(org_id, source, ref)`);
+
   // Self-healing: captured errors/timeouts/cost-spikes (METADATA + scrubbed context) the
   // operator can review and an auto-fix agent can act on. Deduped by fingerprint (count++).
   await q(`CREATE TABLE IF NOT EXISTS incidents(
