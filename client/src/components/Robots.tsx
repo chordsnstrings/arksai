@@ -16,6 +16,7 @@ import { confirmDialog } from '../state/confirmStore';
 import { EmailSettings } from './EmailSettings';
 import { api } from '../api/client';
 import { useEscClose } from '../hooks/useEscClose';
+import { ROBOT_TYPES, robotType } from '../lib/robotTypes';
 import type { RobotDraft, RobotRule } from '@shared/types';
 
 /** True if an epoch-ms timestamp falls on the local calendar today. */
@@ -120,7 +121,16 @@ export function Robots({ onClose }: { onClose: () => void }) {
         {view.v === 'inbox' && <Inbox onHome={() => open({ v: 'home' })} />}
         {view.v === 'hire' && <Hire onDone={(id) => open({ v: 'office', id })} onCancel={() => open({ v: 'home' })} />}
         {view.v === 'office' &&
-          (office ? <Office robot={office} onBack={() => open({ v: 'home' })} /> : <Home robots={robots} onOpen={(id) => open({ v: 'office', id })} onHire={() => open({ v: 'hire' })} />)}
+          (office ? (
+            // Host routes by robot TYPE → the type's console view (the registry seam).
+            robotType(office.type).available && office.type === 'email' ? (
+              <Office robot={office} onBack={() => open({ v: 'home' })} />
+            ) : (
+              <TypedConsole robot={office} onBack={() => open({ v: 'home' })} />
+            )
+          ) : (
+            <Home robots={robots} onOpen={(id) => open({ v: 'office', id })} onHire={() => open({ v: 'hire' })} />
+          ))}
       </main>
     </div>
   );
@@ -141,11 +151,20 @@ function Home({ robots, onOpen, onHire }: { robots: Robot[]; onOpen: (id: string
           Hire your first robot
         </button>
         <div className="rb-suggest">
-          <span>Popular roles</span>
-          <div className="rb-suggest-row">
-            {ROLES.slice(0, 5).map((r) => (
-              <button key={r.id} className="rb-chip" style={{ ['--accent' as any]: r.accent }} onClick={onHire}>
-                <Icon name={r.icon} size={15} /> {r.name}
+          <span>Kinds of robot</span>
+          <div className="rb-types">
+            {Object.values(ROBOT_TYPES).map((t) => (
+              <button
+                key={t.id}
+                className={`rb-type ${t.available ? '' : 'soon'}`}
+                style={{ ['--accent' as any]: t.accent }}
+                onClick={t.available ? onHire : undefined}
+                disabled={!t.available}
+              >
+                <span className="rb-type-icon"><Icon name={t.icon} size={18} /></span>
+                <span className="rb-type-name">{t.label}{!t.available && <em> · soon</em>}</span>
+                <span className="rb-type-tag">{t.tagline}</span>
+                <span className="rb-type-when">{t.trigger}</span>
               </button>
             ))}
           </div>
@@ -583,6 +602,28 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
       )}
 
       {active && <Responder robot={robot} draft={active} orgId={orgId} onClose={() => setActive(null)} onResolved={onResolved} />}
+    </div>
+  );
+}
+
+/* ---------------- Typed console (non-email types render their own view via the registry) ---------------- */
+function TypedConsole({ robot, onBack }: { robot: Robot; onBack: () => void }) {
+  const t = robotType(robot.type);
+  return (
+    <div className="rb-office" style={{ ['--accent' as any]: t.accent }}>
+      <button className="rb-link" onClick={onBack}>← All robots</button>
+      <div className="rb-office-head">
+        <span className="rb-office-icon"><Icon name={t.icon} size={26} /></span>
+        <div className="rb-office-id">
+          <div className="rb-office-name">{robot.name}</div>
+          <div className="rb-office-role">{t.label}</div>
+        </div>
+      </div>
+      <div className="rb-allclear">
+        <div className="rb-allclear-check" style={{ color: t.accent }}><Icon name={t.icon} size={30} /></div>
+        <h3>{t.label} console — coming soon</h3>
+        <p>{t.tagline} Its console (a {t.itemNoun} view) plugs into this same surface — the email robot is live today.</p>
+      </div>
     </div>
   );
 }
