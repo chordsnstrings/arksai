@@ -122,9 +122,22 @@ function estimateTokens(messages: unknown): number {
 }
 
 const DELIVERABLE_GLOB =
-  // incl. the UAE compliance machine files (.sif WPS, .xml PINT AE e-invoice; FAF is .csv,
-  // already covered) so a generated filing is actually surfaced as a download (it wasn't).
-  '**/*.{xlsx,xls,csv,pdf,docx,doc,pptx,png,jpg,jpeg,svg,zip,tar,gz,tgz,tar.gz,mp3,wav,mp4,json,sif,xml}';
+  // Genuine user-facing outputs only. NOT `json` — it surfaced package.json / package-lock.json /
+  // tsconfig / app.json etc. as "deliverables", which confused users (the submission should be the
+  // thing they asked for, not project scaffolding). Compliance machine files kept (.sif WPS,
+  // .xml PINT AE e-invoice; FAF is .csv). Scaffolding that still slips through a kept extension
+  // (config .xml, icon .svg, files under build dirs) is filtered by isNoiseDeliverable below.
+  '**/*.{xlsx,xls,csv,pdf,docx,doc,pptx,png,jpg,jpeg,svg,zip,tar,gz,tgz,tar.gz,mp3,wav,mp4,sif,xml}';
+
+// A file can match a deliverable EXTENSION yet be project scaffolding (config, manifests, build
+// output, the bundled UI kit, icon sprites) — never surface those as download chips. Pure + tested.
+const NOISE_NAMES =
+  /^(package(-lock)?\.json|.*\.config\.(json|xml|js|cjs|mjs|ts)|tsconfig.*\.json|jsconfig\.json|app\.json|manifest\.json|composer\.(json|lock)|angular\.json|nest-cli\.json|components\.json|pom\.xml|web\.config|androidmanifest\.xml|strings\.xml|colors\.xml|icons?\.svg|sprite\.svg|favicon\.(svg|png|ico))$/i;
+const NOISE_PATH =
+  /(^|\/)(node_modules|\.git|dist|build|out|\.next|\.nuxt|\.svelte-kit|\.output|coverage|ui-kit|report-fonts|mobile-ui-kit|\.cache|vendor|\.expo)\//i;
+export function isNoiseDeliverable(rel: string): boolean {
+  return NOISE_NAMES.test(rel.split('/').pop() || '') || NOISE_PATH.test('/' + rel);
+}
 
 // Shown inline to the user when the agent re-routes itself. Warm + action-framed —
 // NOT "Switched to Build (Code) mode" jargon (the user never picks modes).
@@ -155,6 +168,7 @@ async function findDeliverables(repoDirPath: string, sinceTs: number): Promise<T
     });
     const items: TimelineItem[] = [];
     for (const rel of matches.slice(0, 100)) {
+      if (isNoiseDeliverable(rel)) continue; // scaffolding/config, not what the user asked for
       const stat = fs.statSync(path.join(repoDirPath, rel));
       if (stat.mtimeMs >= sinceTs) {
         items.push({

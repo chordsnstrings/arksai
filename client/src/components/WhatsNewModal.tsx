@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-24.14';
+export const WHATS_NEW_VERSION = '2026-06-25.1';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Tell us when something’s off',
-    body: 'Every finished result now has a quick 👍 / 👎 — and on a thumbs-down you can say what’s wrong in your own words. It all lands in one place so the team sees exactly what’s failing and makes it better.',
+    title: 'You only get the file you asked for',
+    body: 'Finished results no longer clutter the chat with project scaffolding like package.json or config files — the download is just your actual deliverable (the report, sheet, doc, image, or app), nothing confusing.',
   },
   {
-    title: 'It diagnoses problems instead of guessing',
-    body: 'When you say something “doesn’t work”, the agent now opens your site in a real browser, clicks the controls to see what’s actually dead, reads the errors, fixes the real cause, and re-checks — instead of blind edit-and-hope loops.',
+    title: 'Tell us when something’s off',
+    body: 'Every finished result now has a quick 👍 / 👎 — and on a thumbs-down you can say what’s wrong in your own words, so we can make it better.',
   },
 ];
 
