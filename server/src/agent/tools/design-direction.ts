@@ -76,8 +76,10 @@ export function normalizeBrief(args: any): DesignBrief {
     structureEncodes: cleanStr(args?.structureEncodes, '', 300),
     antiDefaults: anti.length ? anti : ['generic minimal-muted blue-on-white', 'cream + serif + terracotta', 'black + acid-green'],
     type: {
-      display: role(t.display, 'Fraunces'),
-      body: role(t.body, 'Hanken Grotesk'),
+      // smooth, calm, uniform defaults — distinctiveness comes from concept/palette/signature,
+      // never an irregular typeface (Spectral/Bricolage/Playfair read spiky and uneven).
+      display: role(t.display, 'Source Serif 4'),
+      body: role(t.body, 'Inter'),
       data: role(t.data, 'IBM Plex Mono'),
     },
     palette: {
@@ -197,10 +199,12 @@ export const designDirectionTool: ToolDef = {
     'real world (e.g. an immigration consultancy → "Port of Entry", travel documents); what the page ' +
     'STRUCTURE encodes that is TRUE (real country codes / SKUs / dates / places, never generic 01/02/03); ' +
     'a deliberate TYPE TRIO with roles (display / body / a MONO data face) chosen on purpose, NOT the ' +
-    'defaults (avoid reflexive Inter / Playfair). Choose families ONLY from the embedded set so they load — ' +
-    'display: Fraunces, Spectral, Bricolage Grotesque, Source Serif 4, Newsreader, Space Grotesk; body: ' +
-    'Hanken Grotesk, Inter, DM Sans, Plus Jakarta Sans, Manrope, Outfit, Sora; data/mono: IBM Plex Mono, ' +
-    'Space Mono (do NOT name JetBrains Mono or any face/weight that is not bundled). Then a concept-grounded ' +
+    'defaults. Fonts must ALWAYS be SMOOTH, CALM and UNIFORM — distinctiveness comes from the concept, ' +
+    'palette and signature, NEVER a loud/irregular typeface. Choose ONLY from this smooth embedded set — ' +
+    'calm/vintage serif display: Source Serif 4, Lora, Newsreader; clean sans (body or ' +
+    'display): Inter, DM Sans, Manrope, Plus Jakarta Sans, Outfit; data/mono: IBM Plex Mono, Space Mono. ' +
+    'AVOID the irregular/spiky faces (Spectral, Bricolage Grotesque, Syne, Unbounded, Playfair) and do NOT ' +
+    'name JetBrains Mono or an unbundled weight. Then a concept-grounded ' +
     'PALETTE with a rationale (not default ' +
     'blue-on-white); ONE meaningful SIGNATURE element; and the named AI-default looks you are AVOIDING. ' +
     'It writes design-direction.json + DESIGN.md + tokens.css into the workspace. Then call create_web_app ' +

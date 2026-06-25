@@ -1,0 +1,64 @@
+/* Self-hosted fonts (no CDN). Vite bundles + hashes these with correct relative paths,
+   so they work at /apps/<slug>/. Inter = body/UI; Source Serif 4 = smooth, calm serif display. */
+@font-face { font-family: 'Inter'; font-weight: 400; font-style: normal; font-display: swap; src: url('./fonts/inter-400.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 500; font-style: normal; font-display: swap; src: url('./fonts/inter-500.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 600; font-style: normal; font-display: swap; src: url('./fonts/inter-600.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 700; font-style: normal; font-display: swap; src: url('./fonts/inter-700.woff2') format('woff2'); }
+@font-face { font-family: 'Source Serif 4'; font-weight: 400; font-style: normal; font-display: swap; src: url('./fonts/source-serif-400.woff2') format('woff2'); }
+@font-face { font-family: 'Source Serif 4'; font-weight: 600; font-style: normal; font-display: swap; src: url('./fonts/source-serif-600.woff2') format('woff2'); }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Minimal, polished token system (shadcn HSL convention). --primary is the brand
+   accent — create_react_app patches it. Keep it restrained; one accent ~5–10%. */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 22% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 22% 11%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 40%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --primary: 215 28% 27%; /* __ACCENT_HSL__ — brand accent */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 222 22% 11%;
+  --accent: 220 14% 96%;
+  --accent-foreground: 222 22% 11%;
+  --ring: 215 28% 27%;
+  --radius: 0.6rem;
+}
+
+.dark {
+  --background: 222 24% 7%;
+  --foreground: 210 20% 96%;
+  --card: 222 22% 9%;
+  --card-foreground: 210 20% 96%;
+  --muted: 220 16% 16%;
+  --muted-foreground: 220 12% 65%;
+  --border: 220 16% 18%;
+  --input: 220 16% 18%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 16% 16%;
+  --secondary-foreground: 210 20% 96%;
+  --accent: 220 16% 16%;
+  --accent-foreground: 210 20% 96%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+body {
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

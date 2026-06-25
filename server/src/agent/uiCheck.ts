@@ -75,8 +75,10 @@ export const DESIGN_RUBRIC_PROMPT =
   'Reward a deliberate concept carried through type + colour + structure, a SIGNATURE element that means ' +
   'something (a data/board/spec/stamp keyed to real content, not a decorative gradient box), and a clear ' +
   'point of view.\n' +
-  '• TYPOGRAPHY: a real modular scale, strong quiet hierarchy, and DELIBERATE typefaces — flag default-Inter-' +
-  'everywhere or a reflexive Playfair; reward a considered display + body, and a mono/data face for labels/figures.\n' +
+  '• TYPOGRAPHY: a real modular scale, strong quiet hierarchy, and SMOOTH, CALM, UNIFORM type — reward a refined ' +
+  'calm serif (e.g. Source Serif/Lora/Newsreader) or a clean sans (Inter/DM Sans/Manrope) display + body that look ' +
+  'even and considered, plus a mono/data face for labels/figures. FLAG an irregular/spiky/high-contrast or quirky ' +
+  'display face (it reads uneven), and flag a heading rendering in a plain system fallback (no embedded font).\n' +
   '• COLOUR: a distinctive, confident, concept-grounded palette with ONE accent used sparingly — flag generic ' +
   'blue/indigo-on-white.\n' +
   '• SPACING & ALIGNMENT: consistent rhythm on a grid, generous whitespace, not cramped or sparsely empty.\n' +

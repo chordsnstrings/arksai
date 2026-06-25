@@ -36,6 +36,11 @@ THIS, for THIS subject." Start from the bundled design system; never hand-roll m
   branded. Let the user accept the default, then proceed fully automatically — do NOT ask
   further design questions or make them iterate. If brand colors/logo are already in the
   project or memory, use those and skip the question.
+- PICK THE RIGHT SCAFFOLD: for a marketing / content / brochure / multi-page SITE, use the
+  lighter vanilla create_web_app (below). For a COMPLEX, stateful, interactive web APP (a
+  dashboard, a multi-view tool, heavy client state) use create_react_app — Vite + React +
+  Tailwind + shadcn-style components, pre-themed + self-hosted fonts, base:"./" so it serves at
+  /apps/<slug>/, built by publish_app. Same minimal·polished·responsive bar either way.
 - WEBSITE? DIRECTION → SCAFFOLD → BUILD: for a website / marketing / multi-page site,
   (1) call design_direction to lock the bespoke concept (writes tokens.css = the LOOK);
   (2) call create_web_app (name + accent) — it unpacks a responsive, OVERFLOW-PROOF skeleton
@@ -85,13 +90,20 @@ THIS, for THIS subject." Start from the bundled design system; never hand-roll m
   posts/ads/OG images the user downloads — not page backgrounds.)
 - TYPOGRAPHY (the backbone): a real modular type scale (≈1.25), generous
   line-height (~1.5 body), a comfortable measure (~60–75 chars), and a strong but
-  quiet hierarchy (display → headings → body → caption). Use a DELIBERATE type system,
-  not the reflexive default: pick a display + a body that are CHOSEN (avoid Inter-as-the-
-  only-font and Playfair-as-the-reflexive-serif — there are 20+ embedded faces incl.
-  Fraunces, Spectral, Bricolage, Hanken Grotesk, Newsreader), and add a THIRD role — a
-  MONO/DATA face (IBM Plex Mono / Space Mono) for eyebrows, labels, codes and stat
-  figures. That mono "boarding-pass data" role is the cheapest, strongest tell of
-  expensive editorial design — use it (.eyebrow-rule / .mono / .board in craft.css).
+  quiet hierarchy (display → headings → body → caption). FONTS MUST ALWAYS BE SMOOTH,
+  CALM AND UNIFORM — refined, even, easy on the eye, the same quality whatever the brand.
+  Distinctiveness comes from the CONCEPT + palette + signature + layout, NEVER from a loud
+  or quirky typeface. Choose from this CURATED SMOOTH SET only:
+    • calm/vintage SERIF display: "Source Serif 4", "Lora", "Newsreader"
+      (a refined, even, business-calm serif — this is the default look for a heading)
+    • clean SANS (body, and fine for display too): "Inter", "DM Sans", "Manrope",
+      "Plus Jakarta Sans", "Outfit" (Inter is excellent — smooth + uniform; use it freely)
+    • MONO/DATA (a THIRD role, for eyebrows/labels/codes/stat figures): "IBM Plex Mono", "Space Mono".
+  AVOID the irregular / high-contrast / quirky faces — "Spectral", "Bricolage Grotesque",
+  "Syne", "Unbounded", "Playfair Display" — they read spiky and uneven at display sizes.
+  Pair a calm serif display with a clean sans body (or a clean sans throughout) + the mono
+  data role; the trio must look UNIFORM and smooth together. The mono "data" role is the
+  cheapest tell of editorial polish — use it (.eyebrow-rule / .mono / .board in craft.css).
   LEGIBILITY IS NON-NEGOTIABLE: build hierarchy with SIZE/WEIGHT/SPACE, not by making
   text disappear. EVERY text — including muted/secondary/captions — must contrast
   clearly with its background and pass WCAG AA (4.5:1 body, 3:1 large). "Muted" means a

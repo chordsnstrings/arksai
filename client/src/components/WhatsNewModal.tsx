@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-25.6';
+export const WHATS_NEW_VERSION = '2026-06-25.7';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'More refined visuals',
-    body: 'The studio now applies extra care to colour — building a proper palette with considered accent shades and tints instead of one flat colour — and can use modern touches like tasteful frosted “glass” surfaces and soft gradients, always kept minimal, polished and readable.',
+    title: 'Smoother, more refined typography',
+    body: 'Fonts are now always smooth, calm and uniform — calm serifs and clean sans, with the irregular/spiky display faces removed. Pages get character from the concept and palette, not a loud typeface.',
   },
   {
-    title: 'A bigger design toolbox',
-    body: 'We bundled a self-hosted set of premium easings, animations and gradients (Open Props) so pages have richer, tasteful motion and depth — used with restraint, never busy.',
+    title: 'Real interactive components',
+    body: 'When a site needs a real modal, tabs, a carousel or an accordion, the studio now drops in self-hosted, accessible components themed to your brand — no more hand-built, fragile ones.',
+  },
+  {
+    title: 'React + Tailwind apps',
+    body: 'For complex, interactive web apps the studio can now build a modern React + Tailwind app with polished components, themed to your brand and published the same way.',
   },
 ];
 

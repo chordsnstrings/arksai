@@ -68,10 +68,11 @@ export const addFontsTool: ToolDef = {
       `Pick a DELIBERATE type trio that fits the SUBJECT (not the reflexive default) — a display, a body, and a ` +
       `MONO/DATA face for labels/codes/figures (the cheapest tell of expensive editorial design). ` +
       `USE ONLY these embedded families + weights (do NOT name a face or weight not in this list — it 404s and ` +
-      `falls back to a system font): ${available || '(see fonts.css)'}. For roles: display/serif — Fraunces, Spectral, ` +
-      `Source Serif 4, Newsreader, Bricolage Grotesque, Space Grotesk; body/sans — Hanken Grotesk (a deliberate alt to ` +
-      `Inter), Inter, DM Sans, Plus Jakarta Sans, Manrope, Outfit, Sora; data/MONO — IBM Plex Mono, Space Mono. ` +
-      `Avoid default-Inter-everywhere and reflexive Playfair. Also ` +
+      `falls back to a system font): ${available || '(see fonts.css)'}. Fonts must be SMOOTH, CALM and UNIFORM ` +
+      `— pick from the smooth set: calm/vintage SERIF display — Source Serif 4, Lora, Newsreader; clean SANS ` +
+      `(body or display) — Inter, DM Sans, Manrope, Plus Jakarta Sans, Outfit; data/MONO — IBM Plex Mono, Space ` +
+      `Mono. AVOID the irregular/spiky faces (Spectral, Bricolage Grotesque, Syne, Unbounded, Playfair) — they read ` +
+      `uneven at display sizes; distinctiveness comes from the concept + palette, not a loud font. Also ` +
       `${destRel}/icons.svg — a curated ${ICON_NAMES.length}-icon Lucide line set: read it and INLINE an icon's inner <path>s into your HTML ` +
       `(an external <use href> does NOT render in the PDF). Pick a font pairing for the brand and use icons for section markers/KPIs. ` +
       `Available icons include: ${ICON_NAMES.join(', ')}.`
