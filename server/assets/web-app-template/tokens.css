@@ -1,0 +1,40 @@
+/* ArksAI website — THE LOOK (theme tokens).
+   This file holds colour + type + feel ONLY; site.css holds the structural
+   guarantees (reset, nav, responsive). Theme by editing the tokens below.
+
+   For a brand build, run design_direction first — it OVERWRITES this file with a
+   bespoke, concept-grounded palette + a deliberate type trio (display / body / mono).
+   The defaults here are a deliberate, restrained starting point, NOT the only look. */
+
+:root {
+  /* colour — replace with a palette grounded in the subject (not default blue) */
+  --accent: #3a5a78;        /* the one brand accent — used sparingly (~5–10%) */
+  --accent-ink: #ffffff;    /* readable text on the accent */
+  --ink: #16181d;           /* primary text */
+  --muted: #565b66;         /* secondary text — still AA on --bg */
+  --bg: #ffffff;
+  --surface: #f6f6f3;
+  --border: #e6e6e0;
+  --line: #e6e6e0;          /* hairlines (craft.css reads this) */
+
+  /* type — three ROLES. Deliberate, not default: pair a display + a body, and use
+     the mono for codes/labels/figures. Run add_fonts to embed these. */
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* layout + feel */
+  --maxw: 1080px;
+  --pad: clamp(16px, 4vw, 36px);
+  --radius: 12px;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+html { font-family: var(--font); color: var(--ink); background: var(--bg); line-height: 1.6; -webkit-text-size-adjust: 100%; }
+body { font-size: clamp(15px, 0.9rem + 0.2vw, 17px); }
+h1, h2, h3 { font-family: var(--display); line-height: 1.2; font-weight: 600; margin: 0 0 .4em; letter-spacing: -0.01em; }
+h1 { font-size: clamp(2rem, 1.4rem + 3.2vw, 3.4rem); }
+h2 { font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem); }
+h3 { font-size: 1.2rem; }
+p { margin: 0 0 1em; max-width: 68ch; }
+.muted { color: var(--muted); }

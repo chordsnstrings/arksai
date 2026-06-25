@@ -1,0 +1,152 @@
+/*
+ * ArksAI UI kit — CRAFT layer.
+ * The high-craft micro-details + meaningful SIGNATURE components that make output
+ * read as art-directed rather than templated. Layer this AFTER design-tokens.css
+ * (or after a site's own tokens). Every rule falls back gracefully, so it also works
+ * on the lighter create_web_app template that defines only --accent/--ink/--line.
+ *
+ * Use a SIGNATURE component (.board / .spec / .stamp) once per site, grounded in the
+ * subject — give its rows REAL codes/keys/values (country codes, SKUs, version tags,
+ * dates), never generic 01/02/03. That meaningful structure is the whole point.
+ */
+
+:root {
+  --craft-ease: var(--ease, cubic-bezier(0.2, 0.7, 0.3, 1));
+  --craft-line: var(--line, var(--border, #e2e1dc));
+  --craft-mono: var(--font-mono, "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace);
+}
+
+/* ---- eyebrow: mono label with a leading hairline (the "boarding-pass" label) ---- */
+.eyebrow-rule {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7em;
+  font-family: var(--craft-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent, currentColor);
+}
+.eyebrow-rule::before {
+  content: "";
+  width: 1.7rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+/* ---- mono data: codes, labels, stat figures ---- */
+.mono, .code--mono { font-family: var(--craft-mono); letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+
+/* ---- animated nav underline (grows from the left on hover/active) ---- */
+.nav-underline a {
+  position: relative;
+  text-decoration: none;
+}
+.nav-underline a::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: -3px;
+  width: 100%; height: 1.5px;
+  background: var(--accent, currentColor);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s var(--craft-ease);
+}
+.nav-underline a:hover::after,
+.nav-underline a[aria-current]::after { transform: scaleX(1); }
+
+/* ---- lift: a tactile hover for buttons/cards (subtle, never bouncy) ---- */
+.lift { transition: transform 0.18s var(--craft-ease), box-shadow 0.18s var(--craft-ease); }
+.lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-md, 0 8px 24px rgba(16,18,29,0.10)); }
+
+/* ---- with-arrow: a trailing arrow that nudges forward on hover ---- */
+.with-arrow { display: inline-flex; align-items: center; gap: 0.5em; }
+.with-arrow::after {
+  content: "→";
+  transition: transform 0.18s var(--craft-ease);
+}
+.with-arrow:hover::after { transform: translateX(4px); }
+
+/* ============================================================
+   SIGNATURE COMPONENTS — pick ONE, ground its rows in real data
+   ============================================================ */
+
+/* (1) BOARD — a quiet "departures board": CODE · label · meta.
+   Generalises Claude's destinations board. Keys must be REAL codes. */
+.board { border-top: 1px solid var(--craft-line); }
+.board-row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr auto;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.95rem 0.25rem;
+  border-bottom: 1px solid var(--craft-line);
+  transition: background 0.18s var(--craft-ease), padding-left 0.18s var(--craft-ease);
+}
+.board-row:hover { background: var(--surface, rgba(0,0,0,0.02)); padding-left: 0.6rem; }
+.board-code {
+  font-family: var(--craft-mono);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--accent, currentColor);
+}
+.board-label { font-weight: 600; }
+.board-meta { font-family: var(--craft-mono); font-size: 0.82rem; color: var(--muted, #6b7280); }
+@media (max-width: 560px) {
+  .board-row { grid-template-columns: 3.6rem 1fr; }
+  .board-meta { grid-column: 2; }
+}
+
+/* (2) SPEC — a labelled spec/data list: mono KEY → value. */
+.spec { display: grid; gap: 0; }
+.spec-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) 1fr;
+  gap: 1rem 1.5rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--craft-line);
+}
+.spec-key {
+  font-family: var(--craft-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted, #6b7280);
+  padding-top: 0.15em;
+}
+@media (max-width: 520px) { .spec-row { grid-template-columns: 1fr; gap: 0.25rem; } }
+
+/* (3) STAMP — a rotated, bordered "visa-stamp" callout for a single proof point. */
+.stamp {
+  display: inline-block;
+  font-family: var(--craft-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent, currentColor);
+  border: 1.5px solid currentColor;
+  border-radius: 6px;
+  padding: 0.5rem 0.85rem;
+  transform: rotate(-3deg);
+  opacity: 0.92;
+}
+
+/* ---- staggered reveal for a signature list (works with the kit's [data-reveal]) ---- */
+[data-reveal] .board-row,
+[data-reveal] .spec-row { transition: opacity 0.5s var(--craft-ease), transform 0.5s var(--craft-ease); }
+[data-reveal].reveal-hidden .board-row,
+[data-reveal].reveal-hidden .spec-row { opacity: 0; transform: translateY(10px); }
+[data-reveal].in .board-row:nth-child(2) { transition-delay: 0.05s; }
+[data-reveal].in .board-row:nth-child(3) { transition-delay: 0.10s; }
+[data-reveal].in .board-row:nth-child(4) { transition-delay: 0.15s; }
+[data-reveal].in .board-row:nth-child(5) { transition-delay: 0.20s; }
+[data-reveal].in .board-row:nth-child(6) { transition-delay: 0.25s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lift, .with-arrow::after, .nav-underline a::after { transition: none !important; }
+  [data-reveal].reveal-hidden .board-row,
+  [data-reveal].reveal-hidden .spec-row { opacity: 1 !important; transform: none !important; }
+}

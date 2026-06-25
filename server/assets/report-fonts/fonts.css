@@ -39,3 +39,18 @@
 @font-face{font-family:'Plus Jakarta Sans';font-weight:600;font-style:normal;font-display:swap;src:url('jakarta-600.woff2') format('woff2')}
 @font-face{font-family:'Lora';font-weight:400;font-style:normal;font-display:swap;src:url('lora-400.woff2') format('woff2')}
 @font-face{font-family:'Newsreader';font-weight:400;font-style:normal;font-display:swap;src:url('newsreader-400.woff2') format('woff2')}
+
+/*
+ * DATA / MONO + distinctive body — the "expensive editorial" tell. A monospace face
+ * for codes, labels, eyebrows and stat figures (boarding-pass data) is the single
+ * cheapest way to read art-directed rather than templated. Use one as --font-mono.
+ *   • IBM Plex Mono (mono)        — institutional, technical — the data/code role
+ *   • Space Mono (mono display)   — characterful retro-mono — labels / numerals
+ *   • Hanken Grotesk (sans body)  — warm grotesque, a deliberate alternative to Inter
+ */
+@font-face{font-family:'Spectral';font-weight:600;font-style:normal;font-display:swap;src:url('spectral-600.woff2') format('woff2')}
+@font-face{font-family:'Bricolage Grotesque';font-weight:700;font-style:normal;font-display:swap;src:url('bricolage-700.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-weight:500;font-style:normal;font-display:swap;src:url('ibmplexmono-500.woff2') format('woff2')}
+@font-face{font-family:'Space Mono';font-weight:400;font-style:normal;font-display:swap;src:url('spacemono-400.woff2') format('woff2')}
+@font-face{font-family:'Hanken Grotesk';font-weight:400;font-style:normal;font-display:swap;src:url('hanken-400.woff2') format('woff2')}
+@font-face{font-family:'Hanken Grotesk';font-weight:600;font-style:normal;font-display:swap;src:url('hanken-600.woff2') format('woff2')}

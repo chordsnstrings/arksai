@@ -45,18 +45,37 @@ test('themes.css defines complete design kits via data-kit (5, muted)', () => {
   }
 });
 
-test('the loud / high-contrast options were removed (minimal·muted only)', () => {
-  // Loud colour themes and high-contrast type pairings must NOT exist anymore.
+test('the MENU stays restrained (no neon themes / no high-contrast pairings)', () => {
+  // The data-theme/data-kit MENU is the muted FALLBACK; bespoke vibrant palettes come from
+  // design_direction, not the menu. So loud/neon menu themes + flashy pairings must NOT exist.
   for (const gone of ['crimson', 'sky', 'amber', 'rose', 'coral', 'lime', 'sunset', 'gold']) {
     assert.ok(!themes.includes(`[data-theme~='${gone}']`), `loud theme should be removed: ${gone}`);
   }
   for (const gone of ['fashion', 'chic', 'contemporary', 'grand', 'press']) {
     assert.ok(!themes.includes(`[data-type='${gone}']`), `high-contrast pairing should be removed: ${gone}`);
   }
-  // High-contrast display faces must be gone from the font library + disk.
-  for (const fam of ['Playfair Display', 'Instrument Serif', 'Bricolage Grotesque', 'Spectral', 'Work Sans']) {
-    assert.ok(!fontsCss.includes(`font-family:'${fam}'`), `removed font still declared: ${fam}`);
+});
+
+test('art-direction layer: deliberate display faces + a MONO/DATA role are available', () => {
+  // The new philosophy: deliberate non-default faces ARE allowed (Spectral, Bricolage), and a
+  // mono DATA face is the cheapest tell of editorial design. These are now first-class.
+  for (const fam of ['Spectral', 'Bricolage Grotesque', 'IBM Plex Mono', 'Space Mono', 'Hanken Grotesk']) {
+    assert.ok(fontsCss.includes(`font-family:'${fam}'`), `art-direction font missing: ${fam}`);
   }
+  for (const f of ['spectral-600.woff2', 'bricolage-700.woff2', 'ibmplexmono-500.woff2', 'spacemono-400.woff2', 'hanken-400.woff2', 'hanken-600.woff2']) {
+    const p = path.join(FONTS, f);
+    assert.ok(fs.existsSync(p), `missing art-direction font file ${f}`);
+    assert.ok(fs.statSync(p).size > 3000, `font ${f} looks empty/truncated`);
+  }
+  // The two deliberate pairings (incl. a mono role) exist in the menu.
+  assert.ok(themes.includes(`[data-type='grotesk']`), 'missing grotesk pairing');
+  assert.ok(themes.includes(`[data-type='institutional']`), 'missing institutional pairing');
+  assert.match(themes, /\[data-type='institutional'\][^}]*--font-mono:\s*'IBM Plex Mono'/);
+  // Truly low-quality/ubiquitous defaults are still NOT reflexively declared.
+  for (const fam of ['Playfair Display', 'Instrument Serif', 'Work Sans']) {
+    assert.ok(!fontsCss.includes(`font-family:'${fam}'`), `unwanted default still declared: ${fam}`);
+  }
+  // The specific old weight files that were removed stay gone.
   for (const f of REMOVED_FONTS) {
     assert.ok(!fs.existsSync(path.join(FONTS, f)), `removed font file still present: ${f}`);
   }
