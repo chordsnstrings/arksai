@@ -36,6 +36,7 @@ function toUiRobot(r: ApiRobot): Robot {
     createdAt: r.createdAt,
     kind: r.role,
     mailboxReady: r.mailboxReady,
+    lastPolledAt: r.lastPolledAt ?? null,
     journal: [],
     outputs: [],
   };

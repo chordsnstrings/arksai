@@ -433,6 +433,11 @@ export const api = {
     request<{ robot: Robot }>(`/api/orgs/${orgId}/robots/${rid}`, { method: 'PUT', body: JSON.stringify(patch) }).then((r) => r.robot),
   deleteRobot: (orgId: string, rid: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}`, { method: 'DELETE' }),
+  pollRobot: (orgId: string, rid: string) =>
+    request<{ summary: { read: number; drafted: number; sent: number; escalated: number; skipped: number; error?: string } }>(
+      `/api/orgs/${orgId}/robots/${rid}/poll`,
+      { method: 'POST' },
+    ).then((r) => r.summary),
   previewRobot: (orgId: string, rid: string, sample: { from?: string; fromName?: string; subject?: string; body?: string }) =>
     request<{ outcome: { primary: RobotDraftResult; alt?: RobotDraftResult } }>(`/api/orgs/${orgId}/robots/${rid}/preview`, {
       method: 'POST',

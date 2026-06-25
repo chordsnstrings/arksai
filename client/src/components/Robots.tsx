@@ -14,6 +14,26 @@ import { useRobots } from '../state/robotsStore';
 import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
 import { EmailSettings } from './EmailSettings';
+import { api } from '../api/client';
+import type { RobotDraft } from '@shared/types';
+
+/** Compact relative time: "just now" · "4m ago" · "2h ago" · "3d ago" · or a date. */
+function ago(ms: number | null | undefined): string {
+  if (!ms) return 'never';
+  const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (s < 45) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 7 * 86400) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(ms).toLocaleDateString();
+}
+
+const DRAFT_STATUS: Record<RobotDraft['status'], { label: string; tone: string }> = {
+  sent: { label: 'Replied', tone: '#2f7d5b' },
+  pending: { label: 'Awaiting you', tone: '#b07d2a' },
+  escalated: { label: 'Escalated', tone: '#c0502f' },
+  dismissed: { label: 'Dismissed', tone: '#8a8a8a' },
+};
 
 /**
  * "Robots" — the separate, full-page agentic surface (reached from the Sidebar link / /robots).
@@ -375,10 +395,56 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
   const update = useRobots((s) => s.update);
   const remove = useRobots((s) => s.remove);
   const setStatus = useRobots((s) => s.setStatus);
+  const reload = useRobots((s) => s.load);
   const orgId = useRobots((s) => s.orgId) ?? '';
   const [mandate, setMandate] = useState(robot.mandate);
   const dirty = mandate.trim() !== robot.mandate;
   const st = STATUS_META[robot.status];
+
+  // Real activity comes from the robot's drafts (every email it acted on) + its last-poll
+  // heartbeat — not the old hard-coded empty journal. Deliverables = the replies it sent.
+  const [drafts, setDrafts] = useState<RobotDraft[] | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkMsg, setCheckMsg] = useState<string | null>(null);
+
+  const loadDrafts = useMemo(
+    () => async () => {
+      if (!orgId) return;
+      try {
+        setDrafts(await api.listDrafts(orgId, { robotId: robot.id }));
+      } catch {
+        setDrafts([]);
+      }
+    },
+    [orgId, robot.id],
+  );
+  useEffect(() => {
+    setDrafts(null);
+    void loadDrafts();
+  }, [loadDrafts]);
+
+  const sent = (drafts ?? []).filter((d) => d.status === 'sent');
+
+  const checkNow = async () => {
+    if (!orgId || checking) return;
+    setChecking(true);
+    setCheckMsg(null);
+    try {
+      const s = await api.pollRobot(orgId, robot.id);
+      setCheckMsg(
+        s.error
+          ? `Couldn’t check: ${s.error}`
+          : s.read === 0
+            ? 'Inbox checked — nothing new.'
+            : `Checked — ${s.read} new · ${s.sent} replied${s.drafted - s.sent > 0 ? ` · ${s.drafted - s.sent} for you` : ''}${s.escalated ? ` · ${s.escalated} escalated` : ''}.`,
+      );
+      await Promise.all([loadDrafts(), reload(orgId)]);
+    } catch (e: any) {
+      setCheckMsg(typeof e?.message === 'string' ? e.message : 'Couldn’t check the inbox right now.');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const fire = async () => {
     if (await confirmDialog({ title: `Dismiss ${robot.name}?`, body: 'This removes the robot and anything waiting on it.', confirmLabel: 'Dismiss', danger: true })) {
@@ -397,12 +463,21 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
         <span className="rb-office-icon">{spec && <Icon name={spec.icon} size={26} />}</span>
         <div className="rb-office-id">
           <div className="rb-office-name">{robot.name}</div>
-          <div className="rb-office-role">{spec?.dept}</div>
+          <div className="rb-office-role">
+            {spec?.dept}
+            {robot.mailboxReady && <> · checked {ago(robot.lastPolledAt)}</>}
+          </div>
         </div>
+        {robot.mailboxReady && robot.status !== 'paused' && (
+          <button className="rb-ghost-btn rb-check" onClick={checkNow} disabled={checking}>
+            {checking ? 'Checking…' : 'Check inbox now'}
+          </button>
+        )}
         <span className="rb-status big" style={{ ['--tone' as any]: st.tone }}>
           {st.label}
         </span>
       </div>
+      {checkMsg && <div className="rb-check-msg">{checkMsg}</div>}
 
       <div className="rb-office-grid">
         <section className="rb-panel">
@@ -456,30 +531,62 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
         </section>
 
         <section className="rb-panel rb-span">
-          <h3>Activity</h3>
-          {robot.journal.length === 0 ? (
-            <div className="rb-mini-empty">No activity yet — once {robot.name} runs, every step it takes and decision it makes will show here.</div>
+          <div className="rb-panel-head">
+            <h3>Activity</h3>
+            {drafts && drafts.length > 0 && <span className="rb-count">{drafts.length}</span>}
+          </div>
+          {drafts === null ? (
+            <div className="rb-mini-empty">Loading…</div>
+          ) : drafts.length === 0 ? (
+            <div className="rb-mini-empty">
+              {robot.mailboxReady
+                ? `No emails handled yet. When mail arrives, ${robot.name} will draft or send a reply and each one shows here.`
+                : `Connect a mailbox above so ${robot.name} can read incoming mail and act on it.`}
+            </div>
           ) : (
-            <ul className="rb-journal">
-              {robot.journal.map((j) => (
-                <li key={j.id}>
-                  <span className="rb-journal-when">{new Date(j.at).toLocaleString()}</span>
-                  {j.text}
-                </li>
-              ))}
+            <ul className="rb-feed">
+              {drafts.map((d) => {
+                const ds = DRAFT_STATUS[d.status];
+                return (
+                  <li key={d.id} className="rb-feed-row">
+                    <span className="rb-feed-dot" style={{ ['--tone' as any]: ds.tone }} />
+                    <div className="rb-feed-main">
+                      <div className="rb-feed-top">
+                        <span className="rb-feed-from">{d.inboundName || d.inboundFrom}</span>
+                        <span className="rb-feed-when">{ago(d.sentAt ?? d.createdAt)}</span>
+                      </div>
+                      <div className="rb-feed-subj">{d.inboundSubject || '(no subject)'}</div>
+                      {d.inboundSnippet && <div className="rb-feed-snip">{d.inboundSnippet}</div>}
+                    </div>
+                    <span className="rb-status" style={{ ['--tone' as any]: ds.tone }}>{ds.label}</span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
 
         <section className="rb-panel rb-span">
-          <h3>Deliverables</h3>
-          {robot.outputs.length === 0 ? (
-            <div className="rb-mini-empty">Nothing delivered yet. Reports, sheets, apps and messages {robot.name} produces will collect here.</div>
+          <div className="rb-panel-head">
+            <h3>Delivered</h3>
+            {sent.length > 0 && <span className="rb-count">{sent.length}</span>}
+          </div>
+          {drafts === null ? (
+            <div className="rb-mini-empty">Loading…</div>
+          ) : sent.length === 0 ? (
+            <div className="rb-mini-empty">No replies sent yet. Replies {robot.name} sends on its own (or that you approve) collect here.</div>
           ) : (
-            <ul className="rb-outputs">
-              {robot.outputs.map((o) => (
-                <li key={o.id}>
-                  <span className="rb-out-kind">{o.kind}</span> {o.title}
+            <ul className="rb-feed">
+              {sent.map((d) => (
+                <li key={d.id} className="rb-feed-row">
+                  <span className="rb-out-kind">reply</span>
+                  <div className="rb-feed-main">
+                    <div className="rb-feed-top">
+                      <span className="rb-feed-from">To {d.inboundName || d.inboundFrom}</span>
+                      <span className="rb-feed-when">{ago(d.sentAt ?? d.createdAt)}</span>
+                    </div>
+                    <div className="rb-feed-subj">{d.subject || d.inboundSubject || '(no subject)'}</div>
+                  </div>
                 </li>
               ))}
             </ul>

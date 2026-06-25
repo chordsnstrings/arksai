@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-25.8';
+export const WHATS_NEW_VERSION = '2026-06-25.9';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,20 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Smoother, more refined typography',
-    body: 'Fonts are now always smooth, calm and uniform — calm serifs and clean sans, with the irregular/spiky display faces removed. Pages get character from the concept and palette, not a loud typeface.',
-  },
-  {
-    title: 'Real interactive components',
-    body: 'When a site needs a real modal, tabs, a carousel or an accordion, the studio now drops in self-hosted, accessible components themed to your brand — no more hand-built, fragile ones.',
-  },
-  {
-    title: 'React + Tailwind apps, with live preview',
-    body: 'For complex, interactive apps the studio now builds a modern React + Tailwind app with polished components, themed to your brand — and it previews right in the canvas automatically (no setup), then publishes the same way.',
-  },
-  {
-    title: 'Heroes that feel alive',
-    body: 'Hero sections can now use one tasteful motion moment chosen to fit the brand — a slow image drift, a subtle tilt, a soft gradient or a light parallax — smooth on every device and automatically off if you prefer reduced motion.',
+    title: 'See exactly what your robots are doing',
+    body: 'Each robot’s office now shows a live activity feed of every email it handled — who wrote in, the subject, and whether it replied, escalated, or is waiting for you — plus a “checked just now” heartbeat and a “Check inbox now” button. You can finally see it working, and what it delivered.',
   },
 ];
 

@@ -63,6 +63,8 @@ export interface Robot {
   kind?: string;
   /** True when this robot has its own mailbox connected + receivable (IMAP). */
   mailboxReady?: boolean;
+  /** Epoch ms of the last inbox check (heartbeat), or null if it hasn't run yet. */
+  lastPolledAt?: number | null;
   journal: JournalEntry[];
   outputs: RobotOutput[];
 }
