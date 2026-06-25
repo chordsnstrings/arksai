@@ -101,14 +101,60 @@ export async function buildExportArchive(
 }
 
 /**
+ * Detect a build-to-static FRONTEND (Vite/CRA/Astro/Vue/Angular/Parcel/Gatsby) — apps that
+ * compile to a folder of static files. For these, the in-canvas preview builds + serves the
+ * static OUTPUT (reliable through the preview proxy) instead of the dev server (whose absolute
+ * module paths + HMR websocket don't survive a path-based proxy). SSR frameworks (Next/Nuxt/
+ * SvelteKit/Remix) need their own running server, so they're excluded → they use the start cmd.
+ */
+export function detectFrontendBuild(dir: string): { outDir: string } | null {
+  const pkgPath = path.join(dir, 'package.json');
+  if (!fs.existsSync(pkgPath)) return null;
+  let pkg: any;
+  try {
+    pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!pkg?.scripts?.build) return null;
+  const deps: Record<string, string> = { ...pkg.dependencies, ...pkg.devDependencies };
+  const dep = (n: string) => Object.prototype.hasOwnProperty.call(deps, n);
+  // SSR frameworks serve themselves — don't static-serve them.
+  if (['next', 'nuxt', '@sveltejs/kit', '@remix-run/dev', '@remix-run/serve'].some(dep)) return null;
+  const viteCfg = fs.existsSync(path.join(dir, 'vite.config.ts')) || fs.existsSync(path.join(dir, 'vite.config.js'));
+  if (dep('react-scripts')) return { outDir: 'build' };
+  if (dep('gatsby')) return { outDir: 'public' };
+  if (dep('vite') || viteCfg || dep('astro') || dep('parcel') || dep('@vue/cli-service') || dep('@angular/cli') || dep('@angular-devkit/build-angular')) {
+    return { outDir: 'dist' };
+  }
+  return null;
+}
+
+/**
  * Leave a preview server running so the canvas can render the result. Apps boot
  * with their start command (PORT defaults to 4000 via childEnv); static sites
- * get a lightweight Python file server on 4000. Best-effort; never throws.
+ * get a lightweight Python file server on 4000; a build-to-static frontend
+ * (Vite/React/…) is BUILT then served statically (so it renders reliably in the
+ * in-canvas proxy by default — easiest for the user). Best-effort; never throws.
  * Returns the port to preview, or null.
  */
 export function startPreviewServer(sessionId: string, dir: string, r: Renderable): number | null {
   try {
     processRegistry.killAllForSession(sessionId);
+    // Build-to-static frontend → build (if needed) then serve the static output. This is the
+    // default because the static build renders reliably through the canvas proxy, whereas a
+    // dev server's absolute module paths + HMR websocket do not.
+    const fe = r.startCmd ? detectFrontendBuild(dir) : null;
+    if (fe) {
+      const out = fe.outDir;
+      const cmd =
+        `if [ ! -d "${out}" ] || [ -z "$(ls -A "${out}" 2>/dev/null)" ]; then ` +
+        `(test -d node_modules || npm install --no-audit --no-fund --loglevel=error) && npm run build; fi; ` +
+        `if [ -d "${out}" ]; then cd "${out}"; fi; ` +
+        `exec python3 -m http.server 4000 --bind 0.0.0.0`;
+      processRegistry.start(sessionId, cmd, dir, 'preview');
+      return 4000;
+    }
     if (r.startCmd) {
       processRegistry.start(sessionId, r.startCmd, dir, 'preview');
       return 4000;

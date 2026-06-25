@@ -125,7 +125,8 @@ export const createReactAppTool: ToolDef = {
       `(3) keep it MINIMAL · POLISHED · RESPONSIVE — restrained palette, one accent ~5–10%, real states, mobile-first; ` +
       `(4) for icons use lucide-react (already a dep); (5) verify (npm run build must pass — it runs tsc + vite build), ` +
       `then publish_app — publishing runs the Vite build and serves the app. Don't load anything from a CDN; the deps ` +
-      `are bundled. For a simple marketing/content site, create_web_app is the lighter choice.`
+      `are bundled. The in-canvas PREVIEW builds + serves the static output automatically, so it renders reliably — ` +
+      `the user sees it without any dev-server setup. For a simple marketing/content site, create_web_app is the lighter choice.`
     );
   },
 };

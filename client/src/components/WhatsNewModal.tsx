@@ -27,8 +27,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'When a site needs a real modal, tabs, a carousel or an accordion, the studio now drops in self-hosted, accessible components themed to your brand — no more hand-built, fragile ones.',
   },
   {
-    title: 'React + Tailwind apps',
-    body: 'For complex, interactive web apps the studio can now build a modern React + Tailwind app with polished components, themed to your brand and published the same way.',
+    title: 'React + Tailwind apps, with live preview',
+    body: 'For complex, interactive apps the studio now builds a modern React + Tailwind app with polished components, themed to your brand — and it previews right in the canvas automatically (no setup), then publishes the same way.',
   },
   {
     title: 'Heroes that feel alive',
