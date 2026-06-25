@@ -1704,13 +1704,13 @@ button { font-family: inherit; cursor: pointer; }
 .login-back:hover { color: var(--text-muted); }
 
 /* ---- B2B acquisition landing ---- */
-.landing { height: 100%; overflow-y: auto; }
+.landing { height: 100%; overflow-y: auto; overflow-x: hidden; }
 .landing > * { max-width: 980px; margin-left: auto; margin-right: auto; }
 .lnd-nav {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 20px 28px; border-bottom: 1px solid var(--border); margin-bottom: 0;
 }
-.lnd-nav-actions { display: flex; align-items: center; gap: 8px; }
+.lnd-nav-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .lnd-link { background: none; border: none; color: var(--text-muted); font-family: var(--label); font-size: 12.5px; letter-spacing: 0.04em; padding: 6px 8px; }
 .lnd-link:hover { color: var(--text); }
 .lnd-signin { background: var(--text); color: var(--bg); border: none; border-radius: 9px; font-family: var(--label); font-size: 12.5px; font-weight: 500; letter-spacing: 0.03em; padding: 8px 16px; }
@@ -1962,6 +1962,15 @@ button { font-family: inherit; cursor: pointer; }
   .lnd-hero { padding: 48px 22px 40px; }
   .lnd-section { padding: 40px 22px; }
   .lnd-nav { padding: 16px 22px; }
+}
+/* Phones: collapse the nav to brand + Sign in so it can't overflow the viewport.
+   Features/Research remain reachable in the footer; the alpha status repeats in the hero. */
+@media (max-width: 620px) {
+  .lnd-nav .lnd-link,
+  .lnd-nav .lnd-alpha-pill { display: none; }
+  .lnd-h1 { font-size: 34px; max-width: none; }
+  .lnd-lede { font-size: 16px; }
+  .lp-mark { font-size: 11px; }
 }
 
 /* org onboarding (first-run, agent-driven, full-visibility) */
