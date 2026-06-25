@@ -33,6 +33,8 @@ const DRAFT_STATUS: Record<RobotDraft['status'], { label: string; tone: string }
   pending: { label: 'Awaiting you', tone: '#b07d2a' },
   escalated: { label: 'Escalated', tone: '#c0502f' },
   dismissed: { label: 'Dismissed', tone: '#8a8a8a' },
+  snoozed: { label: 'Snoozed', tone: '#6b7280' },
+  archived: { label: 'Archived', tone: '#8a8a8a' },
 };
 
 /**

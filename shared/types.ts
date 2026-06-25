@@ -581,6 +581,9 @@ export function isFreeEmailDomain(email: string): boolean {
 
 // ---- Robots (standing email agents) ----
 export type RobotRole = 'customer_service' | 'personal_assistant' | 'custom';
+/** The KIND of robot — drives its console view + runtime. Email is implemented; the rest are
+ *  declared so the host/registry can route them as they're built. */
+export type RobotType = 'email' | 'scheduled' | 'ads' | 'monitor';
 export type RobotStatus = 'draft' | 'active' | 'paused';
 export type RobotAutonomy = 'shadow' | 'ask' | 'auto';
 /** arksai-max = MiniMax M3, deepseek-v4 = DeepSeek, compare = run both (bake-off). */
@@ -606,6 +609,8 @@ export interface Robot {
   id: string;
   orgId: string;
   name: string;
+  /** The robot KIND — routes its console + runtime. Defaults to 'email' for existing robots. */
+  type: RobotType;
   role: RobotRole;
   status: RobotStatus;
   autonomy: RobotAutonomy;
@@ -618,7 +623,7 @@ export interface Robot {
   updatedAt: number;
 }
 
-export type RobotDraftStatus = 'pending' | 'sent' | 'dismissed' | 'escalated';
+export type RobotDraftStatus = 'pending' | 'sent' | 'dismissed' | 'escalated' | 'snoozed' | 'archived';
 export interface RobotDraft {
   id: string;
   robotId: string;
@@ -628,6 +633,10 @@ export interface RobotDraft {
   inboundName: string | null;
   inboundSubject: string | null;
   inboundSnippet: string | null;
+  /** Full inbound body (for the responder); snippet stays for the compact feed. */
+  inboundBody: string | null;
+  /** When snoozed, the epoch ms it returns to "needs you". */
+  snoozeUntil?: number | null;
   toAddr: string;
   subject: string;
   draftText: string;
@@ -643,6 +652,7 @@ export interface RobotDraft {
 
 export interface CreateRobotRequest {
   name: string;
+  type?: RobotType;
   role: RobotRole;
   model?: RobotModel;
   autonomy?: RobotAutonomy;

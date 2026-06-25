@@ -114,6 +114,7 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
       inboundName: msg.fromName || null,
       inboundSubject: msg.subject || null,
       inboundSnippet: msg.snippet || null,
+      inboundBody: msg.text || msg.snippet || null,
       toAddr: msg.from, // LOCKED to the inbound sender
       subject: reSubject(msg.subject),
       draftText: primary.text,

@@ -549,6 +549,11 @@ async function migrate() {
     'schedules:tz TEXT',
     `deployments:expires_at ${INT}`,
     'deployments:static_dir TEXT',
+    // Robots: a `type` (email/scheduled/ads/monitor…) so the console + runtime route by kind;
+    // existing robots are email. Drafts keep the full inbound body for the responder + snooze.
+    "robots:type TEXT NOT NULL DEFAULT 'email'",
+    'robot_drafts:inbound_body TEXT',
+    `robot_drafts:snooze_until ${INT}`,
   ]) {
     const cut = spec.indexOf(':');
     const table = spec.slice(0, cut);

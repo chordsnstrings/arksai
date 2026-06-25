@@ -72,6 +72,18 @@ test('an escalated draft is stored as escalated, not pending', async () => {
   assert.equal(d.escalated, true);
 });
 
+test('a robot has a type (defaults to email) and a draft round-trips its full body', async () => {
+  const r = await store.createRobot('o-t', { name: 'T', role: 'custom' });
+  assert.equal(r.type, 'email'); // existing/default robots are email
+  const d = await store.createDraft({
+    robotId: r.id, orgId: 'o-t', inboundMessageId: '<b@m>', inboundFrom: 'q@x.com', inboundName: 'Q',
+    inboundSubject: 'Hi', inboundSnippet: 'short', inboundBody: 'the full multi-line body of the email',
+    toAddr: 'q@x.com', subject: 'Re: Hi', draftText: 'reply', modelUsed: 'm', escalated: false, escalationReason: null,
+  });
+  assert.equal(d.inboundBody, 'the full multi-line body of the email'); // responder gets the full body
+  assert.equal(d.inboundSnippet, 'short'); // snippet kept for the compact feed
+});
+
 test('"Needs You" includes escalated drafts (not just pending) — the bug fix', async () => {
   const r = await store.createRobot('o-ny', { name: 'NY', role: 'customer_service' });
   // a pending draft + an escalated draft + a sent one (sent must NOT count)

@@ -195,3 +195,31 @@ export async function draftReply(robot: Robot, msg: InboxMessage, signal: AbortS
 function errorDraft(label: string, e: any): DraftResult {
   return { text: '', model: label, escalate: true, reason: `Draft failed: ${e?.message ?? e}` };
 }
+
+/**
+ * Re-draft a reply from a HUMAN's one-line direction (the responder's "how should I respond?" box
+ * + quick chips). The model rewrites the reply to follow the instruction. Recipient stays locked
+ * (the caller sends only to the stored sender); escalate is forced false (the human is directing it).
+ */
+export async function regenerateDraft(
+  robot: Robot,
+  draft: { inboundFrom: string; inboundName: string | null; inboundSubject: string | null; inboundBody: string | null; inboundSnippet: string | null },
+  instruction: string,
+  signal: AbortSignal,
+): Promise<DraftResult> {
+  const system =
+    buildSystem(robot) +
+    `\n\nThe person you assist has reviewed this email and wants the reply to follow this direction:\n"${instruction}"\n` +
+    "Write the full reply accordingly, in the robot's voice. Set escalate=false (they have decided how to respond); " +
+    'reply = the complete email body. Do NOT change the recipient.';
+  const msg = {
+    uid: 0, seq: 0, from: draft.inboundFrom, fromName: draft.inboundName || '', to: '',
+    subject: draft.inboundSubject || '', date: '', messageId: '',
+    snippet: draft.inboundSnippet || '', text: draft.inboundBody || draft.inboundSnippet || '',
+  } as InboxMessage;
+  const user = buildUser(msg);
+  const wantMini = robot.model !== 'deepseek-v4';
+  if (wantMini && minimaxAvailable()) return runModel('minimax', system, user, signal).catch((e) => errorDraft(MINIMAX_LABEL, e));
+  if (deepseekAvailable()) return runModel('deepseek', system, user, signal).catch((e) => errorDraft(DEEPSEEK_LABEL, e));
+  return { text: '', model: 'none', escalate: false, reason: 'No model configured.' };
+}

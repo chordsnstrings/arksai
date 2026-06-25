@@ -12,7 +12,7 @@ import {
   setDraftText,
   updateRobot,
 } from '../robots/store';
-import { draftReply } from '../robots/reply';
+import { draftReply, regenerateDraft } from '../robots/reply';
 import { pollRobotOnce } from '../robots/poller';
 import { sendEmailForRobot, verifyAccount } from '../email/client';
 import { detectEmailConfig } from '../email/autoconfig';
@@ -261,5 +261,29 @@ export function registerRobotRoutes(app: FastifyInstance) {
     if (!draft) return reply.code(404).send({ error: 'Unknown draft.' });
     await markDraftStatus(draft.id, orgId(req), 'dismissed');
     return { ok: true };
+  });
+
+  // Re-draft a reply from the human's one-line direction (the responder's intent box / chips).
+  // Returns the new text + saves it on the draft; the recipient stays locked.
+  app.post('/api/orgs/:id/drafts/:did/regenerate', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const instruction = String((req.body as any)?.instruction ?? '').trim();
+    if (!instruction) return reply.code(400).send({ error: 'Tell me how to respond.' });
+    const draft = await getDraft((req.params as any).did, orgId(req));
+    if (!draft) return reply.code(404).send({ error: 'Unknown draft.' });
+    const robot = await getRobot(draft.robotId, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 90_000);
+    try {
+      const out = await regenerateDraft(robot, draft, instruction, ac.signal);
+      if (!out.text) return reply.code(502).send({ error: out.reason || 'Could not draft a reply.' });
+      await setDraftText(draft.id, orgId(req), out.text);
+      return { text: out.text, model: out.model };
+    } catch (e: any) {
+      return reply.code(502).send({ error: `Draft failed: ${e?.message ?? e}` });
+    } finally {
+      clearTimeout(timer);
+    }
   });
 }

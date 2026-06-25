@@ -29,6 +29,7 @@ function rowToRobot(r: any): Robot {
     id: r.id,
     orgId: r.org_id,
     name: r.name,
+    type: r.type || 'email',
     role: r.role,
     status: r.status,
     autonomy: r.autonomy,
@@ -57,6 +58,8 @@ function rowToDraft(r: any): RobotDraft {
     inboundName: r.inbound_name ?? null,
     inboundSubject: r.inbound_subject ?? null,
     inboundSnippet: r.inbound_snippet ?? null,
+    inboundBody: r.inbound_body ?? null,
+    snoozeUntil: r.snooze_until != null ? Number(r.snooze_until) : null,
     toAddr: r.to_addr,
     subject: r.subject,
     draftText: r.draft_text,
@@ -89,15 +92,16 @@ export async function createRobot(orgId: string, req: CreateRobotRequest): Promi
   const id = randomUUID();
   const now = Date.now();
   await q(
-    `INSERT INTO robots(id, org_id, name, role, status, autonomy, model, config, last_polled_at, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    `INSERT INTO robots(id, org_id, name, type, role, status, autonomy, model, config, last_polled_at, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
     [
       id,
       orgId,
       req.name,
+      req.type ?? 'email',
       req.role,
       'draft',
-      req.autonomy ?? 'ask',
+      req.autonomy ?? 'ask', // store-level safe default; the hire wizard sets email → auto
       req.model ?? 'arksai-max',
       JSON.stringify(req.config ?? {}),
       null,
@@ -169,6 +173,7 @@ export interface NewDraft {
   inboundName: string | null;
   inboundSubject: string | null;
   inboundSnippet: string | null;
+  inboundBody?: string | null;
   toAddr: string;
   subject: string;
   draftText: string;
@@ -185,9 +190,9 @@ export async function createDraft(d: NewDraft): Promise<RobotDraft> {
   await q(
     `INSERT INTO robot_drafts(
        id, robot_id, org_id, inbound_message_id, inbound_from, inbound_name, inbound_subject,
-       inbound_snippet, to_addr, subject, draft_text, model_used, alt_text, alt_model,
+       inbound_snippet, inbound_body, to_addr, subject, draft_text, model_used, alt_text, alt_model,
        escalated, escalation_reason, status, created_at, sent_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
     [
       id,
       d.robotId,
@@ -197,6 +202,7 @@ export async function createDraft(d: NewDraft): Promise<RobotDraft> {
       d.inboundName,
       d.inboundSubject,
       d.inboundSnippet,
+      d.inboundBody ?? null,
       d.toAddr,
       d.subject,
       d.draftText,
