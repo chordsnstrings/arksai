@@ -121,6 +121,12 @@ export const config = {
   // connectors (must be HTTPS and registered in each provider's app). Defaults to the
   // live host; override per environment.
   publicBaseUrl: (process.env.PUBLIC_BASE_URL || 'https://arksai.studio').replace(/\/$/, ''),
+  // When set (e.g. "apps.arksai.studio"), published apps are advertised at the CLEAN subdomain
+  // https://<slug>.<base>/ instead of the path https://arksai.studio/apps/<slug>/. The server
+  // already ROUTES <slug>.apps.arksai.studio (routes/deployments.ts) + Caddy mints on-demand TLS;
+  // set this ONLY after the wildcard DNS (*.apps.arksai.studio → the droplet) is verified live,
+  // so we never hand out a non-resolving URL. Empty = path-based (always works).
+  appsSubdomainBase: (process.env.APPS_SUBDOMAIN_BASE || '').trim().replace(/^\.+|\/+$/g, ''),
   // Key used to encrypt connector OAuth tokens at rest (AES-256-GCM). Any string;
   // it's hashed to 32 bytes. MUST be set in production — without it connectors are
   // disabled so tokens are never stored in plaintext.

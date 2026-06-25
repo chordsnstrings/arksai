@@ -2,10 +2,18 @@ import { publishSession } from '../../deploy/publish';
 import { config } from '../../config';
 import type { ToolDef } from './common';
 
-/** Turn the deployment's stored path (e.g. "/apps/foo/") into the absolute URL the user opens. */
-function liveUrl(depUrl: string): string {
-  return /^https?:\/\//i.test(depUrl) ? depUrl : `${config.publicBaseUrl}${depUrl}`;
+/** Turn the deployment's stored path (e.g. "/apps/foo/") into the absolute URL the user opens.
+ *  When appsSubdomainBase is configured (and DNS/TLS are live), advertise the clean subdomain.
+ *  Pure + unit-tested. */
+export function buildPublicUrl(depUrl: string, opts: { publicBaseUrl: string; appsSubdomainBase: string }): string {
+  if (/^https?:\/\//i.test(depUrl)) return depUrl;
+  const m = /^\/apps\/([^/]+)\/?/.exec(depUrl);
+  if (m && opts.appsSubdomainBase) return `https://${m[1]}.${opts.appsSubdomainBase}/`;
+  return `${opts.publicBaseUrl}${depUrl}`;
 }
+
+const liveUrl = (depUrl: string): string =>
+  buildPublicUrl(depUrl, { publicBaseUrl: config.publicBaseUrl, appsSubdomainBase: config.appsSubdomainBase });
 
 /**
  * Publish the built app to a durable public URL the (non-technical) user can
