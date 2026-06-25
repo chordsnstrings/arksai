@@ -72,6 +72,32 @@ test('an escalated draft is stored as escalated, not pending', async () => {
   assert.equal(d.escalated, true);
 });
 
+test('"Needs You" includes escalated drafts (not just pending) — the bug fix', async () => {
+  const r = await store.createRobot('o-ny', { name: 'NY', role: 'customer_service' });
+  // a pending draft + an escalated draft + a sent one (sent must NOT count)
+  await store.createDraft({
+    robotId: r.id, orgId: 'o-ny', inboundMessageId: '<p@m>', inboundFrom: 'a@x.com', inboundName: null,
+    inboundSubject: 'Q1', inboundSnippet: null, toAddr: 'a@x.com', subject: 'Re: Q1', draftText: 'ready',
+    modelUsed: 'm', escalated: false, escalationReason: null,
+  });
+  await store.createDraft({
+    robotId: r.id, orgId: 'o-ny', inboundMessageId: '<e@m>', inboundFrom: 'b@x.com', inboundName: null,
+    inboundSubject: 'Q2', inboundSnippet: null, toAddr: 'b@x.com', subject: 'Re: Q2', draftText: '',
+    modelUsed: 'm', escalated: true, escalationReason: 'needs a human',
+  });
+  const sent = await store.createDraft({
+    robotId: r.id, orgId: 'o-ny', inboundMessageId: '<s@m>', inboundFrom: 'c@x.com', inboundName: null,
+    inboundSubject: 'Q3', inboundSnippet: null, toAddr: 'c@x.com', subject: 'Re: Q3', draftText: 'done',
+    modelUsed: 'm', escalated: false, escalationReason: null,
+  });
+  await store.markDraftStatus(sent.id, 'o-ny', 'sent', Date.now());
+
+  const needs = await store.listNeedsYouDrafts('o-ny');
+  const statuses = needs.map((d) => d.status).sort();
+  assert.deepEqual(statuses, ['escalated', 'pending']); // both surface; sent excluded
+  assert.equal(await store.countPendingDrafts('o-ny'), 2); // badge counts escalated too
+});
+
 test('buildSystem injects persona/knowledge/escalation + locks the recipient + demands JSON', () => {
   const robot: any = {
     id: 'x', orgId: 'o1', name: 'CS', role: 'customer_service', status: 'active', autonomy: 'ask',

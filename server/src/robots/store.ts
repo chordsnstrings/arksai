@@ -236,9 +236,22 @@ export async function listDrafts(orgId: string, robotId?: string, status?: Robot
   return (await q(sql, vals)).map(rowToDraft);
 }
 
+/**
+ * The "Needs You" set: drafts awaiting a human — both 'pending' (a reply ready to approve)
+ * AND 'escalated' (the robot flagged it can't handle it). Escalated items are exactly what
+ * needs the human, so they must surface in the inbox + badge, not just the activity feed.
+ */
+export async function listNeedsYouDrafts(orgId: string): Promise<RobotDraft[]> {
+  const rows = await q(
+    "SELECT * FROM robot_drafts WHERE org_id = $1 AND status IN ('pending','escalated') ORDER BY created_at DESC LIMIT 200",
+    [orgId],
+  );
+  return rows.map(rowToDraft);
+}
+
 export async function countPendingDrafts(orgId: string): Promise<number> {
   const r = await qOne<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM robot_drafts WHERE org_id = $1 AND status = 'pending'",
+    "SELECT COUNT(*) AS n FROM robot_drafts WHERE org_id = $1 AND status IN ('pending','escalated')",
     [orgId],
   );
   return Number(r?.n ?? 0);

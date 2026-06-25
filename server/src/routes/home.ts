@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { HomeSnapshot } from '../../../shared/types';
 import * as store from '../sessions/store';
 import { listSchedules } from '../schedule/scheduler';
-import { listRobots, listDrafts } from '../robots/store';
+import { listRobots, listNeedsYouDrafts } from '../robots/store';
 import { scopeOf } from '../auth';
 
 /**
@@ -23,7 +23,7 @@ export function registerHomeRoutes(app: FastifyInstance) {
       store.listDeployments(undefined, scope).catch(() => []),
       listSchedules(scope).catch(() => []),
       orgId ? listRobots(orgId).catch(() => []) : Promise.resolve([]),
-      orgId ? listDrafts(orgId, undefined, 'pending').catch(() => []) : Promise.resolve([]),
+      orgId ? listNeedsYouDrafts(orgId).catch(() => []) : Promise.resolve([]),
     ]);
     return { deployments, schedules, robots, pendingDrafts };
   });

@@ -80,10 +80,14 @@ export const useRobots = create<RobotsState>((set, get) => ({
   load: async (orgId) => {
     set({ orgId, loading: true });
     try {
-      const [robots, drafts] = await Promise.all([
+      // "Needs You" = pending (ready to send) + escalated (robot flagged it can't handle) —
+      // escalated items are exactly what needs a human, so they must show in the inbox.
+      const [robots, pending, escalated] = await Promise.all([
         api.listRobots(orgId),
         api.listDrafts(orgId, { status: 'pending' }).catch(() => []),
+        api.listDrafts(orgId, { status: 'escalated' }).catch(() => []),
       ]);
+      const drafts = [...pending, ...escalated].sort((a, b) => b.createdAt - a.createdAt);
       const approvals: Approval[] = drafts.map((d) => ({
         id: d.id,
         robotId: d.robotId,
