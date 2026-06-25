@@ -50,6 +50,28 @@ test('the scaffold demonstrates motion out of the box', () => {
   assert.doesNotMatch(siteCss, /--accent: #3a5a78/);
 });
 
+test('Open Props subset is vendored, namespaced (no conflict), and reduced-motion-safe', () => {
+  const op = fs.readFileSync(path.join(ASSETS, 'ui-kit', 'open-props.css'), 'utf8');
+  assert.match(op, /MIT License/);
+  assert.match(op, /--animation-fade-in/);
+  assert.match(op, /--gradient-7|--gradient-1\b/);
+  assert.match(op, /--ease-elastic-3/);
+  assert.match(op, /@keyframes/);
+  // namespaced under :where() (zero specificity) so it can't override our tokens
+  assert.match(op, /:where\(html\)/);
+  // animations disabled under reduced motion
+  assert.match(op, /prefers-reduced-motion[\s\S]*--animation-fade-in:\s*none/);
+  // the scaffold links it
+  assert.match(indexHtml, /ui-kit\/open-props\.css/);
+});
+
+test('the minimal·polished·responsive bar is locked regardless of the toolkit', () => {
+  assert.match(designCore, /THE BAR HOLDS NO MATTER THE TOOLKIT/);
+  assert.match(designCore, /MINIMAL · MODERN ·\s+POLISHED/);
+  assert.match(designCore, /FULLY RESPONSIVE/);
+  assert.match(designCore, /themed to YOUR tokens and passes the responsive \+ contrast gate/);
+});
+
 test('designCore steers robust components + a lively-but-bounded motion bar', () => {
   // use the robust component instead of a fragile hand-built one (anti-whack-a-mole)
   assert.match(designCore, /\.ticket/);

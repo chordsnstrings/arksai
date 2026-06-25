@@ -93,7 +93,8 @@ export const createWebAppTool: ToolDef = {
       `(name "${name}"${accent ? `, accent ${accent}` : ''}). Files: tokens.css (THE LOOK — colour/type/feel), ` +
       `site.css (MECHANICS — overflow-proof reset + a working responsive nav), ui-kit/craft.css (craft + SIGNATURE ` +
       `components: .eyebrow-rule, .board, .spec, .stamp, .ticket [a clip-safe boarding-pass card], .lift, .tilt, ` +
-      `.sheen, .with-arrow, .nav-underline + motion), site.js (wires the hamburger AND [data-reveal] scroll-in + ` +
+      `.sheen, .with-arrow, .nav-underline + motion), ui-kit/open-props.css (optional richer easings/animations/` +
+      `gradients — use with restraint, keep it minimal·polished), site.js (wires the hamburger AND [data-reveal] scroll-in + ` +
       `[data-count] stat count-up — reduced-motion-safe), and ui-kit/ (the full component kit).${lockedTokens ? ' Your locked design_direction tokens.css was preserved.' : ''}\n` +
       `It already passes the mobile gate (viewport meta, no horizontal overflow at 320/390/768, the menu opens). ` +
       `NOW: (1) theme by editing ONLY tokens.css — set a palette + type trio (display / body / mono) grounded in the ` +

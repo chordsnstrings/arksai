@@ -60,6 +60,8 @@ export const addUiKitTool: ToolDef = {
       `  <link rel="stylesheet" href="${destRel}/components.css">\n` +
       `  <link rel="stylesheet" href="${destRel}/patterns.css">\n` +
       `  <link rel="stylesheet" href="${destRel}/themes.css">\n` +
+      `  <link rel="stylesheet" href="${destRel}/craft.css">\n` +
+      `  <link rel="stylesheet" href="${destRel}/open-props.css">  (optional — extra easings/animations/gradients)\n` +
       `…and before </body>:  <script src="${destRel}/ui-kit.js" defer></script>\n` +
       `CRITICAL: keep the kit in (or under) the directory your app serves — if you serve a subfolder like public/, ` +
       `install it there (dest "public/ui-kit"). Root-absolute "/${destRel}/..." 404s when served from a subdir — ` +
@@ -77,9 +79,13 @@ export const addUiKitTool: ToolDef = {
       `already fluid/responsive); COMPONENTS (.btn .card .field .input .switch .segmented .tabs .table .badge ` +
       `.alert .avatar .progress .kpi .price .quote .menu dialog .accordion .toast — all with states); and SECTION ` +
       `PATTERNS (.hero/.hero-split/.hero-center .features .bento .stat-band .pricing .testimonials .cta[.is-accent] ` +
-      `.logos .split .footer). COMPOSE these blocks into a bespoke page — never output a generic centered-hero ` +
-      `template. MOTION: add [data-reveal] (scroll-in) and .animate-in (entrance); use ONE signature moment per page ` +
-      `(a gradient .cta.is-accent, a .bento, or a hero visual), restraint elsewhere.\n` +
+      `.logos .split .footer) + CRAFT/SIGNATURE (craft.css: .eyebrow-rule .board .spec .stamp .ticket .lift .tilt ` +
+      `.sheen .with-arrow .nav-underline). COMPOSE these blocks into a bespoke page — never output a generic ` +
+      `centered-hero template. MOTION (the page should feel alive, but stay MINIMAL · MODERN · POLISHED — micro-` +
+      `animations, never busy): add [data-reveal] (scroll-in), [data-count] (stat count-up), .lift/.tilt/.sheen hovers; ` +
+      `open-props.css adds optional easings (var(--ease-elastic-3)), animations (var(--animation-fade-in)) and gradients ` +
+      `(var(--gradient-7)) for tasteful variety — use them WITH RESTRAINT (one signature motion moment, subtle micro-` +
+      `interactions elsewhere); ALWAYS respect prefers-reduced-motion (the kit does). Everything stays fully responsive.\n` +
       `ICONS (${ICON_NAMES.length} curated Lucide line icons in ${destRel}/icons.svg — use these, don't hand-roll SVGs): ` +
       `in a browser reference one with <svg class="ico" width="24" height="24"><use href="${destRel}/icons.svg#NAME"/></svg> ` +
       `— symbols stroke with currentColor so set the icon's CSS \`color\` to recolour it. Available: ${ICON_NAMES.join(', ')}.`

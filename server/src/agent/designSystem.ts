@@ -129,7 +129,15 @@ THIS, for THIS subject." Start from the bundled design system; never hand-roll m
   primary CTA, .with-arrow = an arrow that nudges, .float = a gentle idle drift for ONE hero
   accent. Aim for consistent hover/focus micro-interactions on every interactive element PLUS
   one or two signature motion moments (a revealed board, counting stats) — lively but never
-  busy. ALWAYS respect prefers-reduced-motion (the kit already does).
+  busy. ui-kit/open-props.css adds optional richer easings (var(--ease-elastic-3)), named
+  animations (var(--animation-fade-in)) and gradients (var(--gradient-7)) — reach for them for
+  tasteful variety, WITH RESTRAINT. ALWAYS respect prefers-reduced-motion (the kit already does).
+- THE BAR HOLDS NO MATTER THE TOOLKIT: whatever components or kits you use (the bundled kit, any
+  imported component library, a richer animation set), the output MUST stay MINIMAL · MODERN ·
+  POLISHED — restrained palette, real typography, purposeful micro-animations (not a motion
+  circus), and FULLY RESPONSIVE (no overflow, works 320px→wide). An imported component is only
+  acceptable once it's themed to YOUR tokens and passes the responsive + contrast gate; a kit is a
+  shortcut to the bar, never an excuse to drop below it.
 - POLISH: aligned to a grid, consistent component sizing, rounded corners + soft
   elevation where appropriate, accessible contrast, no clip-art/emoji as UI.
 - ICONS: use the bundled icon set, don't hand-roll SVGs or use emoji. add_ui_kit /
