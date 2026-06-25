@@ -155,6 +155,7 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 
 ## Visual identity & theming
 - Editorial light/warm identity — ivory canvas, Source Serif 4 + Inter + Space Grotesk (same fonts the reports use), publication masthead, hairline rules, per-department accent coding. Token-driven.
+- **Subtle glassmorphism on floating chrome** — the top bar, dialogs, the completion card and the canvas head get a minute frosted-glass treatment (translucent tint **derived from `--bg-elev`** so the warm hue + accent are unchanged — only depth/translucency — plus a 1px light-catch edge), light & dark both. Reading surfaces (sidebar, chat bubbles, report/doc panels) stay solid for clarity. Enhancement-only: a `--glass-bg`/`--glass-blur` token pair behind an `@supports (backdrop-filter)` guard, fully reverting to solid under `prefers-reduced-transparency`.
 - Dark mode for the Engineering (developer) team, with a smooth animated dark↔light crossfade (mobile + desktop, reduced-motion aware).
 
 ## Platform plumbing

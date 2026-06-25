@@ -30,6 +30,15 @@
   --label: 'Space Grotesk', var(--sans);
   --display: var(--serif);
   --radius: 12px;
+  /* Glassmorphism accents — translucent tint DERIVED from --bg-elev (warm paper,
+   * not generic white) so hue + accent stay identical; only depth/translucency
+   * change. Used ONLY on floating/overlay chrome (top bar, dialogs, completion
+   * card, canvas head) — never reading surfaces. Enhancement-only: base stays a
+   * solid token, glass layers in via @supports, and reverts under
+   * prefers-reduced-transparency. */
+  --glass-bg: rgba(252, 251, 247, 0.72);
+  --glass-hi: rgba(255, 255, 255, 0.5);
+  --glass-blur: 10px;
 }
 
 /* ---- Dark theme (Engineering / developers) — same editorial identity, inverted ---- */
@@ -54,6 +63,10 @@
   --amber: #d99a3f;
   --red: #e0707a;
   --cyan: #3ec6d6;
+  /* darker, cooler glass tint derived from the dark --bg-elev */
+  --glass-bg: rgba(28, 31, 37, 0.66);
+  --glass-hi: rgba(255, 255, 255, 0.06);
+  --glass-blur: 10px;
 }
 :root[data-theme='dark'] body {
   background:
@@ -1289,6 +1302,44 @@ button { font-family: inherit; cursor: pointer; }
   gap: 9px;
   animation: ccReveal 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
+
+/* ---------- Glassmorphism (floating/overlay chrome ONLY) ----------
+   Minute touches: the top bar, dialogs, the completion card and the canvas head
+   keep their solid --bg-elev/--bg base above; where backdrop-filter is supported
+   we swap to a translucent, palette-DERIVED tint + blur so the surface reads as
+   glass without changing any hue. Reading surfaces (sidebar, chat bubbles, report
+   panels) are deliberately untouched. Fully reverts under reduced-transparency. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .topbar,
+  .dialog,
+  .completion-card,
+  .canvas-head {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.12);
+  }
+  /* a 1px top light-catch so the glass has an edge, not a flat fill */
+  .dialog {
+    box-shadow: inset 0 1px 0 var(--glass-hi), 0 24px 70px rgba(0, 0, 0, 0.5);
+  }
+  .completion-card {
+    box-shadow: inset 0 1px 0 var(--glass-hi), 0 10px 30px rgba(0, 0, 0, 0.12);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .topbar { background: linear-gradient(var(--bg), transparent); }
+  .dialog,
+  .completion-card,
+  .canvas-head { background: var(--bg-elev); }
+  .topbar,
+  .dialog,
+  .completion-card,
+  .canvas-head {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 .cc-thumb {
   position: relative;
   display: block;
