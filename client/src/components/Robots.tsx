@@ -15,7 +15,16 @@ import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
 import { EmailSettings } from './EmailSettings';
 import { api } from '../api/client';
+import { useEscClose } from '../hooks/useEscClose';
 import type { RobotDraft } from '@shared/types';
+
+/** True if an epoch-ms timestamp falls on the local calendar today. */
+function isToday(ms: number | null | undefined): boolean {
+  if (!ms) return false;
+  const d = new Date(ms);
+  const n = new Date();
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+}
 
 /** Compact relative time: "just now" · "4m ago" · "2h ago" · "3d ago" · or a date. */
 function ago(ms: number | null | undefined): string {
@@ -252,7 +261,7 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
   const [knowledge, setKnowledge] = useState('');
   const [escalateOn, setEscalateOn] = useState('');
   const [signature, setSignature] = useState('');
-  const [autonomy, setAutonomy] = useState<AutonomyLevel>('ask_big');
+  const [autonomy, setAutonomy] = useState<AutonomyLevel>('autonomous'); // email robots: auto+escalate (quiet inbox)
   const [triggers, setTriggers] = useState<TriggerKind[]>(['event']);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -391,23 +400,19 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
   );
 }
 
-/* ---------------- Office: one robot ---------------- */
+/* ---------------- Office: the email triage console for one robot ---------------- */
 function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
   const spec = roleSpec(robot.role);
-  const update = useRobots((s) => s.update);
-  const remove = useRobots((s) => s.remove);
-  const setStatus = useRobots((s) => s.setStatus);
   const reload = useRobots((s) => s.load);
   const orgId = useRobots((s) => s.orgId) ?? '';
-  const [mandate, setMandate] = useState(robot.mandate);
-  const dirty = mandate.trim() !== robot.mandate;
   const st = STATUS_META[robot.status];
 
-  // Real activity comes from the robot's drafts (every email it acted on) + its last-poll
-  // heartbeat — not the old hard-coded empty journal. Deliverables = the replies it sent.
   const [drafts, setDrafts] = useState<RobotDraft[] | null>(null);
   const [checking, setChecking] = useState(false);
   const [checkMsg, setCheckMsg] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [active, setActive] = useState<RobotDraft | null>(null); // the responder target
+  const [filter, setFilter] = useState<'all' | 'handled' | 'flagged'>('all');
 
   const loadDrafts = useMemo(
     () => async () => {
@@ -425,7 +430,14 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
     void loadDrafts();
   }, [loadDrafts]);
 
-  const sent = (drafts ?? []).filter((d) => d.status === 'sent');
+  // Needs you = escalations + pending, escalations first (they most need a human).
+  const needsYou = (drafts ?? [])
+    .filter((d) => d.status === 'escalated' || d.status === 'pending')
+    .sort((a, b) => (a.status === 'escalated' ? 0 : 1) - (b.status === 'escalated' ? 0 : 1) || b.createdAt - a.createdAt);
+  const handledToday = (drafts ?? []).filter((d) => d.status === 'sent' && isToday(d.sentAt ?? d.createdAt)).length;
+  const timeline = (drafts ?? []).filter((d) =>
+    filter === 'all' ? true : filter === 'handled' ? d.status === 'sent' : d.status === 'escalated',
+  );
 
   const checkNow = async () => {
     if (!orgId || checking) return;
@@ -438,7 +450,7 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
           ? `Couldn’t check: ${s.error}`
           : s.read === 0
             ? 'Inbox checked — nothing new.'
-            : `Checked — ${s.read} new · ${s.sent} replied${s.drafted - s.sent > 0 ? ` · ${s.drafted - s.sent} for you` : ''}${s.escalated ? ` · ${s.escalated} escalated` : ''}.`,
+            : `Checked — ${s.read} new · ${s.sent} replied${s.drafted - s.sent > 0 ? ` · ${s.drafted - s.sent} for you` : ''}${s.escalated ? ` · ${s.escalated} flagged` : ''}.`,
       );
       await Promise.all([loadDrafts(), reload(orgId)]);
     } catch (e: any) {
@@ -448,12 +460,14 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
     }
   };
 
-  const fire = async () => {
-    if (await confirmDialog({ title: `Dismiss ${robot.name}?`, body: 'This removes the robot and anything waiting on it.', confirmLabel: 'Dismiss', danger: true })) {
-      remove(robot.id);
-      onBack();
-    }
+  const onResolved = async () => {
+    setActive(null);
+    await Promise.all([loadDrafts(), reload(orgId)]);
   };
+
+  if (showSettings) {
+    return <RobotSettings robot={robot} orgId={orgId} onBack={() => setShowSettings(false)} onRemoved={onBack} />;
+  }
 
   return (
     <div className="rb-office" style={{ ['--accent' as any]: spec?.accent ?? '#555' }}>
@@ -472,15 +486,248 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
         </div>
         {robot.mailboxReady && robot.status !== 'paused' && (
           <button className="rb-ghost-btn rb-check" onClick={checkNow} disabled={checking}>
-            {checking ? 'Checking…' : 'Check inbox now'}
+            {checking ? 'Checking…' : 'Check now'}
           </button>
         )}
+        <button className="rb-ghost-btn" onClick={() => setShowSettings(true)} title="Settings">
+          ⚙ Settings
+        </button>
         <span className="rb-status big" style={{ ['--tone' as any]: st.tone }}>
           {st.label}
         </span>
       </div>
       {checkMsg && <div className="rb-check-msg">{checkMsg}</div>}
 
+      {/* NEEDS YOU — the only thing you must act on */}
+      <section className="rb-needs">
+        {drafts === null ? (
+          <div className="rb-mini-empty">Loading…</div>
+        ) : !robot.mailboxReady ? (
+          <div className="rb-allclear">
+            <p>Connect a mailbox in ⚙ Settings so {robot.name} can start reading and replying.</p>
+          </div>
+        ) : needsYou.length === 0 ? (
+          <div className="rb-allclear">
+            <div className="rb-allclear-check">✓</div>
+            <h3>All clear</h3>
+            <p>{handledToday > 0 ? `${handledToday} handled today — nothing needs you.` : 'Nothing needs you right now.'}</p>
+          </div>
+        ) : (
+          <>
+            <div className="rb-section-h">Needs you <span className="rb-count">{needsYou.length}</span></div>
+            <ul className="rb-needs-list">
+              {needsYou.map((d) => {
+                const ds = DRAFT_STATUS[d.status];
+                return (
+                  <li key={d.id}>
+                    <button className="rb-needs-card" onClick={() => setActive(d)}>
+                      <span className="rb-feed-dot" style={{ ['--tone' as any]: ds.tone }} />
+                      <div className="rb-feed-main">
+                        <div className="rb-feed-top">
+                          <span className="rb-feed-from">{d.inboundName || d.inboundFrom}</span>
+                          <span className="rb-feed-when">{ago(d.createdAt)}</span>
+                        </div>
+                        <div className="rb-feed-subj">{d.inboundSubject || '(no subject)'}</div>
+                        <div className="rb-feed-snip">
+                          {d.status === 'escalated' && d.escalationReason ? `Flagged: ${d.escalationReason}` : d.inboundSnippet || ''}
+                        </div>
+                      </div>
+                      <span className="rb-status" style={{ ['--tone' as any]: ds.tone }}>{ds.label}</span>
+                      <span className="rb-needs-go">Respond →</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </section>
+
+      {/* TIMELINE — ambient; everything it did */}
+      {drafts && drafts.length > 0 && (
+        <section className="rb-panel rb-span">
+          <div className="rb-panel-head">
+            <h3>Timeline</h3>
+            <div className="rb-filter">
+              {(['all', 'handled', 'flagged'] as const).map((f) => (
+                <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
+                  {f === 'all' ? 'All' : f === 'handled' ? 'Replied' : 'Flagged'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {timeline.length === 0 ? (
+            <div className="rb-mini-empty">Nothing here.</div>
+          ) : (
+            <ul className="rb-feed">
+              {timeline.map((d) => {
+                const ds = DRAFT_STATUS[d.status];
+                const clickable = d.status === 'escalated' || d.status === 'pending';
+                return (
+                  <li key={d.id} className="rb-feed-row" style={clickable ? { cursor: 'pointer' } : undefined} onClick={clickable ? () => setActive(d) : undefined}>
+                    <span className="rb-feed-dot" style={{ ['--tone' as any]: ds.tone }} />
+                    <div className="rb-feed-main">
+                      <div className="rb-feed-top">
+                        <span className="rb-feed-from">{d.status === 'sent' ? `To ${d.inboundName || d.inboundFrom}` : d.inboundName || d.inboundFrom}</span>
+                        <span className="rb-feed-when">{ago(d.sentAt ?? d.createdAt)}</span>
+                      </div>
+                      <div className="rb-feed-subj">{d.inboundSubject || d.subject || '(no subject)'}</div>
+                    </div>
+                    <span className="rb-status" style={{ ['--tone' as any]: ds.tone }}>{ds.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {active && <Responder robot={robot} draft={active} orgId={orgId} onClose={() => setActive(null)} onResolved={onResolved} />}
+    </div>
+  );
+}
+
+/* ---------------- Responder: resolve one email by giving intent ---------------- */
+const REPLY_CHIPS: { label: string; intent: string }[] = [
+  { label: 'Accept', intent: 'accept / agree and confirm the next step' },
+  { label: 'Propose another time', intent: 'politely propose a different time' },
+  { label: 'Decline', intent: 'politely decline' },
+  { label: 'Ask for info', intent: 'ask for the specific missing information you need' },
+  { label: 'Thank them', intent: 'warmly thank them and close the loop' },
+];
+
+function Responder({
+  robot,
+  draft,
+  orgId,
+  onClose,
+  onResolved,
+}: {
+  robot: Robot;
+  draft: RobotDraft;
+  orgId: string;
+  onClose: () => void;
+  onResolved: () => void;
+}) {
+  const [text, setText] = useState(draft.draftText || '');
+  const [intent, setIntent] = useState('');
+  const [busy, setBusy] = useState<null | 'drafting' | 'sending'>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEscClose(onClose);
+
+  const regen = async (instruction: string) => {
+    if (!instruction.trim() || busy) return;
+    setBusy('drafting');
+    setErr(null);
+    try {
+      const r = await api.regenerateDraft(orgId, draft.id, instruction.trim());
+      setText(r.text);
+    } catch (e: any) {
+      setErr(typeof e?.message === 'string' ? e.message : 'Could not draft a reply.');
+    } finally {
+      setBusy(null);
+    }
+  };
+  const send = async () => {
+    if (!text.trim() || busy) return;
+    setBusy('sending');
+    setErr(null);
+    try {
+      await api.sendDraft(orgId, draft.id, text.trim());
+      onResolved();
+    } catch (e: any) {
+      setErr(typeof e?.message === 'string' ? e.message : 'Send failed.');
+      setBusy(null);
+    }
+  };
+  const dismiss = async () => {
+    try {
+      await api.dismissDraft(orgId, draft.id);
+    } catch {
+      /* best-effort */
+    }
+    onResolved();
+  };
+
+  return (
+    <div className="rb-resp-backdrop" onClick={onClose}>
+      <div className="rb-resp" onClick={(e) => e.stopPropagation()} style={{ ['--accent' as any]: roleSpec(robot.role)?.accent ?? '#555' }}>
+        <div className="rb-resp-head">
+          <div>
+            <div className="rb-resp-from">{draft.inboundName || draft.inboundFrom}</div>
+            <div className="rb-resp-subj">{draft.inboundSubject || '(no subject)'}</div>
+          </div>
+          <button className="rb-resp-x" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        {draft.status === 'escalated' && draft.escalationReason && (
+          <div className="rb-resp-flag">⛔ Flagged for you: {draft.escalationReason}</div>
+        )}
+        <div className="rb-resp-body">{draft.inboundBody || draft.inboundSnippet || '(no message body)'}</div>
+
+        <div className="rb-resp-respond">
+          <div className="rb-resp-label">How should {robot.name} respond?</div>
+          <div className="rb-chips">
+            {REPLY_CHIPS.map((c) => (
+              <button key={c.label} className="rb-chip2" disabled={!!busy} onClick={() => regen(c.intent)}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <div className="rb-intent">
+            <input
+              value={intent}
+              placeholder="…or tell it in a line: ‘say yes, propose Thursday 2pm’"
+              onChange={(e) => setIntent(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && regen(intent)}
+              disabled={!!busy}
+            />
+            <button className="rb-ghost-btn" disabled={!!busy || !intent.trim()} onClick={() => regen(intent)}>
+              {busy === 'drafting' ? 'Writing…' : 'Draft it'}
+            </button>
+          </div>
+          <textarea
+            className="rb-resp-draft"
+            rows={7}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={busy === 'drafting' ? 'Writing…' : 'The reply will appear here — edit it freely before sending.'}
+          />
+        </div>
+
+        {err && <div className="rb-resp-err">{err}</div>}
+        <div className="rb-resp-actions">
+          <button className="rb-danger-btn" onClick={dismiss} disabled={!!busy}>Dismiss</button>
+          <button className="rb-save" onClick={send} disabled={!!busy || !text.trim()}>
+            {busy === 'sending' ? 'Sending…' : `Send reply to ${draft.inboundName || draft.inboundFrom}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Robot settings (behind the gear) ---------------- */
+function RobotSettings({ robot, orgId, onBack, onRemoved }: { robot: Robot; orgId: string; onBack: () => void; onRemoved: () => void }) {
+  const update = useRobots((s) => s.update);
+  const remove = useRobots((s) => s.remove);
+  const setStatus = useRobots((s) => s.setStatus);
+  const [mandate, setMandate] = useState(robot.mandate);
+  const dirty = mandate.trim() !== robot.mandate;
+  const fire = async () => {
+    if (await confirmDialog({ title: `Dismiss ${robot.name}?`, body: 'This removes the robot and anything waiting on it.', confirmLabel: 'Dismiss', danger: true })) {
+      remove(robot.id);
+      onRemoved();
+    }
+  };
+  return (
+    <div className="rb-office">
+      <button className="rb-link" onClick={onBack}>← Back to {robot.name}</button>
+      <div className="rb-office-head">
+        <div className="rb-office-id">
+          <div className="rb-office-name">Settings</div>
+          <div className="rb-office-role">{robot.name}</div>
+        </div>
+      </div>
       <div className="rb-office-grid">
         <section className="rb-panel">
           <h3>Mandate</h3>
@@ -491,7 +738,6 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
             </button>
           </div>
         </section>
-
         <section className="rb-panel">
           <h3>Autonomy</h3>
           <AutonomyDial value={robot.autonomy} onChange={(a) => update(robot.id, { autonomy: a })} />
@@ -508,91 +754,21 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
           </div>
           <div className="rb-panel-actions">
             {robot.status === 'paused' ? (
-              <button className="rb-save" onClick={() => setStatus(robot.id, 'idle')}>
-                Resume
-              </button>
+              <button className="rb-save" onClick={() => setStatus(robot.id, 'idle')}>Resume</button>
             ) : (
-              <button className="rb-ghost-btn" onClick={() => setStatus(robot.id, 'paused')}>
-                Pause
-              </button>
+              <button className="rb-ghost-btn" onClick={() => setStatus(robot.id, 'paused')}>Pause</button>
             )}
-            <button className="rb-danger-btn" onClick={fire}>
-              Dismiss
-            </button>
+            <button className="rb-danger-btn" onClick={fire}>Dismiss robot</button>
           </div>
         </section>
-
         <section className="rb-panel rb-span">
           <h3>Mailbox {robot.mailboxReady
             ? <span className="rb-status" style={{ ['--tone' as any]: '#2f7d5b' }}>connected</span>
             : <span className="rb-status" style={{ ['--tone' as any]: '#c0502f' }}>needs setup</span>}</h3>
           <p className="rb-mini-empty" style={{ marginBottom: 6 }}>
-            This robot has its own email identity. Connect a mailbox here so it can read incoming mail and send replies on its own behalf.
+            This robot has its own email identity — it reads incoming mail and sends replies on its own behalf.
           </p>
           {orgId && <EmailSettings orgId={orgId} robotId={robot.id} />}
-        </section>
-
-        <section className="rb-panel rb-span">
-          <div className="rb-panel-head">
-            <h3>Activity</h3>
-            {drafts && drafts.length > 0 && <span className="rb-count">{drafts.length}</span>}
-          </div>
-          {drafts === null ? (
-            <div className="rb-mini-empty">Loading…</div>
-          ) : drafts.length === 0 ? (
-            <div className="rb-mini-empty">
-              {robot.mailboxReady
-                ? `No emails handled yet. When mail arrives, ${robot.name} will draft or send a reply and each one shows here.`
-                : `Connect a mailbox above so ${robot.name} can read incoming mail and act on it.`}
-            </div>
-          ) : (
-            <ul className="rb-feed">
-              {drafts.map((d) => {
-                const ds = DRAFT_STATUS[d.status];
-                return (
-                  <li key={d.id} className="rb-feed-row">
-                    <span className="rb-feed-dot" style={{ ['--tone' as any]: ds.tone }} />
-                    <div className="rb-feed-main">
-                      <div className="rb-feed-top">
-                        <span className="rb-feed-from">{d.inboundName || d.inboundFrom}</span>
-                        <span className="rb-feed-when">{ago(d.sentAt ?? d.createdAt)}</span>
-                      </div>
-                      <div className="rb-feed-subj">{d.inboundSubject || '(no subject)'}</div>
-                      {d.inboundSnippet && <div className="rb-feed-snip">{d.inboundSnippet}</div>}
-                    </div>
-                    <span className="rb-status" style={{ ['--tone' as any]: ds.tone }}>{ds.label}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        <section className="rb-panel rb-span">
-          <div className="rb-panel-head">
-            <h3>Delivered</h3>
-            {sent.length > 0 && <span className="rb-count">{sent.length}</span>}
-          </div>
-          {drafts === null ? (
-            <div className="rb-mini-empty">Loading…</div>
-          ) : sent.length === 0 ? (
-            <div className="rb-mini-empty">No replies sent yet. Replies {robot.name} sends on its own (or that you approve) collect here.</div>
-          ) : (
-            <ul className="rb-feed">
-              {sent.map((d) => (
-                <li key={d.id} className="rb-feed-row">
-                  <span className="rb-out-kind">reply</span>
-                  <div className="rb-feed-main">
-                    <div className="rb-feed-top">
-                      <span className="rb-feed-from">To {d.inboundName || d.inboundFrom}</span>
-                      <span className="rb-feed-when">{ago(d.sentAt ?? d.createdAt)}</span>
-                    </div>
-                    <div className="rb-feed-subj">{d.subject || d.inboundSubject || '(no subject)'}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
       </div>
     </div>

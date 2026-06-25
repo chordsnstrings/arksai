@@ -51,6 +51,8 @@ export interface RobotOutput {
 
 export interface Robot {
   id: string;
+  /** The robot KIND — selects its console view (email/scheduled/ads/monitor). */
+  type: string;
   role: RobotRole;
   name: string; // "Finance Agent"
   mandate: string; // plain-language standing instruction

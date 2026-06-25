@@ -27,6 +27,7 @@ function toUiRobot(r: ApiRobot): Robot {
   const uiRole = cfg.dept || r.role;
   return {
     id: r.id,
+    type: r.type || 'email',
     role: uiRole,
     name: r.name,
     mandate: cfg.mandate || cfg.persona || '',
@@ -121,6 +122,7 @@ export const useRobots = create<RobotsState>((set, get) => ({
         // Created PAUSED: the wizard connects a mailbox, then Activate flips it on.
         const created = await api.createRobot(orgId, {
           name: displayName,
+          type: 'email', // all robots today are email; the picker will choose this explicitly later
           role: input.kind,
           model: 'arksai-max',
           autonomy: toApiAutonomy(input.autonomy),
@@ -134,7 +136,7 @@ export const useRobots = create<RobotsState>((set, get) => ({
       }
     }
     const robot: Robot = {
-      id: uid(), role: input.dept || input.kind, name: displayName, mandate: input.mandate.trim(),
+      id: uid(), type: 'email', role: input.dept || input.kind, name: displayName, mandate: input.mandate.trim(),
       status: 'paused', autonomy: input.autonomy, triggers: input.triggers.length ? input.triggers : ['event'],
       createdAt: Date.now(), kind: input.kind, mailboxReady: false, journal: [], outputs: [],
     };

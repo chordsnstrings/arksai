@@ -452,6 +452,11 @@ export const api = {
   },
   editDraft: (orgId: string, did: string, text: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}`, { method: 'PUT', body: JSON.stringify({ text }) }),
+  regenerateDraft: (orgId: string, did: string, instruction: string) =>
+    request<{ text: string; model: string }>(`/api/orgs/${orgId}/drafts/${did}/regenerate`, {
+      method: 'POST',
+      body: JSON.stringify({ instruction }),
+    }),
   sendDraft: (orgId: string, did: string, text?: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}/send`, { method: 'POST', body: JSON.stringify({ text }) }),
   dismissDraft: (orgId: string, did: string) =>
