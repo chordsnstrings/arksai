@@ -106,24 +106,83 @@ Beyond a prose reply, the responder offers (contextually):
    when something escalates (badge exists; email/push next) so "only escalations" works without
    you remembering to check.
 
-## Per-robot-type UI (the architecture you asked for)
-- A robot **declares a `kind`/type**; the console picks a **view module** by type.
-- **Email robot → Triage Inbox** (this doc).
-- **Report/scheduled robot → Deliverables gallery** (what it produced, on a cadence; approve/share).
-- **Marketing/ads robot → Campaign approvals** (spend/creative changes to approve).
-- Shared chrome (header, settings gear, status, timeline) lives in the host; the type supplies the
-  "needs you" + "detail" panes. Build the seam now even though only email is implemented.
+## Robot types — the scaffolding (designed up front, built in P1)
+"Different kinds of robot" is not just a different UI skin — a type differs along **trigger,
+runtime, console, detail, settings, hire flow, capabilities, and safety**. So we design a single
+**type manifest** abstraction now and implement Email against it first; new kinds = add a manifest
++ a view module, never fork the page or the engine.
+
+### The manifest (one declaration per robot type)
+```ts
+RobotType = {
+  id: 'email' | 'scheduled' | 'ads' | 'monitor' | …
+  label, icon, accent
+  trigger:   'email-inbound' | 'schedule' | 'webhook' | 'connector-poll' | 'manual'
+  runtime:   which server engine drives it (email → robots poller; scheduled → schedule
+             scheduler; ads/monitor → connector/data poller). THIS is why "kinds" ≠ skin.
+  capabilities: actions it may take (reply · calendar · forward · generate-report ·
+             pause-ad · raise-alert …) — gates the detail view + the safety surface
+  needsYou(orgId/robotId): how its "attention" set is computed
+             (email → escalated+pending drafts; scheduled → failed runs / outputs to approve;
+              ads → spend/creative changes to approve; monitor → firing alerts)
+  timeline(): its ambient activity stream (email → handled mail; scheduled → past runs; …)
+  ConsoleView, DetailView: the client panes the host mounts for this type
+  settingsFields: which config it exposes (email → mandate/autonomy/signature/mailbox/rules;
+             scheduled → cadence/format/recipients; ads → budget/accounts; monitor → source/threshold)
+  hireSteps: the wizard steps for creating one
+  safety: per-type certification requirements (§5c)
+}
+```
+
+### The catalog (Email implemented first; others sketched against the same manifest)
+- **Email assistant** `email` — trigger: inbound mail · runtime: robots poller · console: **Triage
+  Inbox** (this doc) · needsYou: escalations + pending · detail: the responder. Persona variants
+  (customer-service / personal-assistant / department-specialist) are the SAME type with a
+  different mandate — they share this console. **[P1 — the reference implementation]**
+- **Scheduled / report robot** `scheduled` — trigger: a cadence · runtime: the existing schedule
+  scheduler · console: **Deliverables gallery** (what it produced, by run) · needsYou: failed runs
+  or outputs awaiting approval · detail: preview + approve/share. ("Every Monday, email me a sales
+  report.") **[future — maps onto `schedule/scheduler.ts`]**
+- **Marketing / ads robot** `ads` — trigger: connector poll · runtime: ad connectors · console:
+  **Campaign approvals** · needsYou: spend/creative changes to approve · detail: approve/edit.
+  **[future — needs the ad connectors]**
+- **Monitor / watchdog** `monitor` — trigger: poll a data source/webhook · runtime: data poller ·
+  console: **Alerts feed** · needsYou: firing alerts · detail: acknowledge/act. ("Alert me if
+  signups drop 20%.") **[future — maps onto `tools/data.ts`/webhooks]**
+
+### Where the seam lives
+- **Client:** a `robotTypes` registry (`type → { ConsoleView, DetailView, hireSteps,
+  settingsFields, icon, label }`). `Robots.tsx` becomes a **host**: it resolves the active robot's
+  type and mounts that type's panes inside shared chrome (header · ⚙ settings · status · the
+  "needs you" + "timeline" layout). Email ships the first ConsoleView (Triage Inbox).
+- **Server:** a parallel `robotType` registry declaring `trigger/runtime/capabilities/needsYou`.
+  The poller stays the email runtime; a `scheduled` robot would be driven by the schedule engine,
+  an `ads`/`monitor` robot by a connector/data poller. A robot row already carries `role` + a
+  `config` JSON — add an explicit `type` (defaulting existing rows to `email`) so the host + engine
+  route correctly.
+- **Hire flow** becomes type-driven: pick a TYPE first (Email / Scheduled / Ads / Monitor — only
+  Email enabled at launch), then that type's wizard steps. Today's customer-service / PA /
+  specialist choice becomes the *persona* sub-step **inside** the Email type.
+
+**Build the whole seam in P1** (manifest + registry + host + the `type` column) even though only
+the Email ConsoleView is implemented — so adding `scheduled`/`ads`/`monitor` later is a manifest +
+a view, not a refactor.
 
 ## Phasing
-- **P1 — Triage console (email):** escalations-first home + "all clear" proof-of-work state +
+- **P1 — Type scaffolding + the Email triage console.** Build the **type manifest + registry +
+  host seam + a `type` column** (existing robots default to `email`) up front, then implement the
+  Email ConsoleView against it: escalations-first home + "all clear / N handled today" state,
   ambient timeline w/ filter & "see all"; tap-to-respond detail with **chips + intent box +
-  editable draft + Send**; settings moved behind a gear; default new email robots to auto+escalate.
-  *(Client-heavy; backend: full `inbound_body` on drafts + the regenerate-from-intent endpoint.)*
-- **P2 — Learning loop:** `robot_rules` + engine consults rules before escalating + a "What it
-  handles itself" settings list. (The "gets quieter" payoff.)
-- **P3 — Non-reply actions:** calendar accept/decline (iCal), snooze, forward-to-human, archive.
-- **P4 — Type registry + notifications + optional undo-send:** generalize the per-type console;
-  add an escalation notification; optional undo window on auto-sends.
+  editable draft + Send**; settings behind a ⚙ gear; hire flow becomes type→persona; default new
+  email robots to auto+escalate. *(Client-heavy; backend: the `type` column, full `inbound_body`
+  on drafts, the regenerate-from-intent endpoint.)*
+- **P2 — Learning loop (email):** `robot_rules` + engine consults rules before escalating
+  (**auto-send on match**) + a visible, one-tap-removable "What it handles itself" list in settings.
+- **P3 — Non-reply actions (email):** **whole-thread fetch** on open, calendar accept/decline
+  (iCal), snooze, **forward to an admin-allowlisted teammate** (`robot_forward_allowlist`), archive.
+- **P4 — Second robot type + notifications:** implement one more type against the P1 manifest (the
+  **scheduled/report robot** is the natural next, reusing the schedule engine) to prove the seam,
+  and add an escalation notification (badge → email/push).
 
 ## Safety guardrails (carry through every phase)
 The current engine is deliberately **locked-recipient · data-minimized · single-message ·
