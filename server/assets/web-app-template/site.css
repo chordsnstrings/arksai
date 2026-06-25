@@ -1,6 +1,7 @@
-/* ArksAI website baseline — overflow-proof + responsive by construction.
-   Edit freely, but KEEP the reset and the responsive nav: they are why this site can never
-   break on a phone. Theme by changing --accent (and the type/colour tokens). */
+/* ArksAI website — MECHANICS (the structural guarantees). Overflow-proof + responsive
+   by construction. KEEP the reset and the responsive nav: they are why this site can
+   never break on a phone. The LOOK (colour/type/feel) lives in tokens.css — theme there.
+   Craft details + signature components live in ui-kit/craft.css. */
 
 /* ---- reset: the structural guarantees ---- */
 *, *::before, *::after { box-sizing: border-box; }
@@ -10,31 +11,6 @@ img, svg, video, iframe, canvas { max-width: 100%; height: auto; }
 .table-wrap { max-width: 100%; overflow-x: auto; }
 table { border-collapse: collapse; }
 a { color: inherit; }
-
-/* ---- tokens (theme here) ---- */
-:root {
-  --accent: #3a5a78;          /* the one brand accent — used sparingly */
-  --accent-ink: #ffffff;       /* readable text on the accent */
-  --ink: #16181d;              /* primary text */
-  --muted: #565b66;            /* secondary text — still AA on --bg */
-  --bg: #ffffff;
-  --surface: #f6f6f3;
-  --border: #e6e6e0;
-  --maxw: 1080px;
-  --pad: clamp(16px, 4vw, 36px);
-  --radius: 12px;
-  --font: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  --display: "Source Serif 4", Georgia, "Times New Roman", serif;
-}
-
-html { font-family: var(--font); color: var(--ink); background: var(--bg); line-height: 1.6; -webkit-text-size-adjust: 100%; }
-body { font-size: clamp(15px, 0.9rem + 0.2vw, 17px); }
-h1, h2, h3 { font-family: var(--display); line-height: 1.2; font-weight: 600; margin: 0 0 .4em; letter-spacing: -0.01em; }
-h1 { font-size: clamp(2rem, 1.4rem + 3.2vw, 3.4rem); }
-h2 { font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem); }
-h3 { font-size: 1.2rem; }
-p { margin: 0 0 1em; max-width: 68ch; }
-.muted { color: var(--muted); }
 
 .container { width: 100%; max-width: var(--maxw); margin: 0 auto; padding-left: var(--pad); padding-right: var(--pad); }
 .section { padding: clamp(48px, 8vw, 96px) 0; }

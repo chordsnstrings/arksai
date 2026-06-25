@@ -1,7 +1,34 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { execBash } from '../lib/exec';
 import { listeningPorts } from '../lib/ports';
 import { processRegistry } from './processes';
 import { browserSmokeTest, type UiCheckResult } from './uiCheck';
+
+/**
+ * If the agent locked a bespoke design direction (design_direction → design-direction.json),
+ * surface its concept + signature to the design critique so it can judge CONCEPT FIDELITY, not
+ * just generic competence. Checks the served dir and one level up (a static subfolder build).
+ */
+function readDesignBrief(dir: string): string | undefined {
+  for (const d of [dir, path.dirname(dir)]) {
+    try {
+      const raw = fs.readFileSync(path.join(d, 'design-direction.json'), 'utf8');
+      const b = JSON.parse(raw);
+      if (b && typeof b.concept === 'string') {
+        const parts = [`concept "${b.concept}"`];
+        if (b.signature) parts.push(`signature: ${b.signature}`);
+        if (b.type?.display?.family && b.type?.body?.family) {
+          parts.push(`type ${b.type.display.family}/${b.type.body.family}${b.type?.data?.family ? `/${b.type.data.family}` : ''}`);
+        }
+        return parts.join('; ').slice(0, 320);
+      }
+    } catch {
+      /* no brief here — fall through */
+    }
+  }
+  return undefined;
+}
 
 export interface ProbeCheck {
   method: string;
@@ -229,7 +256,7 @@ export async function probeApp(
     const servesHtml = /<!doctype html|<html[\s>]/i.test(root.text);
     if (baseOk && servesHtml && !signal.aborted) {
       phase('Checking it renders in a real browser…');
-      ui = await browserSmokeTest(`http://127.0.0.1:${port}/`, signal, { visual: opts?.visual });
+      ui = await browserSmokeTest(`http://127.0.0.1:${port}/`, signal, { visual: opts?.visual, designBrief: readDesignBrief(dir) });
     }
 
     const lines = checks.map((c) => `  ${c.method} ${c.path} → ${c.code ?? 'no response'}${c.note ? '  ' + c.note : ''}`);

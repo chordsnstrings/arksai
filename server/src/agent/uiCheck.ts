@@ -65,19 +65,30 @@ const VISION_PROMPT =
   'looks fine, otherwise briefly list the visual problems, one per line.';
 
 export const DESIGN_RUBRIC_PROMPT =
-  'You are a senior design director reviewing a screenshot of a UI a junior built. Judge it against ' +
-  'this rubric: typography-FIRST (a real modular scale, strong but quiet hierarchy, a refined font pairing, ' +
-  'readable measure), spacing & alignment (consistent rhythm on a grid, generous whitespace, not cramped or ' +
-  'sparsely empty), visual hierarchy, colour (a DISTINCTIVE confident palette — flag the generic default ' +
-  'blue/indigo-on-white "AI look" — ONE accent used sparingly), LEGIBILITY (flag ANY text you struggle to ' +
-  'read — washed-out muted/secondary text that nearly vanishes into the background, or light text on a busy ' +
-  'image/photo with no scrim; every line of copy must be clearly readable), component polish & ' +
-  'considered states, and overall "does this look like a top-tier product a senior designer shipped, not a template". ' +
+  'You are a senior design director reviewing a screenshot of a UI a junior built. The bar is NOT ' +
+  '"clean and competent" — competent-but-generic is a FAIL, because it reads as the default AI look. ' +
+  'Judge it against this rubric:\n' +
+  '• DISTINCTIVENESS (judge this FIRST and hardest): does it look ART-DIRECTED for its subject, or like a ' +
+  'template any AI would emit? REVISE if you see an AI-DEFAULT look — (a) generic minimal-muted: a grey/blue ' +
+  'desaturated accent on white with a big centered hero + a glowing card and Inter everywhere; (b) cream + a ' +
+  'serif + a terracotta/clay accent; (c) black + an acid/neon-green accent; (d) broadsheet-hairlines pastiche. ' +
+  'Reward a deliberate concept carried through type + colour + structure, a SIGNATURE element that means ' +
+  'something (a data/board/spec/stamp keyed to real content, not a decorative gradient box), and a clear ' +
+  'point of view.\n' +
+  '• TYPOGRAPHY: a real modular scale, strong quiet hierarchy, and DELIBERATE typefaces — flag default-Inter-' +
+  'everywhere or a reflexive Playfair; reward a considered display + body, and a mono/data face for labels/figures.\n' +
+  '• COLOUR: a distinctive, confident, concept-grounded palette with ONE accent used sparingly — flag generic ' +
+  'blue/indigo-on-white.\n' +
+  '• SPACING & ALIGNMENT: consistent rhythm on a grid, generous whitespace, not cramped or sparsely empty.\n' +
+  '• LEGIBILITY: flag ANY text you struggle to read — washed-out muted/secondary text that nearly vanishes, or ' +
+  'light text on a busy image with no scrim; every line of copy must be clearly readable.\n' +
+  '• POLISH & STATES: considered components, hover/focus, real states.\n' +
   'Respond EXACTLY in this format and nothing else:\n' +
-  'First line: "VERDICT: PASS" if it already looks genuinely well-designed, or "VERDICT: REVISE" if a ' +
-  'competent designer would change something.\n' +
-  'Then up to 5 lines, each one SHORT, concrete, fixable defect (what + where), prefixed "- ". ' +
-  'No preamble, no praise.';
+  'First line: "VERDICT: PASS" only if it looks genuinely art-directed and distinctive (not just tidy), or ' +
+  '"VERDICT: REVISE" if it reads generic/templated OR a competent designer would change something.\n' +
+  'Then up to 5 lines, each a SHORT, concrete, fixable defect (what + where), prefixed "- ". The FIRST defect ' +
+  'should name the biggest distinctiveness gap (e.g. "generic centered hero — needs the concept\'s signature ' +
+  'board"). No preamble, no praise.';
 
 /** Parse the design-director response into a verdict + concrete defects. Pure. */
 export function parseDesignVerdict(text: string): { verdict: 'pass' | 'revise' | 'unknown'; defects: string[] } {
@@ -121,7 +132,7 @@ const dedupe = (a: string[]) => [...new Set(a)].slice(0, 8);
 export async function browserSmokeTest(
   url: string,
   signal: AbortSignal,
-  opts?: { visual?: boolean },
+  opts?: { visual?: boolean; designBrief?: string },
 ): Promise<UiCheckResult> {
   if (signal.aborted) return { ...base, detail: 'Browser check skipped: aborted.' };
 
@@ -608,7 +619,12 @@ export async function browserSmokeTest(
           .catch(() => {});
         const shot = (await page.screenshot({ type: 'png', fullPage: !!opts?.visual })) as Buffer;
         const dataUrl = `data:image/png;base64,${shot.toString('base64')}`;
-        const prompt = opts?.visual ? DESIGN_RUBRIC_PROMPT : VISION_PROMPT;
+        const prompt =
+          opts?.visual
+            ? opts.designBrief
+              ? `${DESIGN_RUBRIC_PROMPT}\n\nThe build committed to this LOCKED design direction — judge CONCEPT FIDELITY too (REVISE if the page ignores it / reverts to a default look): ${opts.designBrief}`
+              : DESIGN_RUBRIC_PROMPT
+            : VISION_PROMPT;
         const r = await analyzeImage(dataUrl, prompt, signal);
         if (r.ok && r.text) {
           visualReview = r.text.trim();

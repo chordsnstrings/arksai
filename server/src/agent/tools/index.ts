@@ -18,6 +18,7 @@ import { addMobileUiKitTool } from './mobile-ui-kit';
 import { addAppBackendTool } from './app-backend';
 import { createExpoAppTool } from './expo-app';
 import { createWebAppTool } from './web-app';
+import { designDirectionTool } from './design-direction';
 import { inspectUiTool } from './inspect';
 import { buildApkTool } from './build';
 import { publishAppTool } from './publish';
@@ -68,6 +69,7 @@ export const ALL_TOOLS: ToolDef[] = [
   renderChartTool,
   addFontsTool,
   addUiKitTool,
+  designDirectionTool,
   createWebAppTool,
   inspectUiTool,
   createExpoAppTool,

@@ -67,31 +67,42 @@ export const createWebAppTool: ToolDef = {
     } catch (e: any) {
       return `Error: ${e?.message ?? e}`;
     }
+    // If design_direction already locked a bespoke look (tokens.css), DON'T clobber it —
+    // the scaffold provides mechanics, the direction provides the look (order-independent).
+    const tokensPath = path.join(destAbs, 'tokens.css');
+    const lockedTokens = fs.existsSync(tokensPath) ? fs.readFileSync(tokensPath, 'utf8') : null;
     try {
       copyTree(TEMPLATE_DIR, destAbs);
       copyTree(UI_KIT_DIR, path.join(destAbs, 'ui-kit'));
     } catch (e: any) {
       return `Error: could not scaffold the website — ${e?.message ?? e}`;
     }
+    if (lockedTokens) fs.writeFileSync(tokensPath, lockedTokens); // restore the locked look
 
     const name = (typeof args.name === 'string' && args.name.trim() ? args.name.trim() : 'My Site').replace(/["'<>]/g, '').slice(0, 60);
     const accent = cleanHex(args.accent);
     for (const f of ['index.html', 'about.html', 'contact.html']) {
       patchAll(path.join(destAbs, f), [['__SITE_NAME__', name]]);
     }
-    if (accent) patchAll(path.join(destAbs, 'site.css'), [['--accent: #3a5a78;', `--accent: ${accent};`]]);
+    // Theme the LOOK (tokens.css), not the mechanics (site.css) — but never overwrite a locked direction.
+    if (accent && !lockedTokens) patchAll(tokensPath, [['--accent: #3a5a78;', `--accent: ${accent};`]]);
 
     const at = destRel === '.' ? 'the workspace root' : `${destRel}/`;
     return (
       `Scaffolded a responsive multi-page website at ${at}: index.html / about.html / contact.html ` +
-      `(name "${name}"${accent ? `, accent ${accent}` : ''}), site.css (overflow-proof reset + fluid type + ` +
-      `a working responsive nav), site.js (wires the hamburger), and ui-kit/ (the ArksAI component kit).\n` +
+      `(name "${name}"${accent ? `, accent ${accent}` : ''}). Files: tokens.css (THE LOOK — colour/type/feel), ` +
+      `site.css (MECHANICS — overflow-proof reset + a working responsive nav), ui-kit/craft.css (craft + SIGNATURE ` +
+      `components: .eyebrow-rule, .board, .spec, .stamp, .lift, .with-arrow, .nav-underline), site.js (wires the ` +
+      `hamburger), and ui-kit/ (the full component kit).${lockedTokens ? ' Your locked design_direction tokens.css was preserved.' : ''}\n` +
       `It already passes the mobile gate (viewport meta, no horizontal overflow at 320/390/768, the menu opens). ` +
-      `NOW: replace ALL placeholder copy with real, specific content for the brief; theme by editing --accent and ` +
-      `the colour/type tokens at the top of site.css; add real imagery with generate_image (text-free). ADD PAGES by ` +
-      `duplicating an existing .html and keeping its <header> nav + <script src="site.js"> — and add the link in the ` +
-      `.nav-links of every page. DON'T remove the CSS reset or rename .nav-links / .nav-toggle / #site-nav / ` +
-      `[data-nav-toggle] (that's what keeps the mobile menu working). Publish with publish_app when it's ready.`
+      `NOW: (1) theme by editing ONLY tokens.css — set a palette + type trio (display / body / mono) grounded in the ` +
+      `subject, never default blue; ${lockedTokens ? 'your design_direction look is already applied. ' : 'or run design_direction first to lock a bespoke concept. '}` +
+      `(2) replace ALL placeholder copy with real, specific content for the brief; ` +
+      `(3) build ONE meaningful SIGNATURE moment from craft.css (a .board / .spec keyed to REAL codes/data for this ` +
+      `subject — never generic 01/02/03); (4) add real imagery with generate_image (text-free). ADD PAGES by ` +
+      `duplicating an existing .html and keeping its <header> nav + the three <link>s + <script src="site.js">. ` +
+      `DON'T remove the CSS reset or rename .nav-links / .nav-toggle / #site-nav / [data-nav-toggle] (that keeps the ` +
+      `mobile menu working). Publish with publish_app when it's ready.`
     );
   },
 };

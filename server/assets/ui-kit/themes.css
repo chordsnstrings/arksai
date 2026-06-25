@@ -29,6 +29,12 @@
  *  • journal             — Newsreader (serif)          — long-form reading
  *  • warm                — Fraunces · Lora             — warm, literary
  *  • humanist            — DM Sans                     — soft, single-family
+ *  • grotesk             — Space Grotesk · Hanken      — modern, deliberate (not Inter)
+ *  • institutional       — Fraunces · Hanken · IBM Plex Mono — editorial w/ a DATA role
+ *
+ * These are a MENU for quick picks. For a brand build, prefer design_direction — it
+ * derives a bespoke concept + a deliberate type trio (incl. a mono DATA role) grounded
+ * in the subject, which beats any off-the-shelf pairing.
  *
  * DESIGN KITS (complete look in one token via data-kit):
  *  • minimal  — clean modern   (slate · tight · flat · Space Grotesk/Inter)
@@ -59,6 +65,8 @@
 [data-type='journal']   { --font-display: 'Newsreader', Georgia, serif; --font-sans: 'Newsreader', Georgia, serif; --measure: 66ch; }
 [data-type='warm']      { --font-display: 'Fraunces', Georgia, serif; --font-sans: 'Lora', Georgia, serif; --measure: 66ch; }
 [data-type='humanist']  { --font-display: 'DM Sans', system-ui, sans-serif; --font-sans: 'DM Sans', system-ui, sans-serif; }
+[data-type='grotesk']   { --font-display: 'Space Grotesk', system-ui, sans-serif; --font-sans: 'Hanken Grotesk', system-ui, sans-serif; --font-mono: 'IBM Plex Mono', ui-monospace, monospace; }
+[data-type='institutional'] { --font-display: 'Fraunces', Georgia, serif; --font-sans: 'Hanken Grotesk', system-ui, sans-serif; --font-mono: 'IBM Plex Mono', ui-monospace, monospace; --measure: 64ch; }
 /* The chosen display family drives every heading + .display, the body family the rest. */
 [data-type] h1, [data-type] h2, [data-type] h3, [data-type] .hero h1, [data-type] .display { font-family: var(--font-display); }
 
