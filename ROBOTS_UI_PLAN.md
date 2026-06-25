@@ -135,11 +135,20 @@ certified** (§5c, trifecta-safe). Each addition widens that surface, so:
 - Non-reply actions (calendar/forward) are **separately certified** per channel before going auto.
 - Full-body/thread storage stays **minimal**; prefer fetch-on-open over persisting everything.
 
-## Open questions for the operator
-1. **Undo-send:** add a short (e.g. 10s) undo window on auto-sent replies? (cheap safety; you didn't
-   select it — confirm in or out.)
-2. **Thread depth:** fetch the **whole thread** on open (richer, more IMAP work) or just the **full
-   current message body** (lighter, still a big step up from the snippet)?
-3. **Rule autonomy:** when a learned rule matches, should it **auto-send** (quietest) or **draft +
-   notify** the first few times until you trust it (safer)?
-4. **Forward targets:** maintain an **allowlist of teammates** to forward to (admin-set), yes?
+## Resolved (operator, second pass)
+1. **Rule autonomy → AUTO-SEND on a matched rule.** Once a rule exists, matching email is handled
+   silently per the rule (quietest). Implication: rule creation is the trust gate, so the "create a
+   rule" toggle must make the consequence explicit ("future emails like this will be answered
+   automatically") and the learned rules must be visible + one-tap-removable in settings.
+2. **Thread depth → WHOLE THREAD on open.** The responder fetches the full thread (not just the
+   current body). Implication: an IMAP thread fetch on open (by References/In-Reply-To or Gmail
+   thread id), shown as a collapsible history; keep storage minimal (fetch-on-open, don't persist
+   the whole thread unless needed).
+3. **Undo-send → NO.** Rely on escalation + the learned-rule trust gate + the Delivered log. (Auto
+   mode sends immediately; the safety comes from rules being mandate-bounded + recipient-locked.)
+4. **Forward → ADMIN ALLOWLIST of teammates.** Forwarding (the one case the recipient-lock is
+   broken) targets an admin-set allowlist only — a new per-org `robot_forward_allowlist`, surfaced
+   in admin settings; the responder's "Forward" picks from it. Never a free-form address.
+
+All four are folded into the phasing: P2 (learning loop = auto-send + visible/removable rules),
+P3 (whole-thread fetch on open; forward-to-allowlisted-teammate; calendar; snooze; archive).
