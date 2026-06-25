@@ -613,9 +613,45 @@ function Responder({
   const [intent, setIntent] = useState('');
   const [lastIntent, setLastIntent] = useState('');
   const [remember, setRemember] = useState(false);
-  const [busy, setBusy] = useState<null | 'drafting' | 'sending'>(null);
+  const [busy, setBusy] = useState<null | 'drafting' | 'sending' | 'other'>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [targets, setTargets] = useState<{ id: string; email: string; label: string | null }[]>([]);
+  const [showFwd, setShowFwd] = useState(false);
   useEscClose(onClose);
+  useEffect(() => {
+    api.listForwardTargets(orgId).then(setTargets).catch(() => setTargets([]));
+  }, [orgId]);
+
+  const snooze = async (ms: number) => {
+    setBusy('other');
+    try {
+      await api.snoozeDraft(orgId, draft.id, Date.now() + ms);
+      onResolved();
+    } catch (e: any) {
+      setErr(typeof e?.message === 'string' ? e.message : 'Could not snooze.');
+      setBusy(null);
+    }
+  };
+  const archive = async () => {
+    setBusy('other');
+    try {
+      await api.archiveDraft(orgId, draft.id);
+      onResolved();
+    } catch {
+      setBusy(null);
+    }
+  };
+  const forward = async (to: string) => {
+    setBusy('other');
+    setShowFwd(false);
+    try {
+      await api.forwardDraft(orgId, draft.id, to);
+      onResolved();
+    } catch (e: any) {
+      setErr(typeof e?.message === 'string' ? e.message : 'Forward failed.');
+      setBusy(null);
+    }
+  };
 
   const regen = async (instruction: string) => {
     if (!instruction.trim() || busy) return;
@@ -708,6 +744,25 @@ function Responder({
           </label>
         )}
         {err && <div className="rb-resp-err">{err}</div>}
+
+        <div className="rb-resp-more">
+          <button className="rb-mini-btn" disabled={!!busy} onClick={() => snooze(24 * 3600e3)}>Snooze 1d</button>
+          <button className="rb-mini-btn" disabled={!!busy} onClick={() => snooze(7 * 24 * 3600e3)}>Snooze 1w</button>
+          <button className="rb-mini-btn" disabled={!!busy} onClick={archive}>Archive</button>
+          {targets.length > 0 && (
+            <div className="rb-fwd">
+              <button className="rb-mini-btn" disabled={!!busy} onClick={() => setShowFwd((v) => !v)}>Forward ▾</button>
+              {showFwd && (
+                <div className="rb-fwd-menu">
+                  {targets.map((t) => (
+                    <button key={t.id} onClick={() => forward(t.email)}>{t.label || t.email}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="rb-resp-actions">
           <button className="rb-danger-btn" onClick={dismiss} disabled={!!busy}>Dismiss</button>
           <button className="rb-save" onClick={send} disabled={!!busy || !text.trim()}>
@@ -810,6 +865,10 @@ function RobotSettings({ robot, orgId, onBack, onRemoved }: { robot: Robot; orgI
         </section>
 
         <section className="rb-panel rb-span">
+          <ForwardAllowlist orgId={orgId} />
+        </section>
+
+        <section className="rb-panel rb-span">
           <h3>Mailbox {robot.mailboxReady
             ? <span className="rb-status" style={{ ['--tone' as any]: '#2f7d5b' }}>connected</span>
             : <span className="rb-status" style={{ ['--tone' as any]: '#c0502f' }}>needs setup</span>}</h3>
@@ -820,6 +879,57 @@ function RobotSettings({ robot, orgId, onBack, onRemoved }: { robot: Robot; orgI
         </section>
       </div>
     </div>
+  );
+}
+
+/* ---------------- Forward allowlist (org-level; who robots may forward to) ---------------- */
+function ForwardAllowlist({ orgId }: { orgId: string }) {
+  const [targets, setTargets] = useState<{ id: string; email: string; label: string | null }[] | null>(null);
+  const [email, setEmail] = useState('');
+  const [label, setLabel] = useState('');
+  useEffect(() => {
+    if (orgId) api.listForwardTargets(orgId).then(setTargets).catch(() => setTargets([]));
+  }, [orgId]);
+  const add = async () => {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return;
+    try {
+      const t = await api.addForwardTarget(orgId, email.trim(), label.trim() || undefined);
+      setTargets((ts) => [t, ...(ts ?? [])]);
+      setEmail('');
+      setLabel('');
+    } catch {
+      /* ignore */
+    }
+  };
+  const remove = async (id: string) => {
+    setTargets((ts) => (ts ?? []).filter((t) => t.id !== id));
+    await api.deleteForwardTarget(orgId, id).catch(() => {});
+  };
+  return (
+    <>
+      <h3>Forward to</h3>
+      <p className="rb-mini-empty" style={{ marginBottom: 8 }}>
+        Teammates a robot may forward an email to (the only time it sends to someone other than the original sender).
+      </p>
+      {targets && targets.length > 0 && (
+        <ul className="rb-rules" style={{ marginBottom: 10 }}>
+          {targets.map((t) => (
+            <li key={t.id} className="rb-rule">
+              <div className="rb-rule-main">
+                <span className="rb-rule-then">{t.label || t.email}</span>
+                {t.label && <span className="rb-rule-when">{t.email}</span>}
+              </div>
+              <button className="rb-rule-x" onClick={() => remove(t.id)}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="rb-intent">
+        <input placeholder="Name (optional)" value={label} onChange={(e) => setLabel(e.target.value)} style={{ maxWidth: 160 }} />
+        <input placeholder="teammate@company.com" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <button className="rb-ghost-btn" onClick={add} disabled={!email.trim()}>Add</button>
+      </div>
+    </>
   );
 }
 

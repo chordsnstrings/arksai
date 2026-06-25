@@ -256,6 +256,34 @@ export async function listNeedsYouDrafts(orgId: string): Promise<RobotDraft[]> {
   return rows.map(rowToDraft);
 }
 
+// ---- non-reply actions (snooze / forward allowlist) ----
+export async function snoozeDraft(id: string, orgId: string, until: number): Promise<void> {
+  await q("UPDATE robot_drafts SET status = 'snoozed', snooze_until = $1 WHERE id = $2 AND org_id = $3", [until, id, orgId]);
+}
+
+/** Flip any snoozed draft whose time has come back to 'pending' so it returns to Needs You. */
+export async function wakeSnoozedDrafts(): Promise<void> {
+  await q("UPDATE robot_drafts SET status = 'pending', snooze_until = NULL WHERE status = 'snoozed' AND snooze_until IS NOT NULL AND snooze_until <= $1", [Date.now()]);
+}
+
+export interface ForwardTarget { id: string; orgId: string; label: string | null; email: string; createdAt: number }
+export async function listForwardTargets(orgId: string): Promise<ForwardTarget[]> {
+  const rows = await q('SELECT * FROM robot_forward_allowlist WHERE org_id = $1 ORDER BY created_at DESC', [orgId]);
+  return rows.map((r: any) => ({ id: r.id, orgId: r.org_id, label: r.label ?? null, email: r.email, createdAt: Number(r.created_at) }));
+}
+export async function addForwardTarget(orgId: string, email: string, label: string | null): Promise<ForwardTarget> {
+  const id = randomUUID();
+  await q('INSERT INTO robot_forward_allowlist(id, org_id, label, email, created_at) VALUES ($1,$2,$3,$4,$5)', [id, orgId, label, email, Date.now()]);
+  return { id, orgId, label, email, createdAt: Date.now() };
+}
+export async function deleteForwardTarget(orgId: string, id: string): Promise<void> {
+  await q('DELETE FROM robot_forward_allowlist WHERE id = $1 AND org_id = $2', [id, orgId]);
+}
+export async function isAllowedForwardTarget(orgId: string, email: string): Promise<boolean> {
+  const r = await qOne<{ n: number }>('SELECT COUNT(*) AS n FROM robot_forward_allowlist WHERE org_id = $1 AND LOWER(email) = LOWER($2)', [orgId, email]);
+  return Number(r?.n ?? 0) > 0;
+}
+
 // ---- rules (the learning loop) ----
 function rowToRule(r: any): RobotRule {
   return {

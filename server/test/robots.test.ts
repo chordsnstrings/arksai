@@ -110,6 +110,28 @@ test('"Needs You" includes escalated drafts (not just pending) — the bug fix',
   assert.equal(await store.countPendingDrafts('o-ny'), 2); // badge counts escalated too
 });
 
+test('snooze leaves "needs you", and wakeSnoozedDrafts returns due items', async () => {
+  const r = await store.createRobot('o-sz', { name: 'S', role: 'custom' });
+  const d = await store.createDraft({
+    robotId: r.id, orgId: 'o-sz', inboundMessageId: '<z@m>', inboundFrom: 'a@x.com', inboundName: null,
+    inboundSubject: 'Later', inboundSnippet: null, toAddr: 'a@x.com', subject: 'Re', draftText: 'x',
+    modelUsed: 'm', escalated: false, escalationReason: null,
+  });
+  await store.snoozeDraft(d.id, 'o-sz', Date.now() - 1000); // already due
+  assert.equal((await store.listNeedsYouDrafts('o-sz')).length, 0); // snoozed → not in needs you
+  await store.wakeSnoozedDrafts();
+  assert.equal((await store.listNeedsYouDrafts('o-sz')).length, 1); // due → back to pending
+});
+
+test('forward allowlist gates who a robot may forward to', async () => {
+  assert.equal(await store.isAllowedForwardTarget('o-fwd', 'boss@co.com'), false);
+  const t = await store.addForwardTarget('o-fwd', 'boss@co.com', 'Boss');
+  assert.equal(await store.isAllowedForwardTarget('o-fwd', 'BOSS@co.com'), true); // case-insensitive
+  assert.equal(await store.isAllowedForwardTarget('o-fwd', 'stranger@x.com'), false);
+  await store.deleteForwardTarget('o-fwd', t.id);
+  assert.equal(await store.isAllowedForwardTarget('o-fwd', 'boss@co.com'), false);
+});
+
 test('learned rules: CRUD + injected into the reply prompt (the learning loop)', async () => {
   const r = await store.createRobot('o-rules', { name: 'PA', role: 'personal_assistant' });
   const rule = await store.createRule('o-rules', r.id, 'meeting requests', 'accept Tue/Thu and propose a time');

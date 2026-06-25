@@ -2,17 +2,22 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CreateRobotRequest, RobotRole } from '../../../shared/types';
 import { roleInOrg } from '../orgs/store';
 import {
+  addForwardTarget,
   createRobot,
   createRule,
+  deleteForwardTarget,
   deleteRobot,
   deleteRule,
   getDraft,
   getRobot,
+  isAllowedForwardTarget,
   listDrafts,
+  listForwardTargets,
   listRobots,
   listRules,
   markDraftStatus,
   setDraftText,
+  snoozeDraft,
   updateRobot,
 } from '../robots/store';
 import { draftReply, regenerateDraft } from '../robots/reply';
@@ -284,6 +289,68 @@ export function registerRobotRoutes(app: FastifyInstance) {
   app.delete('/api/orgs/:id/robots/:rid/rules/:ruleId', async (req, reply) => {
     if (!(await guard(req, reply))) return undefined;
     await deleteRule(orgId(req), (req.params as any).ruleId);
+    return { ok: true };
+  });
+
+  // Snooze a draft → it leaves "needs you" and returns at `until` (poller wakes it).
+  app.post('/api/orgs/:id/drafts/:did/snooze', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const draft = await getDraft((req.params as any).did, orgId(req));
+    if (!draft) return reply.code(404).send({ error: 'Unknown draft.' });
+    const until = Number((req.body as any)?.until);
+    if (!Number.isFinite(until) || until <= Date.now()) return reply.code(400).send({ error: 'Pick a future time.' });
+    await snoozeDraft(draft.id, orgId(req), until);
+    return { ok: true };
+  });
+
+  // Archive a draft → acknowledged, no reply.
+  app.post('/api/orgs/:id/drafts/:did/archive', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const draft = await getDraft((req.params as any).did, orgId(req));
+    if (!draft) return reply.code(404).send({ error: 'Unknown draft.' });
+    await markDraftStatus(draft.id, orgId(req), 'archived');
+    return { ok: true };
+  });
+
+  // Forward the inbound to an ADMIN-ALLOWLISTED teammate (the one case the recipient-lock is
+  // broken — gated to the allowlist, never a free-form address).
+  app.post('/api/orgs/:id/drafts/:did/forward', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const draft = await getDraft((req.params as any).did, orgId(req));
+    if (!draft) return reply.code(404).send({ error: 'Unknown draft.' });
+    const to = String((req.body as any)?.to ?? '').trim();
+    const note = String((req.body as any)?.note ?? '').trim();
+    if (!to || !(await isAllowedForwardTarget(orgId(req), to))) {
+      return reply.code(403).send({ error: 'That address is not on the forward allowlist.' });
+    }
+    try {
+      const body =
+        `${note ? note + '\n\n' : ''}--- Forwarded by ${draft.robotId ? 'your robot' : 'ArksAI'} ---\n` +
+        `From: ${draft.inboundName ? `${draft.inboundName} <${draft.inboundFrom}>` : draft.inboundFrom}\n` +
+        `Subject: ${draft.inboundSubject || '(no subject)'}\n\n${draft.inboundBody || draft.inboundSnippet || ''}`;
+      await sendEmailForRobot(draft.robotId, { to, subject: `Fwd: ${draft.inboundSubject || '(no subject)'}`, text: body });
+      await markDraftStatus(draft.id, orgId(req), 'dismissed');
+      return { ok: true };
+    } catch (e: any) {
+      return reply.code(502).send({ error: `Forward failed: ${e?.message ?? e}` });
+    }
+  });
+
+  // Forward allowlist (org-level; admin-managed).
+  app.get('/api/orgs/:id/robot-forward-targets', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    return { targets: await listForwardTargets(orgId(req)) };
+  });
+  app.post('/api/orgs/:id/robot-forward-targets', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const email = String((req.body as any)?.email ?? '').trim();
+    const label = String((req.body as any)?.label ?? '').trim() || null;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reply.code(400).send({ error: 'Enter a valid email address.' });
+    return { target: await addForwardTarget(orgId(req), email, label) };
+  });
+  app.delete('/api/orgs/:id/robot-forward-targets/:tid', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    await deleteForwardTarget(orgId(req), (req.params as any).tid);
     return { ok: true };
   });
 

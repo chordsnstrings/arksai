@@ -1,7 +1,7 @@
 import { getRobotEmailAccount } from '../email/accounts';
 import { readInboxForRobot, sendEmailForRobot, withTimeout, type InboxMessage } from '../email/client';
 import type { Robot } from '../../../shared/types';
-import { createDraft, draftExistsFor, listActiveRobots, listActiveRules, markDraftStatus, markPolled } from './store';
+import { createDraft, draftExistsFor, listActiveRobots, listActiveRules, markDraftStatus, markPolled, wakeSnoozedDrafts } from './store';
 import { draftReply } from './reply';
 
 /**
@@ -173,6 +173,7 @@ async function processRobot(robot: Robot): Promise<void> {
 }
 
 export async function tick(): Promise<void> {
+  await wakeSnoozedDrafts().catch(() => {}); // return any due snoozed items to "needs you"
   let robots: Robot[];
   try {
     robots = await listActiveRobots();

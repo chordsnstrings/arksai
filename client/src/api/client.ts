@@ -467,6 +467,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ instruction }),
     }),
+  snoozeDraft: (orgId: string, did: string, until: number) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}/snooze`, { method: 'POST', body: JSON.stringify({ until }) }),
+  archiveDraft: (orgId: string, did: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}/archive`, { method: 'POST' }),
+  forwardDraft: (orgId: string, did: string, to: string, note?: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}/forward`, { method: 'POST', body: JSON.stringify({ to, note }) }),
+  listForwardTargets: (orgId: string) =>
+    request<{ targets: { id: string; email: string; label: string | null }[] }>(`/api/orgs/${orgId}/robot-forward-targets`).then((r) => r.targets),
+  addForwardTarget: (orgId: string, email: string, label?: string) =>
+    request<{ target: { id: string; email: string; label: string | null } }>(`/api/orgs/${orgId}/robot-forward-targets`, {
+      method: 'POST',
+      body: JSON.stringify({ email, label }),
+    }).then((r) => r.target),
+  deleteForwardTarget: (orgId: string, tid: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/robot-forward-targets/${tid}`, { method: 'DELETE' }),
   sendDraft: (orgId: string, did: string, text?: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}/send`, { method: 'POST', body: JSON.stringify({ text }) }),
   dismissDraft: (orgId: string, did: string) =>
