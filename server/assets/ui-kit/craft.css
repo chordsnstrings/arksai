@@ -134,6 +134,77 @@
   opacity: 0.92;
 }
 
+/* (4) TICKET — a robust boarding-pass / receipt card, clip-safe BY CONSTRUCTION.
+   Use it for a travel / logistics / "record" signature. NO rotation (rotation clips
+   edge labels — a real failure), a perforation that can't collide, and a stub that
+   reflows below on a phone instead of overlapping. Give rows REAL codes (IATA, SKU, REF).
+   Markup:
+     <div class="ticket">
+       <div class="ticket-main">
+         <div class="ticket-row"><span class="ticket-code">DAC</span><span class="ticket-arrow">→</span><span class="ticket-code">YYZ</span></div>
+         <div class="ticket-label">Dhaka → Toronto · Express Entry</div>
+       </div>
+       <div class="ticket-stub"><span class="ticket-stub-k">REF</span><span class="ticket-stub-v">EE-2010</span></div>
+     </div> */
+.ticket {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  background: var(--surface, #fff);
+  border: 1px solid var(--craft-line);
+  border-radius: 12px;
+  overflow: hidden; /* clip-safe: nothing escapes the card */
+  transition: transform 0.18s var(--craft-ease), box-shadow 0.18s var(--craft-ease);
+}
+.ticket:hover { transform: translateY(-2px); box-shadow: var(--shadow-md, 0 10px 28px rgba(16,18,29,0.10)); }
+.ticket-main { padding: 1.05rem 1.25rem; min-width: 0; } /* min-width:0 lets long labels wrap, never overflow */
+.ticket-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.ticket-code {
+  font-family: var(--craft-mono);
+  font-weight: 500;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  color: var(--brand, var(--ink, currentColor));
+}
+.ticket-arrow { color: var(--accent, currentColor); font-family: var(--craft-mono); }
+.ticket-label { margin-top: 0.35rem; font-weight: 600; overflow-wrap: anywhere; }
+/* The stub: a perforated end panel. The dashed "perforation" is its left border — it can
+   never collide with content because it's a separate grid track. Reflows below on a phone. */
+.ticket-stub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.9rem 1rem;
+  border-left: 2px dashed var(--craft-line);
+  background: color-mix(in srgb, var(--accent, #888) 6%, transparent);
+  text-align: center;
+}
+.ticket-stub-k { font-family: var(--craft-mono); font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted, #6b7280); }
+.ticket-stub-v { font-family: var(--craft-mono); font-weight: 500; letter-spacing: 0.06em; color: var(--accent, currentColor); }
+@media (max-width: 520px) {
+  .ticket { grid-template-columns: 1fr; } /* stub drops below — no overlap on small phones */
+  .ticket-stub { flex-direction: row; gap: 0.5rem; border-left: 0; border-top: 2px dashed var(--craft-line); }
+}
+
+/* ---- richer micro-interactions (tasteful; all reduced-motion-safe below) ---- */
+/* .tilt — a subtle pointer-agnostic lift+tilt for a hero/feature card. */
+.tilt { transition: transform 0.25s var(--craft-ease), box-shadow 0.25s var(--craft-ease); }
+.tilt:hover { transform: perspective(900px) rotateX(1.5deg) translateY(-3px); box-shadow: var(--shadow-lg, 0 18px 48px rgba(16,18,29,0.14)); }
+/* .sheen — a quiet light sweep across a primary button/CTA on hover. */
+.sheen { position: relative; overflow: hidden; }
+.sheen::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.6s var(--craft-ease);
+}
+.sheen:hover::after { transform: translateX(120%); }
+/* .float — a gentle idle drift for ONE hero accent (use sparingly). */
+@keyframes craft-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.float { animation: craft-float 5s ease-in-out infinite; }
+
 /* ---- staggered reveal for a signature list (works with the kit's [data-reveal]) ---- */
 [data-reveal] .board-row,
 [data-reveal] .spec-row { transition: opacity 0.5s var(--craft-ease), transform 0.5s var(--craft-ease); }
@@ -146,7 +217,9 @@
 [data-reveal].in .board-row:nth-child(6) { transition-delay: 0.25s; }
 
 @media (prefers-reduced-motion: reduce) {
-  .lift, .with-arrow::after, .nav-underline a::after { transition: none !important; }
+  .lift, .with-arrow::after, .nav-underline a::after, .ticket, .tilt, .sheen::after { transition: none !important; }
+  .float { animation: none !important; }
+  .tilt:hover { transform: none; }
   [data-reveal].reveal-hidden .board-row,
   [data-reveal].reveal-hidden .spec-row { opacity: 1 !important; transform: none !important; }
 }

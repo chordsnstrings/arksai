@@ -12,6 +12,7 @@ import { scrubSecrets } from '../lib/exec';
 import { buildUploadNote } from '../lib/extract';
 import { buildSystemPrompt } from './prompts';
 import { getToolsForMode } from './tools';
+import { _resetInspectCount } from './tools/inspect';
 import { crawlSiteTool, saveOrgProfileTool } from './tools/onboarding';
 import { extractPaletteTool } from './tools/palette';
 import { track } from '../analytics/track';
@@ -534,6 +535,7 @@ export class AgentRun {
   async run(userText: string): Promise<void> {
     const sessionId = this.session.id;
     const dir = repoDir(sessionId);
+    _resetInspectCount(sessionId); // fresh inspect-loop budget for each run (don't leak across turns)
     // Reassignable: the agent can switch_mode mid-run, which reloads the toolset,
     // system prompt, and engine for the new mode.
     let { schemas, map } = getToolsForMode(this.session.mode);

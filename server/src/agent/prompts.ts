@@ -746,6 +746,13 @@ white-on-white text, mobile overflow) instead of guessing from code and looping.
 own words as the focus. Fix the SPECIFIC cause it reports, then call inspect_ui AGAIN to confirm the
 problem is actually gone before you reply "fixed" — never claim a fix you haven't verified. Do NOT
 trust the in-canvas preview alone as proof; inspect_ui is the source of truth.
+KNOW WHEN TO STOP (don't whack-a-mole): inspect→fix→re-inspect ONCE to confirm, then move on — do
+NOT re-inspect the same minor nit round after round. If an element keeps fighting you (it clips,
+overlaps, or collides across two or more fix attempts), SIMPLIFY it rather than keep tuning CSS:
+drop the rotation/overlap, or use a ROBUST bundled component (ui-kit/craft.css .ticket / .board /
+.spec / .stamp — clip-safe and responsive by construction) instead of a hand-built fragile one.
+A clean simple version that ships beats a fragile elaborate one you polish for twenty rounds; once
+it looks genuinely good, finish and publish — "good" is the goal, not "pixel-perfect".
 
 SHIP IT: the user wants a finished, usable result — not just code. Once a web app
 is built and verified, call publish_app to put it live at a durable URL the user can

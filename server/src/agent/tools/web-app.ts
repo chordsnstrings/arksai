@@ -92,14 +92,17 @@ export const createWebAppTool: ToolDef = {
       `Scaffolded a responsive multi-page website at ${at}: index.html / about.html / contact.html ` +
       `(name "${name}"${accent ? `, accent ${accent}` : ''}). Files: tokens.css (THE LOOK — colour/type/feel), ` +
       `site.css (MECHANICS — overflow-proof reset + a working responsive nav), ui-kit/craft.css (craft + SIGNATURE ` +
-      `components: .eyebrow-rule, .board, .spec, .stamp, .lift, .with-arrow, .nav-underline), site.js (wires the ` +
-      `hamburger), and ui-kit/ (the full component kit).${lockedTokens ? ' Your locked design_direction tokens.css was preserved.' : ''}\n` +
+      `components: .eyebrow-rule, .board, .spec, .stamp, .ticket [a clip-safe boarding-pass card], .lift, .tilt, ` +
+      `.sheen, .with-arrow, .nav-underline + motion), site.js (wires the hamburger AND [data-reveal] scroll-in + ` +
+      `[data-count] stat count-up — reduced-motion-safe), and ui-kit/ (the full component kit).${lockedTokens ? ' Your locked design_direction tokens.css was preserved.' : ''}\n` +
       `It already passes the mobile gate (viewport meta, no horizontal overflow at 320/390/768, the menu opens). ` +
       `NOW: (1) theme by editing ONLY tokens.css — set a palette + type trio (display / body / mono) grounded in the ` +
       `subject, never default blue; ${lockedTokens ? 'your design_direction look is already applied. ' : 'or run design_direction first to lock a bespoke concept. '}` +
       `(2) replace ALL placeholder copy with real, specific content for the brief; ` +
-      `(3) build ONE meaningful SIGNATURE moment from craft.css (a .board / .spec keyed to REAL codes/data for this ` +
-      `subject — never generic 01/02/03); (4) add real imagery with generate_image (text-free). ADD PAGES by ` +
+      `(3) build ONE meaningful SIGNATURE moment from craft.css (a .board / .spec / .ticket keyed to REAL codes/data ` +
+      `for this subject — never generic 01/02/03; prefer these robust components over a hand-built fragile one); ` +
+      `(4) add LIFE with the free motion: [data-reveal] on sections, [data-count] on key stats, .lift/.tilt/.sheen ` +
+      `on cards + CTA; (5) add real imagery with generate_image (text-free). ADD PAGES by ` +
       `duplicating an existing .html and keeping its <header> nav + the three <link>s + <script src="site.js">. ` +
       `DON'T remove the CSS reset or rename .nav-links / .nav-toggle / #site-nav / [data-nav-toggle] (that keeps the ` +
       `mobile menu working). Publish with publish_app when it's ready.`

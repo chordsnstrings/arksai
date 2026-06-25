@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-25.4';
+export const WHATS_NEW_VERSION = '2026-06-25.5';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Websites that look art-directed, not templated',
-    body: 'Before building a site, the studio now locks a bespoke design concept grounded in your subject — a deliberate typeface trio (including a mono face for codes/figures), a concept-grounded palette, and one meaningful signature element — instead of one generic “house style.” It actively avoids the looks that read as “made by an AI.”',
+    title: 'Sites with more life',
+    body: 'Pages now come alive by default — sections reveal as you scroll, key numbers count up, cards lift and the main button catches a subtle light-sweep — all tasteful and automatically off if you prefer reduced motion.',
   },
   {
-    title: 'A design review that fails “generic”',
-    body: 'The senior-designer review now judges distinctiveness first: a clean-but-ordinary page gets sent back to be made distinctive, not waved through — so what you get looks designed for you.',
+    title: 'Signature elements that just work',
+    body: 'Distinctive touches like boarding-pass “ticket” cards are now built from a robust, phone-safe component, so the studio composes them instead of hand-tuning fragile CSS — better results, far fewer build steps.',
+  },
+  {
+    title: 'Faster finishes',
+    body: 'The builder now knows when a design is good enough to ship — it stops polishing one detail forever and simplifies anything that fights it, so your site goes live sooner.',
   },
 ];
 

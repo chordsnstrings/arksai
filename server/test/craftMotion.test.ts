@@ -1,0 +1,61 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { designCore } from '../src/agent/designSystem';
+
+const ASSETS = path.join(__dirname, '..', 'assets');
+const craft = fs.readFileSync(path.join(ASSETS, 'ui-kit', 'craft.css'), 'utf8');
+const siteJs = fs.readFileSync(path.join(ASSETS, 'web-app-template', 'site.js'), 'utf8');
+const siteCss = fs.readFileSync(path.join(ASSETS, 'web-app-template', 'site.css'), 'utf8');
+const indexHtml = fs.readFileSync(path.join(ASSETS, 'web-app-template', 'index.html'), 'utf8');
+
+test('craft.css ships a robust, clip-safe .ticket boarding-pass component', () => {
+  for (const sel of ['.ticket', '.ticket-stub', '.ticket-code', '.ticket-main']) {
+    assert.ok(craft.includes(sel), `craft.css missing ${sel}`);
+  }
+  // clip-safe by construction: overflow hidden on the card, and the stub reflows on small phones
+  assert.match(craft, /\.ticket\s*\{[^}]*overflow:\s*hidden/);
+  assert.match(craft, /max-width:\s*520px[^@]*\.ticket\s*\{[^}]*grid-template-columns:\s*1fr/s);
+  // no rotation on the ticket (rotation clips edge labels — the failure we fixed)
+  const ticketBlock = craft.slice(craft.indexOf('.ticket {'), craft.indexOf('.ticket:hover'));
+  assert.doesNotMatch(ticketBlock, /rotate\(/);
+});
+
+test('craft.css adds richer, reduced-motion-safe motion utilities', () => {
+  for (const sel of ['.tilt', '.sheen', '.float', 'craft-float']) {
+    assert.ok(craft.includes(sel), `craft.css missing ${sel}`);
+  }
+  // every new motion utility is disabled under reduced motion
+  const rm = craft.slice(craft.indexOf('prefers-reduced-motion'));
+  assert.match(rm, /\.float\s*\{\s*animation:\s*none/);
+  assert.match(rm, /\.tilt/);
+});
+
+test('scaffold site.js wires scroll-reveal + count-up, guarded by reduced-motion', () => {
+  assert.match(siteJs, /\[data-reveal\]/);
+  assert.match(siteJs, /\[data-count\]/);
+  assert.match(siteJs, /IntersectionObserver/);
+  assert.match(siteJs, /prefers-reduced-motion/);
+  // reduced-motion path still reveals content (never leaves it hidden)
+  assert.match(siteJs, /classList\.add\('in'\)/);
+});
+
+test('the scaffold demonstrates motion out of the box', () => {
+  assert.match(indexHtml, /data-reveal/);
+  assert.match(indexHtml, /data-count/);
+  assert.match(indexHtml, /class="card lift"/);
+  assert.match(indexHtml, /sheen/);
+  // mechanics (site.css) stays look-free
+  assert.doesNotMatch(siteCss, /--accent: #3a5a78/);
+});
+
+test('designCore steers robust components + a lively-but-bounded motion bar', () => {
+  // use the robust component instead of a fragile hand-built one (anti-whack-a-mole)
+  assert.match(designCore, /\.ticket/);
+  assert.match(designCore, /20-round|fragile/i);
+  // motion is part of the bar, drawn from the free kit utilities
+  assert.match(designCore, /MOTION \(the page should feel ALIVE/);
+  assert.match(designCore, /\[data-count\]/);
+  assert.match(designCore, /prefers-reduced-motion/);
+});

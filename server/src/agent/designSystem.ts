@@ -58,8 +58,14 @@ THIS, for THIS subject." Start from the bundled design system; never hand-roll m
   content. NEVER output the generic centered-hero-with-a-glowing-box look — that's the
   commodity-AI aesthetic we exist to beat. Build ONE MEANINGFUL signature moment per page
   that encodes something TRUE about the subject (a departures/data BOARD keyed to real
-  codes, a labelled SPEC list, a stamped proof point — see ui-kit/craft.css .board/.spec/
-  .stamp) — not a decorative gradient box; restraint everywhere else.
+  codes, a labelled SPEC list, a stamped proof point, a boarding-pass/receipt TICKET with
+  real codes — see ui-kit/craft.css .board/.spec/.stamp/.ticket) — not a decorative gradient
+  box; restraint everywhere else. USE THE BUNDLED craft.css COMPONENTS for an ambitious
+  signature (.ticket is clip-safe + responsive BY CONSTRUCTION) rather than hand-building a
+  fragile rotated/overlapping element from scratch — a hand-rolled elaborate component is the
+  thing that turns into a 20-round CSS-debugging loop. Compose the proven primitive; if you
+  truly need a bespoke element, keep it simple and overflow-safe (no rotation that clips edge
+  text, no overlap that hides content).
 - IMAGERY & ICONS: for a hero/section BACKGROUND image, call generate_image (it is
   TEXT-FREE by default) and let your HTML supply the headline — NEVER bake copy into the
   image, and NEVER use generate_creative as a website background (its composited
@@ -113,10 +119,17 @@ THIS, for THIS subject." Start from the bundled design system; never hand-roll m
   active — not just the resting state.
 - RESPONSIVE: fluid from small phones to wide desktop; test the key breakpoints;
   sensible touch targets (≥40px).
-- MOTION: subtle, purposeful micro-interactions (hover/focus/enter) with short
-  durations and easeful curves; use the kit's [data-reveal] (scroll-in) + .animate-in
-  (entrance) and the spring easings; ONE signature motion moment, restraint elsewhere;
-  ALWAYS respect prefers-reduced-motion.
+- MOTION (the page should feel ALIVE, not static — part of the quality bar): layer in
+  tasteful micro-engagement, don't ship a motionless page. The bundled craft.css + site.js
+  give you reliable, reduced-motion-safe motion FOR FREE — USE them rather than hand-rolling
+  (hand-rolled motion is fragile + another debug loop): [data-reveal] = staggered scroll-in
+  (board/spec/ticket rows stagger automatically), [data-count] on a stat = a count-up when it
+  scrolls into view (e.g. <span data-count="30000">0</span>+), .nav-underline = animated nav
+  underlines, .lift / .tilt = hover lift/tilt on cards, .sheen = a quiet light-sweep on the
+  primary CTA, .with-arrow = an arrow that nudges, .float = a gentle idle drift for ONE hero
+  accent. Aim for consistent hover/focus micro-interactions on every interactive element PLUS
+  one or two signature motion moments (a revealed board, counting stats) — lively but never
+  busy. ALWAYS respect prefers-reduced-motion (the kit already does).
 - POLISH: aligned to a grid, consistent component sizing, rounded corners + soft
   elevation where appropriate, accessible contrast, no clip-art/emoji as UI.
 - ICONS: use the bundled icon set, don't hand-roll SVGs or use emoji. add_ui_kit /

@@ -3,6 +3,13 @@ import { detectRenderable, startPreviewServer } from '../canvasExport';
 import { listeningPorts } from '../../lib/ports';
 import type { ToolDef } from './common';
 
+// Per-session count of agent-initiated inspections — so a build can't whack-a-mole one
+// hard element forever. The design GATE is bounded (MAX_DESIGN_ROUNDS); this bounds the
+// agent's OWN inspect→fix→re-inspect loop (which was unbounded and drove a 400-step run).
+const inspectCounts = new Map<string, number>();
+const SOFT_CAP = 8; // a generous budget across the whole build before we start nudging
+export function _resetInspectCount(sessionId: string) { inspectCounts.delete(sessionId); }
+
 /**
  * Diagnose a complaint about the built web app by actually RENDERING + INTERACTING with it —
  * the developer's loop, given to a text-only agent. Far better than guessing from code.
@@ -59,11 +66,30 @@ export const inspectUiTool: ToolDef = {
     const rel = String(args.path ?? '').replace(/^\/+/, '');
     const url = `http://127.0.0.1:${port}/${rel}`;
     const focus = typeof args.focus === 'string' ? args.focus : '';
-    const res = await inspectUi(url, ctx.signal, { focus });
+
+    // Run it; if the result is INCONCLUSIVE (a flaky/closed context — e.g. the preview
+    // server dropped mid-inspection), reboot the server and retry ONCE so the round isn't wasted.
+    let res = await inspectUi(url, ctx.signal, { focus });
+    if (res.ran && /inconclusive|has been closed/i.test(res.detail) && !ctx.signal.aborted) {
+      startPreviewServer(ctx.session.id, dir, r);
+      await new Promise((r) => setTimeout(r, 1200));
+      res = await inspectUi(url, ctx.signal, { focus });
+    }
     if (!res.ran) return `inspect_ui: ${res.detail}`;
-    return (
-      res.detail +
-      `\n\n(Inspected the LIVE rendered app — act on THIS evidence, not a guess. After you change the code, call inspect_ui again to confirm the issue is actually gone.)`
-    );
+
+    // Bound the agent's own inspect loop: once it's looked many times, tell it to SHIP or
+    // SIMPLIFY rather than keep re-inspecting a hard element — a clean simple version beats
+    // a fragile elaborate one (the over-iteration we actually observed).
+    const n = (inspectCounts.get(ctx.session.id) ?? 0) + 1;
+    inspectCounts.set(ctx.session.id, n);
+    const tail =
+      n >= SOFT_CAP
+        ? `\n\n⚠ You have inspected this build ${n} times. STOP re-inspecting now: the result is good enough to ship. ` +
+          `If ONE element still isn't pixel-perfect, SIMPLIFY it (drop a rotation/overlap, use a robust ui-kit/craft.css ` +
+          `component like .ticket/.board/.spec instead of a hand-built fragile one) rather than fight CSS another round — ` +
+          `a clean simple version beats a fragile elaborate one. Then finish and publish; do not call inspect_ui again unless something is actually broken.`
+        : `\n\n(Inspected the LIVE rendered app — act on THIS evidence, not a guess. After your fix, inspect ONCE more to confirm, ` +
+          `then move on; don't re-inspect a minor nit repeatedly — if an element fights you, simplify it.)`;
+    return res.detail + tail;
   },
 };
