@@ -1,7 +1,7 @@
 import { getRobotEmailAccount } from '../email/accounts';
 import { readInboxForRobot, sendEmailForRobot, withTimeout, type InboxMessage } from '../email/client';
 import type { Robot } from '../../../shared/types';
-import { createDraft, draftExistsFor, listActiveRobots, markDraftStatus, markPolled } from './store';
+import { createDraft, draftExistsFor, listActiveRobots, listActiveRules, markDraftStatus, markPolled } from './store';
 import { draftReply } from './reply';
 
 /**
@@ -96,7 +96,8 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
     const timer = setTimeout(() => ac.abort(), DRAFT_TIMEOUT_MS);
     let outcome;
     try {
-      outcome = await draftReply(robot, msg, ac.signal);
+      const rules = await listActiveRules(robot.id).catch(() => []);
+      outcome = await draftReply(robot, msg, ac.signal, rules);
     } catch (e: any) {
       sum.error = `draft failed: ${e?.message ?? e}`;
       console.error(`[robot ${robot.id}] draft failed:`, e?.message ?? e);

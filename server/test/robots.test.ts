@@ -110,6 +110,22 @@ test('"Needs You" includes escalated drafts (not just pending) — the bug fix',
   assert.equal(await store.countPendingDrafts('o-ny'), 2); // badge counts escalated too
 });
 
+test('learned rules: CRUD + injected into the reply prompt (the learning loop)', async () => {
+  const r = await store.createRobot('o-rules', { name: 'PA', role: 'personal_assistant' });
+  const rule = await store.createRule('o-rules', r.id, 'meeting requests', 'accept Tue/Thu and propose a time');
+  assert.equal(rule.pattern, 'meeting requests');
+  assert.deepEqual((await store.listActiveRules(r.id)).map((x) => x.instruction), ['accept Tue/Thu and propose a time']);
+
+  // the engine grounds on the rule + is told not to re-escalate a covered email
+  const sys = reply.buildSystem({ ...r } as any, [{ pattern: rule.pattern, instruction: rule.instruction }]);
+  assert.match(sys, /STANDING RULES/);
+  assert.match(sys, /meeting requests/);
+  assert.match(sys, /do NOT escalate/i);
+
+  await store.deleteRule('o-rules', rule.id);
+  assert.equal((await store.listActiveRules(r.id)).length, 0);
+});
+
 test('buildSystem injects persona/knowledge/escalation + locks the recipient + demands JSON', () => {
   const robot: any = {
     id: 'x', orgId: 'o1', name: 'CS', role: 'customer_service', status: 'active', autonomy: 'ask',

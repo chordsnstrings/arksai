@@ -3,11 +3,14 @@ import type { CreateRobotRequest, RobotRole } from '../../../shared/types';
 import { roleInOrg } from '../orgs/store';
 import {
   createRobot,
+  createRule,
   deleteRobot,
+  deleteRule,
   getDraft,
   getRobot,
   listDrafts,
   listRobots,
+  listRules,
   markDraftStatus,
   setDraftText,
   updateRobot,
@@ -260,6 +263,27 @@ export function registerRobotRoutes(app: FastifyInstance) {
     const draft = await getDraft((req.params as any).did, orgId(req));
     if (!draft) return reply.code(404).send({ error: 'Unknown draft.' });
     await markDraftStatus(draft.id, orgId(req), 'dismissed');
+    return { ok: true };
+  });
+
+  // ---- learned rules (the learning loop) ----
+  app.get('/api/orgs/:id/robots/:rid/rules', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    return { rules: await listRules(orgId(req), (req.params as any).rid) };
+  });
+  app.post('/api/orgs/:id/robots/:rid/rules', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const rid = (req.params as any).rid;
+    const robot = await getRobot(rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const pattern = String((req.body as any)?.pattern ?? '').trim();
+    const instruction = String((req.body as any)?.instruction ?? '').trim();
+    if (!pattern || !instruction) return reply.code(400).send({ error: 'A rule needs a pattern and an instruction.' });
+    return { rule: await createRule(orgId(req), rid, pattern, instruction) };
+  });
+  app.delete('/api/orgs/:id/robots/:rid/rules/:ruleId', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    await deleteRule(orgId(req), (req.params as any).ruleId);
     return { ok: true };
   });
 

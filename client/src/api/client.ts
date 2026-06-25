@@ -22,6 +22,7 @@ import type {
   Robot,
   RobotConfig,
   RobotDraft,
+  RobotRule,
   ProjectFile,
   Schedule,
   CreateScheduleRequest,
@@ -433,6 +434,15 @@ export const api = {
     request<{ robot: Robot }>(`/api/orgs/${orgId}/robots/${rid}`, { method: 'PUT', body: JSON.stringify(patch) }).then((r) => r.robot),
   deleteRobot: (orgId: string, rid: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}`, { method: 'DELETE' }),
+  listRules: (orgId: string, rid: string) =>
+    request<{ rules: RobotRule[] }>(`/api/orgs/${orgId}/robots/${rid}/rules`).then((r) => r.rules),
+  createRule: (orgId: string, rid: string, pattern: string, instruction: string) =>
+    request<{ rule: RobotRule }>(`/api/orgs/${orgId}/robots/${rid}/rules`, {
+      method: 'POST',
+      body: JSON.stringify({ pattern, instruction }),
+    }).then((r) => r.rule),
+  deleteRule: (orgId: string, rid: string, ruleId: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/rules/${ruleId}`, { method: 'DELETE' }),
   pollRobot: (orgId: string, rid: string) =>
     request<{ summary: { read: number; drafted: number; sent: number; escalated: number; skipped: number; error?: string } }>(
       `/api/orgs/${orgId}/robots/${rid}/poll`,

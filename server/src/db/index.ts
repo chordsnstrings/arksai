@@ -348,6 +348,29 @@ async function migrate() {
     updated_at ${INT} NOT NULL
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_robot_drafts_msg ON robot_drafts(robot_id, inbound_message_id)`);
+  // Robot RULES (the learning loop): preferences the owner taught the robot from resolving an
+  // escalation — "when an email is like X, do Y". Injected as GROUNDING data into the reply
+  // prompt so the robot handles that kind of mail itself instead of escalating it again.
+  await q(`CREATE TABLE IF NOT EXISTS robot_rules(
+    id TEXT PRIMARY KEY,
+    robot_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    pattern TEXT NOT NULL,
+    instruction TEXT NOT NULL,
+    enabled ${INT} NOT NULL DEFAULT 1,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_rules ON robot_rules(robot_id, enabled)`);
+  // Per-org allowlist of addresses a robot may FORWARD to (the one case the recipient-lock is
+  // broken). Admin-managed; the responder's Forward picks only from here.
+  await q(`CREATE TABLE IF NOT EXISTS robot_forward_allowlist(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    label TEXT,
+    email TEXT NOT NULL,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_fwd ON robot_forward_allowlist(org_id)`);
   await q(`CREATE TABLE IF NOT EXISTS users(
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,

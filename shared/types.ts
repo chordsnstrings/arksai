@@ -650,6 +650,18 @@ export interface RobotDraft {
   sentAt: number | null;
 }
 
+/** A learned preference: "when an email is like {pattern}, {instruction}". Grounding data
+ *  injected into the reply prompt so the robot handles that kind of mail itself. */
+export interface RobotRule {
+  id: string;
+  robotId: string;
+  orgId: string;
+  pattern: string;
+  instruction: string;
+  enabled: boolean;
+  createdAt: number;
+}
+
 export interface CreateRobotRequest {
   name: string;
   type?: RobotType;

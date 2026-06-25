@@ -5,6 +5,7 @@ import type {
   RobotConfig,
   RobotDraft,
   RobotDraftStatus,
+  RobotRule,
 } from '../../../shared/types';
 import { q, qOne } from '../db';
 
@@ -253,6 +254,39 @@ export async function listNeedsYouDrafts(orgId: string): Promise<RobotDraft[]> {
     [orgId],
   );
   return rows.map(rowToDraft);
+}
+
+// ---- rules (the learning loop) ----
+function rowToRule(r: any): RobotRule {
+  return {
+    id: r.id, robotId: r.robot_id, orgId: r.org_id,
+    pattern: r.pattern, instruction: r.instruction,
+    enabled: !!Number(r.enabled), createdAt: Number(r.created_at),
+  };
+}
+
+export async function createRule(orgId: string, robotId: string, pattern: string, instruction: string): Promise<RobotRule> {
+  const id = randomUUID();
+  await q(
+    'INSERT INTO robot_rules(id, robot_id, org_id, pattern, instruction, enabled, created_at) VALUES ($1,$2,$3,$4,$5,1,$6)',
+    [id, robotId, orgId, pattern.slice(0, 400), instruction.slice(0, 800), Date.now()],
+  );
+  return rowToRule((await qOne('SELECT * FROM robot_rules WHERE id = $1', [id]))!);
+}
+
+export async function listRules(orgId: string, robotId: string): Promise<RobotRule[]> {
+  const rows = await q('SELECT * FROM robot_rules WHERE org_id = $1 AND robot_id = $2 ORDER BY created_at DESC', [orgId, robotId]);
+  return rows.map(rowToRule);
+}
+
+/** Active rules for the engine to ground on (no org filter needed — robotId is unique). */
+export async function listActiveRules(robotId: string): Promise<RobotRule[]> {
+  const rows = await q('SELECT * FROM robot_rules WHERE robot_id = $1 AND enabled = 1 ORDER BY created_at DESC LIMIT 40', [robotId]);
+  return rows.map(rowToRule);
+}
+
+export async function deleteRule(orgId: string, ruleId: string): Promise<void> {
+  await q('DELETE FROM robot_rules WHERE id = $1 AND org_id = $2', [ruleId, orgId]);
 }
 
 export async function countPendingDrafts(orgId: string): Promise<number> {

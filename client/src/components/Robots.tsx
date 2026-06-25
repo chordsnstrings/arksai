@@ -16,7 +16,7 @@ import { confirmDialog } from '../state/confirmStore';
 import { EmailSettings } from './EmailSettings';
 import { api } from '../api/client';
 import { useEscClose } from '../hooks/useEscClose';
-import type { RobotDraft } from '@shared/types';
+import type { RobotDraft, RobotRule } from '@shared/types';
 
 /** True if an epoch-ms timestamp falls on the local calendar today. */
 function isToday(ms: number | null | undefined): boolean {
@@ -611,6 +611,8 @@ function Responder({
 }) {
   const [text, setText] = useState(draft.draftText || '');
   const [intent, setIntent] = useState('');
+  const [lastIntent, setLastIntent] = useState('');
+  const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState<null | 'drafting' | 'sending'>(null);
   const [err, setErr] = useState<string | null>(null);
   useEscClose(onClose);
@@ -619,6 +621,7 @@ function Responder({
     if (!instruction.trim() || busy) return;
     setBusy('drafting');
     setErr(null);
+    setLastIntent(instruction.trim()); // captured so "remember this" can become a rule
     try {
       const r = await api.regenerateDraft(orgId, draft.id, instruction.trim());
       setText(r.text);
@@ -634,6 +637,10 @@ function Responder({
     setErr(null);
     try {
       await api.sendDraft(orgId, draft.id, text.trim());
+      // Learning loop: turn this resolution into a standing rule so the robot stops escalating it.
+      if (remember && lastIntent && draft.inboundSubject) {
+        await api.createRule(orgId, robot.id, draft.inboundSubject, lastIntent).catch(() => {});
+      }
       onResolved();
     } catch (e: any) {
       setErr(typeof e?.message === 'string' ? e.message : 'Send failed.');
@@ -694,6 +701,12 @@ function Responder({
           />
         </div>
 
+        {lastIntent && (
+          <label className="rb-remember" title="Creates a standing rule so similar emails are handled automatically">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            <span>Handle emails like this automatically from now on — {robot.name} will reply to similar emails itself and stop asking you.</span>
+          </label>
+        )}
         {err && <div className="rb-resp-err">{err}</div>}
         <div className="rb-resp-actions">
           <button className="rb-danger-btn" onClick={dismiss} disabled={!!busy}>Dismiss</button>
@@ -713,6 +726,14 @@ function RobotSettings({ robot, orgId, onBack, onRemoved }: { robot: Robot; orgI
   const setStatus = useRobots((s) => s.setStatus);
   const [mandate, setMandate] = useState(robot.mandate);
   const dirty = mandate.trim() !== robot.mandate;
+  const [rules, setRules] = useState<RobotRule[] | null>(null);
+  useEffect(() => {
+    if (orgId) api.listRules(orgId, robot.id).then(setRules).catch(() => setRules([]));
+  }, [orgId, robot.id]);
+  const removeRule = async (id: string) => {
+    setRules((rs) => (rs ?? []).filter((r) => r.id !== id));
+    await api.deleteRule(orgId, robot.id, id).catch(() => {});
+  };
   const fire = async () => {
     if (await confirmDialog({ title: `Dismiss ${robot.name}?`, body: 'This removes the robot and anything waiting on it.', confirmLabel: 'Dismiss', danger: true })) {
       remove(robot.id);
@@ -761,6 +782,33 @@ function RobotSettings({ robot, orgId, onBack, onRemoved }: { robot: Robot; orgI
             <button className="rb-danger-btn" onClick={fire}>Dismiss robot</button>
           </div>
         </section>
+        <section className="rb-panel rb-span">
+          <div className="rb-panel-head">
+            <h3>What it handles on its own</h3>
+            {rules && rules.length > 0 && <span className="rb-count">{rules.length}</span>}
+          </div>
+          {rules === null ? (
+            <div className="rb-mini-empty">Loading…</div>
+          ) : rules.length === 0 ? (
+            <div className="rb-mini-empty">
+              Nothing yet. When you resolve a flagged email and tick “handle emails like this automatically”,
+              the rule shows here — and {robot.name} stops asking you about similar emails.
+            </div>
+          ) : (
+            <ul className="rb-rules">
+              {rules.map((r) => (
+                <li key={r.id} className="rb-rule">
+                  <div className="rb-rule-main">
+                    <span className="rb-rule-when">When like “{r.pattern}”</span>
+                    <span className="rb-rule-then">{r.instruction}</span>
+                  </div>
+                  <button className="rb-rule-x" onClick={() => removeRule(r.id)} title="Remove rule">Remove</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         <section className="rb-panel rb-span">
           <h3>Mailbox {robot.mailboxReady
             ? <span className="rb-status" style={{ ['--tone' as any]: '#2f7d5b' }}>connected</span>
