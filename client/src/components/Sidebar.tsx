@@ -47,7 +47,6 @@ export function Sidebar({
   onNewProject,
   onEditProject,
   onHome,
-  onSchedules,
   onRobots,
   onAndroid,
   onActivity,
@@ -60,7 +59,6 @@ export function Sidebar({
   onNewProject: () => void;
   onEditProject: (p: Project) => void;
   onHome: () => void;
-  onSchedules: () => void;
   onRobots: () => void;
   onAndroid: () => void;
   onActivity: () => void;
@@ -276,7 +274,6 @@ export function Sidebar({
         <button className="sb-tool" onClick={onRobots}>
           🤖 Robots {draftCount > 0 && <NavBadge n={draftCount} />}
         </button>
-        <button className="sb-tool" onClick={onSchedules}>⏱ Scheduled</button>
         <button className="sb-tool" onClick={onDeployments}>
           🌐 Live apps {failedCount > 0 && <NavBadge n={failedCount} tone="amber" />}
         </button>

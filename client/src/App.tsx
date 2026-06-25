@@ -293,7 +293,6 @@ export default function App() {
         onNewProject={() => setProjectDialog('new')}
         onEditProject={(p) => setProjectDialog(p)}
         onHome={() => setActive(null)}
-        onSchedules={() => setShowSchedules(true)}
         onRobots={() => {
           setShowRobots(true);
           window.history.pushState({}, '', '/robots');
