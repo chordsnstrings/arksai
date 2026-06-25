@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-25.5';
+export const WHATS_NEW_VERSION = '2026-06-25.6';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Sites with more life',
-    body: 'Pages now come alive by default — sections reveal as you scroll, key numbers count up, cards lift and the main button catches a subtle light-sweep — all tasteful and automatically off if you prefer reduced motion.',
+    title: 'More refined visuals',
+    body: 'The studio now applies extra care to colour — building a proper palette with considered accent shades and tints instead of one flat colour — and can use modern touches like tasteful frosted “glass” surfaces and soft gradients, always kept minimal, polished and readable.',
   },
   {
-    title: 'Signature elements that just work',
-    body: 'Distinctive touches like boarding-pass “ticket” cards are now built from a robust, phone-safe component, so the studio composes them instead of hand-tuning fragile CSS — better results, far fewer build steps.',
-  },
-  {
-    title: 'Faster finishes',
-    body: 'The builder now knows when a design is good enough to ship — it stops polishing one detail forever and simplifies anything that fights it, so your site goes live sooner.',
+    title: 'A bigger design toolbox',
+    body: 'We bundled a self-hosted set of premium easings, animations and gradients (Open Props) so pages have richer, tasteful motion and depth — used with restraint, never busy.',
   },
 ];
 

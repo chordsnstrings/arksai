@@ -72,6 +72,24 @@ test('the minimal·polished·responsive bar is locked regardless of the toolkit'
   assert.match(designCore, /themed to YOUR tokens and passes the responsive \+ contrast gate/);
 });
 
+test('craft.css ships a legible-by-default, fallback-safe glassmorphism utility', () => {
+  assert.ok(craft.includes('.glass'));
+  assert.match(craft, /@supports[^{]*backdrop-filter/);
+  assert.match(craft, /backdrop-filter:/);
+  assert.match(craft, /prefers-reduced-transparency/); // accessibility → solid fallback
+  // the non-supports fallback is a near-solid surface (so text stays AA everywhere)
+  assert.match(craft, /\.glass\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--bg/);
+});
+
+test('designCore demands colour care + modern techniques under the minimal bar', () => {
+  assert.match(designCore, /COLOUR — EXTREME CARE/);
+  assert.match(designCore, /ramp|--accent-deep|--accent-tint/);
+  assert.match(designCore, /MODERN TECHNIQUES/);
+  assert.match(designCore, /GLASSMORPHISM/);
+  // techniques are explicitly subordinate to minimal/legibility
+  assert.match(designCore, /in service of MINIMAL, never instead of it/);
+});
+
 test('designCore steers robust components + a lively-but-bounded motion bar', () => {
   // use the robust component instead of a fragile hand-built one (anti-whack-a-mole)
   assert.match(designCore, /\.ticket/);

@@ -205,6 +205,30 @@
 @keyframes craft-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 .float { animation: craft-float 5s ease-in-out infinite; }
 
+/* ---- GLASSMORPHISM — tasteful + LEGIBLE by construction (use for ONE surface: a sticky
+   header, a hero card — never everywhere). The bg sits at a high-enough opacity that text
+   stays AA even where backdrop-filter is unsupported; the blur is a progressive enhancement. */
+.glass {
+  /* fallback first: a near-solid tinted surface (works everywhere, passes contrast) */
+  background: color-mix(in srgb, var(--bg, #fff) 86%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent);
+  border-radius: var(--r-lg, 14px);
+  box-shadow: var(--shadow-md, 0 8px 28px rgba(16,18,29,0.10));
+}
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--glass-bg, color-mix(in srgb, var(--bg, #fff) 72%, transparent));
+    -webkit-backdrop-filter: var(--glass-blur, saturate(1.5) blur(12px));
+    backdrop-filter: var(--glass-blur, saturate(1.5) blur(12px));
+  }
+}
+/* A frosted sticky header — the most common, tasteful use. */
+.glass-nav { position: sticky; top: 0; z-index: 30; }
+/* Respect users who ask for less transparency (accessibility) → go solid. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass { background: var(--surface, #f5f5f3) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+}
+
 /* ---- staggered reveal for a signature list (works with the kit's [data-reveal]) ---- */
 [data-reveal] .board-row,
 [data-reveal] .spec-row { transition: opacity 0.5s var(--craft-ease), transform 0.5s var(--craft-ease); }

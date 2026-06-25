@@ -55,6 +55,10 @@ test('buildTokensCss emits the locked palette + three type roles + rationale', (
   assert.match(css, /--font: "Hanken Grotesk"/);
   assert.match(css, /--font-mono: "IBM Plex Mono"/);
   assert.match(css, /Port of Entry/);
+  // careful palette: a derived accent ramp + glass tokens, not a flat single accent
+  assert.match(css, /--accent-deep:\s*color-mix/);
+  assert.match(css, /--accent-tint:\s*color-mix/);
+  assert.match(css, /--glass-bg:\s*color-mix/);
 });
 
 test('buildDesignMd documents the concept + structure + avoided defaults', () => {

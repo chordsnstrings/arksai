@@ -91,14 +91,26 @@ THIS, for THIS subject." Start from the bundled design system; never hand-roll m
   near-background tint you can barely see (a recurring failure). Text over an image or a
   coloured block needs a scrim/overlay so it stays readable. Run validate_palette to
   confirm — if any text fails, darken it until it passes; do not ship illegible copy.
-- COLOR: a DISTINCTIVE, confident, cohesive palette — NOT the generic default
-  blue/indigo-on-white "AI look". A near-black ink, soft surfaces, and ONE characterful
-  accent used sparingly (~5–10%, for emphasis/primary actions), not on everything; pick
-  an accent with real personality that suits the product, then build neutrals that
-  harmonise with it. Dark theme only if it fits. Contrast is non-negotiable: call
-  validate_palette on your chosen colours BEFORE building and apply the corrected colour
-  it returns for ANY pair that fails — body text + links must pass WCAG AA (4.5:1).
-  Tasteful AND high-contrast, never muddy or low-contrast.
+- COLOUR — EXTREME CARE (this makes or breaks the result): a DISTINCTIVE, confident,
+  COHESIVE palette — never the generic blue/indigo-on-white "AI look". Build a real SYSTEM,
+  not one accent slapped on white: (1) a near-black INK + a family of soft NEUTRALS (bg /
+  surface / a tinted surface-2 / hairline) that share ONE undertone/temperature so the page
+  feels considered; (2) ONE characterful ACCENT with a proper RAMP — a deep shade for
+  hover/active, a ~10–15% TINT for quiet fills/badges (use color-mix(in srgb, var(--accent) …)
+  or the locked tokens.css --accent-deep/--accent-2/--accent-tint), accent used only ~5–10% of
+  the surface; (3) keep saturation/temperature consistent across the whole set (don't mix a
+  warm accent with cold greys). Dark theme only if it fits the concept. Contrast is
+  non-negotiable: run validate_palette BEFORE building and apply its correction for ANY failing
+  pair — body + links pass WCAG AA (4.5:1). Tasteful AND high-contrast, never muddy.
+- MODERN TECHNIQUES — in service of MINIMAL, never instead of it (one or two per page, with
+  restraint): reach for current craft when it elevates the concept — GLASSMORPHISM (a frosted
+  sticky header or one hero card: use craft.css .glass / .glass-nav — it stays AA-legible and
+  falls back to solid; never frost everything or put body text on heavy blur), tasteful GRADIENT
+  meshes (the open-props var(--gradient-*) or a soft two-stop accent gradient on ONE CTA/section,
+  not the whole page), subtle GRAIN/noise or a faint dot/line texture for depth, color-mix tints,
+  layered SOFT shadows (not harsh boxes), thin RINGS/hairlines over heavy borders, fluid type +
+  space, and scroll-reveal/count-up motion. The test for every technique: does it still read
+  minimal, polished and calm? If it adds noise or hurts legibility/AA contrast, cut it.
 - BRAND & LOGO (do this for EVERY deliverable — web, deck, doc or report): if the
   user uploaded a LOGO, build the identity FROM it — call extract_palette on the logo
   to read its real colours, use the dominant brand colour as the accent (nudge it for

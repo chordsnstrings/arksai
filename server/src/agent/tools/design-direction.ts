@@ -112,12 +112,19 @@ export function buildTokensCss(b: DesignBrief): string {
   --brand: ${b.palette.brand};
   --accent: ${b.palette.accent};
   --accent-ink: ${b.palette.accentInk};
+  /* accent ramp (derived) — for hover/active/tints, so the accent reads considered, not flat */
+  --accent-deep: color-mix(in srgb, ${b.palette.accent} 82%, #000);
+  --accent-2: color-mix(in srgb, ${b.palette.accent} 78%, ${b.palette.ink});
+  --accent-tint: color-mix(in srgb, ${b.palette.accent} 12%, ${b.palette.paper});
   --muted: ${b.palette.muted};
   --bg: ${b.palette.paper};
   --paper: ${b.palette.paper};
   --surface: ${b.palette.surface};
   --border: ${b.palette.line};
   --line: ${b.palette.line};
+  /* glass (frosted surfaces) — high enough opacity to stay legible */
+  --glass-bg: color-mix(in srgb, ${b.palette.surface} 72%, transparent);
+  --glass-blur: saturate(1.4) blur(12px);
 
   /* type — three deliberate ROLES (run add_fonts to embed these) */
   --font: ${fam(b.type.body, 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif')};
