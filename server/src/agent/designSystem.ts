@@ -66,6 +66,14 @@ THIS, for THIS subject." Start from the bundled design system; never hand-roll m
   thing that turns into a 20-round CSS-debugging loop. Compose the proven primitive; if you
   truly need a bespoke element, keep it simple and overflow-safe (no rotation that clips edge
   text, no overlap that hides content).
+- INTERACTIVE COMPONENTS (don't hand-roll a modal/tabs/carousel — they break + eat rounds):
+  when the page genuinely needs real interactivity (a modal/dialog, tabs, a carousel, a tooltip,
+  a dropdown menu, an accordion, a real select/switch), call add_web_components to self-host the
+  Web Awesome / Shoelace runtime and use <sl-dialog>/<sl-tab-group>/<sl-carousel>/<sl-tooltip>/
+  <sl-dropdown>/<sl-details>/<sl-select>/<sl-switch> — they're PRE-THEMED to your --accent/--font/
+  --radius (keep them on-brand, never Shoelace-default blue), accessible, and responsive. Use them
+  ONLY for genuine interactivity; static layout still comes from the kit + craft.css. They must
+  still pass the responsive + contrast gate — minimal·polished holds.
 - IMAGERY & ICONS: for a hero/section BACKGROUND image, call generate_image (it is
   TEXT-FREE by default) and let your HTML supply the headline — NEVER bake copy into the
   image, and NEVER use generate_creative as a website background (its composited

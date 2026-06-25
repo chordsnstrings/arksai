@@ -19,6 +19,7 @@ import { addAppBackendTool } from './app-backend';
 import { createExpoAppTool } from './expo-app';
 import { createWebAppTool } from './web-app';
 import { designDirectionTool } from './design-direction';
+import { addWebComponentsTool } from './web-components';
 import { inspectUiTool } from './inspect';
 import { buildApkTool } from './build';
 import { publishAppTool } from './publish';
@@ -71,6 +72,7 @@ export const ALL_TOOLS: ToolDef[] = [
   addUiKitTool,
   designDirectionTool,
   createWebAppTool,
+  addWebComponentsTool,
   inspectUiTool,
   createExpoAppTool,
   addMobileUiKitTool,

@@ -1,0 +1,4 @@
+Shoelace (https://shoelace.style) — MIT License — © A Beautiful Site, LLC.
+Vendored lean runtime (TypeScript defs, React wrappers, sourcemaps, and the
+Bootstrap-Icons asset bundle removed; component chrome uses the inline system
+library). Self-hosted by ArksAI; no CDN. Shoelace is the MIT base of Web Awesome.

@@ -1,0 +1,33 @@
+/* ArksAI ↔ Web Awesome / Shoelace token bridge.
+   Link AFTER themes/light.css. Maps Shoelace's component tokens onto OUR tokens
+   (--accent / --accent-deep / --font / --radius) so every <sl-*> component inherits
+   the site's minimal, on-brand look instead of Shoelace's default blue. Any accent
+   works — the primary ramp is derived from var(--accent) via color-mix. */
+:root,
+.sl-theme-light {
+  /* primary ramp ← the site accent (derived, so it tracks whatever the brand accent is) */
+  --sl-color-primary-50:  color-mix(in srgb, var(--accent, #44566a) 7%,  #fff);
+  --sl-color-primary-100: color-mix(in srgb, var(--accent, #44566a) 12%, #fff);
+  --sl-color-primary-200: color-mix(in srgb, var(--accent, #44566a) 24%, #fff);
+  --sl-color-primary-300: color-mix(in srgb, var(--accent, #44566a) 40%, #fff);
+  --sl-color-primary-400: color-mix(in srgb, var(--accent, #44566a) 64%, #fff);
+  --sl-color-primary-500: color-mix(in srgb, var(--accent, #44566a) 88%, #fff);
+  --sl-color-primary-600: var(--accent, #44566a);
+  --sl-color-primary-700: var(--accent-deep, color-mix(in srgb, var(--accent, #44566a) 82%, #000));
+  --sl-color-primary-800: color-mix(in srgb, var(--accent, #44566a) 70%, #000);
+  --sl-color-primary-900: color-mix(in srgb, var(--accent, #44566a) 58%, #000);
+  --sl-color-primary-950: color-mix(in srgb, var(--accent, #44566a) 46%, #000);
+
+  /* type — components use the site's body font */
+  --sl-font-sans: var(--font, var(--font-sans, system-ui, sans-serif));
+  --sl-input-font-family: var(--font, var(--font-sans, system-ui, sans-serif));
+
+  /* radius — track the site's rounding */
+  --sl-border-radius-small: calc(var(--radius, 10px) * 0.6);
+  --sl-border-radius-medium: var(--radius, 10px);
+  --sl-border-radius-large: calc(var(--radius, 10px) * 1.4);
+
+  /* focus ring ← accent (matches the rest of the site's focus-visible) */
+  --sl-focus-ring-color: color-mix(in srgb, var(--accent, #44566a) 42%, transparent);
+  --sl-focus-ring-width: 3px;
+}
