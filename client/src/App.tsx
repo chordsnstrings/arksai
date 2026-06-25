@@ -27,7 +27,6 @@ import { ProjectDialog } from './components/ProjectDialog';
 import { SchedulesDialog } from './components/SchedulesDialog';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
-import { RepoBar } from './components/RepoBar';
 import { LowBalanceBanner } from './components/LowBalanceBanner';
 import { WhatsNewModal, shouldShowWhatsNew } from './components/WhatsNewModal';
 import { ConfirmModal } from './components/ConfirmModal';
@@ -37,6 +36,7 @@ import { AndroidConsole } from './components/AndroidConsole';
 import { useConfirm } from './state/confirmStore';
 import { useStore, emptyLive } from './state/sessionStore';
 import type { Project } from '@shared/types';
+import { AUTO_MODEL } from '@shared/types';
 
 export default function App() {
   const authed = useStore((s) => s.authed);
@@ -51,6 +51,7 @@ export default function App() {
   const sessions = useStore((s) => s.sessions);
   const activeId = useStore((s) => s.activeId);
   const setActive = useStore((s) => s.setActive);
+  const upsertSession = useStore((s) => s.upsertSession);
   const live = useStore((s) => (activeId ? s.live[activeId] : undefined));
   const canvasOpen = useStore((s) => s.canvasOpen);
   const navOpen = useStore((s) => s.navOpen);
@@ -265,6 +266,18 @@ export default function App() {
   // has loaded — so switching sessions never flashes the Launchpad/department picker.
   const liveOrEmpty = live ?? emptyLive();
 
+  // One click → straight into a fresh chat (no modal). Advanced options stay behind the
+  // New-session dialog (the Launchpad/StartZone "advanced" link still opens it).
+  const newChat = async (projectId?: string | null) => {
+    try {
+      const s = await api.createSession({ mode: 'chat', model: AUTO_MODEL, ...(projectId ? { projectId } : {}) });
+      upsertSession(s);
+      setActive(s.id);
+    } catch {
+      setShowNew({ projectId: projectId ?? null }); // fall back to the dialog if quick-create fails
+    }
+  };
+
   // Clear a not-found deep link and return to the Launchpad on the user's say-so.
   const dismissDeepLink = () => {
     deepLinkTried.current = null;
@@ -276,7 +289,7 @@ export default function App() {
   return (
     <div className={`app ${navOpen ? 'nav-open' : 'nav-closed'}`}>
       <Sidebar
-        onNewSession={(projectId) => setShowNew({ projectId: projectId ?? null })}
+        onNewSession={(projectId) => newChat(projectId)}
         onNewProject={() => setProjectDialog('new')}
         onEditProject={(p) => setProjectDialog(p)}
         onHome={() => setActive(null)}
@@ -309,12 +322,12 @@ export default function App() {
             <LowBalanceBanner />
             <ProgressBar live={liveOrEmpty} />
             <Chat live={liveOrEmpty} sessionId={activeMeta.id} />
-            <RepoBar meta={activeMeta} running={liveOrEmpty.running} />
             <Composer
               meta={activeMeta}
               running={liveOrEmpty.running}
               onOpenCommands={() => setShowCommands(true)}
               onOpenMemory={() => setShowMemory(true)}
+              onOpenConnections={() => setShowConnections(true)}
             />
             <CostBar meta={activeMeta} live={liveOrEmpty} />
           </>

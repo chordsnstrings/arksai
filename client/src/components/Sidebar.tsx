@@ -5,6 +5,7 @@ import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
 import { isDark, toggleTheme } from '../lib/theme';
 import { activityBadge, failedDeployments } from '../lib/activity';
+import { ConnectorIcon } from './ConnectorIcon';
 
 /** A small count/dot badge on a nav item. `dot` shows a marker with no number. */
 function NavBadge({ n, dot, tone = 'accent' }: { n?: number; dot?: boolean; tone?: 'accent' | 'amber' }) {
@@ -280,7 +281,9 @@ export function Sidebar({
           🌐 Live apps {failedCount > 0 && <NavBadge n={failedCount} tone="amber" />}
         </button>
         <button className="sb-tool" onClick={onAndroid}>📱 Android</button>
-        <button className="sb-tool" onClick={onConnections}>🔌 Connect</button>
+        <button className="sb-tool" onClick={onConnections}>
+          <ConnectorIcon /> Connect
+        </button>
         <button className="sb-tool" onClick={onNewProject}>▤ New project</button>
         {isAdmin && (
           <button className="sb-tool" onClick={onAdmin}>

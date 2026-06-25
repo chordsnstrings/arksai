@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import type { SessionMeta, SessionMode } from '@shared/types';
+import type { GitStatus, SessionMeta, SessionMode } from '@shared/types';
 import { computeCost, expandTemplate, FALLBACK_MODEL_IDS } from '@shared/types';
 import { formatMoney } from '@shared/currency';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { clearLoopTimer, startLoopTimer } from '../api/useAutomation';
 import { COMMANDS, matchCommands, type CommandMeta } from '../commands';
+import { ConnectModal } from './ConnectModal';
+import { ConnectorIcon } from './ConnectorIcon';
 
 function parseInterval(s: string): number | null {
   const m = s.match(/^(\d+)(s|m|h)?$/);
@@ -19,11 +21,13 @@ export function Composer({
   running,
   onOpenCommands,
   onOpenMemory,
+  onOpenConnections,
 }: {
   meta: SessionMeta;
   running: boolean;
   onOpenCommands: () => void;
   onOpenMemory: () => void;
+  onOpenConnections: () => void;
 }) {
   const [text, setText] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -31,6 +35,9 @@ export function Composer({
   const [attached, setAttached] = useState<string[]>([]);
   const [menuIdx, setMenuIdx] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [git, setGit] = useState<GitStatus | null>(null);
+  const [showConnect, setShowConnect] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -40,6 +47,22 @@ export function Composer({
     setAttached([]);
     taRef.current?.focus();
   }, [meta.id]);
+
+  // Git state drives the "Commit & push" affordance that appears next to Send only when there's
+  // something to commit (keeps the screen clean — no always-on repo bar). Refresh when a run
+  // finishes (the agent likely changed files) and clear on session switch.
+  useEffect(() => setGit(null), [meta.id]);
+  useEffect(() => {
+    if (!meta.repoUrl || running) return;
+    let alive = true;
+    api
+      .gitStatus(meta.id)
+      .then((g) => alive && setGit(g))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [meta.id, meta.repoUrl, running]);
 
   // Let other surfaces (e.g. the plan "Revise" button) drop focus into the box.
   useEffect(() => {
@@ -117,6 +140,21 @@ export function Composer({
       forceStop(meta.id); // roll back the optimistic running state
       setText(value); // don't lose what they typed
       sys(err?.message ?? 'Couldn’t send that — try again', 'error');
+    }
+  };
+
+  // One tap: stage + commit + push the workspace to the connected repo (no model turn).
+  const commitPush = async () => {
+    if (committing) return;
+    setCommitting(true);
+    try {
+      const r = await api.gitCommit(meta.id);
+      setGit(r.git);
+      if (r.pushError) sys(r.pushError, 'error');
+    } catch (e: any) {
+      sys(e?.message ?? 'Could not commit — try again', 'error');
+    } finally {
+      setCommitting(false);
     }
   };
 
@@ -457,15 +495,28 @@ export function Composer({
           >
             {uploading ? '…' : '+'}
           </button>
+          {/* Connectors live here (next to attach), not in an always-on bar — opens a modal to
+              connect GitHub / pick the repo to push to, with a path to the full connectors hub. */}
+          <button className="connect-btn" title="Connect a repo & connectors" onClick={() => setShowConnect(true)}>
+            <ConnectorIcon />
+          </button>
           {/* No mode pills and no model picker — ArksAI reads the request and routes itself
               (build / plan / report / image / …) and picks the right model (M3 vs fast)
               automatically. Power users can still force them with /mode and /model. */}
           <span className="spacer" />
+          {git?.hasRepo && git.dirty > 0 && !running && (
+            <button className="commit-btn" disabled={committing} onClick={commitPush} title="Commit all changes and push to the connected repo">
+              {committing ? 'Pushing…' : 'Commit & push'}
+            </button>
+          )}
           <button className="send-btn" disabled={!text.trim() || (running && !isCommand)} onClick={send}>
             {running && !isCommand ? '…' : 'Send'}
           </button>
         </div>
       </div>
+      {showConnect && (
+        <ConnectModal meta={meta} git={git} onClose={() => setShowConnect(false)} onMore={onOpenConnections} />
+      )}
     </div>
   );
 }

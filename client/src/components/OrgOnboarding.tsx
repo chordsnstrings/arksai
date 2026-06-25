@@ -142,7 +142,7 @@ export function OrgOnboarding({ onDone }: { onDone: () => void }) {
           {meta && live ? (
             <>
               <Chat live={live} sessionId={meta.id} />
-              <Composer meta={meta} running={live.running} onOpenCommands={() => {}} onOpenMemory={() => {}} />
+              <Composer meta={meta} running={live.running} onOpenCommands={() => {}} onOpenMemory={() => {}} onOpenConnections={() => {}} />
             </>
           ) : (
             <div className="onb-loading">Starting your setup…</div>

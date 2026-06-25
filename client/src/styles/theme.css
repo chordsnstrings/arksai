@@ -888,6 +888,37 @@ button { font-family: inherit; cursor: pointer; }
 }
 .attach-btn:hover { color: var(--text); border-color: var(--text-muted); }
 .attach-btn:disabled { opacity: 0.5; cursor: default; }
+/* connectors button (next to attach) — opens the Connect modal */
+.connect-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-muted); padding: 5px 9px; cursor: pointer; line-height: 1;
+}
+.connect-btn:hover { color: var(--text); border-color: var(--text-muted); }
+/* "Commit & push" — appears next to Send only when there's something to commit */
+.commit-btn {
+  background: var(--accent); color: #fff; border: 1px solid var(--accent);
+  border-radius: 9px; padding: 7px 13px; font-size: 13px; font-weight: 500;
+  white-space: nowrap; cursor: pointer;
+}
+.commit-btn:hover:not(:disabled) { filter: brightness(1.06); }
+.commit-btn:disabled { opacity: 0.55; cursor: default; }
+
+/* Connect modal */
+.connect-modal { max-width: 460px; }
+.cm-head { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--text); }
+.cm-head h2 { margin: 0; font-size: 18px; }
+.cm-current {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: 12.5px; color: var(--text-muted); padding: 9px 11px; margin-bottom: 12px;
+  background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 10px;
+}
+.cm-current-txt strong { color: var(--text); }
+.cm-current .repo-git { margin-left: auto; }
+.cm-detach { background: none; border: none; color: var(--text-faint); font-size: 12px; cursor: pointer; padding: 2px 4px; }
+.cm-detach:hover:not(:disabled) { color: var(--text); }
+.cm-body { display: flex; flex-direction: column; gap: 7px; }
+.cm-more { background: none; border: none; color: var(--accent); font-size: 13px; cursor: pointer; text-align: left; padding: 12px 0 4px; }
 
 .mode-toggle {
   display: inline-flex;
