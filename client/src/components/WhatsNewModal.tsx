@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-25.7';
+export const WHATS_NEW_VERSION = '2026-06-25.8';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -29,6 +29,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'React + Tailwind apps',
     body: 'For complex, interactive web apps the studio can now build a modern React + Tailwind app with polished components, themed to your brand and published the same way.',
+  },
+  {
+    title: 'Heroes that feel alive',
+    body: 'Hero sections can now use one tasteful motion moment chosen to fit the brand — a slow image drift, a subtle tilt, a soft gradient or a light parallax — smooth on every device and automatically off if you prefer reduced motion.',
   },
 ];
 

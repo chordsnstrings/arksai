@@ -69,5 +69,43 @@
       });
     }, { threshold: 0.5 });
     counts.forEach(function (el) { cio.observe(el); });
+
+    /* Hero engagement (one tasteful moment) — desktop-pointer + motion only, transform-only.
+       - [data-tilt]      : subtle pointer-reactive tilt (max ~5°), eases back on leave.
+       - [data-parallax]  : light scroll parallax (translateY by data-parallax-speed × scroll). */
+    var finePointer = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    var wide = window.innerWidth > 760;
+    if (reduce || !finePointer || !wide) return; // skip on touch / small / reduced-motion
+
+    var tilts = [].slice.call(document.querySelectorAll('[data-tilt]'));
+    tilts.forEach(function (el) {
+      var max = parseFloat(el.getAttribute('data-tilt')) || 5;
+      el.addEventListener('mousemove', function (e) {
+        var r = el.getBoundingClientRect();
+        var px = (e.clientX - r.left) / r.width - 0.5;
+        var py = (e.clientY - r.top) / r.height - 0.5;
+        el.style.transform = 'perspective(900px) rotateY(' + (px * max).toFixed(2) + 'deg) rotateX(' + (-py * max).toFixed(2) + 'deg)';
+      });
+      el.addEventListener('mouseleave', function () { el.style.transform = ''; });
+    });
+
+    var px = [].slice.call(document.querySelectorAll('[data-parallax]'));
+    if (px.length) {
+      var ticking = false;
+      var apply = function () {
+        var vh = window.innerHeight;
+        px.forEach(function (el) {
+          var speed = parseFloat(el.getAttribute('data-parallax-speed')) || 0.15;
+          var r = el.getBoundingClientRect();
+          var offset = (r.top + r.height / 2 - vh / 2) * -speed;
+          el.style.transform = 'translate3d(0,' + offset.toFixed(1) + 'px,0)';
+        });
+        ticking = false;
+      };
+      window.addEventListener('scroll', function () {
+        if (!ticking) { window.requestAnimationFrame(apply); ticking = true; }
+      }, { passive: true });
+      apply();
+    }
   });
 })();

@@ -229,6 +229,35 @@
   .glass { background: var(--surface, #f5f5f3) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 }
 
+/* ============================================================
+   HERO ENGAGEMENT — one tasteful, GPU-cheap, reduced-motion-safe moment per hero.
+   Pick ONE that fits the brand; never stack them, never force it. All transform/
+   opacity only (no layout thrash), and all disabled under prefers-reduced-motion.
+   ============================================================ */
+
+/* (a) KEN BURNS — a slow, calm scale-drift on a hero BACKGROUND image. Put it on the
+   image element inside an overflow:hidden hero; lay a scrim over it for text legibility. */
+@keyframes craft-kenburns { from { transform: scale(1); } to { transform: scale(1.08); } }
+.ken-burns { animation: craft-kenburns 18s ease-out both alternate infinite; will-change: transform; }
+
+/* (b) GRADIENT DRIFT — a quiet animated gradient field for a hero/section background.
+   Set the gradient yourself (e.g. a soft two-stop accent), this just drifts it slowly. */
+@keyframes craft-gradient-drift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.gradient-drift { background-size: 180% 180%; animation: craft-gradient-drift 16s ease-in-out infinite; }
+
+/* (c) TILT target — JS (site.js) applies a subtle pointer-reactive tilt to [data-tilt].
+   This just makes the transition smooth + sets the 3D context. Desktop-pointer only. */
+[data-tilt] { transition: transform 0.2s var(--craft-ease); transform-style: preserve-3d; will-change: transform; }
+
+/* (d) PARALLAX target — JS (site.js) translates [data-parallax] by a small fraction of
+   scroll (transform only, desktop + motion only). data-parallax-speed tunes it (~0.15). */
+[data-parallax] { will-change: transform; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ken-burns, .gradient-drift { animation: none !important; }
+  [data-tilt], [data-parallax] { transform: none !important; transition: none !important; }
+}
+
 /* ---- staggered reveal for a signature list (works with the kit's [data-reveal]) ---- */
 [data-reveal] .board-row,
 [data-reveal] .spec-row { transition: opacity 0.5s var(--craft-ease), transform 0.5s var(--craft-ease); }

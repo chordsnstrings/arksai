@@ -81,6 +81,33 @@ test('craft.css ships a legible-by-default, fallback-safe glassmorphism utility'
   assert.match(craft, /\.glass\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--bg/);
 });
 
+test('craft.css ships GPU-cheap, reduced-motion-safe hero effects', () => {
+  for (const sel of ['.ken-burns', '.gradient-drift', '[data-tilt]', '[data-parallax]', 'craft-kenburns']) {
+    assert.ok(craft.includes(sel), `craft.css missing hero effect ${sel}`);
+  }
+  // all hero motion is disabled under reduced motion
+  const rm = craft.slice(craft.lastIndexOf('prefers-reduced-motion'));
+  assert.match(craft, /prefers-reduced-motion[\s\S]*\.ken-burns[\s\S]*animation:\s*none/);
+  void rm;
+});
+
+test('site.js gates tilt/parallax to desktop pointer + motion, transform-only', () => {
+  assert.match(siteJs, /\[data-tilt\]/);
+  assert.match(siteJs, /\[data-parallax\]/);
+  assert.match(siteJs, /hover: hover\) and \(pointer: fine/); // desktop pointer only
+  assert.match(siteJs, /translate3d/); // transform-only parallax (no layout thrash)
+  assert.match(siteJs, /requestAnimationFrame/); // throttled
+  // bails on reduced-motion / touch / small
+  assert.match(siteJs, /if \(reduce \|\| !finePointer \|\| !wide\) return/);
+});
+
+test('designCore steers ONE hero moment by fit, not forced parallax', () => {
+  assert.match(designCore, /HERO ENGAGEMENT/);
+  assert.match(designCore, /ONE tasteful moment/);
+  assert.match(designCore, /heavy scroll-jacked parallax/);
+  assert.match(designCore, /reduced-motion/);
+});
+
 test('designCore demands colour care + modern techniques under the minimal bar', () => {
   assert.match(designCore, /COLOUR — EXTREME CARE/);
   assert.match(designCore, /ramp|--accent-deep|--accent-tint/);

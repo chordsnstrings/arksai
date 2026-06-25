@@ -161,7 +161,13 @@ THIS, for THIS subject." Start from the bundled design system; never hand-roll m
   primary CTA, .with-arrow = an arrow that nudges, .float = a gentle idle drift for ONE hero
   accent. Aim for consistent hover/focus micro-interactions on every interactive element PLUS
   one or two signature motion moments (a revealed board, counting stats) — lively but never
-  busy. ui-kit/open-props.css adds optional richer easings (var(--ease-elastic-3)), named
+  busy. HERO ENGAGEMENT — give the hero ONE tasteful moment CHOSEN TO FIT THE BRAND, never a
+  forced/janky effect and never more than one: an entrance reveal (default), a slow .ken-burns
+  drift on a background image (with a scrim for legibility), a subtle pointer [data-tilt] on the
+  hero visual, a quiet .gradient-drift field, or a LIGHT [data-parallax] (data-parallax-speed
+  ~0.15). These are GPU-cheap (transform/opacity only), desktop-pointer-gated, and auto-off under
+  reduced-motion. Do NOT use heavy scroll-jacked parallax, and a calm/corporate brand may want
+  just the reveal. Match the effect to the concept; restraint wins. ui-kit/open-props.css adds optional richer easings (var(--ease-elastic-3)), named
   animations (var(--animation-fade-in)) and gradients (var(--gradient-7)) — reach for them for
   tasteful variety, WITH RESTRAINT. ALWAYS respect prefers-reduced-motion (the kit already does).
 - THE BAR HOLDS NO MATTER THE TOOLKIT: whatever components or kits you use (the bundled kit, any
