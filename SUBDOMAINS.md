@@ -31,7 +31,26 @@ done — the only missing piece is **DNS**, which lives in the DNS zone (the
    `/opt/arksai/.env` set `APPS_SUBDOMAIN_BASE=apps.arksai.studio`, then `./deploy.sh tls`
    (or wait for the auto-deploy). Until this is set, apps keep using the always-working path URL.
 
-## Most likely current cause
-The symptom was "won't load at all" (not a cert warning, not a 404) — that's a **DNS miss**: the
-`*.apps.arksai.studio` record either was never added to the zone or doesn't point at the droplet.
-Step 1 is almost certainly the whole fix.
+## STATUS (2026-06-25) — verified, still not serving → it's Caddy cert issuance
+Checked everything reachable; all green EXCEPT the final TLS handshake:
+- **DNS ✓** — `A *.apps.arksai.studio → 159.89.172.210` exists in the zone (DO account
+  `marketing.gicbd@gmail.com`, "My Team"). Droplet IP confirmed `159.89.172.210`.
+- **On-demand-TLS gate ✓** — `GET https://arksai.studio/internal/tls-check?domain=gic-global.apps.arksai.studio`
+  → `ok` (200); a bogus host → `no` (404). So Caddy is AUTHORIZED to mint the cert.
+- **Deployment ✓** — `https://arksai.studio/apps/gic-global/` → 200 (live).
+- **Still:** `https://gic-global.apps.arksai.studio/` won't load for the user. Since DNS + gate +
+  app are fine, the remaining suspect is **Caddy failing to ISSUE the on-demand cert** on the
+  droplet (Let's Encrypt rate-limit / challenge failure, or the Caddy container running a stale
+  config that never got the `*.apps` block reloaded).
+
+### NEXT STEP when you return (needs droplet shell — the sandbox can't reach it)
+```
+docker compose -f /opt/arksai/docker-compose.tls.yml logs caddy | grep -i "apps.arksai\|on_demand\|obtain\|error\|rate" | tail -60
+docker compose -f /opt/arksai/docker-compose.tls.yml exec caddy caddy validate --config /etc/caddy/Caddyfile   # confirm the *.apps block is actually loaded
+```
+Paste that log to me and I'll pinpoint it. If it's a stale Caddy config: `cd /opt/arksai && ./deploy.sh tls`
+(recreates Caddy with the current Caddyfile). Once it serves, set `APPS_SUBDOMAIN_BASE=apps.arksai.studio`
+in `/opt/arksai/.env` so the clean URL is advertised.
+
+## Most likely original cause
+
