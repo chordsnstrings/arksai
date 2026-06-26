@@ -25,9 +25,27 @@ Legend: ✅ at-bar · 🟡 good output but a process/quality gap · 🔴 below b
   rendering glitch / sub-pixel" finding is treated as DONE. **Re-validate:** next live web build should
   finish in a handful of inspections, not 20+.
 
+### .xlsx formula model — 🟡 → improved
+- **Brief (live):** 3-year MONTHLY SaaS model; Assumptions sheet + a Model sheet where every derived
+  number is a live formula across 36 months. (code mode, arksai-auto)
+- **Output:** the detailed **Model sheet is genuinely formula-driven — 479 formulas, 0 literals**, real
+  cross-sheet refs (`=Assumptions!$B$3`). A big improvement over the old audit's "1 of 6 formula-driven."
+  BUT the **Summary sheet was broken**: it tried to reference the Model but wrote the refs as plain TEXT
+  without `=` (`Summary!B5="Model!D6"` → dead links) *and* hard-coded numbers.
+- **Latency finding:** the build ran **21+ min and still hadn't finished** (heavy-generator latency on M3,
+  building one sheet per call) — I interrupted it before the verify gate ran.
+- **Gaps:** (1) the broken-Summary case: the existing `stringyRef` audit DOES catch the dead-text refs (so
+  the gate would have flagged it on completion), but a *purely* hard-coded Summary sheet (typed numbers,
+  no text refs, non-derived row labels) slipped through — the formula audit was workbook-level. (2) severe
+  heavy-generator latency.
+- **Fix applied (commit):** `deliverableCheck.ts auditFormulaModel` now also flags at the **sheet level** — a
+  summary/dashboard/P&L/cash-flow/output sheet with **0 formulas and ≥15 typed-in numbers** while the model
+  computes elsewhere is flagged ("reference the calc sheets with =Model!.. / =SUM(Model!..)"). Unit-tested
+  (non-derived labels, so it exercises the sheet path) + verified against the real workbook. Latency is a
+  known, separate issue (model speed on heavy generators) — not fixed here.
+
 ### Report PDF — ⬜
 ### .docx — ⬜
-### .xlsx formula model — ⬜ (audit flag: inconsistently formula-driven)
 ### .pptx deck — ⬜ (never exercised via the live agent)
 
 ## Wave 2 — Code on a connected repo — ⬜

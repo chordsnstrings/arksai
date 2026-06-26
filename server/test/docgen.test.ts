@@ -231,6 +231,41 @@ test('auditFormulaModel: a derived row typed in as literals (model uses formulas
   assert.equal(r.isModel, true, r.reason);
 });
 
+test('auditFormulaModel: a hard-coded Summary sheet (0 formulas) beside a formula model IS flagged', async () => {
+  await generateSpreadsheetTool.run(
+    {
+      output: 'model_summary.xlsx',
+      sheets: [
+        { name: 'Assumptions', columns: [{ header: 'Driver' }, { header: 'Value', type: 'number' }], rows: [['Growth', 0.1]] },
+        {
+          name: 'Model',
+          columns: [{ header: 'Line' }, { header: 'M1', type: 'number' }, { header: 'M2', type: 'number' }],
+          rows: [
+            ['Revenue', { f: 'Assumptions!B2*1000', v: 100 }, { f: 'B2*(1+Assumptions!B2)', v: 110 }],
+            ['Costs', { f: 'B2*0.6', v: 60 }, { f: 'C2*0.6', v: 66 }],
+          ],
+        },
+        {
+          // a Summary sheet of ALL typed-in numbers (no formulas) — should be flagged
+          name: 'Summary',
+          columns: [{ header: 'KPI' }, { header: 'Q1', type: 'number' }, { header: 'Q2', type: 'number' }, { header: 'Q3', type: 'number' }, { header: 'Q4', type: 'number' }],
+          // non-derived row labels, so ONLY the sheet-level check (not the row check) can catch it
+          rows: [
+            ['North region', 100, 110, 121, 133],
+            ['South region', 60, 66, 73, 80],
+            ['East region', 40, 44, 48, 53],
+            ['West region', 25, 28, 31, 34],
+          ],
+        },
+      ],
+    },
+    ctx(),
+  );
+  const r = auditFormulaModel(await readWb(path.join(ws, 'model_summary.xlsx')));
+  assert.equal(r.isModel, true, r.reason);
+  assert.match(r.reason, /Summary/);
+});
+
 test('auditFormulaModel: multi-value literal driver rows on the Assumptions sheet are NOT flagged', async () => {
   await generateSpreadsheetTool.run(
     {
