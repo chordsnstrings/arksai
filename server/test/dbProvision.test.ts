@@ -35,6 +35,19 @@ test('buildPgUrl: swaps the database name, user and password into a base URL', (
   assert.equal(u.hostname, 'db.example.com');
 });
 
+test('pgConnOpts: strips a conflicting sslmode and encrypts without CA verify for a managed host', () => {
+  const o = m.pgConnOpts('postgresql://u:p@x.ondigitalocean.com:25060/defaultdb?sslmode=require');
+  assert.ok(!String(o.connectionString).includes('sslmode'));
+  assert.deepEqual(o.ssl, { rejectUnauthorized: false });
+  // a plain local URL needs no ssl
+  assert.equal(m.pgConnOpts('postgresql://u:p@localhost:5432/db').ssl, undefined);
+});
+
+test('appSslMode: Prisma uses require, node-pg uses no-verify', () => {
+  assert.equal(m.appSslMode(true), 'require');
+  assert.equal(m.appSslMode(false), 'no-verify');
+});
+
 test('detectDbKind: from Prisma provider and from deps', () => {
   assert.equal(m.detectDbKind(null, 'sqlite'), 'sqlite');
   assert.equal(m.detectDbKind(null, 'postgresql'), 'postgres');

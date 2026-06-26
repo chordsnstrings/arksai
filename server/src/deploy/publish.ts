@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { execBash } from '../lib/exec';
 import { listeningPorts } from '../lib/ports';
 import { detectStartCommand } from '../agent/verify';
-import { detectDbKind, deprovisionAppDatabase, provisionAppDatabase } from './dbProvision';
+import { appSslMode, detectDbKind, deprovisionAppDatabase, provisionAppDatabase } from './dbProvision';
 import { browserSmokeTest } from '../agent/uiCheck';
 import { config } from '../config';
 import { repoDir } from '../sessions/workspace';
@@ -96,7 +96,13 @@ export async function setupDatabase(dest: string, slug: string): Promise<{ ok: b
   if (kind !== 'sqlite' && kind !== 'none') {
     const prov = await provisionAppDatabase(slug, kind);
     if (!prov.ok) return { ok: false, error: prov.error };
-    if (prov.connectionString) dbUrl = prov.connectionString;
+    if (prov.connectionString) {
+      // The managed instance presents a CA the app's driver won't trust by default — append the
+      // sslmode that encrypts WITHOUT CA verification for that driver (Prisma `require`, node-pg
+      // `no-verify`), so the deployed app connects without shipping a CA cert.
+      const mode = appSslMode(!!schemaRel);
+      dbUrl = prov.connectionString.includes('sslmode=') ? prov.connectionString : `${prov.connectionString}?sslmode=${mode}`;
+    }
   }
   if (kind === 'none' && !schemaRel) return { ok: true }; // no DB at all → nothing to do
 

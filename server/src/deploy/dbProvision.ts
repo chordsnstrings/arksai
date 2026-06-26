@@ -22,6 +22,28 @@ export interface ProvisionResult {
   error?: string;
 }
 
+// Managed Postgres (DO/Neon/Supabase/RDS) presents a CA Node doesn't trust by default → a naive
+// `sslmode=require` connection fails "self-signed certificate". For OUR admin connections, strip any
+// conflicting sslmode from the URL and pass an explicit ssl config that encrypts without CA verify.
+export function pgConnOpts(url: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const needsSsl = /sslmode=|\.ondigitalocean\.com|\.neon\.tech|\.supabase\.|\.render\.com|rds\.amazonaws/i.test(url);
+  let connectionString = url;
+  try {
+    const u = new URL(url);
+    u.searchParams.delete('sslmode');
+    connectionString = u.toString();
+  } catch {
+    /* leave as-is */
+  }
+  return { connectionString, ssl: needsSsl ? { rejectUnauthorized: false } : undefined, ...extra };
+}
+
+/** The sslmode an APP's driver needs to talk to the managed instance WITHOUT shipping the CA:
+ *  Prisma encrypts-without-verify on `require`; node-postgres needs `no-verify` for the same. */
+export function appSslMode(isPrisma: boolean): string {
+  return isPrisma ? 'require' : 'no-verify';
+}
+
 /** A safe, stable per-app identifier: `app_<slug>` reduced to [a-z0-9_], so re-publish reuses the
  *  SAME database (data persists) and it can never inject SQL via the slug. Pure. */
 export function safeDbName(slug: string): string {
@@ -42,6 +64,7 @@ export function buildPgUrl(adminUrl: string, dbName: string, user?: string, pass
   u.pathname = `/${dbName}`;
   if (user) u.username = user;
   if (password !== undefined) u.password = password;
+  u.search = ''; // drop the admin URL's query (e.g. sslmode) — the caller appends the right one
   return u.toString();
 }
 
@@ -95,10 +118,7 @@ export async function testPgAdmin(): Promise<{ ok: boolean; version?: string; er
   } catch {
     return { ok: false, error: 'Postgres client unavailable.' };
   }
-  const ssl = /sslmode=require|\.ondigitalocean\.com|\.neon\.tech|\.supabase\./i.test(adminUrl)
-    ? { rejectUnauthorized: false }
-    : undefined;
-  const c = new pg.Client({ connectionString: adminUrl, ssl, connectionTimeoutMillis: 12_000 });
+  const c = new pg.Client(pgConnOpts(adminUrl, { connectionTimeoutMillis: 12_000 }));
   try {
     await c.connect();
     const r = await c.query('SELECT version()');
@@ -131,10 +151,7 @@ async function provisionPostgres(slug: string): Promise<ProvisionResult> {
   } catch {
     return { ok: false, error: 'Postgres client unavailable on the server.' };
   }
-  const ssl = /sslmode=require|\.ondigitalocean\.com|\.neon\.tech|\.supabase\./i.test(adminUrl)
-    ? { rejectUnauthorized: false }
-    : undefined;
-  const admin = new pg.Client({ connectionString: adminUrl, ssl });
+  const admin = new pg.Client(pgConnOpts(adminUrl));
   try {
     await admin.connect();
     // Role: create if missing, always (re)set the derived password so the app URL stays valid.
@@ -149,7 +166,9 @@ async function provisionPostgres(slug: string): Promise<ProvisionResult> {
     if (dbExists.rowCount === 0) {
       await admin.query(`CREATE DATABASE ${ident(db)} OWNER ${ident(role)}`);
     }
-    const connectionString = buildPgUrl(adminUrl, db, role, password) + (ssl ? '?sslmode=require' : '');
+    // Return the base URL WITHOUT sslmode — the caller appends the driver-appropriate sslmode
+    // (Prisma `require` vs node-pg `no-verify`) since the same managed CA needs different handling.
+    const connectionString = buildPgUrl(adminUrl, db, role, password);
     return { ok: true, envVar: 'DATABASE_URL', connectionString };
   } catch (e: any) {
     return { ok: false, error: `Postgres provisioning failed: ${String(e?.message ?? e).slice(0, 200)}` };
@@ -177,10 +196,7 @@ export async function deprovisionAppDatabase(slug: string): Promise<void> {
   } catch {
     return;
   }
-  const ssl = /sslmode=require|\.ondigitalocean\.com|\.neon\.tech|\.supabase\./i.test(adminUrl)
-    ? { rejectUnauthorized: false }
-    : undefined;
-  const admin = new pg.Client({ connectionString: adminUrl, ssl });
+  const admin = new pg.Client(pgConnOpts(adminUrl));
   try {
     await admin.connect();
     // WITH (FORCE) terminates any lingering connections (PG13+) so the drop can't hang on the app.
