@@ -43,18 +43,53 @@ const NO_TEST = /no test specified/i;
  * Detect how to boot this project as a running app, or null if it's a
  * library/script with nothing to serve. Used by the runtime verification phase.
  */
-// A long-running SERVER/app entry contains one of these; a plain LIBRARY (whose index.js just
-// exports a function — e.g. p-limit) does not. Used to avoid trying to "boot" a library as an app
-// (which opens no port and loops the runtime gate forever).
-const SERVER_SIGNAL_RE =
-  /\.listen\s*\(|createServer|express\s*\(|fastify\s*\(|new\s+Hono|Deno\.serve|Bun\.serve|http\.createServer|process\.env\.PORT|app\.run\s*\(|uvicorn|Flask\s*\(|FastAPI\s*\(|gunicorn|app\.listen/i;
+// A long-running SERVER/app entry contains one of these; a plain LIBRARY (index.js that just
+// exports) or a STATIC client app does not. Signals are language-scoped and chosen to NOT match
+// common CLIENT idioms — bare `.listen(` (React Router `history.listen`, store.listen) and `app.run()`
+// (a plain method name) are NOT used, since a static app with those was wrongly booted as a server.
+const JS_SERVER_RE =
+  /createServer|express\s*\(|fastify\s*\(|new\s+Koa\b|new\s+Hono\b|@hono\/node-server|Deno\.serve|Bun\.serve|polka\s*\(/i;
+// A server that binds a port from the environment: `app.listen(process.env.PORT)` (either order).
+const JS_PORT_LISTEN_RE =
+  /process\.env\.PORT[\s\S]{0,300}\.listen\s*\(|\.listen\s*\([^)]{0,80}process\.env\.PORT/i;
+// Python server signals — only checked on .py files.
+const PY_SERVER_RE =
+  /Flask\s*\(|FastAPI\s*\(|Sanic\s*\(|app\.run\s*\(|uvicorn|gunicorn|HTTPServer|socketserver|http\.server|wsgiref|aiohttp/i;
 
 function looksLikeServer(dir: string, file: string): boolean {
   try {
-    return SERVER_SIGNAL_RE.test(fs.readFileSync(path.join(dir, file), 'utf8').slice(0, 20_000));
+    const src = fs.readFileSync(path.join(dir, file), 'utf8').slice(0, 40_000);
+    if (/\.py$/.test(file)) return PY_SERVER_RE.test(src);
+    return JS_SERVER_RE.test(src) || JS_PORT_LISTEN_RE.test(src);
   } catch {
     return false;
   }
+}
+
+// A DB/infra-backed server app (Prisma/Postgres/Mongo/Redis/…) provably CANNOT boot inside the
+// build sandbox — there's no database or env there. That's not a code defect: the verify gate
+// should not hard-fail it (which blocks finishing + publishing, where it runs with its real DB).
+const DB_DEP_RE =
+  /"(@prisma\/client|prisma|pg|pg-promise|postgres|mysql2?|mariadb|mongoose|mongodb|typeorm|sequelize|drizzle-orm|knex|redis|ioredis|@planetscale\/database|@neondatabase\/serverless|better-sqlite3)"/i;
+const PY_DB_RE = /\b(psycopg2?|sqlalchemy|django|asyncpg|pymongo|redis|mysqlclient|aiomysql|databases)\b/i;
+export function needsExternalDb(dir: string): boolean {
+  try {
+    if (exists(dir, 'package.json')) {
+      const raw = fs.readFileSync(path.join(dir, 'package.json'), 'utf8');
+      const pkg = JSON.parse(raw);
+      const deps = JSON.stringify({ ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) });
+      if (DB_DEP_RE.test(deps)) return true;
+      if (/DATABASE_URL|MONGO_URL|REDIS_URL|POSTGRES_URL/.test(JSON.stringify(pkg.scripts || {}))) return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (exists(dir, 'requirements.txt')) return PY_DB_RE.test(fs.readFileSync(path.join(dir, 'requirements.txt'), 'utf8'));
+  } catch {
+    /* ignore */
+  }
+  return false;
 }
 
 export function detectStartCommand(dir: string): string | null {

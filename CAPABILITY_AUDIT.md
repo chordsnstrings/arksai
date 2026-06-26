@@ -114,3 +114,21 @@ Legend: ✅ at-bar · 🟡 good output but a process/quality gap · 🔴 below b
 `GET /api/sessions/:id`). The headless browser CANNOT reach arksai.studio (proxy blocks browser TLS →
 `ERR_CONNECTION_CLOSED`), so published apps are mirrored locally (curl the files) and screenshotted from a
 local server; PDFs are rasterized with `mupdf`.
+
+## Publish regression (operator-reported) — diagnosed + fixed
+- **Report:** "after your fix now apps don't actually publish." **Diagnosed live:**
+  - Publishing WORKS — a fresh build published clean (`/apps/hello-time/`, 200), and the reported app
+    (`eco-clean-uae`) was in fact **live**. The screenshot's failure was a *follow-up build's verify gate*
+    failing on "Booting the app."
+  - The app is a full **Next.js + Prisma + Postgres** app (`start: next start`, deps `@prisma/client`/`prisma`).
+    The verify gate tried to `npm start` it, but it needs a **Postgres DB + env** the build sandbox doesn't
+    have → can't boot → dead-loops → blocks finishing + re-publishing the change. **Not caused by my
+    `detectStartCommand` change** (the `start`-script path is unchanged).
+- **Fix 1 (the real blocker):** the runtime gate is now **non-fatal for a DB-backed server app**
+  (`needsExternalDb` in `verify.ts`: prisma/pg/mongo/redis/… or DATABASE_URL): static checks + build still
+  gate, then it's accepted with an honest note and **validated live at publish** (where its real DB exists),
+  instead of looping "booting the app."
+- **Fix 2 (latent regression I DID introduce):** my `looksLikeServer` regex matched `app.run(` and bare
+  `.listen(` — which are common CLIENT idioms (`app.run()`, React Router `history.listen()`) — so a static
+  app could be wrongly booted as a server. Now **language-scoped** (JS server constructs / `PORT`-bound
+  listen; Python signals only on `.py`), dropping those false-positives. Unit-tested. 650 tests green.

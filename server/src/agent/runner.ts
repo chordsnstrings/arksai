@@ -23,7 +23,7 @@ import { deriveTitle } from './titleGen';
 import { recordIncident } from '../incidents/store';
 import { makeThinkFilter } from './thinkFilter';
 import { Usage } from './usage';
-import { checkLabel, detectStartCommand, verifyProject } from './verify';
+import { checkLabel, detectStartCommand, needsExternalDb, verifyProject } from './verify';
 import { probeApp } from './runtimeCheck';
 import { checkDeliverable, type DeliverableKind } from './deliverableCheck';
 import { processRegistry } from './processes';
@@ -1645,6 +1645,15 @@ export class AgentRun {
     });
     if (probe.ui?.visualReview) this.engineCostUsd += config.minimaxVisionCost; // vision spend
     if (!probe.booted || probe.serverErrors > 0) {
+      // A DB/infra-backed server app (Prisma+Postgres, Mongo, …) CANNOT boot in the build sandbox —
+      // there's no database/env here. That's not a code defect, and hard-failing dead-loops the gate
+      // and blocks finishing + publishing (where it DOES run with its real database, and the
+      // post-publish smoke test validates the live URL). Static checks already passed, so accept it
+      // with an honest note instead of looping "Booting the app".
+      if (!staticSite && needsExternalDb(dir)) {
+        sys('info', '✓ Build verified. This app needs a database to run, which the build sandbox doesn’t have — it’ll be started and checked live when you publish.');
+        return 'ok';
+      }
       return failFix(probe.serverErrors > 0 ? 'Runtime testing' : 'Booting the app', probe.detail, 'testing');
     }
     if (probe.ui?.hardFail) {

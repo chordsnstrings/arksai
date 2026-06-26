@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { detectStartCommand } from '../src/agent/verify';
+import { detectStartCommand, needsExternalDb } from '../src/agent/verify';
 
 function tmp(files: Record<string, string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-start-'));
@@ -42,4 +42,20 @@ test('detectStartCommand: a Flask app.py IS bootable, a plain script is not', ()
   assert.equal(detectStartCommand(server), 'python3 app.py');
   const lib = tmp({ 'app.py': 'def add(a, b):\n    return a + b' });
   assert.equal(detectStartCommand(lib), null);
+});
+
+test('detectStartCommand: a STATIC client app.js with app.run()/.listen() is NOT a server (the publish regression)', () => {
+  // app.run() is a super-common client-side method name, and history.listen()/store.listen() are
+  // standard client idioms — none of these must make a static site get booted as a Node server.
+  const clientRun = tmp({ 'package.json': '{}', 'app.js': 'const app = { run(){ document.body.innerHTML = "hi"; } }; app.run();' });
+  assert.equal(detectStartCommand(clientRun), null);
+  const clientListen = tmp({ 'package.json': '{}', 'index.js': 'history.listen(loc => render(loc)); store.listen(update);' });
+  assert.equal(detectStartCommand(clientListen), null);
+});
+
+test('needsExternalDb: a Prisma/Postgres app is flagged, a plain app is not', () => {
+  const dbApp = tmp({ 'package.json': JSON.stringify({ dependencies: { next: '^14', '@prisma/client': '^5' }, scripts: { start: 'next start' } }) });
+  assert.equal(needsExternalDb(dbApp), true);
+  const plain = tmp({ 'package.json': JSON.stringify({ dependencies: { express: '^4' }, scripts: { start: 'node server.js' } }) });
+  assert.equal(needsExternalDb(plain), false);
 });
