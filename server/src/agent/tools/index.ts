@@ -36,6 +36,7 @@ import { publishAppTool } from './publish';
 import { generateSpreadsheetTool } from './excel';
 import { generateDocTool } from './docx';
 import { generatePptxTool } from './pptx';
+import { convertDocumentTool } from './convert';
 import { switchModeTool, submitPlanTool } from './mode';
 import { fetchDataTool } from './data';
 import { fetchAdsTool } from './ads';
@@ -98,6 +99,7 @@ export const ALL_TOOLS: ToolDef[] = [
   generateSpreadsheetTool,
   generateDocTool,
   generatePptxTool,
+  convertDocumentTool,
   switchModeTool,
   submitPlanTool,
   fetchDataTool,
@@ -136,6 +138,7 @@ const REPORT_TOOLS = new Set([
   'generate_spreadsheet',
   'generate_doc',
   'generate_pptx',
+  'convert_document',
   'extract_palette',
   'validate_palette',
   'compute_financials',

@@ -387,7 +387,7 @@ export const generatePptxTool: ToolDef = {
     }
 
     const sz = fs.statSync(absOut).size;
-    return `Generated ${finalName} (${Math.round(sz / 1024)} KB, ${slideCount} slides) — editable, editorial 16:9 deck. Offered as a download; the canvas can preview it.`;
+    return `Generated ${finalName} (${Math.round(sz / 1024)} KB, ${slideCount} slides) — editable, editorial 16:9 deck. Offered as a download; the canvas can preview it. To deliver a PDF, call convert_document on this .pptx (it renders the faithful .preview.html mirror via Chromium — do NOT run soffice on the .pptx, which blanks chart images).`;
   },
 };
 
@@ -473,6 +473,10 @@ function writePreviewHtml(
     .cv-kpi-v{font-family:'Source Serif 4',serif;font-weight:700;font-size:26px} .cv-kpi-l{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:2px}
     .cv-meta{font-size:10px;color:var(--muted);border-top:1px solid var(--surface);padding-top:8px}
     .figsvg{margin-top:14px} .figsvg svg{max-width:100%;height:auto;display:block}
+    /* Print: each slide becomes exactly one full page (no gray canvas / shadow) so this
+       same file converts to a faithful slide-per-page PDF via Chromium (convert_document). */
+    @page{size:960px 540px;margin:0}
+    @media print{body{background:#fff;padding:0}.slide{box-shadow:none;margin:0;border-radius:0;page-break-after:always}}
   </style></head><body>${tiles}</body></html>`;
   fs.writeFileSync(abs, html);
 }

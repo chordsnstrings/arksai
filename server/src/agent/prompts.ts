@@ -163,9 +163,17 @@ function docToolsSlice(): string {
   • Slide deck (.pptx) → use generate_pptx (editorial 16:9, designed cover, charts
     via render_chart). Do NOT hand-build, unzip, or edit a .pptx by hand — that's
     slow and corrupts the file; ONE generate_pptx call emits the whole deck.
+  • Convert a deck or document to PDF → use convert_document (it renders a deck's
+    faithful .preview.html via Chromium). NEVER shell out to soffice/LibreOffice on a
+    .pptx — it silently blanks embedded chart images; convert_document avoids that.
   • These auto-open in the canvas preview and are offered as downloads.
   Only drop to a hand-written Node script (pdfkit etc.) for a format these tools
   don't cover.
+  • KNOW WHEN A DOCUMENT IS DONE: once a deck/sheet/doc reads as clean, correct, and
+    on-brand, DELIVER it. Do NOT re-author it round after round or "reimagine" an
+    already-good cover with novelty concepts (e.g. swapping a clean title slide for a
+    decorative gimmick) — that burns the user's budget and usually makes it worse.
+    The automatic design gate already catches real defects; fix only what it flags.
 - LIVE DATA: if the user gives a public link to data (a Google-Sheets "publish to
   web" CSV link, a CSV/JSON URL, or a public API) instead of pasting it, use
   fetch_data to pull it, then build off the real numbers. (Private sources need a

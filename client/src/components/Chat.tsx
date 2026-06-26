@@ -5,7 +5,7 @@ import type { TimelineItem, ToolCallRecord } from '@shared/types';
 import type { CompletionState, LiveState } from '../state/sessionStore';
 import { useStore } from '../state/sessionStore';
 import { api } from '../api/client';
-import { openExternal } from '../lib/openExternal';
+import { DeploymentsDialog } from './DeploymentsDialog';
 
 const TOOL_LABEL: Record<string, string> = {
   web_search: 'Searching',
@@ -225,14 +225,10 @@ const NEXT_STEPS: Record<string, { label: string; prompt: string }[]> = {
 function CompletionCard({ completion, sessionId }: { completion: CompletionState; sessionId: string }) {
   const toggleCanvas = useStore((s) => s.toggleCanvas);
   const canvasTarget = useStore((s) => s.canvasTarget);
-  const beginRun = useStore((s) => s.beginRun);
-  const addUserMessage = useStore((s) => s.addUserMessage);
-  const [link, setLink] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [err, setErr] = useState('');
-  const [phase, setPhase] = useState(0);
+  const meta = useStore((s) => s.sessions.find((x) => x.id === sessionId));
+  // Publishing always happens in the focused modal (link + any errors clearly visible),
+  // never as a cramped inline step in the chat flow.
+  const [showPublish, setShowPublish] = useState(false);
   const [rated, setRated] = useState(false);
   const [showComplaint, setShowComplaint] = useState(false);
   const [complaint, setComplaint] = useState('');
@@ -257,18 +253,6 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
     }
   };
 
-  // Walk the real publish phases so the 30-60s wait shows visible motion, not a freeze.
-  const PUB_PHASES = ['Snapshotting your app…', 'Installing what it needs…', 'Booting it up…', 'Checking the live URL…'];
-  useEffect(() => {
-    if (!busy) {
-      setPhase(0);
-      return;
-    }
-    const t = setInterval(() => setPhase((p) => Math.min(p + 1, PUB_PHASES.length - 1)), 2600);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy]);
-
   // A live thumbnail of the finished thing — the reveal — using whatever the canvas
   // auto-loaded (a running app's preview, or the produced document).
   let thumbSrc: string | null = null;
@@ -282,41 +266,6 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
         ? `/api/sessions/${sessionId}/files/${f}?inline=1`
         : `/api/sessions/${sessionId}/docview/${f}`;
   }
-
-  const publish = async () => {
-    setBusy(true);
-    setErr('');
-    setFailed(false);
-    try {
-      const dep = await api.publish(sessionId);
-      if (dep.status === 'running') setLink(`${window.location.origin}${dep.url}`);
-      else setFailed(true);
-    } catch (e: any) {
-      setErr(e?.message ?? 'Could not publish');
-      setFailed(true);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // Recovery is one tap: send the defect back to the agent to fix + republish.
-  const fixAndRepublish = async () => {
-    const msg = 'The shared preview didn’t pass its check — please fix what’s broken and publish it again.';
-    setFailed(false);
-    addUserMessage(sessionId, msg);
-    beginRun(sessionId);
-    try {
-      await api.sendMessage(sessionId, msg);
-    } catch {
-      /* the optimistic state will clear on the next event */
-    }
-  };
-
-  const copy = () => {
-    navigator.clipboard?.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  };
 
   return (
     <div className="completion-card reveal">
@@ -338,42 +287,13 @@ function CompletionCard({ completion, sessionId }: { completion: CompletionState
         <button className="cc-open" onClick={() => toggleCanvas(true)}>
           Open {noun}
         </button>
-        {completion.kind === 'app' && !link && (
-          <button className="cc-link" onClick={publish} disabled={busy}>
-            {busy ? PUB_PHASES[phase] : '🔗 Share it'}
+        {completion.kind === 'app' && (
+          <button className="cc-link" onClick={() => setShowPublish(true)}>
+            🔗 Share it
           </button>
         )}
       </div>
-      {link && (
-        <div className="cc-live">
-          <strong>✓ Live — share with anyone, no login needed.</strong>
-          <div className="cc-link-row">
-            <a
-              href={link}
-              onClick={(e) => {
-                e.preventDefault();
-                openExternal(link);
-              }}
-              rel="noreferrer"
-            >
-              {link}
-            </a>
-            <button className="cc-copy" onClick={copy}>
-              {copied ? 'Copied ✓' : 'Copy'}
-            </button>
-          </div>
-          <span className="cc-note">Stays live for 24 hours — re-publish any time to refresh it.</span>
-        </div>
-      )}
-      {failed && (
-        <div className="cc-recover">
-          <span>Putting it online hit a snag.</span>
-          <button className="cc-fix" onClick={fixAndRepublish}>
-            Fix &amp; republish
-          </button>
-        </div>
-      )}
-      {err && <div className="cc-err">{err}</div>}
+      {showPublish && meta && <DeploymentsDialog meta={meta} onClose={() => setShowPublish(false)} />}
       {(NEXT_STEPS[completion.kind] ?? []).length > 0 && (
         <div className="cc-next">
           <span className="cc-next-label">What’s next?</span>

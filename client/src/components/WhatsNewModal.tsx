@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-26.4';
+export const WHATS_NEW_VERSION = '2026-06-26.5';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Faster builds, same polish',
-    body: 'Web app builds no longer get stuck endlessly re-checking tiny details — the app inspector now knows when to stop and ship, so you get the same Claude-quality result in a fraction of the time.',
+    title: 'Slides → PDF, crisp every time',
+    body: 'Converting a presentation to PDF now renders charts and images perfectly instead of occasionally dropping them — one reliable step, no more blank graphics.',
   },
   {
-    title: 'Better AI video',
-    body: 'Video generation now lets you choose the length and the shape — including vertical 9:16 for phones and social — and writes sharper, director-style prompts (clean single shots, proper first-person POV, bright lighting) so the clip matches what you asked for.',
+    title: 'Publishing in one clear window',
+    body: 'When you put an app online, the live link — and any error if something needs fixing — now appears in a focused window you can read and copy from, not a cramped strip in the chat.',
   },
 ];
 
