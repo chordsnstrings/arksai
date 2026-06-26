@@ -166,6 +166,18 @@ async function provisionPostgres(slug: string): Promise<ProvisionResult> {
     if (dbExists.rowCount === 0) {
       await admin.query(`CREATE DATABASE ${ident(db)} OWNER ${ident(role)}`);
     }
+    // PG15+ locks down the `public` schema (the owner can't create tables in it by default). Connect
+    // to the NEW database as admin and give the app's role full ownership of public so it can run its
+    // own migrations / CREATE TABLE. (A fresh second connection — schema grants are per-database.)
+    const appAdmin = new pg.Client(pgConnOpts(buildPgUrl(adminUrl, db)));
+    try {
+      await appAdmin.connect();
+      await appAdmin.query(`ALTER SCHEMA public OWNER TO ${ident(role)}`).catch(() => {});
+      await appAdmin.query(`GRANT ALL ON SCHEMA public TO ${ident(role)}`).catch(() => {});
+      await appAdmin.query(`GRANT ALL ON DATABASE ${ident(db)} TO ${ident(role)}`).catch(() => {});
+    } finally {
+      await appAdmin.end().catch(() => {});
+    }
     // Return the base URL WITHOUT sslmode — the caller appends the driver-appropriate sslmode
     // (Prisma `require` vs node-pg `no-verify`) since the same managed CA needs different handling.
     const connectionString = buildPgUrl(adminUrl, db, role, password);
