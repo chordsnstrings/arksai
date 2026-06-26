@@ -152,10 +152,11 @@ function docToolsSlice(): string {
     formula-driven and one assumption flows through. Don't hand-write an exceljs or
     openpyxl script (a value-dumping script is rejected by the model gate). For a
     LARGE / granular model (e.g. a 3-year MONTH-BY-MONTH CAPEX+OPEX, many sheets),
-    build it in STAGES so it never stalls: first call = the "Assumptions" sheet (all
-    drivers), then call again with append:true to add ONE sheet at a time (CAPEX,
-    OPEX, Personnel, Summary…), each referencing Assumptions with cross-sheet
-    formulas (=Assumptions!$B$2). Ground the drivers in REAL figures (research rents,
+    build it in a FEW stages so it never stalls: first call = the "Assumptions" sheet
+    plus 1-2 schedules, then call again with append:true adding the next 2-3 sheets
+    per call (CAPEX+OPEX, then Personnel+Summary…) — a few sheets per call, not one at
+    a time (slow) and not all at once (truncates) — each referencing Assumptions with
+    cross-sheet formulas (=Assumptions!$B$2). Ground the drivers in REAL figures (research rents,
     salaries, equipment costs) — never invent them.
   • Editable document (.docx) → use generate_doc (typographic, brand accent,
     real tables). For a print-locked, richly designed PDF use render_report.

@@ -205,12 +205,14 @@ export const generateSpreadsheetTool: ToolDef = {
     'keep the accent restrained; no orphan/empty columns. The output is auto re-opened, formula-error-checked, and ' +
     'design-reviewed — a broken or sloppy sheet is sent back to you to fix. ' +
     'LARGE / GRANULAR MODELS (e.g. a 3-year MONTH-BY-MONTH CAPEX+OPEX with many line items, or any model with many ' +
-    'sheets) — BUILD IT IN STAGES, do NOT cram every sheet into one huge call (that is slow and can stall): make the ' +
-    'FIRST call with the "Assumptions" sheet (all drivers — rents, salaries, unit costs, growth/escalation %), then call ' +
-    'AGAIN with "append": true to add ONE more sheet each time (e.g. CAPEX schedule, then OPEX schedule, then Personnel, ' +
-    'then a Summary/P&L), each referencing the earlier sheets with cross-sheet formulas (=Assumptions!$B$2). Append keeps ' +
+    'sheets) — BUILD IT IN A FEW STAGES. Avoid BOTH extremes: cramming EVERY sheet into one giant call (slow, can ' +
+    'stall or hit the output limit and truncate) AND one sheet per call (needlessly slow — each call is a full ' +
+    'round-trip). The sweet spot is 2-3 SHEETS PER CALL: make the FIRST call with the "Assumptions" sheet plus the ' +
+    'first 1-2 schedules (drivers — rents, salaries, unit costs, growth/escalation %), then call AGAIN with ' +
+    '"append": true adding the next 2-3 sheets each time (e.g. CAPEX+OPEX, then Personnel+Summary/P&L), each ' +
+    'referencing the earlier sheets with cross-sheet formulas (=Assumptions!$B$2). Append keeps ' +
     'the SAME file, preserves prior sheets, restyles, and re-checks the whole workbook; re-sending a sheet name REPLACES it. ' +
-    'This is how you reliably ship a big, detailed, formula-driven model without one giant payload. ' +
+    'This ships a big, detailed, formula-driven model in ~half the round-trips, without a single giant payload. ' +
     'EXTRACTING FROM SOURCE DOCUMENTS (PDFs/scans → a spreadsheet): NEVER pivot straight to the final grid. First ' +
     'transcribe EVERY line item into a flat audit-trail sheet (one row per source line, with its OWN date/month read ' +
     'from the row — never inferred — plus which document it came from); build the summary/pivot sheet FROM that with ' +
@@ -222,7 +224,7 @@ export const generateSpreadsheetTool: ToolDef = {
     type: 'object',
     properties: {
       output: { type: 'string', description: 'Output filename, e.g. "sales.xlsx". Default data.xlsx. For a staged build, keep the SAME filename across calls.' },
-      append: { type: 'boolean', description: 'When true, ADD these sheets to the existing file (same output name) instead of overwriting — for building a large multi-sheet model one sheet at a time. A sheet whose name already exists is replaced. Default false (fresh file).' },
+      append: { type: 'boolean', description: 'When true, ADD these sheets to the existing file (same output name) instead of overwriting — for building a large multi-sheet model a few (2-3) sheets per call. A sheet whose name already exists is replaced. Default false (fresh file).' },
       accent: { type: 'string', description: 'Header accent colour as hex (e.g. "#4f46e5"). Use the brand accent if known.' },
       sheets: {
         type: 'array',
