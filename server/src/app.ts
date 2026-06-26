@@ -52,6 +52,18 @@ export async function buildApp() {
     }
   });
 
+  // Catch-all raw-body parser: Fastify parses ONLY application/json by default and
+  // returns 415 for any other content-type BEFORE the route handler runs. That broke
+  // the /apps/<slug>/ reverse-proxy for published apps — a normal HTML <form> POSTs
+  // application/x-www-form-urlencoded (and file uploads send multipart), which Fastify
+  // 415'd, so the form body never reached the app (a no-JS form just failed, and the
+  // post-publish smoke test, which submits the first form, false-marked working apps as
+  // errored). Buffering the raw bytes for any otherwise-unparsed content-type lets the
+  // proxy forward the body verbatim with its original content-type. API routes are JSON
+  // (handled above) so they're unaffected; an unexpected body just arrives as a Buffer
+  // and a route's own validation rejects it, same as before.
+  app.addContentTypeParser('*', { parseAs: 'buffer', bodyLimit: 25 * 1024 * 1024 }, (_req, body, done) => done(null, body));
+
   // One place for thrown/uncaught errors. The client reads the `error` field, so put a
   // calm, actionable message there: surface a deliberate 4xx message (validation, bad
   // request) since it tells the user what to fix, but NEVER leak an internal 5xx detail
