@@ -7,7 +7,9 @@ import { config } from '../config';
 import { bus } from '../events/bus';
 import * as store from '../sessions/store';
 import { DEFAULT_ORG_ID, getOrgProfile, orgScope } from '../orgs/store';
-import { diffStat, repoDir } from '../sessions/workspace';
+import { diffStat, repoDir, sessionDiff } from '../sessions/workspace';
+import { buildReviewPrompt, parseReviewVerdict } from './codeReview';
+import { buildRepoPrimer } from './repoPrimer';
 import { scrubSecrets } from '../lib/exec';
 import { buildUploadNote } from '../lib/extract';
 import { buildSystemPrompt } from './prompts';
@@ -342,6 +344,8 @@ export class AgentRun {
   private mutated = false; // did this run change files? (triggers the verify gate)
   private verifyRounds = 0;
   private designRounds = 0; // bounded gating design-critique rounds (separate budget)
+  private reviewRounds = 0; // bounded code-review-gate rounds (connected-repo work)
+  private reviewPassed = false; // once the diff is approved, don't re-review (avoids repeat cost)
   private didRuntimeTest = false; // did the agent curl a running server this run?
   private flowRequired = false; // have we already asked it to demo the flow?
   private engineCostUsd = 0; // external-engine spend this run (e.g. Suno)
@@ -1548,6 +1552,31 @@ export class AgentRun {
       return failFix(checkLabel(failing.name), failing.output);
     }
 
+    // 1c) Code-review gate (connected-repo work): the static checks proved it COMPILES; now a
+    //     second model reads the actual DIFF for correctness bugs / regressions / security /
+    //     leftover debug code — the layer the build+boot checks can't see. Bounded, fail-open, and
+    //     only for a connected repo (a from-scratch build is owned by the verify + design gates).
+    if (
+      config.codeReviewGate &&
+      this.session.repoUrl &&
+      !this.reviewPassed &&
+      this.reviewRounds < 2 &&
+      !this.abort.signal.aborted
+    ) {
+      this.emitProgress('verifying', 'Reviewing the diff for correctness…');
+      sys('info', '⟳ Code review — reading your diff for correctness & regressions…');
+      const findings = await this.reviewDiff();
+      if (findings.length) {
+        this.reviewRounds++;
+        return failFix(
+          'Code review',
+          `A review of your diff flagged concrete issues. Fix ONLY these (keep changes minimal), then it will be re-reviewed:\n- ${findings.join('\n- ')}`,
+        );
+      }
+      this.reviewPassed = true;
+      sys('info', '✓ Code review passed — no correctness issues in the diff.');
+    }
+
     // 1b) Document deliverables (docx/xlsx/pptx/pdf from the generate_*/render tools) —
     //     render + functional + design-review them, bounded-revise. Web apps are covered by
     //     the live probe below; this gates the FILE deliverables that probe never sees.
@@ -1656,6 +1685,42 @@ export class AgentRun {
     }
     sys('info', `✓ Verified — ${probe.detail}`);
     return 'ok';
+  }
+
+  /**
+   * Code-review gate: read the session's full diff (committed + uncommitted vs the base commit) and
+   * have a second model pass over it for correctness/regressions/security/leftover-debug. Returns
+   * concrete findings to bounded-revise, or [] to approve. FAIL-OPEN — a broken/empty review must
+   * never block a ship the verify gate already proved runs.
+   */
+  private async reviewDiff(): Promise<string[]> {
+    try {
+      const { diff, changed } = await sessionDiff(this.session.id);
+      if (!changed || diff.length < 40) return [];
+      const { system, user } = buildReviewPrompt(diff, { repoName: this.session.repoName });
+      let text = '';
+      const strip = makeThinkFilter();
+      const stream = await this.createCompletionWithRetry({
+        model: config.codeReviewModel || this.activeApiModel,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        stream: true,
+        stream_options: { include_usage: true },
+      });
+      for await (const chunk of stream) {
+        const delta: any = chunk.choices?.[0]?.delta;
+        if (delta?.content) text += strip(delta.content);
+        if (chunk.usage) this.accrueUsage(chunk.usage);
+      }
+      text += strip.flush();
+      this.engineCostUsd += config.minimaxCodeReviewCost;
+      const verdict = parseReviewVerdict(text);
+      return verdict.verdict === 'revise' ? verdict.findings : [];
+    } catch {
+      return []; // fail-open
+    }
   }
 
   /** Newest workspace file with one of the given extensions (the just-produced one). */
@@ -1841,6 +1906,18 @@ export class AgentRun {
     }
 
     const blocks: string[] = [];
+
+    // Repository primer (Phase 3): when a real repo is connected, lead with a cheap, deterministic
+    // orientation (stack, scripts, layout, contributor docs) so the agent starts grounded on an
+    // existing codebase instead of discovering the whole layout blind via glob/grep.
+    if (this.session.repoUrl) {
+      try {
+        const primer = buildRepoPrimer(dir, this.session.repoName);
+        if (primer) blocks.push(primer);
+      } catch {
+        /* primer is best-effort */
+      }
+    }
 
     // Organization block: the org's shared identity + brand + recalled team context.
     // This is the org "brain" — present in EVERY session in the org, and ONLY this org.

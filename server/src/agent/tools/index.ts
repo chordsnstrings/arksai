@@ -3,7 +3,16 @@ import type { ToolDef } from './common';
 import { bashTool } from './bash';
 import { bashBackgroundTool, bashOutputTool, killProcessTool } from './background';
 import { editFileTool, globTool, grepTool, readFileTool, writeFileTool } from './files';
-import { gitCommitTool, gitDiffStatTool, gitPushTool } from './git';
+import {
+  gitBranchesTool,
+  gitCommitTool,
+  gitDiffStatTool,
+  gitDiffTool,
+  gitFetchTool,
+  gitPullTool,
+  gitPushTool,
+  openPullRequestTool,
+} from './git';
 import { webFetchTool, webSearchTool } from './web';
 import { verifyTool } from './verify';
 import { generateMusicTool, extendMusicTool, generateLyricsTool, coverAudioTool } from './music';
@@ -65,8 +74,13 @@ export const ALL_TOOLS: ToolDef[] = [
   grepTool,
   verifyTool,
   gitDiffStatTool,
+  gitDiffTool,
   gitCommitTool,
   gitPushTool,
+  gitBranchesTool,
+  gitFetchTool,
+  gitPullTool,
+  openPullRequestTool,
   renderReportTool,
   renderChartTool,
   addFontsTool,

@@ -126,6 +126,11 @@ export async function setupWorkspace(session: SessionMeta): Promise<void> {
   const branch = branchRes.ok ? branchRes.output.trim() : session.branch;
   await store.updateSession(session.id, { branch: branch || null });
 
+  // Remember the commit we started from, so the code-review gate can diff the WHOLE session's
+  // work (committed + uncommitted) against the original tree, not just the uncommitted slice.
+  const baseRes = await git(dir, 'rev-parse HEAD');
+  if (baseRes.ok && baseRes.output.trim()) recordBase(session.id, baseRes.output.trim());
+
   // Project knowledge: drop the project's files into the workspace so the agent
   // has them available in every session of the project.
   await copyProjectKnowledge(session).catch((err) => console.error('[project-knowledge]', err));
@@ -200,6 +205,45 @@ export async function fullDiff(sessionId: string): Promise<string> {
   const diff = await execBash('git diff HEAD 2>/dev/null', { cwd: dir, timeoutMs: 20_000 });
   const out = `${status.output}\n\n${diff.output}`.trim();
   return out || 'Clean working tree — no changes.';
+}
+
+/** Sidecar remembering the commit a session started from (the original cloned HEAD). */
+const baseMarkerPath = (sessionId: string) => path.join(workspaceRoot(), sessionId, 'base-sha.txt');
+
+/** Record the session's base commit (best-effort; never throws). */
+export function recordBase(sessionId: string, sha: string): void {
+  try {
+    fs.writeFileSync(baseMarkerPath(sessionId), sha.trim());
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** The session's base commit, if recorded. */
+export function baseSha(sessionId: string): string | null {
+  try {
+    const v = fs.readFileSync(baseMarkerPath(sessionId), 'utf8').trim();
+    return v || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The diff of EVERYTHING this session changed — committed + uncommitted — vs the base commit it
+ * started from (falls back to the uncommitted diff if no base was recorded). Returns the raw
+ * unified diff (capped) and whether there are any changes, for the code-review gate.
+ */
+export async function sessionDiff(sessionId: string, cap = 60_000): Promise<{ diff: string; changed: boolean }> {
+  const dir = repoDir(sessionId);
+  if (!fs.existsSync(dir)) return { diff: '', changed: false };
+  const base = baseSha(sessionId);
+  const cmd = base ? `git diff ${base} -- . ':(exclude)knowledge/**' 2>/dev/null` : 'git diff HEAD 2>/dev/null';
+  const res = await execBash(cmd, { cwd: dir, timeoutMs: 30_000 });
+  let diff = (res.output || '').trim();
+  if (!diff) return { diff: '', changed: false };
+  if (diff.length > cap) diff = diff.slice(0, cap) + `\n\n…[diff truncated at ${cap} chars]`;
+  return { diff, changed: true };
 }
 
 /** Workspace file list (excluding node_modules/.git), capped. */

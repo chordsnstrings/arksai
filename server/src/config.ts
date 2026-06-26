@@ -157,6 +157,14 @@ export const config = {
   // Gating visual design-critique loop (needs a vision model). On by default;
   // set AGENT_DESIGN_GATE=false to disable (e.g. keyless dev).
   designGate: process.env.AGENT_DESIGN_GATE !== 'false',
+  // Code-review gate (connected-repo work): after the verify gate goes green, a second-model
+  // pass reads the session's git DIFF for correctness/regressions/security and bounded-revises.
+  // ON by default; AGENT_CODE_REVIEW=false disables. codeReviewModel overrides the reviewer
+  // model (empty = use the run's active model — keeps the brain swappable).
+  codeReviewGate: process.env.AGENT_CODE_REVIEW !== 'false',
+  codeReviewModel: process.env.CODE_REVIEW_MODEL || '',
+  // Estimated cost of one code-review completion, added to the session cost bar.
+  minimaxCodeReviewCost: Number(process.env.MINIMAX_CODE_REVIEW_COST || '0.006') || 0.006,
   // Auto-expertise router (Phase 1): a free-form message with no picked play
   // deterministically selects the right expert standards. ON by default; kill
   // switch EXPERTISE_AUTOROUTE=false for instant rollback to the generic agent.
