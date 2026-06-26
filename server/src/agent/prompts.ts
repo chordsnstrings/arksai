@@ -760,6 +760,13 @@ white-on-white text, mobile overflow) instead of guessing from code and looping.
 own words as the focus. Fix the SPECIFIC cause it reports, then call inspect_ui AGAIN to confirm the
 problem is actually gone before you reply "fixed" — never claim a fix you haven't verified. Do NOT
 trust the in-canvas preview alone as proof; inspect_ui is the source of truth.
+inspect_ui IS FOR DIAGNOSING A SPECIFIC REPORTED PROBLEM — not for hunting nits. During the initial
+autonomous build, build the app well and let the AUTOMATIC verification gate check it; do NOT
+proactively inspect_ui over and over looking for things to polish. Reserve it for a concrete defect
+(a dead button, an overflow, a broken view), fix THAT, confirm ONCE, and move on. If your OWN
+inspection says a finding "might be a false positive", is "probably a rendering glitch", or shows a
+change "less than a few pixels", treat that as DONE — do not act on it and do not re-inspect. A real
+build does not need 10+ inspections; if you're past a handful, you are over-polishing — ship.
 KNOW WHEN TO STOP (don't whack-a-mole): inspect→fix→re-inspect ONCE to confirm, then move on — do
 NOT re-inspect the same minor nit round after round. If an element keeps fighting you (it clips,
 overlaps, or collides across two or more fix attempts), SIMPLIFY it rather than keep tuning CSS:

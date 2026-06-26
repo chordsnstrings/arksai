@@ -7,7 +7,9 @@ import type { ToolDef } from './common';
 // hard element forever. The design GATE is bounded (MAX_DESIGN_ROUNDS); this bounds the
 // agent's OWN inspect→fix→re-inspect loop (which was unbounded and drove a 400-step run).
 const inspectCounts = new Map<string, number>();
-const SOFT_CAP = 8; // a generous budget across the whole build before we start nudging
+const SOFT_CAP = 4; // start nudging early — a couple of diagnose→fix→confirm cycles is plenty
+const HARD_CAP = 8; // a TRUE ceiling: past this the tool REFUSES to run (the soft nudge alone got
+                    // ignored for 20+ passes on a real build → an 18-minute whack-a-mole loop)
 export function _resetInspectCount(sessionId: string) { inspectCounts.delete(sessionId); }
 
 /**
@@ -38,6 +40,19 @@ export const inspectUiTool: ToolDef = {
   modes: ['code'],
   summarize: (a) => (a?.focus ? `inspect: ${String(a.focus).slice(0, 44)}` : 'inspect the UI'),
   async run(args, ctx) {
+    // HARD ceiling: once the agent has inspected this many times in a run, refuse to inspect again
+    // (without even booting a server) and force it to finish. The soft nudge below was advisory and
+    // got ignored for 20+ passes on a real build; this structurally ends the loop.
+    const already = inspectCounts.get(ctx.session.id) ?? 0;
+    if (already >= HARD_CAP) {
+      return (
+        `inspect_ui is disabled for the rest of this build — you have already inspected ${already} times, ` +
+        `which is well past the point of diminishing returns. The app is good enough to ship. Do NOT inspect ` +
+        `again. If a single element still bothers you, SIMPLIFY it from the code you already have (drop the ` +
+        `fragile bit, or use a robust ui-kit/craft.css component), then finish and publish. Stop polishing nits ` +
+        `the automatic verification gate has not flagged.`
+      );
+    }
     const dir = ctx.repoDir;
     const r = detectRenderable(dir);
     if (!r.renderable) {
