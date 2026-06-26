@@ -55,6 +55,10 @@ export const config = {
   autoBrief: process.env.AUTO_BRIEF !== '0',
   dataDir: process.env.DATA_DIR || path.join(repoRoot, 'data'),
   databaseUrl: process.env.DATABASE_URL || '',
+  // Admin connection to a managed Postgres used to PROVISION per-app databases for deployed apps
+  // (each app gets its own isolated role + database). Empty → Postgres provisioning is disabled and
+  // DB-backed apps must use self-contained SQLite. Set MANAGED_PG_ADMIN_URL on the droplet to enable.
+  pgAdminUrl: process.env.MANAGED_PG_ADMIN_URL || '',
   clientDist:
     process.env.CLIENT_DIST ||
     [path.join(repoRoot, 'client', 'dist')].find((p) => fs.existsSync(p)) ||

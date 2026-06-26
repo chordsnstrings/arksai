@@ -9,6 +9,25 @@ import * as store from '../sessions/store';
 const PORT_BASE = 41000;
 const PORT_MAX = 41999;
 
+/** Parse a deployed app's .env into a plain map, so its provisioned vars (DATABASE_URL …) are
+ *  injected into the live process even if the app doesn't load dotenv itself. Best-effort. */
+export function readDotEnv(dir: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    const raw = fs.readFileSync(path.join(dir, '.env'), 'utf8');
+    for (const line of raw.split('\n')) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (!m) continue;
+      let v = m[2].trim();
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      out[m[1]] = v;
+    }
+  } catch {
+    /* no .env */
+  }
+  return out;
+}
+
 export function deploymentsRoot(): string {
   return path.join(config.dataDir, 'deployments');
 }
@@ -43,7 +62,9 @@ class DeploymentRegistry {
       cwd: dir,
       // A PUBLISHED app runs in production (childEnv now defaults workspaces to
       // development so agent-time `npm install` pulls devDeps — deployments override it).
-      env: { ...childEnv(), PORT: String(port), HOST: '127.0.0.1', NODE_ENV: 'production' },
+      // Also inject the app's own .env (provisioned DATABASE_URL etc.) so a DB-backed app gets its
+      // connection string at runtime even if it doesn't use dotenv — and it survives restarts.
+      env: { ...childEnv(), ...readDotEnv(dir), PORT: String(port), HOST: '127.0.0.1', NODE_ENV: 'production' },
       detached: true,
       stdio: ['ignore', logFd, logFd],
     });

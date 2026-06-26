@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { execBash } from '../lib/exec';
 import { listeningPorts } from '../lib/ports';
 import { detectStartCommand } from '../agent/verify';
+import { detectDbKind, provisionAppDatabase } from './dbProvision';
 import { browserSmokeTest } from '../agent/uiCheck';
 import { config } from '../config';
 import { repoDir } from '../sessions/workspace';
@@ -65,35 +66,60 @@ export function detectSpaBuild(dir: string): { build: string } | null {
 
 /**
  * Make a database-backed app's DB actually exist at deploy time. For a SELF-CONTAINED SQLite app
- * (the only kind we can deploy — no external DB server is provisioned), this:
- *   1) ensures DATABASE_URL points at a file (writes/extends the app's .env if it's missing),
- *   2) generates the client + applies the schema (`prisma migrate deploy`, falling back to
- *      `prisma db push`), and 3) runs a seed if one is defined.
- * Returns an error string if the app needs a server DB (Postgres/MySQL/Mongo) we can't provide —
- * the agent is steered to use SQLite instead so the app is self-contained and works live.
+ * SQLite ships as a file with the app (zero infra). A real server DB (Postgres) is PROVISIONED —
+ * `provisionAppDatabase` creates an isolated per-app database and we inject its connection string —
+ * so "any database" works live. The app's schema/migrations are then applied. Returns an error
+ * string only when the app needs a DB we can't yet provision (so the agent can switch to one we can).
  */
-export async function setupDatabase(dest: string): Promise<{ ok: boolean; error?: string }> {
-  // Find a Prisma schema (the common ORM the agent reaches for).
+export async function setupDatabase(dest: string, slug: string): Promise<{ ok: boolean; error?: string }> {
   const schemaCandidates = ['prisma/schema.prisma', 'schema.prisma', 'prisma/schema.sqlite.prisma'];
   const schemaRel = schemaCandidates.find((s) => fs.existsSync(path.join(dest, s)));
-  if (!schemaRel) return { ok: true }; // no Prisma → nothing to provision (app makes its own SQLite/file)
-  let schema = '';
-  try {
-    schema = fs.readFileSync(path.join(dest, schemaRel), 'utf8');
-  } catch {
-    return { ok: true };
+  let provider: string | null = null;
+  if (schemaRel) {
+    try {
+      provider = (fs.readFileSync(path.join(dest, schemaRel), 'utf8').match(/provider\s*=\s*"(\w+)"/) || [])[1] || null;
+    } catch {
+      /* ignore */
+    }
   }
-  const provider = (schema.match(/provider\s*=\s*"(\w+)"/) || [])[1] || '';
-  if (/postgres|mysql|mongodb|sqlserver|cockroach/i.test(provider)) {
-    return {
-      ok: false,
-      error:
-        `This app's database is "${provider}", which needs a separate database SERVER that the platform does ` +
-        `not provision — so it can't run live. Switch it to a self-contained SQLite database (Prisma datasource ` +
-        `provider = "sqlite", DATABASE_URL = "file:./prod.db"), regenerate the migration, and republish.`,
-    };
+  const pkgRaw = (() => {
+    try {
+      return fs.readFileSync(path.join(dest, 'package.json'), 'utf8');
+    } catch {
+      return null;
+    }
+  })();
+  const kind = detectDbKind(pkgRaw, provider);
+
+  // Resolve the connection string. SQLite → a file shipped with the app. A real DB → provision it.
+  let dbUrl = 'file:./prod.db';
+  if (kind !== 'sqlite' && kind !== 'none') {
+    const prov = await provisionAppDatabase(slug, kind);
+    if (!prov.ok) return { ok: false, error: prov.error };
+    if (prov.connectionString) dbUrl = prov.connectionString;
   }
-  // SQLite (or unspecified → treat as sqlite). Ensure DATABASE_URL is a file path in the app's .env.
+  if (kind === 'none' && !schemaRel) return { ok: true }; // no DB at all → nothing to do
+
+  // Inject the connection string into the app's .env (registry.start loads it into the live process,
+  // and Prisma/Next read it directly). Replace an existing DATABASE_URL so it points at the real DB.
+  upsertEnv(dest, 'DATABASE_URL', dbUrl);
+
+  // Apply the schema. Prisma → generate + migrate deploy (fallback db push) + seed. A non-Prisma app
+  // (better-sqlite3, pg, …) creates/uses its tables itself at runtime, so nothing to apply here.
+  if (schemaRel) {
+    const sx = `--schema=${JSON.stringify(schemaRel)}`;
+    await execBash(`npx --yes prisma generate ${sx}`, { cwd: dest, timeoutMs: 180_000 }).catch(() => null);
+    const migrated = await execBash(`npx --yes prisma migrate deploy ${sx}`, { cwd: dest, timeoutMs: 180_000 }).catch(() => null);
+    if (!migrated?.ok) {
+      await execBash(`npx --yes prisma db push --skip-generate --accept-data-loss ${sx}`, { cwd: dest, timeoutMs: 180_000 }).catch(() => null);
+    }
+    await execBash('npx --yes prisma db seed', { cwd: dest, timeoutMs: 120_000 }).catch(() => null);
+  }
+  return { ok: true };
+}
+
+/** Write or replace a key in the app's .env (so a re-publish re-points it at the real database). */
+function upsertEnv(dest: string, key: string, value: string): void {
   const envPath = path.join(dest, '.env');
   let env = '';
   try {
@@ -101,23 +127,14 @@ export async function setupDatabase(dest: string): Promise<{ ok: boolean; error?
   } catch {
     /* ignore */
   }
-  if (!/^\s*DATABASE_URL\s*=/m.test(env)) {
-    try {
-      fs.writeFileSync(envPath, `${env}${env && !env.endsWith('\n') ? '\n' : ''}DATABASE_URL="file:./prod.db"\n`);
-    } catch {
-      /* best effort */
-    }
+  const line = `${key}="${value}"`;
+  const re = new RegExp(`^\\s*${key}\\s*=.*$`, 'm');
+  const next = re.test(env) ? env.replace(re, line) : `${env}${env && !env.endsWith('\n') ? '\n' : ''}${line}\n`;
+  try {
+    fs.writeFileSync(envPath, next);
+  } catch {
+    /* best effort */
   }
-  const sx = `--schema=${JSON.stringify(schemaRel)}`;
-  await execBash(`npx --yes prisma generate ${sx}`, { cwd: dest, timeoutMs: 180_000 }).catch(() => null);
-  // Apply the schema: prefer real migrations, fall back to db push for a schema with no migration dir.
-  const migrated = await execBash(`npx --yes prisma migrate deploy ${sx}`, { cwd: dest, timeoutMs: 180_000 }).catch(() => null);
-  if (!migrated?.ok) {
-    await execBash(`npx --yes prisma db push --skip-generate --accept-data-loss ${sx}`, { cwd: dest, timeoutMs: 180_000 }).catch(() => null);
-  }
-  // Seed if the app defines one (best-effort — a failed seed shouldn't block the deploy).
-  await execBash('npx --yes prisma db seed', { cwd: dest, timeoutMs: 120_000 }).catch(() => null);
-  return { ok: true };
 }
 
 /** Where a SPA build dropped its output (first dir that actually has an index.html). */
@@ -263,7 +280,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
       // Provision the database (SQLite file + schema/migrations) BEFORE the build — a Prisma app's
       // build/runtime needs the generated client + an applied schema, or it ships broken. A
       // server-DB app (Postgres/Mongo) is rejected with guidance to use self-contained SQLite.
-      const db = await setupDatabase(dest);
+      const db = await setupDatabase(dest, slug);
       if (!db.ok) {
         status = 'error';
         buildError = db.error;
