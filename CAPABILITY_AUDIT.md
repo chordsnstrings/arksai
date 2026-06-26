@@ -46,7 +46,17 @@ Legend: ✅ at-bar · 🟡 good output but a process/quality gap · 🔴 below b
 
 ### Report PDF — ⬜
 ### .docx — ⬜
-### .pptx deck — ⬜ (never exercised via the live agent)
+### .pptx deck — ✅ at-bar (first live agent run)
+- **Brief (live):** an 8-slide investor pitch deck (.pptx) for a fictional SaaS startup, editorial 16:9.
+- **Output:** **excellent / Claude-competitive** — composed cover with a KPI band + CONFIDENTIAL, sharp
+  problem/solution, designed stat tiles, a 4-stage "how it works," a TAM/SAM/SOM bar chart + a magazine-grade
+  traction chart (bars + trend line via `render_chart`), a real pricing table, a clean "ask." 247KB editable
+  .pptx + preview. (Sent to operator.)
+- **Process:** built in **~4.4 min, status done, no runaway.** A deck is ONE generation call, so it sidesteps
+  the incremental-round-trip latency entirely.
+- **Refines the latency finding:** the 20-min problem is **specific to the incremental multi-sheet xlsx
+  path**, NOT decks/docs/reports. The latency fix should target the xlsx sheets-per-call, not all heavy
+  generators. No pptx fix needed.
 
 ## Wave 2 — Code on a connected repo — 🟡 → improved (read/understand ✅, library-boot bug fixed)
 - **Live test:** created a CHAT session with NO repo, then attached `sindresorhus/p-limit` via PATCH (the
