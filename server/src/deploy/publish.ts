@@ -63,6 +63,63 @@ export function detectSpaBuild(dir: string): { build: string } | null {
   return isSpaDep || hasViteConfig || isSpaScript ? { build: 'npm run build' } : null;
 }
 
+/**
+ * Make a database-backed app's DB actually exist at deploy time. For a SELF-CONTAINED SQLite app
+ * (the only kind we can deploy — no external DB server is provisioned), this:
+ *   1) ensures DATABASE_URL points at a file (writes/extends the app's .env if it's missing),
+ *   2) generates the client + applies the schema (`prisma migrate deploy`, falling back to
+ *      `prisma db push`), and 3) runs a seed if one is defined.
+ * Returns an error string if the app needs a server DB (Postgres/MySQL/Mongo) we can't provide —
+ * the agent is steered to use SQLite instead so the app is self-contained and works live.
+ */
+export async function setupDatabase(dest: string): Promise<{ ok: boolean; error?: string }> {
+  // Find a Prisma schema (the common ORM the agent reaches for).
+  const schemaCandidates = ['prisma/schema.prisma', 'schema.prisma', 'prisma/schema.sqlite.prisma'];
+  const schemaRel = schemaCandidates.find((s) => fs.existsSync(path.join(dest, s)));
+  if (!schemaRel) return { ok: true }; // no Prisma → nothing to provision (app makes its own SQLite/file)
+  let schema = '';
+  try {
+    schema = fs.readFileSync(path.join(dest, schemaRel), 'utf8');
+  } catch {
+    return { ok: true };
+  }
+  const provider = (schema.match(/provider\s*=\s*"(\w+)"/) || [])[1] || '';
+  if (/postgres|mysql|mongodb|sqlserver|cockroach/i.test(provider)) {
+    return {
+      ok: false,
+      error:
+        `This app's database is "${provider}", which needs a separate database SERVER that the platform does ` +
+        `not provision — so it can't run live. Switch it to a self-contained SQLite database (Prisma datasource ` +
+        `provider = "sqlite", DATABASE_URL = "file:./prod.db"), regenerate the migration, and republish.`,
+    };
+  }
+  // SQLite (or unspecified → treat as sqlite). Ensure DATABASE_URL is a file path in the app's .env.
+  const envPath = path.join(dest, '.env');
+  let env = '';
+  try {
+    env = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+  } catch {
+    /* ignore */
+  }
+  if (!/^\s*DATABASE_URL\s*=/m.test(env)) {
+    try {
+      fs.writeFileSync(envPath, `${env}${env && !env.endsWith('\n') ? '\n' : ''}DATABASE_URL="file:./prod.db"\n`);
+    } catch {
+      /* best effort */
+    }
+  }
+  const sx = `--schema=${JSON.stringify(schemaRel)}`;
+  await execBash(`npx --yes prisma generate ${sx}`, { cwd: dest, timeoutMs: 180_000 }).catch(() => null);
+  // Apply the schema: prefer real migrations, fall back to db push for a schema with no migration dir.
+  const migrated = await execBash(`npx --yes prisma migrate deploy ${sx}`, { cwd: dest, timeoutMs: 180_000 }).catch(() => null);
+  if (!migrated?.ok) {
+    await execBash(`npx --yes prisma db push --skip-generate --accept-data-loss ${sx}`, { cwd: dest, timeoutMs: 180_000 }).catch(() => null);
+  }
+  // Seed if the app defines one (best-effort — a failed seed shouldn't block the deploy).
+  await execBash('npx --yes prisma db seed', { cwd: dest, timeoutMs: 120_000 }).catch(() => null);
+  return { ok: true };
+}
+
 /** Where a SPA build dropped its output (first dir that actually has an index.html). */
 const SPA_OUT_DIRS = ['dist', 'build', 'out', 'public'];
 function findBuildOutput(dest: string): string | null {
@@ -203,6 +260,15 @@ export async function publishSession(sessionId: string, name?: string): Promise<
         hasLock ? 'npm ci --no-audit --no-fund --prefer-offline' : 'npm install --no-audit --no-fund --prefer-offline',
         { cwd: dest, timeoutMs: 300_000 },
       ).catch(() => null);
+      // Provision the database (SQLite file + schema/migrations) BEFORE the build — a Prisma app's
+      // build/runtime needs the generated client + an applied schema, or it ships broken. A
+      // server-DB app (Postgres/Mongo) is rejected with guidance to use self-contained SQLite.
+      const db = await setupDatabase(dest);
+      if (!db.ok) {
+        status = 'error';
+        buildError = db.error;
+        console.warn(`[deploy] db setup failed for ${slug}: ${db.error}`);
+      }
       // Run the production build if the app defines one — a `node` app with a build step
       // (Next/Vite/Astro/SvelteKit/…) ships its BUILT output, not raw source. The old flow
       // installed prod-only and never built → "Could not find a production build".
@@ -210,7 +276,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
       try {
         pkg = JSON.parse(fs.readFileSync(path.join(dest, 'package.json'), 'utf8'));
       } catch {}
-      if (pkg?.scripts?.build) {
+      if (status !== 'error' && pkg?.scripts?.build) {
         const built = await execBash('npm run build', { cwd: dest, timeoutMs: 420_000 }).catch(() => null);
         const tail = (s?: string) => String(s ?? '').slice(-700).trim();
         if (!built?.ok) {

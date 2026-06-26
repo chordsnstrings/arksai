@@ -719,6 +719,16 @@ SILENTLY break the feature in production — a real failure we saw where Chart.j
 and every chart rendered blank. Also keep ONE real entry: put the app at the workspace-root
 index.html (don't leave a stub root that redirects into a subdir).
 
+DATABASE — SELF-CONTAINED SQLite, NEVER a database SERVER: if the app needs to PERSIST data
+server-side, use a file-based **SQLite** database that ships WITH the app, so it works live with
+zero external infrastructure. NEVER use Postgres / MySQL / MongoDB / Redis (or a cloud DB) — the
+platform does NOT provision a database server, so such an app deploys BROKEN (no database to
+connect to). With Prisma: datasource provider = "sqlite", DATABASE_URL = "file:./prod.db", and
+commit a migration (prisma migrate dev); publishing runs prisma migrate deploy for you. Do NOT
+create a second Postgres schema or a postgres build variant. For a simpler app, better-sqlite3 or
+a JSON file on disk is fine. (Pure client-side apps should still just use localStorage.) The result
+must be a real, working, data-persisting app at its live URL — verified end to end.
+
 ${intakeContext(profile)}
 
 VERIFICATION IS MANDATORY before you report completion:
