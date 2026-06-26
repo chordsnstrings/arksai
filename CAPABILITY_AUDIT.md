@@ -79,6 +79,24 @@ Legend: ✅ at-bar · 🟡 good output but a process/quality gap · 🔴 below b
   lighting, named subject — the playbook learnings) into the tool description. Unit-tested. Standalone M3
   prompt-refiner UI flow = optional follow-up.
 - **Suno V5 music / TTS (group id + speech-02 id):** ⬜ still to validate live.
+
+## Latency (cross-cutting) — investigated, recalibrated
+- **Code-mapped breakdown of a ~18–21 min heavy build:** ~30–40% is 5–8 **sequential M3 round-trips** (each
+  buffers a large tool-call JSON, ~75s/turn); ~12–16% M3 stalls→fallback; ~12% gates; ~12% recalc/vision.
+- **Model-side levers DISPROVEN live (operator's verify rule paid off):**
+  - There is **no `MiniMax-M3-highspeed`** — the live `/v1/models` list is only `M3` + older `M2.x`/`M2.x-
+    highspeed` coding models, and the Anthropic endpoint **silently runs plain M3** for any `M3-*` id
+    (every response came back `"model":"MiniMax-M3"`). The web's "faster same-quality M3" is not real here.
+  - **`service_tier:priority` ≈ noise** — 27.6s vs 28.4s on a heavy generate call (~3%). Not worth it.
+  - ⇒ There is **no faster same-quality model**; latency must be **structural**, and switching to the weak
+    fast model is off the table (quality).
+- **Fix applied (commit):** parallelized the gate's **per-page/slide vision review** (`deliverableCheck.ts`)
+  — was sequential `for…await analyzeImage` (up to 6 pages × ~11s); now `Promise.all`, so a multi-page
+  report/deck costs ~one vision call instead of six. ~50s off the gate on reports/decks, zero quality cost.
+- **Still on the table (structural, quality-safe):** fewer round-trips (test 2–3 sheets/call now that
+  starvation is fixed), parallel independent tool calls in a turn, and perceived-latency UX (stream partial
+  deliverables / honest "building sheet 3 of 5"). Realistic ceiling ≈ 20–40% off, NOT a 5× — M3 is the
+  quality model and there's no faster one.
 ## Wave 4 — Robots (email) — ⬜
 
 ---

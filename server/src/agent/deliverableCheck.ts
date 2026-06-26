@@ -702,10 +702,21 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
   const defects: string[] = [...seedDefects];
   let verdict: 'pass' | 'revise' | 'unknown' = base.designVerdict === 'revise' ? 'revise' : 'unknown';
   let visionFails = 0;
-  for (let i = 0; i < pngs.length; i++) {
-    if (signal.aborted) break;
-    const dataUrl = `data:image/png;base64,${pngs[i].toString('base64')}`;
-    const r = await analyzeImage(dataUrl, prompt, signal);
+  // Review every page/slide CONCURRENTLY — each page's verdict is independent, so a 6-page report
+  // costs ~one vision call's latency instead of six in series (the sequential loop was a big chunk
+  // of the gate's wall-clock on multi-page reports/decks). Results stay in page order for labels.
+  const pageResults = await Promise.all(
+    pngs.map((png, i) => {
+      if (signal.aborted) return Promise.resolve(null);
+      const dataUrl = `data:image/png;base64,${png.toString('base64')}`;
+      return analyzeImage(dataUrl, prompt, signal)
+        .then((r) => ({ i, r }))
+        .catch(() => ({ i, r: { ok: false, text: '' } as Awaited<ReturnType<typeof analyzeImage>> }));
+    }),
+  );
+  for (const item of pageResults) {
+    if (!item) continue;
+    const { i, r } = item;
     base.visionCalls++;
     if (!r.ok || !r.text) {
       visionFails++;
