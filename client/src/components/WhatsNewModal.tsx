@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-26.3';
+export const WHATS_NEW_VERSION = '2026-06-26.4';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Point it at your own codebase',
-    body: 'Connect a real repository and ArksAI now works on it like a careful teammate — it reads your stack, scripts and AGENTS/README to get oriented, makes focused changes, and delivers them as a reviewable pull request on its own branch (not a surprise commit). git fetch/pull/branches are there too.',
+    title: 'Faster builds, same polish',
+    body: 'Web app builds no longer get stuck endlessly re-checking tiny details — the app inspector now knows when to stop and ship, so you get the same Claude-quality result in a fraction of the time.',
   },
   {
-    title: 'It reviews its own work',
-    body: 'After the build passes, a second model reads the actual diff for correctness bugs, regressions, security slips and leftover debug code — and fixes what it finds before you ever see it. “Make my code better” is now something it can be trusted with.',
+    title: 'Better AI video',
+    body: 'Video generation now lets you choose the length and the shape — including vertical 9:16 for phones and social — and writes sharper, director-style prompts (clean single shots, proper first-person POV, bright lighting) so the clip matches what you asked for.',
   },
 ];
 
