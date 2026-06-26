@@ -341,13 +341,34 @@ export async function textToSpeech(
 const VIDEO_POLL_MS = 10_000;
 const VIDEO_DEADLINE_MS = 360_000;
 
+export interface VideoOpts {
+  firstFrameImage?: string;
+  duration?: number; // 6 | 10 (Hailuo)
+  resolution?: string; // '768P' | '1080P'
+  aspectRatio?: string; // '16:9' | '9:16' | '1:1' | ...
+}
+
+/**
+ * Resolve duration/resolution/aspect to a combo Hailuo accepts. Validated live: duration is 6 or 10;
+ * resolution is 768P or 1080P; **10s + 1080P is rejected** (1080P is 6s-only) — so a 10s request is
+ * forced to 768P. Defaults: 6s / 1080P (crispest short clip).
+ */
+export function normalizeVideoParams(opts: VideoOpts): { duration: number; resolution: string; aspect_ratio?: string } {
+  let duration = opts.duration === 10 ? 10 : 6;
+  let resolution = opts.resolution === '768P' || opts.resolution === '1080P' ? opts.resolution : '1080P';
+  if (duration === 10 && resolution === '1080P') resolution = '768P'; // unsupported combo
+  const aspect_ratio = opts.aspectRatio && /^\d+:\d+$/.test(opts.aspectRatio) ? opts.aspectRatio : undefined;
+  return { duration, resolution, aspect_ratio };
+}
+
 export async function generateVideo(
   prompt: string,
-  opts: { firstFrameImage?: string },
+  opts: VideoOpts,
   repoDir: string,
   signal: AbortSignal,
 ): Promise<EngineResult> {
   try {
+    const { duration, resolution, aspect_ratio } = normalizeVideoParams(opts);
     // 1) submit
     const submit = await fetch(`${base()}/video_generation`, {
       method: 'POST',
@@ -356,6 +377,9 @@ export async function generateVideo(
       body: JSON.stringify({
         model: config.minimaxVideoModel,
         prompt,
+        duration,
+        resolution,
+        ...(aspect_ratio ? { aspect_ratio } : {}),
         ...(opts.firstFrameImage ? { first_frame_image: opts.firstFrameImage } : {}),
       }),
     });

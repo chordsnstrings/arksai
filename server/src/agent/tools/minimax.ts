@@ -168,11 +168,22 @@ export const generateVideoTool: ToolDef = {
     'Generate a short video from a text prompt with the MiniMax Hailuo engine (slow, ~minutes, ' +
     'costs money). Optionally animate from a starting image. Saved as an MP4 in the workspace ' +
     'video/ folder and offered as a download. Confirm with the user before generating (it is the ' +
-    'most expensive operation).',
+    'most expensive operation).\n' +
+    'WRITE THE PROMPT LIKE A DIRECTOR (Hailuo wants a SCRIPT, not tags): ONE flowing continuous shot ' +
+    '(no cuts/scenes), present tense, in this order — [camera framing + movement] → [action] → ' +
+    '[scene with NAMED, specific places/props] → [light + mood] → [how it ends]. For a FIRST-PERSON/POV ' +
+    'shot you MUST open with "First-person POV, head-mounted camera" and NEVER describe the camera-' +
+    "holder's own clothes/body (that spawns a third-person subject). Default to BRIGHT, well-lit scenes " +
+    '(cold/overcast/winter wording comes out dim). Pick ONE coherent location.\n' +
+    'PARAMS: duration is 6 or 10 seconds; resolution is 768P or 1080P, but 1080P is 6s-only (a 10s clip ' +
+    'is served at 768P). For phone/social use aspect_ratio "9:16"; wide is "16:9".',
   parameters: {
     type: 'object',
     properties: {
-      prompt: { type: 'string', description: 'Description of the video to generate.' },
+      prompt: { type: 'string', description: 'Director-style description of ONE continuous shot.' },
+      duration: { type: 'number', description: 'Clip length in seconds: 6 or 10 (default 6).' },
+      resolution: { type: 'string', description: '"768P" or "1080P" (default 1080P; a 10s clip is forced to 768P).' },
+      aspect_ratio: { type: 'string', description: 'e.g. "16:9" (wide), "9:16" (phone/social), "1:1".' },
       first_frame_image: { type: 'string', description: 'Optional workspace image path to animate from.' },
     },
     required: ['prompt'],
@@ -189,7 +200,17 @@ export const generateVideoTool: ToolDef = {
         return `Error: ${e?.message ?? e}`;
       }
     }
-    const r = await generateVideo(String(args.prompt ?? ''), { firstFrameImage: firstFrame }, ctx.repoDir, ctx.signal);
+    const r = await generateVideo(
+      String(args.prompt ?? ''),
+      {
+        firstFrameImage: firstFrame,
+        duration: Number(args.duration) || undefined,
+        resolution: args.resolution ? String(args.resolution) : undefined,
+        aspectRatio: args.aspect_ratio ? String(args.aspect_ratio) : undefined,
+      },
+      ctx.repoDir,
+      ctx.signal,
+    );
     if (!r.ok) return `Error: video generation failed — ${r.error}`;
     ctx.addCost(config.minimaxVideoCost);
     return `Generated video: ${r.files.map((f) => f.path).join(', ')}. Saved in the workspace.`;

@@ -65,7 +65,20 @@ Legend: ✅ at-bar · 🟡 good output but a process/quality gap · 🔴 below b
   boot. Unit-tested (library vs server, Node + Flask). 643 tests green.
 - **Not tested live:** the branch + `open_pull_request` push half — needs a writable throwaway repo (won't
   push experimental edits to a real one). Deferred; the tool wiring is unit-tested.
-## Wave 3 — Brand & media — ⬜ (video params, Suno V5 shape, TTS ids to fine-tune)
+## Wave 3 — Brand & media
+### Video (Hailuo) — 🟡 → fixed (params wired)
+- **Validated live earlier this session:** generated 3 real Hailuo clips; learned the request rules
+  (duration 6/10, resolution 768P/1080P, **10s+1080P rejected**, `aspect_ratio` accepted, CDN download host
+  is proxy-blocked from the sandbox but fine from a browser).
+- **Gap:** `generate_video` → `generateVideo` only sent `{model, prompt, first_frame_image}` — **no
+  duration/resolution/aspect_ratio**, so every clip used the defaults (couldn't do vertical/phone or control
+  length).
+- **Fix applied (commit):** `engines/minimax.ts` `normalizeVideoParams` + `generateVideo` now send
+  duration/resolution/aspect_ratio with the validated combo guard (10s→768P). `tools/minimax.ts` exposes the
+  params + bakes the **director-style prompting rules** (single continuous shot, POV-anchoring, bright
+  lighting, named subject — the playbook learnings) into the tool description. Unit-tested. Standalone M3
+  prompt-refiner UI flow = optional follow-up.
+- **Suno V5 music / TTS (group id + speech-02 id):** ⬜ still to validate live.
 ## Wave 4 — Robots (email) — ⬜
 
 ---
