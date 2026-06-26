@@ -261,7 +261,11 @@ export async function publishSession(sessionId: string, name?: string): Promise<
       ? 'npm ci --no-audit --no-fund'
       : 'npm install --no-audit --no-fund';
     const inst = await execBash(install, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
-    const built = await execBash(spa.build, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
+    // Install runs at NODE_ENV=development (devDeps = the build toolchain); the BUILD must run
+    // at NODE_ENV=production — Next.js inheriting 'development' breaks its /404,/500 prerender
+    // (the "<Html> should not be imported outside pages/_document" error), and Vite/CRA want
+    // production too. devDeps are already on disk, so the toolchain is still present.
+    const built = await execBash(spa.build, { cwd: dest, timeoutMs: 300_000, env: { NODE_ENV: 'production' } }).catch(() => null);
     const out = findBuildOutput(dest);
     if (built?.ok && out) {
       kind = 'static';
@@ -305,7 +309,11 @@ export async function publishSession(sessionId: string, name?: string): Promise<
         pkg = JSON.parse(fs.readFileSync(path.join(dest, 'package.json'), 'utf8'));
       } catch {}
       if (status !== 'error' && pkg?.scripts?.build) {
-        const built = await execBash('npm run build', { cwd: dest, timeoutMs: 420_000 }).catch(() => null);
+        // BUILD at NODE_ENV=production even though install ran at 'development' (for devDeps):
+        // Next.js inheriting 'development' into `next build` breaks the /404,/500 prerender
+        // (the spurious "<Html> should not be imported outside pages/_document" failure). The
+        // build toolchain is already installed, so production here is correct and safe.
+        const built = await execBash('npm run build', { cwd: dest, timeoutMs: 420_000, env: { NODE_ENV: 'production' } }).catch(() => null);
         const tail = (s?: string) => String(s ?? '').slice(-700).trim();
         if (!built?.ok) {
           status = 'error';

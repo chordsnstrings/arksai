@@ -741,6 +741,17 @@ DATABASE_URL — just declare the database and a migration.
 Either way: ONE database, ONE schema, a committed migration. (Pure client-side apps still just use
 localStorage.) The result must be a real, working, data-persisting app at its live URL.
 
+PUBLISHED-APP STACK — choose one the path-based host serves cleanly (apps live under /apps/<slug>/,
+behind a reverse-proxy that rewrites root-absolute paths). Two robust shapes, in order of preference:
+- A static frontend (plain HTML/CSS/JS, or a Vite/React SPA — create_web_app / create_react_app) talking
+  to a SIMPLE server-rendered API (Express/Fastify) for persistence. This is the most reliable.
+- A fully server-rendered Express/Fastify app (it returns HTML on each request). Also reliable.
+AVOID Next.js App Router / React Server Components for a PUBLISHED data app unless explicitly asked: its
+RSC client-navigation and basePath/assetPrefix assumptions fight the /apps/<slug>/ rewriting proxy (RSC
+fetches come back as HTML and navigation breaks), and it has repeatedly cost long debugging loops. If the
+user specifically wants Next, set basePath/assetPrefix to /apps/<slug> and prefer the Pages Router. For
+everything else, reach for Express + SQLite/Postgres — it just works behind the proxy.
+
 ${intakeContext(profile)}
 
 VERIFICATION IS MANDATORY before you report completion:
