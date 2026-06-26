@@ -5,7 +5,7 @@ import * as store from '../sessions/store';
 import { deploymentDir, deploymentRegistry } from '../deploy/registry';
 import { publishSession, removeDeployment, restartDeployment, stopDeployment } from '../deploy/publish';
 import { isPgProvisioningConfigured, setPgAdminUrl } from '../deploy/dbRuntime';
-import { testPgAdmin } from '../deploy/dbProvision';
+import { listAppDatabases, testPgAdmin } from '../deploy/dbProvision';
 import { resolveInWorkspace } from '../agent/tools/common';
 import { proxyFetch } from '../lib/proxy';
 import { scopeOf } from '../auth';
@@ -77,6 +77,12 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
   app.post('/api/admin/db/test', async (req, reply) => {
     if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
     return testPgAdmin();
+  });
+
+  // Ops visibility: the per-app databases currently provisioned on the managed instance.
+  app.get('/api/admin/db/apps', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    return { databases: await listAppDatabases() };
   });
 
   app.post('/api/sessions/:id/publish', async (req, reply) => {

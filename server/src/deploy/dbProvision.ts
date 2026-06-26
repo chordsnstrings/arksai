@@ -130,6 +130,29 @@ export async function testPgAdmin(): Promise<{ ok: boolean; version?: string; er
   }
 }
 
+/** List the per-app databases currently provisioned on the managed instance (ops visibility +
+ *  confirms the reaper actually dropped one). Returns [] if PG isn't configured. */
+export async function listAppDatabases(): Promise<string[]> {
+  const adminUrl = pgAdminUrl();
+  if (!adminUrl) return [];
+  let pg: any;
+  try {
+    pg = await import('pg');
+  } catch {
+    return [];
+  }
+  const c = new pg.Client(pgConnOpts(adminUrl, { connectionTimeoutMillis: 12_000 }));
+  try {
+    await c.connect();
+    const r = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'app\\_%' ORDER BY datname");
+    return r.rows.map((row: any) => String(row.datname));
+  } catch {
+    return [];
+  } finally {
+    await c.end().catch(() => {});
+  }
+}
+
 /** Create an isolated Postgres role + database on the managed instance and return its URL. */
 async function provisionPostgres(slug: string): Promise<ProvisionResult> {
   const adminUrl = pgAdminUrl();
