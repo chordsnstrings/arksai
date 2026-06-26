@@ -139,6 +139,36 @@ export async function setupWorkspace(session: SessionMeta): Promise<void> {
   bus.sessionChanged((await store.getSession(session.id))!);
 }
 
+/**
+ * Make sure a connected repo's CODE is actually in the workspace. A repo attached AFTER session
+ * creation (via the Connect modal → PATCH) only set the push target — it never cloned — so the
+ * workspace was empty when the user asked the agent to "go through the code" (the bug this fixes).
+ * Clones on demand, but ONLY into an empty workspace, so it can never clobber an app the user
+ * already built here (that case is a genuine push-target, not a work-on-this-repo). Returns true
+ * if it cloned.
+ */
+export async function ensureRepoCloned(session: SessionMeta): Promise<boolean> {
+  if (!session.repoUrl) return false;
+  const dir = repoDir(session.id);
+  // A real clone has an `origin` remote; a fresh `git init` workspace does not — that's how we tell
+  // "already cloned" from "init'd empty" (setupWorkspace scrubs the token but keeps the origin URL).
+  if (fs.existsSync(path.join(dir, '.git'))) {
+    const remote = await execBash('git remote get-url origin 2>/dev/null', { cwd: dir, timeoutMs: 10_000 });
+    if (remote.ok && remote.output.trim()) return false;
+  }
+  // Never clobber real work: only clone into an empty workspace (knowledge/ + ARKS.md don't count).
+  const files = fs.existsSync(dir) ? await listFiles(session.id) : [];
+  const meaningful = files.filter((f) => !f.startsWith('knowledge/') && f !== 'ARKS.md');
+  if (meaningful.length > 0) return false;
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+  } catch {
+    /* best-effort */
+  }
+  await setupWorkspace(session); // emits clone_progress + records base/branch
+  return fs.existsSync(path.join(dir, '.git'));
+}
+
 /** "+12 −3" style summary of uncommitted changes, or null if clean/unavailable. */
 export async function diffStat(sessionId: string): Promise<string | null> {
   const dir = repoDir(sessionId);

@@ -1,6 +1,7 @@
 import { AgentRun } from '../agent/runner';
 import { config } from '../config';
 import { processRegistry } from '../agent/processes';
+import { ensureRepoCloned } from './workspace';
 import * as store from './store';
 
 /** Live AgentRun registry: one run per session, global concurrency cap. */
@@ -24,8 +25,17 @@ export async function startRun(
       code: 429,
     };
   }
-  const session = await store.getSession(sessionId);
+  let session = await store.getSession(sessionId);
   if (!session) return { ok: false, error: 'Session not found.', code: 404 };
+
+  // If a repo was connected to this session but never cloned (e.g. attached via the Connect modal
+  // AFTER creation), pull it in now so the agent actually has the code to read/edit — then re-load
+  // the session so the run sees the resolved branch. Best-effort; an empty/failed clone still runs.
+  try {
+    if (await ensureRepoCloned(session)) session = (await store.getSession(sessionId)) || session;
+  } catch (err) {
+    console.error(`[run ${sessionId}] clone-on-demand failed:`, err);
+  }
 
   const run = new AgentRun(session);
   liveRuns.set(sessionId, run);

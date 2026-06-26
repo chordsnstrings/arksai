@@ -12,7 +12,7 @@ import * as manager from '../sessions/manager';
 import { isValidModel } from '../agent/models';
 import { DEFAULT_ORG_ID } from '../orgs/store';
 import { walletBalanceUsd } from '../wallet/store';
-import { deleteWorkspace, fullDiff, gitStatus, listFiles, parseRepoUrl, recordPush, repoDir, resolvePushUrl, setupWorkspace } from '../sessions/workspace';
+import { deleteWorkspace, ensureRepoCloned, fullDiff, gitStatus, listFiles, parseRepoUrl, recordPush, repoDir, resolvePushUrl, setupWorkspace } from '../sessions/workspace';
 import { execBash } from '../lib/exec';
 import path from 'node:path';
 import { bus } from '../events/bus';
@@ -108,9 +108,11 @@ export function registerSessionRoutes(app: FastifyInstance) {
       if (SESSION_MODES.includes(body.mode as any)) patch.mode = body.mode;
       if (body.model && (await isValidModel(body.model))) patch.model = body.model;
     }
-    // Attach / change the GitHub push target (repo + the user's connection). No re-clone — push
-    // goes from the existing workspace to the chosen remote. The connection must be the caller's.
+    // Attach / change the GitHub push target (repo + the user's connection). The connection must be
+    // the caller's. If the workspace is empty we ALSO clone the repo in (below) so the user can ask
+    // about / edit its code — not just push to it.
     const b: any = body;
+    let repoNewlyAttached = false;
     if (typeof b.repoUrl === 'string') {
       if (manager.isRunning(id)) return reply.code(409).send({ error: 'Cannot change the repo mid-run' });
       if (b.repoUrl.trim() === '') {
@@ -119,6 +121,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
         const parsed = parseRepoUrl(b.repoUrl);
         if (!parsed) return reply.code(400).send({ error: 'Invalid repo. Use https://github.com/owner/repo or owner/repo.' });
         patch.repoUrl = parsed.url; (patch as any).repoName = parsed.name;
+        repoNewlyAttached = parsed.url !== meta.repoUrl;
         if (typeof b.branch === 'string' && b.branch.trim()) patch.branch = b.branch.trim();
         let connId: string | null = null;
         const cIn = asStr(b.githubConnectionId).trim();
@@ -133,6 +136,12 @@ export function registerSessionRoutes(app: FastifyInstance) {
     await store.updateSession(id, patch);
     const updated = (await store.getSession(id))!;
     bus.sessionChanged(updated);
+    // Newly attached a repo to an empty workspace → eagerly clone its code in (async, with
+    // clone_progress events) so it's ready by the time the user asks about it. The run-start path
+    // also guarantees this, so it's safe if the clone is still finishing.
+    if (repoNewlyAttached) {
+      void ensureRepoCloned(updated).catch((err) => console.error('[attach-repo clone]', err));
+    }
     return updated;
   });
 
