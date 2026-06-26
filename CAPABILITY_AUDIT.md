@@ -149,3 +149,20 @@ local server; PDFs are rasterized with `mupdf`.
   **Live Postgres validation is operator-side** (sandbox can't reach the droplet/managed PG) — it activates
   when `MANAGED_PG_ADMIN_URL` is set.
 - **Lesson logged:** validate the ACTUAL failing class (DB-backed), not just the easy case (static).
+
+## "Any database" — Postgres provisioning VALIDATED LIVE (operator gave DO access)
+The operator provided a DO API token; I wired enablement without SSH and validated the full cycle:
+- **Enabled (no SSH):** `dbRuntime.ts` (admin URL from env or encrypted `app_settings`) + superadmin routes
+  `/api/admin/db/{configure,status,test,apps}`. Set the **arksai-db** (managed PG16) admin URL via the
+  endpoint; `db/test` from the droplet → **connected (PostgreSQL 16.14)**.
+- **TLS fix:** DO's managed-DB CA isn't in Node's trust store → `pgConnOpts` strips a conflicting sslmode +
+  `rejectUnauthorized:false`; deployed apps get the driver-right sslmode (Prisma `require`, node-pg
+  `no-verify`). Plus a PG15+ `public`-schema ownership grant so the app role can create tables.
+- **End-to-end LIVE:** built a Postgres notes app (Express + pg) → publish **provisioned an isolated
+  per-app database + role on arksai-db**, injected DATABASE_URL → the app connected, created its table, and
+  **persists data** (POST 201 → GET returns it; serial id + timestamptz = real Postgres). URL
+  `/apps/slate-pad-notes/`.
+- **24h cleanup PROVEN:** `GET /api/admin/db/apps` showed `app_slate_pad_notes`; DELETE the deployment →
+  list returned `[]`. **The per-app database + role are reaped on expiry/delete — no leak.**
+- **Operator follow-ups:** ROTATE the pasted DO token; consider locking down arksai-db's firewall (currently
+  no trusted sources — internet-reachable with the password) by adding the droplet as a trusted source.
