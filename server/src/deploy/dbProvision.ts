@@ -9,6 +9,7 @@
 
 import crypto from 'node:crypto';
 import { config } from '../config';
+import { pgAdminUrl } from './dbRuntime';
 
 export type DbKind = 'sqlite' | 'postgres' | 'mysql' | 'mongo' | 'redis' | 'none';
 
@@ -83,9 +84,35 @@ export async function provisionAppDatabase(slug: string, kind: DbKind): Promise<
   };
 }
 
+/** Operator check: can THIS server reach the configured managed Postgres? Returns the version or
+ *  the connection error — so enabling provisioning can be confirmed before relying on it. */
+export async function testPgAdmin(): Promise<{ ok: boolean; version?: string; error?: string }> {
+  const adminUrl = pgAdminUrl();
+  if (!adminUrl) return { ok: false, error: 'Postgres provisioning is not configured (no admin URL).' };
+  let pg: any;
+  try {
+    pg = await import('pg');
+  } catch {
+    return { ok: false, error: 'Postgres client unavailable.' };
+  }
+  const ssl = /sslmode=require|\.ondigitalocean\.com|\.neon\.tech|\.supabase\./i.test(adminUrl)
+    ? { rejectUnauthorized: false }
+    : undefined;
+  const c = new pg.Client({ connectionString: adminUrl, ssl, connectionTimeoutMillis: 12_000 });
+  try {
+    await c.connect();
+    const r = await c.query('SELECT version()');
+    return { ok: true, version: String(r.rows?.[0]?.version || '').slice(0, 60) };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e).slice(0, 200) };
+  } finally {
+    await c.end().catch(() => {});
+  }
+}
+
 /** Create an isolated Postgres role + database on the managed instance and return its URL. */
 async function provisionPostgres(slug: string): Promise<ProvisionResult> {
-  const adminUrl = config.pgAdminUrl;
+  const adminUrl = pgAdminUrl();
   if (!adminUrl) {
     return {
       ok: false,
@@ -140,7 +167,7 @@ async function provisionPostgres(slug: string): Promise<ProvisionResult> {
  * can call this unconditionally for any slug.
  */
 export async function deprovisionAppDatabase(slug: string): Promise<void> {
-  const adminUrl = config.pgAdminUrl;
+  const adminUrl = pgAdminUrl();
   if (!adminUrl) return; // PG not enabled → nothing provisioned to reap
   const db = safeDbName(slug);
   const role = db;

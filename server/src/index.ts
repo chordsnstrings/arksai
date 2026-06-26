@@ -9,6 +9,7 @@ import { startAnalyticsDigest } from './analytics/digest';
 import { startRobotPoller } from './robots/poller';
 import { startBuildReaper } from './build/androidBuild';
 import { loadBuildRuntime } from './build/runtime';
+import { loadDbRuntime } from './deploy/dbRuntime';
 import { loadGithubRuntime } from './github/runtime';
 import * as manager from './sessions/manager';
 
@@ -31,6 +32,7 @@ async function main() {
   startDeploymentHealthMonitor(); // restart any published app whose process died (self-healing)
   startAnalyticsDigest(); // periodic platform metric snapshots (+ optional webhook)
   await loadBuildRuntime(); // load DO token + snapshot id from app_settings (if not in env)
+  await loadDbRuntime(); // load the managed-Postgres admin URL from app_settings (if not in env)
   await loadGithubRuntime(); // load GitHub OAuth-app creds from app_settings (if not in env)
   startBuildReaper(); // destroy any stray Android build droplet (no-op unless configured)
   // Auto-resume runs a restart/deploy interrupted (recency- + crash-loop-guarded in the store),

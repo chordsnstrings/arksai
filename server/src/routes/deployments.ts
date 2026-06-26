@@ -4,6 +4,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import * as store from '../sessions/store';
 import { deploymentDir, deploymentRegistry } from '../deploy/registry';
 import { publishSession, removeDeployment, restartDeployment, stopDeployment } from '../deploy/publish';
+import { isPgProvisioningConfigured, setPgAdminUrl } from '../deploy/dbRuntime';
+import { testPgAdmin } from '../deploy/dbProvision';
 import { resolveInWorkspace } from '../agent/tools/common';
 import { proxyFetch } from '../lib/proxy';
 import { scopeOf } from '../auth';
@@ -53,6 +55,28 @@ export function registerDeploymentRoutes(app: FastifyInstance) {
   app.get('/api/deployments', async (req) => {
     const { sessionId } = (req.query ?? {}) as { sessionId?: string };
     return { deployments: await store.listDeployments(sessionId, scopeOf(req)) };
+  });
+
+  // ---- Operator only: enable Postgres provisioning for deployed apps (no SSH needed) ----
+  app.post('/api/admin/db/configure', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    const adminUrl = String((req.body as any)?.adminUrl || '').trim();
+    if (!/^postgres(ql)?:\/\//i.test(adminUrl)) {
+      return reply.code(400).send({ error: 'Provide the managed-Postgres admin URL (postgresql://…).' });
+    }
+    await setPgAdminUrl(adminUrl);
+    return { ok: true, configured: isPgProvisioningConfigured() };
+  });
+
+  app.get('/api/admin/db/status', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    return { configured: isPgProvisioningConfigured() };
+  });
+
+  // Confirm the server can actually reach the configured Postgres before relying on provisioning.
+  app.post('/api/admin/db/test', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    return testPgAdmin();
   });
 
   app.post('/api/sessions/:id/publish', async (req, reply) => {
