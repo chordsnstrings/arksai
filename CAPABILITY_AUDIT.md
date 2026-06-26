@@ -132,3 +132,20 @@ local server; PDFs are rasterized with `mupdf`.
   `.listen(` — which are common CLIENT idioms (`app.run()`, React Router `history.listen()`) — so a static
   app could be wrongly booted as a server. Now **language-scoped** (JS server constructs / `PORT`-bound
   listen; Python signals only on `.py`), dropping those false-positives. Unit-tested. 650 tests green.
+
+## Database-backed apps — the comprehensive end-to-end test (operator-driven)
+- **Operator (rightly):** "you didn't test a database-backed app — that's the comprehensive test," and
+  "the db-backed app should build a db-backed app from the beginning," then "we should be able to do any
+  kind of database."
+- **Root cause found:** `publish.ts` had ZERO database handling — a DB app shipped with no schema and (for a
+  server DB) nothing to connect to → it deployed broken. My earlier verify-gate "tolerance" was a band-aid.
+- **SQLite path — BUILT + VALIDATED LIVE END-TO-END:** built a guestbook (Express + better-sqlite3) from
+  scratch → published to `/apps/guestbook/` → **POST /api/entries → 201, GET returns it → data persists**
+  server-side at the live URL. (The transient 502 was the deploy-restart window, not the app.)
+- **"Any database" → Postgres provisioning BUILT (inert until enabled):** `dbProvision.ts` creates an
+  isolated per-app Postgres role + database on the managed instance, injects the connection string, runs
+  migrations; per-app password is deterministic so re-publish reuses the same DB (data persists). SQLite
+  stays the zero-infra default; MySQL/Mongo/Redis stubbed to extend. Pure logic + gating unit-tested.
+  **Live Postgres validation is operator-side** (sandbox can't reach the droplet/managed PG) — it activates
+  when `MANAGED_PG_ADMIN_URL` is set.
+- **Lesson logged:** validate the ACTUAL failing class (DB-backed), not just the easy case (static).
