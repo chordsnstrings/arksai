@@ -48,7 +48,23 @@ Legend: ✅ at-bar · 🟡 good output but a process/quality gap · 🔴 below b
 ### .docx — ⬜
 ### .pptx deck — ⬜ (never exercised via the live agent)
 
-## Wave 2 — Code on a connected repo — ⬜
+## Wave 2 — Code on a connected repo — 🟡 → improved (read/understand ✅, library-boot bug fixed)
+- **Live test:** created a CHAT session with NO repo, then attached `sindresorhus/p-limit` via PATCH (the
+  exact screenshot bug), then asked about the code.
+- **clone-on-connect:** ✅ **validated live** — 9s after attach the workspace had all 16 repo files. The fix
+  shipped earlier this session works in production.
+- **repo primer + Q&A:** ✅ **Claude-quality** — a precise, line-cited walkthrough of `index.js`
+  (`activeCount`/`queue`/`enqueue`/`run`/`resumeNext`), reading the real code.
+- **code-review gate:** ✅ **fired live** on a small edit — "✓ Code review passed — no correctness issues in
+  the diff." First live exercise of the gate shipped this session; works.
+- **Bug found + fixed:** editing a **library** repo (p-limit) made the verify gate try to "**Boot the app and
+  exercise its endpoints**" and loop ("hardening pass 2, 3…") — because `detectStartCommand` returned
+  `node index.js` for *any* package with an index.js, even a library that opens no port. **Fix:**
+  `verify.ts` now only treats an entry file as a start command if it **actually looks like a server**
+  (listen/PORT/express/fastify/Flask/…), so libraries/CLIs run static checks + their own tests and skip the
+  boot. Unit-tested (library vs server, Node + Flask). 643 tests green.
+- **Not tested live:** the branch + `open_pull_request` push half — needs a writable throwaway repo (won't
+  push experimental edits to a real one). Deferred; the tool wiring is unit-tested.
 ## Wave 3 — Brand & media — ⬜ (video params, Suno V5 shape, TTS ids to fine-tune)
 ## Wave 4 — Robots (email) — ⬜
 

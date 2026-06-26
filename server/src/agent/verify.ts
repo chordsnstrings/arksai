@@ -43,21 +43,39 @@ const NO_TEST = /no test specified/i;
  * Detect how to boot this project as a running app, or null if it's a
  * library/script with nothing to serve. Used by the runtime verification phase.
  */
+// A long-running SERVER/app entry contains one of these; a plain LIBRARY (whose index.js just
+// exports a function — e.g. p-limit) does not. Used to avoid trying to "boot" a library as an app
+// (which opens no port and loops the runtime gate forever).
+const SERVER_SIGNAL_RE =
+  /\.listen\s*\(|createServer|express\s*\(|fastify\s*\(|new\s+Hono|Deno\.serve|Bun\.serve|http\.createServer|process\.env\.PORT|app\.run\s*\(|uvicorn|Flask\s*\(|FastAPI\s*\(|gunicorn|app\.listen/i;
+
+function looksLikeServer(dir: string, file: string): boolean {
+  try {
+    return SERVER_SIGNAL_RE.test(fs.readFileSync(path.join(dir, file), 'utf8').slice(0, 20_000));
+  } catch {
+    return false;
+  }
+}
+
 export function detectStartCommand(dir: string): string | null {
   if (exists(dir, 'package.json')) {
     try {
       const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
       const s: Record<string, string> = pkg.scripts ?? {};
+      // An explicit run script means the author declared how to run it — trust it.
       if (s.start) return 'npm start';
       if (s.serve) return 'npm run serve';
       if (s.dev) return 'npm run dev';
     } catch {}
-    for (const f of ['server.js', 'app.js', 'index.js', 'main.js', 'src/server.js', 'src/index.js']) {
-      if (exists(dir, f)) return `node ${f}`;
+    // Entry-file fallback: ONLY treat it as a start command if the file actually starts a server.
+    // Otherwise it's a library (index.js exports a function) and there is nothing to boot — booting
+    // it opens no port and loops the runtime gate (the p-limit case).
+    for (const f of ['server.js', 'app.js', 'src/server.js', 'index.js', 'main.js', 'src/index.js']) {
+      if (exists(dir, f) && looksLikeServer(dir, f)) return `node ${f}`;
     }
   }
   for (const f of ['main.py', 'app.py', 'server.py', 'wsgi.py']) {
-    if (exists(dir, f)) return `python3 ${f}`;
+    if (exists(dir, f) && looksLikeServer(dir, f)) return `python3 ${f}`;
   }
   if (exists(dir, 'go.mod')) return 'go run .';
   return null;
