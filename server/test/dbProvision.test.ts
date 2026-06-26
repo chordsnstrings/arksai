@@ -55,6 +55,10 @@ test('provisionAppDatabase: SQLite needs no provisioning; an unconfigured server
   assert.equal(mongo.ok, false);
 });
 
+test('deprovisionAppDatabase: a no-op (never throws) when Postgres is not configured', async () => {
+  await m.deprovisionAppDatabase('any-slug'); // MANAGED_PG_ADMIN_URL unset → harmless no-op
+});
+
 test('readDotEnv: parses a deployed app .env into env vars', () => {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-env-'));
   fs.writeFileSync(path.join(d, '.env'), 'DATABASE_URL="file:./prod.db"\n# comment\nFOO=bar\n');

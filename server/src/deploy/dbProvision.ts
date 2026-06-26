@@ -131,6 +131,45 @@ async function provisionPostgres(slug: string): Promise<ProvisionResult> {
   }
 }
 
+/**
+ * Tear down a deployed app's provisioned database when its preview is removed (24h expiry or
+ * explicit delete) — so nothing leaks on the managed instance, the same way the Android build
+ * droplet is always destroyed. SQLite needs nothing (its file lives in the deployment dir and is
+ * deleted with it). Postgres drops the per-app database + role. Idempotent + best-effort: if there's
+ * no such database (a SQLite app) or PG isn't configured, it's a harmless no-op. So `removeDeployment`
+ * can call this unconditionally for any slug.
+ */
+export async function deprovisionAppDatabase(slug: string): Promise<void> {
+  const adminUrl = config.pgAdminUrl;
+  if (!adminUrl) return; // PG not enabled → nothing provisioned to reap
+  const db = safeDbName(slug);
+  const role = db;
+  let pg: any;
+  try {
+    pg = await import('pg');
+  } catch {
+    return;
+  }
+  const ssl = /sslmode=require|\.ondigitalocean\.com|\.neon\.tech|\.supabase\./i.test(adminUrl)
+    ? { rejectUnauthorized: false }
+    : undefined;
+  const admin = new pg.Client({ connectionString: adminUrl, ssl });
+  try {
+    await admin.connect();
+    // WITH (FORCE) terminates any lingering connections (PG13+) so the drop can't hang on the app.
+    await admin.query(`DROP DATABASE IF EXISTS ${ident(db)} WITH (FORCE)`).catch(async () => {
+      // Older servers: terminate backends, then drop without FORCE.
+      await admin.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1', [db]).catch(() => {});
+      await admin.query(`DROP DATABASE IF EXISTS ${ident(db)}`).catch(() => {});
+    });
+    await admin.query(`DROP ROLE IF EXISTS ${ident(role)}`).catch(() => {});
+  } catch (e: any) {
+    console.warn(`[deploy] db deprovision failed for ${slug}: ${String(e?.message ?? e).slice(0, 160)}`);
+  } finally {
+    await admin.end().catch(() => {});
+  }
+}
+
 // Identifiers/literals are built from a SANITIZED name (safeDbName) + a derived hex password, so
 // these never see untrusted input — but quote defensively anyway.
 function ident(name: string): string {

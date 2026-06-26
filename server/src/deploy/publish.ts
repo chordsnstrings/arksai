@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { execBash } from '../lib/exec';
 import { listeningPorts } from '../lib/ports';
 import { detectStartCommand } from '../agent/verify';
-import { detectDbKind, provisionAppDatabase } from './dbProvision';
+import { detectDbKind, deprovisionAppDatabase, provisionAppDatabase } from './dbProvision';
 import { browserSmokeTest } from '../agent/uiCheck';
 import { config } from '../config';
 import { repoDir } from '../sessions/workspace';
@@ -198,9 +198,11 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   // Supersede any prior deployment(s) for this session — kill + remove them — so
   // re-publishes (including verification retries) don't pile up errored/duplicate
   // slugs, and the public URL stays stable instead of drifting to -2/-3.
+  const priorSlugs: string[] = [];
   try {
     const prior = (await store.listDeployments()).filter((d) => d.sessionId === sessionId);
     for (const d of prior) {
+      priorSlugs.push(d.slug);
       deploymentRegistry.kill(d.slug);
       await store.deleteDeployment(d.slug);
       try {
@@ -211,6 +213,9 @@ export async function publishSession(sessionId: string, name?: string): Promise<
 
   const appName = String(name || session.repoName || session.title || 'app');
   const slug = await uniqueSlug(slugify(appName));
+  // Re-publishing the SAME slug reuses its provisioned database (data persists). Any PRIOR slug we
+  // are NOT reusing would otherwise leak its database on the managed instance — reap those.
+  for (const ps of priorSlugs) if (ps !== slug) await deprovisionAppDatabase(ps).catch(() => {});
   const dest = deploymentDir(slug);
   fs.mkdirSync(dest, { recursive: true });
 
@@ -392,6 +397,9 @@ export async function removeDeployment(slug: string) {
   try {
     fs.rmSync(deploymentDir(slug), { recursive: true, force: true });
   } catch {}
+  // Reap any provisioned database (Postgres) so a 24h-expired/deleted preview leaves nothing behind
+  // on the managed instance. SQLite is just the file we deleted above; this is a no-op for it.
+  await deprovisionAppDatabase(slug).catch(() => {});
 }
 
 // ---- 24h-preview auto-cleanup (the janitor) ----
