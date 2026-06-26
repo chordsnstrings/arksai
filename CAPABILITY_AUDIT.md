@@ -166,3 +166,44 @@ The operator provided a DO API token; I wired enablement without SSH and validat
   list returned `[]`. **The per-app database + role are reaped on expiry/delete — no leak.**
 - **Operator follow-ups:** ROTATE the pasted DO token; consider locking down arksai-db's firewall (currently
   no trusted sources — internet-reachable with the password) by adding the droplet as a trusted source.
+
+## Wave 1b — chained deliverables + DB-backed website publish (2026-06-26, all fixed & shipped)
+
+### Chained workflow: 5-yr forecast → pptx → pdf (LIVE, verified)
+Built live: a formula-driven `.xlsx` (75 formulas, Assumptions + P&L sheets) → a 7-slide `.pptx` that
+**pulled the model's actual numbers** (Y5 revenue $19.4M, ending ARR $23M, 81% margin, +$2.1M EBITDA, full
+P&L table, a real dual-axis revenue/EBITDA chart) → a 7-page `.pdf`. Chained data flow + conversion both
+work; the deck is Claude-competitive editorial.
+- **FOUND + FIXED — pptx→pdf via LibreOffice is fragile:** LibreOffice 7.4 mangles embedded raster (RGBA
+  alpha → transparency mask = blank chart; PNG/JPEG → grayscale+blanked). The agent burned ~60 steps
+  brute-forcing a BMP workaround. **Fix:** new `convert_document` tool renders a deck's faithful
+  `.preview.html` (inline-SVG charts) via headless Chromium — crisp every time; soffice only for plain
+  office docs. preview.html now carries print CSS (one slide = one page). Steering: never soffice a .pptx.
+- **FOUND + FIXED — design-gate gold-plating:** after producing an excellent deck AND self-fixing 2 defects,
+  the loop kept going and started "reimagining" the cover with a compass-rose gimmick (cost 2.5×). **Fix:**
+  deliver-when-good steering in prompts.ts (don't re-author/redesign an already-good document).
+
+### DB-backed website publish (LIVE, verified end-to-end)
+Goal: publish a database-backed website and check it works on the live URL. Achieved with an
+**Express + Postgres server-rendered guestbook**: my own form submissions (JSON *and* native urlencoded)
+returned 303 and **persisted in Postgres**, server-rendered on a fresh GET (count incremented; entries
+present). Re-publish came back **verifyOk:true** ("renders cleanly").
+- **FOUND + FIXED — publish build inherited `NODE_ENV=development`:** broke Next.js `next build`
+  (/404,/500 `<Html>` prerender error). **Fix:** run the BUILD step at `NODE_ENV=production` (install stays
+  development for devDeps) in both publish paths.
+- **FOUND + FIXED — reverse-proxy 415'd non-JSON bodies:** Fastify parses only JSON by default and 415s
+  `application/x-www-form-urlencoded`/multipart **before** the proxy handler — so a normal HTML `<form>` POST
+  never reached a published app, and the post-publish smoke test (which submits the first form)
+  **false-marked working apps as `error`**, making the publish modal withhold a live link for a working app.
+  **Fix:** catch-all raw-body parser → the proxy forwards any content-type verbatim. Verified live: urlencoded
+  POST 415→303, multipart uploads still work, re-publish goes green.
+- **FOUND + FIXED (UX) — publish is now a focused modal:** the completion-card "Share it" opens the
+  Publish & share modal (live link + full error visible/copyable) instead of a cramped inline step that
+  swallowed the real error.
+- **FOUND (steering) — Next.js App Router/RSC fights the path proxy:** RSC fetches come back as HTML and
+  client navigation breaks under `/apps/<slug>/`; two Next+Postgres builds cost long debug loops. Steering
+  now prefers a proxy-friendly stack (static/SPA + Express API, or server-rendered Express) and uses Next
+  only when explicitly asked.
+- **Minor/open:** publishing via the bare API with no name derives an ugly slug from the brief text (the UI
+  always passes the title → clean slug, so users are unaffected); the post-publish "error" status on a node
+  app whose process is later reaped by a redeploy needs a manual restart (boot recovery skips `error` rows).
