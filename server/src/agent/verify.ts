@@ -168,10 +168,20 @@ export async function verifyProject(
     const scripts: Record<string, string> = pkg.scripts ?? {};
 
     if (!exists(dir, 'node_modules')) {
-      const install = exists(dir, 'package-lock.json')
-        ? 'npm ci --no-audit --no-fund'
-        : 'npm install --no-audit --no-fund';
-      if (!add(await step('install deps', install, 300_000))) return done();
+      // Prefer `npm ci` (fast, reproducible) when a lockfile exists, but it hard-fails if the
+      // lockfile is out of sync with package.json (common when the file was hand-authored). Fall
+      // back to `npm install` (which reconciles the lock) so a stale lock doesn't fail the gate.
+      if (exists(dir, 'package-lock.json')) {
+        const ci = await step('install deps', 'npm ci --no-audit --no-fund', 300_000);
+        if (!ci.ok) {
+          const fallback = await step('install deps', 'npm install --no-audit --no-fund', 300_000);
+          if (!add(fallback)) return done();
+        } else {
+          checks.push(ci);
+        }
+      } else if (!add(await step('install deps', 'npm install --no-audit --no-fund', 300_000))) {
+        return done();
+      }
     }
     const order: [string, string][] = [];
     if (scripts.typecheck) order.push(['typecheck', 'npm run typecheck']);

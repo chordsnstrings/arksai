@@ -10,7 +10,7 @@ import { config } from '../config';
 import { repoDir } from '../sessions/workspace';
 import * as store from '../sessions/store';
 import { deploymentRegistry, deploymentDir, deploymentsRoot } from './registry';
-import type { Deployment, DeploymentKind } from '../../../shared/types';
+import type { Deployment, DeploymentKind, DeploymentStatus } from '../../../shared/types';
 
 /** A published deployment plus the result of smoke-testing its live public URL. */
 export type PublishResult = Deployment & { verifyDetail?: string; verifyOk?: boolean };
@@ -143,6 +143,23 @@ function upsertEnv(dest: string, key: string, value: string): void {
   }
 }
 
+/**
+ * Install dependencies resiliently. Prefer `npm ci` when a lockfile exists (fast,
+ * reproducible) but it HARD-FAILS when the lockfile is out of sync with package.json
+ * (common when the agent hand-authored package.json) — so fall back to `npm install`,
+ * which reconciles the lock, rather than failing the whole publish.
+ */
+async function npmInstall(dest: string, extra = ''): Promise<{ ok: boolean; output: string } | null> {
+  const flags = `--no-audit --no-fund${extra ? ' ' + extra : ''}`;
+  if (fs.existsSync(path.join(dest, 'package-lock.json'))) {
+    const ci = await execBash(`npm ci ${flags}`, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
+    if (ci?.ok) return ci;
+    // ci failed (usually a stale lock) → reconcile with a plain install
+    return execBash(`npm install ${flags}`, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
+  }
+  return execBash(`npm install ${flags}`, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
+}
+
 /** Where a SPA build dropped its output (first dir that actually has an index.html). */
 const SPA_OUT_DIRS = ['dist', 'build', 'out', 'public'];
 function findBuildOutput(dest: string): string | null {
@@ -257,10 +274,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   if (spa) {
     // BUILD the SPA (needs devDeps → full install), then static-serve its output. This is
     // the most common ArksAI output (React/Vite); running its dev server under the proxy 502s.
-    const install = fs.existsSync(path.join(dest, 'package-lock.json'))
-      ? 'npm ci --no-audit --no-fund'
-      : 'npm install --no-audit --no-fund';
-    const inst = await execBash(install, { cwd: dest, timeoutMs: 300_000 }).catch(() => null);
+    const inst = await npmInstall(dest);
     // Install runs at NODE_ENV=development (devDeps = the build toolchain); the BUILD must run
     // at NODE_ENV=production — Next.js inheriting 'development' breaks its /404,/500 prerender
     // (the "<Html> should not be imported outside pages/_document" error), and Vite/CRA want
@@ -287,11 +301,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     if (kind === 'node' && fs.existsSync(path.join(dest, 'package.json'))) {
       // Install WITH devDeps — build toolchains (next/vite/astro/tailwind/tsc) live there.
       // (childEnv defaults the workspace to development; --prefer-offline hits the warm cache.)
-      const hasLock = fs.existsSync(path.join(dest, 'package-lock.json'));
-      const inst = await execBash(
-        hasLock ? 'npm ci --no-audit --no-fund --prefer-offline' : 'npm install --no-audit --no-fund --prefer-offline',
-        { cwd: dest, timeoutMs: 300_000 },
-      ).catch(() => null);
+      const inst = await npmInstall(dest, '--prefer-offline');
       // Provision the database (SQLite file + schema/migrations) BEFORE the build — a Prisma app's
       // build/runtime needs the generated client + an applied schema, or it ships broken. A
       // server-DB app (Postgres/Mongo) is rejected with guidance to use self-contained SQLite.
@@ -345,6 +355,10 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     }
   }
 
+  // REVIEW BEFORE PUBLICATION: a healthy build/boot is created as 'verifying' — routable
+  // (so the review below can drive it through the real proxy) but NOT advertised as live.
+  // It's promoted to 'running' only AFTER the pre-launch review passes, so the user never
+  // sees an app marked live until it's been reviewed (and never gets a broken link).
   const dep = await store.createDeployment({
     id: randomUUID(),
     sessionId,
@@ -352,7 +366,7 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     slug,
     name: appName.slice(0, 80),
     kind,
-    status,
+    status: status === 'error' ? 'error' : 'verifying',
     url: `/apps/${slug}/`,
     port,
     orgId: session.orgId, // inherit the publishing session's org → scoped, manageable
@@ -360,31 +374,33 @@ export async function publishSession(sessionId: string, name?: string): Promise<
     staticDir, // a built SPA serves from its dist/ subdir
   });
 
-  // POST-PUBLISH verification — smoke-test the REAL public URL the user will
-  // open (`/apps/<slug>/`, served by this same server), so they never get a
-  // broken link. On a hard failure mark it errored and hand the defect back to
-  // the agent to fix + republish. Bounded + best-effort (degrades to a pass if
-  // Playwright/Chromium is unavailable, e.g. in a bare sandbox).
+  // PRE-LAUNCH verification — smoke-test the REAL public URL the user will open
+  // (`/apps/<slug>/`, served by this same server) BEFORE the app is marked live, so the
+  // review gates publication rather than following it. On a hard failure mark it errored
+  // and hand the defect back to the agent to fix + republish; on success promote it to
+  // 'running'. Bounded + best-effort (degrades to a pass if Chromium is unavailable).
   let verifyDetail: string | undefined = buildError; // a failed SPA build → hand the build error back to the agent
   let verifyOk = !buildError;
   if (status !== 'error') {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 30_000);
+    let finalStatus: DeploymentStatus = 'running';
     try {
       const ui = await browserSmokeTest(`http://127.0.0.1:${config.port}/apps/${slug}/`, ac.signal);
       if (ui.ran && ui.hardFail) {
         verifyOk = false;
-        await store.updateDeployment(slug, { status: 'error' });
-        dep.status = 'error';
+        finalStatus = 'error';
         verifyDetail = ui.detail;
       } else if (ui.ran) {
-        verifyDetail = 'Post-publish check: the live URL renders cleanly in a headless browser.';
+        verifyDetail = 'Pre-launch review passed: the live URL renders cleanly in a headless browser.';
       }
     } catch {
-      /* never block a publish on the checker itself */
+      /* never block a publish on the checker itself — degrade to live */
     } finally {
       clearTimeout(timer);
     }
+    await store.updateDeployment(slug, { status: finalStatus });
+    dep.status = finalStatus;
   }
 
   return Object.assign(dep, { verifyDetail, verifyOk });

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-26.5';
+export const WHATS_NEW_VERSION = '2026-06-26.6';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Slides → PDF, crisp every time',
-    body: 'Converting a presentation to PDF now renders charts and images perfectly instead of occasionally dropping them — one reliable step, no more blank graphics.',
+    title: 'Apps with a database publish reliably',
+    body: 'Building a data-backed app now produces one clean, deployable app every time — no more half-built multi-part projects that fail to go live. Dependency installs recover automatically if something is out of sync.',
   },
   {
-    title: 'Publishing in one clear window',
-    body: 'When you put an app online, the live link — and any error if something needs fixing — now appears in a focused window you can read and copy from, not a cramped strip in the chat.',
+    title: 'Reviewed before it goes live',
+    body: 'When you publish, the app is now checked first and only marked live once it passes — so the link you get always works, and a problem is shown to you up front instead of after.',
   },
 ];
 

@@ -459,7 +459,8 @@ export interface ProjectFile {
 // ---- Deployments (publish a built app to a durable URL) ----
 
 export type DeploymentKind = 'static' | 'node' | 'python';
-export type DeploymentStatus = 'running' | 'stopped' | 'error';
+// 'verifying' = booted and under its pre-launch review; not advertised as live until it passes.
+export type DeploymentStatus = 'running' | 'stopped' | 'error' | 'verifying';
 
 export interface Deployment {
   id: string;

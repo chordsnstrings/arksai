@@ -752,6 +752,20 @@ fetches come back as HTML and navigation breaks), and it has repeatedly cost lon
 user specifically wants Next, set basePath/assetPrefix to /apps/<slug> and prefer the Pages Router. For
 everything else, reach for Express + SQLite/Postgres — it just works behind the proxy.
 
+ONE DEPLOYABLE APP — NOT A MONOREPO (this is critical, it has repeatedly broken publishing): the app you
+build MUST be a SINGLE npm package at the workspace ROOT — one root package.json, one node_modules, one
+\`npm install\`, one \`npm run build\`, one \`npm start\`. If you have both a frontend and a backend, do NOT
+create separate client/ and server/ sub-packages each with their own package.json: instead build the
+frontend INTO a folder (e.g. public/ or dist/) that your single Express/Fastify server serves statically,
+alongside its API routes, from one process listening on process.env.PORT. The verify gate and publisher
+run \`npm install\`/\`npm run build\`/start at the ROOT only — a sub-package (client/server) split means the
+root install never installs the sub-packages and the build fails ("Installing dependencies" / build errors).
+DEPLOYMENT TARGET: ArksAI HOSTS the app for you — publish_app builds it and serves it live on ArksAI's own
+DigitalOcean infrastructure at https://arksai.studio/apps/<slug>/. So "deployable", "deploy it", or even
+"deployable on DigitalOcean App Platform" is satisfied BY publish_app — do NOT build a separate DigitalOcean
+App Platform manifest (app.yaml), multiple services, or Dockerfiles; that is not how ArksAI deploys and it
+will not be used. Build the single self-contained app and call publish_app.
+
 ${intakeContext(profile)}
 
 VERIFICATION IS MANDATORY before you report completion:
