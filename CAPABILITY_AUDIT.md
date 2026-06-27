@@ -207,3 +207,28 @@ present). Re-publish came back **verifyOk:true** ("renders cleanly").
 - **Minor/open:** publishing via the bare API with no name derives an ugly slug from the brief text (the UI
   always passes the title → clean slug, so users are unaffected); the post-publish "error" status on a node
   app whose process is later reaped by a redeploy needs a manual restart (boot recovery skips `error` rows).
+
+## Wave 1c — full reproduction of the operator's failed car-wash session (2026-06-27, FIXED & re-run green)
+
+The operator's car-wash session (`9a844178`, status error) failed after ~265 steps. Root causes found:
+1. The brief ("deployable in DigitalOcean App Platform") made the agent build a **client/server monorepo +
+   app.yaml + Dockerfiles**. ArksAI's verify gate & publisher run `npm install`/`build`/start at the
+   workspace ROOT only → the root install never installed the sub-packages and the terminal failure was
+   **`npm ci` failing on a hand-authored/mismatched root lockfile** ("Installing dependencies").
+2. The first run also saw "no uploads came through" (the message ran before the upload attached), and it
+   **mis-routed the complex app to ArksAI Flash**.
+
+Fixes shipped: (a) steer to ONE deployable app at root (single Express serving the built frontend + API; no
+monorepo, no app.yaml — ArksAI hosts on its own DO infra); (b) resilient install (`npm ci`→`npm install`
+fallback) in verify.ts + publish.ts; (c) **review-before-publication**: a healthy build boots into a new
+`verifying` status (routable for the smoke test, NOT advertised as live) and is promoted to `running` only
+after the pre-launch review passes.
+
+**Re-run (exact reproduction — uploaded the same Eco-Clean PDF, same brief), verified live end-to-end:**
+upload landed (plans/emirates/slots extracted from the PDF) → routed to **ArksAI Max** → built a SINGLE
+Express + SQLite app (one package.json, no monorepo, no app.yaml) → **published green** at
+`/apps/eco-clean/` (status running, promoted after the pre-launch review) → booking flow persists
+(POST `/api/bookings` 201 → GET `/api/bookings/:id` returns the row with a real `created_at`). Homepage is
+on-brand (eco-green, "We come to your door · You stay spotless" tagline, real 50/100/300 AED plans, a
+departures-board booking signature) — Claude-competitive. The pptx→pdf proxy body fix also confirmed: an
+urlencoded POST reaches the app (422 app-validation, not a 415 proxy reject).
