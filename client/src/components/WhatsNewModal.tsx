@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-26.8';
+export const WHATS_NEW_VERSION = '2026-06-26.9';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Now tested in dark mode too',
-    body: 'Sites are now checked for readability in BOTH light and dark mode before they go live — so a page that looked fine in light mode but had near-invisible text on a dark-mode phone is caught and fixed first, instead of reaching you broken.',
+    title: 'Bigger, data-driven apps build reliably',
+    body: 'Full-stack React apps now scaffold with a correct, ready-to-run backend (a database + a properly wired API), so building a real interactive product — not just a small site — works smoothly the first time instead of getting stuck on plumbing.',
   },
   {
     title: 'Reviewed before it goes live',

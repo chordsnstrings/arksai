@@ -145,6 +145,20 @@ export function startPreviewServer(sessionId: string, dir: string, r: Renderable
     // default because the static build renders reliably through the canvas proxy, whereas a
     // dev server's absolute module paths + HMR websocket do not.
     const fe = r.startCmd ? detectFrontendBuild(dir) : null;
+    // FULL-STACK single service (a Vite frontend AND a node server that serves the built
+    // output + an API, e.g. create_react_app backend:true → `npm start`): build the frontend,
+    // then run the SERVER. Don't serve dist/ via a python static server — that 404s the API in
+    // the preview AND collides with the app's own :4000 server (a real over-iteration trap).
+    const serverStart = !!r.startCmd && /\bnpm (run )?start\b|\bnode\b/i.test(r.startCmd);
+    if (fe && serverStart) {
+      const out = fe.outDir;
+      const cmd =
+        `if [ ! -d "${out}" ] || [ -z "$(ls -A "${out}" 2>/dev/null)" ]; then ` +
+        `(test -d node_modules || npm install --no-audit --no-fund --loglevel=error) && npm run build; fi; ` +
+        `exec ${r.startCmd}`;
+      processRegistry.start(sessionId, cmd, dir, 'preview');
+      return 4000;
+    }
     if (fe) {
       const out = fe.outDir;
       const cmd =

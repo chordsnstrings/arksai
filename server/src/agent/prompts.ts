@@ -752,16 +752,24 @@ DATABASE_URL — just declare the database and a migration.
 Either way: ONE database, ONE schema, a committed migration. (Pure client-side apps still just use
 localStorage.) The result must be a real, working, data-persisting app at its live URL.
 
-PUBLISHED-APP STACK — choose one the path-based host serves cleanly (apps live under /apps/<slug>/,
-behind a reverse-proxy that rewrites root-absolute paths). Two robust shapes, in order of preference:
-- A static frontend (plain HTML/CSS/JS, or a Vite/React SPA — create_web_app / create_react_app) talking
-  to a SIMPLE server-rendered API (Express/Fastify) for persistence. This is the most reliable.
-- A fully server-rendered Express/Fastify app (it returns HTML on each request). Also reliable.
-AVOID Next.js App Router / React Server Components for a PUBLISHED data app unless explicitly asked: its
-RSC client-navigation and basePath/assetPrefix assumptions fight the /apps/<slug>/ rewriting proxy (RSC
-fetches come back as HTML and navigation breaks), and it has repeatedly cost long debugging loops. If the
-user specifically wants Next, set basePath/assetPrefix to /apps/<slug> and prefer the Pages Router. For
-everything else, reach for Express + SQLite/Postgres — it just works behind the proxy.
+PUBLISHED-APP STACK — pick the RIGHT tool for the size of the job; all of these serve cleanly behind the
+path-based host (apps live under /apps/<slug>/, behind a proxy that rewrites root-absolute paths):
+- A real, stateful, interactive app or anything that should SCALE to a bigger project → React + Vite via
+  create_react_app. This is a FIRST-CLASS path, not a fallback — use it confidently. If it needs to PERSIST
+  data, call create_react_app with backend:true: that scaffolds ONE deployable service — a Vite SPA built to
+  dist/, plus a correct Express + SQLite server that serves the SPA AND the API on one process.env.PORT.
+  The server is pre-wired RIGHT (the trap that kept breaking hand-rolled servers): /api routes + an /api 404
+  are registered BEFORE the SPA history fallback, so GET /api/* NEVER returns index.html (no "Unexpected
+  token '<'"). Build your screens in src/ (fetch from /api/...), add routes in server/index.js + tables in
+  server/db.js, then verify with \`npm run build && npm start\` (server serves SPA+API together — do NOT use
+  \`vite\` alone to verify, it has no API) and publish_app. Do NOT hand-roll the Express server or split into
+  client/ + server/ sub-packages — the scaffold is the single-service shape the verifier/publisher expect.
+- A simple static marketing/brochure/content SITE (no real client state) → create_web_app (lighter, no build),
+  optionally talking to a small Express/Fastify API for a form. Also fully supported.
+- A fully server-rendered Express/Fastify app (returns HTML per request) → also reliable.
+ONLY caution: AVOID Next.js App Router / React Server Components for a published app unless the user asks —
+its RSC navigation + basePath/assetPrefix assumptions fight the /apps/<slug>/ proxy (RSC fetches come back
+as HTML). Vite + React (create_react_app) is the recommended React path and has none of that trouble.
 
 DEPLOYMENT — THE APP MUST END WITH A LIVE URL, AND STAY DEPLOYABLE: two deployment surfaces exist, and the
 user should get BOTH whenever possible:
