@@ -7,7 +7,10 @@
  *   <html data-theme="slate" data-type="editorial">   (mix colour + type)
  *   <html data-kit="minimal">          (a complete vetted look in one token)
  *
- * COLOUR THEMES (muted accents — quiet, confident, never neon):
+ * Two tiers: a MUTED set (quiet/corporate/technical) and a CONFIDENT/VIVID set further down
+ * (real colour for most consumer/creative/food/eco/bold work) — both WCAG-AA, never neon.
+ *
+ * MUTED COLOUR THEMES (quiet, desaturated):
  *  • slate   — muted blue-grey   (DEFAULT) — modern SaaS / product
  *  • ink     — near-black graphite          — minimal / technical / luxury
  *  • indigo  — muted indigo                 — calm software
@@ -77,3 +80,25 @@
 [data-kit='calm']    { --accent:#4f6551; --accent-2:#6f8470; --accent-tint:#ecf1ec; --accent-ink:#fff; --r-md:12px; --r-lg:18px; --font-display:'DM Sans',system-ui,sans-serif; --font-sans:'Manrope',system-ui,sans-serif; }
 [data-kit='harbor']  { --accent:#395c78; --accent-2:#5b7e98; --accent-tint:#e9eff3; --accent-ink:#fff; --r-sm:5px; --r-md:8px; --r-lg:12px; --font-display:'Manrope',system-ui,sans-serif; --font-sans:'Plus Jakarta Sans',system-ui,sans-serif; }
 [data-kit] h1, [data-kit] h2, [data-kit] h3, [data-kit] .hero h1, [data-kit] .display { font-family: var(--font-display); }
+
+/* ── CONFIDENT / VIVID THEMES (real colour, deliberate accent ~5–12%; never neon) ──────
+ * Every accent is WCAG-AA for its --accent-ink. Use for subjects that want character
+ * (most consumer/creative/food/lifestyle/eco/bold-B2B). The muted set above = quiet/corporate. */
+[data-theme~='emerald'] { --accent: #0e7a52; --accent-2: #358f6e; --accent-deep: #0b6242; --accent-tint: #e7f2ee; --accent-ink: #ffffff; }
+[data-theme~='forest'] { --accent: #1b5e40; --accent-2: #3f785f; --accent-deep: #164b33; --accent-tint: #e8efec; --accent-ink: #ffffff; }
+[data-theme~='pine'] { --accent: #176153; --accent-2: #3c7a6f; --accent-deep: #124e42; --accent-tint: #e8efee; --accent-ink: #ffffff; }
+[data-theme~='turquoise'] { --accent: #0a6e72; --accent-2: #318589; --accent-deep: #08585b; --accent-tint: #e7f1f1; --accent-ink: #ffffff; }
+[data-theme~='cobalt'] { --accent: #2456c8; --accent-2: #4771d1; --accent-deep: #1d45a0; --accent-tint: #e9eefa; --accent-ink: #ffffff; }
+[data-theme~='azure'] { --accent: #1f6fd6; --accent-2: #4386dd; --accent-deep: #1959ab; --accent-tint: #e9f1fb; --accent-ink: #ffffff; }
+[data-theme~='marine'] { --accent: #0b6fae; --accent-2: #3286bb; --accent-deep: #09598b; --accent-tint: #e7f1f7; --accent-ink: #ffffff; }
+[data-theme~='electric'] { --accent: #4f46e5; --accent-2: #6b64e9; --accent-deep: #3f38b7; --accent-tint: #ededfc; --accent-ink: #ffffff; }
+[data-theme~='royal'] { --accent: #3b3fb6; --accent-2: #5a5ec2; --accent-deep: #2f3292; --accent-tint: #ebecf8; --accent-ink: #ffffff; }
+[data-theme~='grape'] { --accent: #7c3aed; --accent-2: #915af0; --accent-deep: #632ebe; --accent-tint: #f2ebfd; --accent-ink: #ffffff; }
+[data-theme~='mulberry'] { --accent: #7b2d6b; --accent-2: #904f83; --accent-deep: #622456; --accent-tint: #f2eaf0; --accent-ink: #ffffff; }
+[data-theme~='berry'] { --accent: #b4185d; --accent-2: #c03d77; --accent-deep: #90134a; --accent-tint: #f8e8ef; --accent-ink: #ffffff; }
+[data-theme~='rose'] { --accent: #d11a6b; --accent-2: #d83f83; --accent-deep: #a71556; --accent-tint: #fae8f0; --accent-ink: #ffffff; }
+[data-theme~='crimson'] { --accent: #c5312b; --accent-2: #ce524d; --accent-deep: #9e2722; --accent-tint: #f9eaea; --accent-ink: #ffffff; }
+[data-theme~='tangerine'] { --accent: #e0560f; --accent-2: #e57135; --accent-deep: #b3450c; --accent-tint: #fceee7; --accent-ink: #15161a; }
+[data-theme~='amber'] { --accent: #c2740a; --accent-2: #cc8a31; --accent-deep: #9b5d08; --accent-tint: #f9f1e7; --accent-ink: #15161a; }
+[data-theme~='coral'] { --accent: #e0514a; --accent-2: #e56d67; --accent-deep: #b3413b; --accent-tint: #fceeed; --accent-ink: #15161a; }
+[data-theme~='midnight'] { --accent: #1e293b; --accent-2: #424b5a; --accent-deep: #18212f; --accent-tint: #e9eaeb; --accent-ink: #ffffff; }

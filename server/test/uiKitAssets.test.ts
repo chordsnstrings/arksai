@@ -45,11 +45,15 @@ test('themes.css defines complete design kits via data-kit (5, muted)', () => {
   }
 });
 
-test('the MENU stays restrained (no neon themes / no high-contrast pairings)', () => {
-  // The data-theme/data-kit MENU is the muted FALLBACK; bespoke vibrant palettes come from
-  // design_direction, not the menu. So loud/neon menu themes + flashy pairings must NOT exist.
-  for (const gone of ['crimson', 'sky', 'amber', 'rose', 'coral', 'lime', 'sunset', 'gold']) {
-    assert.ok(!themes.includes(`[data-theme~='${gone}']`), `loud theme should be removed: ${gone}`);
+test('the MENU is confident but NEVER neon/garish', () => {
+  // The menu now carries BOTH a muted tier AND a confident/vivid tier (real colour, by design) —
+  // but it must still never go neon/fluorescent/garish. Those stay absent.
+  for (const gone of ['lime', 'neon', 'acid', 'sky', 'sunset', 'gold', 'fuchsia', 'chartreuse']) {
+    assert.ok(!themes.includes(`[data-theme~='${gone}']`), `garish/neon theme must not exist: ${gone}`);
+  }
+  // The confident tier IS intentionally present now (this is the whole point).
+  for (const want of ['emerald', 'cobalt', 'crimson', 'grape', 'coral', 'amber']) {
+    assert.ok(themes.includes(`[data-theme~='${want}']`), `confident theme should exist: ${want}`);
   }
   for (const gone of ['fashion', 'chic', 'contemporary', 'grand', 'press']) {
     assert.ok(!themes.includes(`[data-type='${gone}']`), `high-contrast pairing should be removed: ${gone}`);
@@ -81,15 +85,22 @@ test('art-direction layer: deliberate display faces + a MONO/DATA role are avail
   }
 });
 
-test('every muted accent is genuinely low-chroma (max−min channel ≤ ~120)', () => {
-  // A loud/neon accent has a huge spread between its RGB channels; muted tones are tight.
-  const blocks = [...themes.matchAll(/--accent:\s*#([0-9a-fA-F]{6})/g)].map((m) => m[1]);
-  assert.ok(blocks.length >= 10);
-  for (const hex of blocks) {
+test('the MUTED tier stays genuinely low-chroma; the vivid tier carries real colour', () => {
+  // Two tiers now: everything BEFORE the "CONFIDENT / VIVID" marker is the muted set (must stay
+  // tight, low-chroma); everything after is the deliberate confident tier (allowed saturated).
+  const marker = themes.indexOf('CONFIDENT / VIVID');
+  assert.ok(marker > 0, 'vivid tier marker present');
+  const spread = (hex: string) => {
     const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
-    const spread = Math.max(r, g, b) - Math.min(r, g, b);
-    assert.ok(spread <= 130, `accent #${hex} is too saturated for the muted house style (spread ${spread})`);
-  }
+    return Math.max(r, g, b) - Math.min(r, g, b);
+  };
+  const accents = (s: string) => [...s.matchAll(/--accent:\s*#([0-9a-fA-F]{6})/g)].map((m) => m[1]);
+  const muted = accents(themes.slice(0, marker));
+  assert.ok(muted.length >= 10);
+  for (const hex of muted) assert.ok(spread(hex) <= 130, `muted accent #${hex} too saturated (spread ${spread(hex)})`);
+  const vivid = accents(themes.slice(marker));
+  assert.ok(vivid.length >= 15, 'a deep confident tier exists');
+  assert.ok(vivid.some((h) => spread(h) > 130), 'the vivid tier has genuinely confident, saturated accents');
 });
 
 test('every new theme has valid hex accents (no stray characters)', () => {

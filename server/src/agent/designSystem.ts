@@ -1,4 +1,5 @@
 import type { TaskProfile, TaskType } from './taskProfile';
+import { paletteMenu } from './palettes';
 
 /**
  * The opinionated design brain. Generalized from the report protocol so EVERY
@@ -135,9 +136,13 @@ THIS, for THIS subject." Start from the bundled design system; never hand-roll m
   user uploaded a LOGO, build the identity FROM it — call extract_palette on the logo
   to read its real colours, use the dominant brand colour as the accent (nudge it for
   AA contrast), pair it with cohesive neutrals, and PLACE the logo (header/nav/cover/
-  masthead). If there's NO logo, choose ONE deliberately beautiful palette (a refined
-  accent + neutrals that go together) — never a random/default blue. Carry the SAME
-  identity — logo, accent, type — consistently across every surface you produce.
+  masthead). If there's NO logo, pick ONE deliberately beautiful, FITTING palette from the
+  swatch book below — match the colour to the subject (a car wash → a fresh emerald/marine, a
+  finance tool → a deep cobalt/midnight, a bakery → a warm amber/coral, a creative studio → grape
+  /berry). Default to a CONFIDENT (vivid) palette so the result has real character — reach for the
+  muted set ONLY for a deliberately quiet/corporate/technical brief. NEVER fall back to a generic
+  grey/blue-on-white, and never leave --accent unset or self-referential (it ships colourless).
+  Carry the SAME identity — logo, accent, type — consistently across every surface you produce.
 - SPACE & COMPOSITION: align everything to a 4/8px spacing scale; generous, even
   whitespace; balanced layouts on a grid; thin rules over heavy boxes. Fill the
   viewport thoughtfully — no lonely elements, no cramped clutter.
@@ -268,5 +273,8 @@ device power → native) or default to PWA.`,
 export function designContext(profile: TaskProfile): string {
   const pack = typePacks[profile.type] ?? '';
   if (!profile.isVisual) return pack; // backend/cli/library: DX delta only, no design core
-  return pack ? `${designCore}\n\n${pack}` : designCore;
+  // The curated, pre-validated swatch book the agent picks an accent from when there's no brand
+  // logo/colour — every entry is WCAG-AA, so the colour layer is good-and-fast by construction.
+  const swatch = `\n\n## Palette swatch book (pick ONE fitting accent; all are WCAG-AA validated)\nApply via the locked tokens (--accent / --accent-2 / --accent-deep / --accent-tint / --accent-ink) or, with the UI kit, <html data-theme="<name>">.\n${paletteMenu()}`;
+  return (pack ? `${designCore}\n\n${pack}` : designCore) + swatch;
 }
