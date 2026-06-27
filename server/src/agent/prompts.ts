@@ -752,19 +752,28 @@ fetches come back as HTML and navigation breaks), and it has repeatedly cost lon
 user specifically wants Next, set basePath/assetPrefix to /apps/<slug> and prefer the Pages Router. For
 everything else, reach for Express + SQLite/Postgres — it just works behind the proxy.
 
-ONE DEPLOYABLE APP — NOT A MONOREPO (this is critical, it has repeatedly broken publishing): the app you
-build MUST be a SINGLE npm package at the workspace ROOT — one root package.json, one node_modules, one
-\`npm install\`, one \`npm run build\`, one \`npm start\`. If you have both a frontend and a backend, do NOT
-create separate client/ and server/ sub-packages each with their own package.json: instead build the
-frontend INTO a folder (e.g. public/ or dist/) that your single Express/Fastify server serves statically,
-alongside its API routes, from one process listening on process.env.PORT. The verify gate and publisher
-run \`npm install\`/\`npm run build\`/start at the ROOT only — a sub-package (client/server) split means the
-root install never installs the sub-packages and the build fails ("Installing dependencies" / build errors).
-DEPLOYMENT TARGET: ArksAI HOSTS the app for you — publish_app builds it and serves it live on ArksAI's own
-DigitalOcean infrastructure at https://arksai.studio/apps/<slug>/. So "deployable", "deploy it", or even
-"deployable on DigitalOcean App Platform" is satisfied BY publish_app — do NOT build a separate DigitalOcean
-App Platform manifest (app.yaml), multiple services, or Dockerfiles; that is not how ArksAI deploys and it
-will not be used. Build the single self-contained app and call publish_app.
+DEPLOYMENT — THE APP MUST END WITH A LIVE URL, AND STAY DEPLOYABLE: two deployment surfaces exist, and the
+user should get BOTH whenever possible:
+  (1) A LIVE PREVIEW URL the user can open right now — publish_app builds the app and serves it live on
+      ArksAI's own DigitalOcean infrastructure at https://arksai.studio/apps/<slug>/. This is how the user
+      sees a working link. For publish_app to serve it, the app must be a SINGLE web service at the
+      workspace ROOT: one root package.json, one \`npm install\`/\`npm run build\`/\`npm start\`, listening on
+      process.env.PORT. If you have a frontend AND a backend, build the frontend INTO a folder your single
+      Express/Fastify server serves statically alongside its API — do NOT split into separate client/ +
+      server/ sub-packages (the verify gate and publisher run at the ROOT only; a sub-package split fails
+      the install/build — "Installing dependencies"/build errors).
+  (2) DigitalOcean App Platform auto-deploy on git push — a real production target the user may want. A
+      single web service like (1) is ALSO a perfectly valid DO App Platform app, so by DEFAULT also include
+      a simple DO App Platform app.yaml (one web service) committed to the repo, so the user can connect the
+      repo to DO and it auto-deploys on push. THIS WAY BOTH ARE TRUE — a live ArksAI link now AND a
+      DO-deployable repo — give the user both, that is the goal.
+BOTH-CAN'T-BE-TRUE → ASK: only if the user genuinely needs a MULTI-SERVICE architecture (a separately hosted
+static frontend + an API + a managed DB as DISTINCT DO components, multiple Dockerfiles) that publish_app
+CANNOT serve as one unit, you cannot give a live ArksAI preview URL and that multi-service DO setup at the
+same time. In that case do NOT silently pick one — ASK the user to choose: "(A) a live link now, hosted by
+ArksAI (I build it as one service), or (B) a multi-service DigitalOcean App Platform setup that auto-deploys
+when you push to git (no instant ArksAI link)." Build whatever they choose. When they have not said, default
+to (1)+app.yaml so they get a working link AND a DO-deployable repo.
 
 ${intakeContext(profile)}
 
