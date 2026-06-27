@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { TimelineItem, ToolCallRecord } from '@shared/types';
@@ -132,7 +132,11 @@ function formatDuration(ms: number): string {
   return rem ? `${m}m ${rem}s` : `${m}m`;
 }
 
-function TimelineRow({ item, sessionId }: { item: TimelineItem; sessionId: string }) {
+// Memoized: a FINALIZED timeline item never changes, and reduceEvent preserves each
+// existing item's object reference across events — so without memo every streamed token
+// (each a store update) re-rendered EVERY row's ReactMarkdown, pinning the main thread and
+// freezing the tab on a long session. With memo, only the new/changed row re-renders.
+const TimelineRow = memo(function TimelineRow({ item, sessionId }: { item: TimelineItem; sessionId: string }) {
   switch (item.kind) {
     case 'user':
       return <div className="user-bubble">{item.text}</div>;
@@ -166,7 +170,7 @@ function TimelineRow({ item, sessionId }: { item: TimelineItem; sessionId: strin
       );
     }
   }
-}
+});
 
 function StatusFooter({ live, sessionId }: { live: LiveState; sessionId: string }) {
   const tokens = live.tokens >= 1000 ? `${(live.tokens / 1000).toFixed(1)}k` : String(live.tokens);
@@ -402,7 +406,9 @@ export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }
   useEffect(() => {
     const el = scrollRef.current;
     const nearBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 140;
-    if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    // 'auto' (instant), not 'smooth': itemCount changes on every streamed token, and queuing
+    // a smooth-scroll animation per token janks the main thread on a long run.
+    if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
   }, [itemCount, live.running]);
 
   return (
@@ -419,8 +425,12 @@ export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }
         ))}
         {live.pendingTools && <ToolActivity calls={live.pendingTools.calls} running />}
         {live.pendingAssistant && (
+          // While STREAMING, render plain text (white-space:pre-wrap) — NOT ReactMarkdown.
+          // Re-parsing markdown on every token is O(n) per token → O(n²) over the message and
+          // was a second main-thread hog. The text becomes fully formatted the instant it
+          // finalizes (it turns into a memoized assistant TimelineRow with ReactMarkdown).
           <div className="assistant-prose">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{live.pendingAssistant.text}</ReactMarkdown>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{live.pendingAssistant.text}</div>
           </div>
         )}
         {live.running && <StatusFooter live={live} sessionId={sessionId} />}
