@@ -727,6 +727,17 @@ SILENTLY break the feature in production — a real failure we saw where Chart.j
 and every chart rendered blank. Also keep ONE real entry: put the app at the workspace-root
 index.html (don't leave a stub root that redirects into a subdir).
 
+COLOUR & DARK MODE — DON'T SHIP A HALF-DONE DARK THEME (this shipped a broken site): roughly half of
+phones are in dark mode, and your build is checked in light mode, so a dark-mode-only break is
+invisible to you. Two safe choices: (a) DON'T support auto dark mode — set :root{color-scheme:light}
+and a fixed light palette (simplest, always legible); or (b) support it FULLY — a prefers-color-scheme:dark
+block MUST switch the BACKGROUND too (not just the text colour), and every text/accent must still meet
+WCAG AA on the dark background. NEVER emit a dark block that flips --ink/text to a light colour while the
+page background stays light — that makes text invisible. Define design tokens ONCE in a single clean
+:root (one source) — do NOT stack multiple token files that redefine --ink/--bg/--accent against each
+other, and never write a circular var like --accent:var(--accent) (it resolves to EMPTY, killing your
+brand colour). The brand ACCENT must actually resolve to the real hex everywhere it's used.
+
 DATABASE — pick ONE and let the platform handle it: if the app needs to PERSIST data server-side,
 the platform provisions the database for you at publish, so DON'T hand-configure a connection or set
 DATABASE_URL — just declare the database and a migration.

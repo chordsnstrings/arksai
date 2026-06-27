@@ -404,7 +404,7 @@ export async function browserSmokeTest(
     let contrastIssues: string[] = [];
     if (!blank) {
       try {
-        contrastIssues = (await page.evaluate(() => {
+        const measureContrast = () => page.evaluate(() => {
           const d: any = (globalThis as any).document;
           const w: any = globalThis as any;
           const parse = (s: string) => {
@@ -473,13 +473,32 @@ export async function browserSmokeTest(
             if (bad.length >= 6) break;
           }
           return bad;
-        })) as string[];
+        }) as Promise<string[]>;
+        contrastIssues = await measureContrast();
+        // DARK-MODE PASS: a half-baked dark theme — where the text-colour token flips light
+        // (prefers-color-scheme:dark) but the page BACKGROUND stays light — is invisible to a
+        // light-only check and ships near-invisible text to every dark-mode visitor (a real
+        // ship-broken bug we hit). Emulate dark, re-measure, then reset to light for the rest.
+        try {
+          await page.emulateMedia({ colorScheme: 'dark' });
+          await page.waitForTimeout(250);
+          const darkBad = await measureContrast();
+          await page.emulateMedia({ colorScheme: 'light' });
+          const keyOf = (s: string) => s.split(' — contrast')[0];
+          const lightKeys = new Set(contrastIssues.map(keyOf));
+          for (const b of darkBad) if (!lightKeys.has(keyOf(b))) contrastIssues.push(`(dark mode) ${b}`);
+        } catch {
+          try {
+            await page.emulateMedia({ colorScheme: 'light' });
+          } catch {}
+        }
       } catch {
         /* best-effort */
       }
     }
+    const darkOnly = contrastIssues.length > 0 && contrastIssues.every((s) => s.startsWith('(dark mode)'));
     const contrastIssue = contrastIssues.length
-      ? `Illegible text — these blocks don't contrast with their background (muted text taken too far). Use a readable ink for ALL text (muted ≈ 55–65% black, never a near-background tint); every text must meet WCAG AA (4.5:1 body, 3:1 large). Offenders:\n  - ${contrastIssues.join('\n  - ')}`
+      ? `Illegible text — these blocks don't contrast with their background${darkOnly ? ' IN DARK MODE (the site looks fine in light mode but breaks on a dark-mode device — a huge share of phones)' : ' (muted text taken too far)'}. Use a readable ink for ALL text and meet WCAG AA (4.5:1 body, 3:1 large) in BOTH light and dark. If you ship a prefers-color-scheme:dark theme it must be COMPLETE — switch the background too, not just the text — and the brand accent must actually resolve; otherwise pin the scheme with :root{color-scheme:light} and don't emit a half-done dark block. Offenders:\n  - ${contrastIssues.join('\n  - ')}`
       : '';
 
     // INTERACTION-STATE LEGIBILITY (deterministic): a button/link whose background
