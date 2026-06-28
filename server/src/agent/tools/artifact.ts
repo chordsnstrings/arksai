@@ -39,6 +39,15 @@ export const createArtifactTool: ToolDef = {
     'letter-spacing:var(--tracking-caps)). Aim for ONE generous hero moment + lots of restraint, ' +
     'precise spacing on a 4/8px rhythm, hairline borders (--line), and a calm muted palette — expensive ' +
     'minimalism, not a flat template. ' +
+    'ICONS — NEVER emoji (☀️🌧️📈✅) — they read cheap and clash with a minimal/muted look. Use INLINE ' +
+    'line-SVG: viewBox="0 0 24 24", fill="none", stroke="currentColor", stroke-width 1.7, round caps, and ' +
+    'tint via the parent\'s color (e.g. style={{color:\'var(--accent)\'}}). Keep one consistent stroke + size. ' +
+    'Example sun: <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 ' +
+    '4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>. ' +
+    'LAYOUT — a single card/widget must FLOAT with breathing room, never bleed to the screen edges: wrap it ' +
+    'in a centering frame (min-height:100vh; display:grid; place-items:center; padding:24px) and cap the ' +
+    'card width (~340–520px). A full-bleed background (a timer, a hero) is the deliberate exception. ' +
     'CONTRAST (important): for text use --ink (body), --ink-soft / --muted (secondary); for surfaces use --bg / ' +
     '--surface. These are guaranteed legible together. Do NOT hard-code a dark background colour while using ' +
     'the dark text tokens — that renders dark-on-dark. For a DARK / moody aesthetic, pass theme:"dark" (the ' +
