@@ -109,6 +109,31 @@ test('auditFormulaModel flags a cross-sheet ref stored as text', () => {
   assert.match(a.reason, /stored as TEXT|cross-sheet/i);
 });
 
+test('auditFormulaModel flags an empty statement sheet (header only, no data) while the model is built', () => {
+  // Caught live: a model with rich P&L (formulas) but a Cash Flow tab that's just a header row.
+  const wb = {
+    SheetNames: ['Assumptions', 'P&L', 'Cash Flow'],
+    Sheets: {
+      Assumptions: { '!ref': 'A1:B2', A1: { t: 's', v: 'Driver' }, B2: { t: 'n', v: 1000 } },
+      'P&L': { '!ref': 'A1:B2', A1: { t: 's', v: 'Revenue' }, B2: { t: 'n', v: 5000, f: 'Assumptions!B2*5' } },
+      'Cash Flow': { '!ref': 'A1:C2', A1: { t: 's', v: 'Line Item' }, B1: { t: 's', v: 'Jan' }, A2: { t: 's', v: 'OPERATING ACTIVITIES' } },
+    },
+  };
+  const r = auditFormulaModel(wb);
+  assert.equal(r.isModel, true);
+  assert.match(r.reason, /Cash Flow.*empty|empty.*Cash Flow/i, r.reason);
+
+  // A fully-populated Cash Flow is NOT flagged.
+  const ok = {
+    SheetNames: ['Assumptions', 'Cash Flow'],
+    Sheets: {
+      Assumptions: { '!ref': 'A1:B2', A1: { t: 's', v: 'Driver' }, B2: { t: 'n', v: 1000 } },
+      'Cash Flow': { '!ref': 'A1:B2', A1: { t: 's', v: 'Net cash' }, B2: { t: 'n', v: 1200, f: 'Assumptions!B2*1.2' } },
+    },
+  };
+  assert.doesNotMatch(auditFormulaModel(ok).reason || '', /empty/i);
+});
+
 test('coerceNumeric: number-as-text becomes a real number (so SUM works), text/IDs left alone', () => {
   // formatted numbers → coerced (the dashboard-totals-read-0 bug)
   assert.equal(coerceNumeric('480,000.'), 480000);

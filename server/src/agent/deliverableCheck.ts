@@ -277,6 +277,9 @@ const MODEL_SHEET_RE = /assumption|driver|input/i;
 // typed-in numbers with zero formulas while the model computes elsewhere, it was hand-keyed and will
 // silently go stale — it should reference the calc sheets (=Model!.. / =SUM(Model!..)).
 const SUMMARY_SHEET_RE = /summary|dashboard|overview|output|result|total|p&?l|income|cash\s*flow|balance|statement|kpi|metric/i;
+// A financial STATEMENT that must carry rows of data (so an empty one is an incomplete model). Kept
+// tighter than SUMMARY_SHEET_RE — no "summary/kpi/total" (which can legitimately be a thin sheet).
+const STATEMENT_SHEET_RE = /cash\s*flow|p&?l|profit.{0,4}loss|income|balance\s*sheet|statement|forecast|projection/i;
 
 /** "A1" → { col: 0-based index, row: 1-based } (or null for a non-cell key). */
 function parseAddr(addr: string): { col: number; row: number } | null {
@@ -345,12 +348,14 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
   let derivedWithNumbers = ''; // a derived row carrying numbers (0-formula case, ≥1)
   let derivedAllLiteral = ''; // a derived row whose numbers are ALL typed-in literals (≥2, none formulas)
   let hardcodedSummary = ''; // a summary/output sheet that's all literals while the model computes
+  let emptyStatementSheet = ''; // a statement sheet (Cash Flow/P&L/…) with a header but NO data/numbers
   const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
   for (const name of names) {
     const sh = wb?.Sheets?.[name];
     if (!sh) continue;
     let sheetFormulas = 0;
     let sheetLiterals = 0; // numeric cells with no formula (typed-in numbers) on THIS sheet
+    let sheetNumeric = 0; // ALL numeric cells on THIS sheet (literal + formula-driven)
     // Group cells by row so we can read each row's label + whether its numbers are formulas.
     const rows = new Map<number, { label?: string; labelCol: number; numCells: number; numFormulaCells: number }>();
     for (const addr of Object.keys(sh)) {
@@ -367,6 +372,7 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
       const isNum = c?.t === 'n' && typeof c?.v === 'number';
       if (isNum) {
         numericTotal++;
+        sheetNumeric++;
         r.numCells++;
         if (c?.f) r.numFormulaCells++;
         else sheetLiterals++;
@@ -396,6 +402,12 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
     // miss it when the row labels aren't Total/Growth/… — e.g. a "Summary" sheet of bare numbers.)
     if (!hardcodedSummary && !isInputSheet && SUMMARY_SHEET_RE.test(name) && sheetFormulas === 0 && sheetLiterals >= 15)
       hardcodedSummary = name;
+    // A STATEMENT sheet (Cash Flow / P&L / Income / Balance …) that's a header-only stub — no
+    // numbers and no formulas at all. The user asked for that statement; shipping it empty is an
+    // incomplete model. (Caught live: a 6-sheet coffee-shop model whose Cash Flow tab was just a
+    // header row + an "OPERATING ACTIVITIES" label.)
+    if (!emptyStatementSheet && !isInputSheet && STATEMENT_SHEET_RE.test(name) && rows.size >= 1 && sheetNumeric === 0 && sheetFormulas === 0)
+      emptyStatementSheet = name;
   }
   // A cross-sheet reference stored as TEXT (the model dropped the leading "=") — the link is
   // dead and dependent cells error. Highest-priority defect (it's a broken file, not a style nit).
@@ -409,6 +421,10 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
   // update when the assumptions change. It must reference the model (=Model!.. / =SUM(Model!..)).
   if (hardcodedSummary && formulas > 0)
     return { isModel: true, reason: `the "${hardcodedSummary}" sheet hard-codes its numbers (0 formulas) while the model computes elsewhere — every figure on it must reference the calc sheets with formulas (e.g. =Model!B12 or =SUM(Model!B2:B13)) so it stays in sync when assumptions change` };
+  // An empty statement sheet: the model is built out elsewhere but a requested statement (Cash Flow /
+  // P&L / …) is a header-only stub with no data or formulas. Ship-blocking — it's incomplete.
+  if (emptyStatementSheet && formulas > 0)
+    return { isModel: true, reason: `the "${emptyStatementSheet}" sheet is empty — it has a header but no data or formulas while the rest of the model is built out. Fill it with its real line items computed from the model (e.g. a cash-flow statement = net income ± working-capital changes ± investing ± financing, each cell a formula referencing the calc sheets), with monthly + total columns like the other sheets.` };
   // Whole model hard-coded (0 formulas) but clearly showing derived numbers.
   if (formulas === 0 && derivedWithNumbers)
     return { isModel: true, reason: `the "${derivedWithNumbers}" row is hard-coded, 0 formulas` };
