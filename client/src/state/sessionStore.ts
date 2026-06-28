@@ -274,11 +274,13 @@ export const useStore = create<StoreState>((set, get) => ({
       const existing = get().sessions.find((x) => x.id === ev.meta.id);
       if (existing) get().upsertSession({ ...existing, ...ev.meta });
     }
-    // Auto-open AND auto-load the finished artifact in the canvas — only for the
-    // session the user is looking at, so a background run doesn't yank the view.
+    // Record WHAT the finished artifact is (drives the completion card's live thumbnail
+    // and, when the user opens it, the canvas viewer) — but do NOT auto-open the canvas.
+    // Claude-style: the clean clickable completion card is the moment; the user taps it to
+    // open the result. Auto-popping the developer canvas (port tabs, file tree) over the
+    // chat was the "messy" experience. Only the session in view records it.
     if (ev.type === 'open_canvas' && get().activeId === sessionId) {
       set({ canvasTarget: { port: ev.port, file: ev.file, kind: ev.kind, at: Date.now() } });
-      get().toggleCanvas(true);
     }
   },
 

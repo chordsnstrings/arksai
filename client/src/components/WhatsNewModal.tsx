@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-28.3';
+export const WHATS_NEW_VERSION = '2026-06-28.4';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -21,6 +21,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Expensive-minimal polish',
     body: 'Quick visual things now come out genuinely refined, not just clean: colours that share one warm or cool undertone instead of flat grey, soft layered shadows, crisp typography, and a built-in font set — the small details that make a design feel designed. It holds up in light and dark, on every device.',
+  },
+  {
+    title: 'A cleaner "it’s ready" moment',
+    body: 'When something’s done you get one clean, tappable card — tap it to open the result full-screen, with an Open-in-new-tab and nothing else in the way. The technical bits (ports, files) are tucked behind a small “Dev” toggle for when you actually want them.',
   },
 ];
 

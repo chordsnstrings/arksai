@@ -795,6 +795,16 @@ button { font-family: inherit; cursor: pointer; }
 }
 .canvas-btn { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); font-size: 12px; padding: 4px 9px; }
 .canvas-btn:hover { color: var(--text); }
+/* Clean result-viewer header: a title that ellipsises + a small action group (Open ↗ · Dev · ✕).
+   The developer controls (ports, file tree) live in a SEPARATE collapsible row below, hidden by
+   default — so the canvas reads as a viewer, not a dev console. */
+.canvas-title { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; }
+.canvas-head-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
+.canvas-head-actions a.canvas-btn { text-decoration: none; display: inline-flex; align-items: center; }
+.canvas-btn.ghost { background: transparent; border-color: transparent; }
+.canvas-btn.ghost:hover { background: var(--bg-elev); border-color: var(--border); }
+.canvas-btn.ghost.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.canvas-devbar { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-bottom: 1px solid var(--border-soft); background: var(--bg-elev); }
 .canvas-btn.port { font-family: var(--mono); }
 .canvas-btn.port.on { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
 .canvas-frame { flex: 1; border: none; width: 100%; background: #fff; }

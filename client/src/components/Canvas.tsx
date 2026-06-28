@@ -39,6 +39,10 @@ const PDF_EXT = /\.pdf$/i;
 export function Canvas({ sessionId }: { sessionId: string }) {
   const toggleCanvas = useStore((s) => s.toggleCanvas);
   const [tab, setTab] = useState<Tab>('preview');
+  // Developer controls (port buttons, file tree, refresh) are hidden by default — the canvas
+  // is a clean result VIEWER, not a dev console. Power users flip this on to pick a port /
+  // browse files. The clean header stays: title · Open ↗ · Close.
+  const [dev, setDev] = useState(false);
 
   // preview
   const [port, setPort] = useState('');
@@ -190,59 +194,94 @@ export function Canvas({ sessionId }: { sessionId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvasTarget?.at]);
 
+  const title =
+    docSrc && tab === 'doc' ? docName || 'Document' : tab === 'files' ? 'Files' : 'Live preview';
+  const openUrl =
+    tab === 'doc'
+      ? docSrc
+      : tab === 'files'
+      ? selected
+        ? rawUrl(selected)
+        : ''
+      : previewSrc && !previewSrc.startsWith('loading:')
+      ? previewSrc
+      : '';
+
   return (
     <div className="canvas">
       <div className="canvas-head">
-        <div className="canvas-tabs">
-          <button className={tab === 'preview' ? 'on' : ''} onClick={() => setTab('preview')}>
-            Preview
-          </button>
-          <button className={tab === 'files' ? 'on' : ''} onClick={() => setTab('files')}>
-            Files
-          </button>
-          {docSrc && (
-            <button className={tab === 'doc' ? 'on' : ''} onClick={() => setTab('doc')} title={docName}>
-              📄 {docName.length > 18 ? docName.slice(0, 16) + '…' : docName}
-            </button>
+        <div className="canvas-title" title={title}>
+          {title}
+        </div>
+        <div className="canvas-head-actions">
+          {openUrl && (
+            <a className="canvas-btn" href={openUrl} target="_blank" rel="noreferrer" title="Open in a new tab">
+              Open ↗
+            </a>
           )}
-        </div>
-        <div className="canvas-head-mid">
-        {tab === 'preview' && (
-          <>
-            {detectedPorts.map((p) => (
-              <button
-                key={p}
-                className={`canvas-btn port ${String(p) === port ? 'on' : ''}`}
-                onClick={() => loadPreview(String(p))}
-              >
-                :{p}
-              </button>
-            ))}
-            <input
-              className="canvas-port"
-              placeholder="port"
-              value={port}
-              onChange={(e) => setPort(e.target.value.replace(/\D/g, ''))}
-              onKeyDown={(e) => e.key === 'Enter' && loadPreview()}
-            />
-            <button className="canvas-btn" onClick={() => loadPreview()}>
-              Load
-            </button>
-            <button className="canvas-btn" onClick={() => { detectPorts(); setNonce((n) => n + 1); }} title="Refresh">
-              ↻
-            </button>
-          </>
-        )}
-        {tab === 'files' && (
-          <button className="canvas-btn" onClick={refreshFiles}>
-            ↻
+          <button
+            className={`canvas-btn ghost ${dev ? 'on' : ''}`}
+            onClick={() => setDev((v) => !v)}
+            title="Developer view — pick a port, browse files"
+          >
+            Dev
           </button>
-        )}
+          <button className="canvas-btn canvas-close" onClick={() => toggleCanvas(false)} title="Close">
+            ✕
+          </button>
         </div>
-        <button className="canvas-btn canvas-close" onClick={() => toggleCanvas(false)} title="Close">
-          ✕
-        </button>
       </div>
+
+      {dev && (
+        <div className="canvas-devbar">
+          <div className="canvas-tabs">
+            <button className={tab === 'preview' ? 'on' : ''} onClick={() => setTab('preview')}>
+              Preview
+            </button>
+            <button className={tab === 'files' ? 'on' : ''} onClick={() => setTab('files')}>
+              Files
+            </button>
+            {docSrc && (
+              <button className={tab === 'doc' ? 'on' : ''} onClick={() => setTab('doc')} title={docName}>
+                📄 {docName.length > 18 ? docName.slice(0, 16) + '…' : docName}
+              </button>
+            )}
+          </div>
+          <div className="canvas-head-mid">
+            {tab === 'preview' && (
+              <>
+                {detectedPorts.map((p) => (
+                  <button
+                    key={p}
+                    className={`canvas-btn port ${String(p) === port ? 'on' : ''}`}
+                    onClick={() => loadPreview(String(p))}
+                  >
+                    :{p}
+                  </button>
+                ))}
+                <input
+                  className="canvas-port"
+                  placeholder="port"
+                  value={port}
+                  onChange={(e) => setPort(e.target.value.replace(/\D/g, ''))}
+                  onKeyDown={(e) => e.key === 'Enter' && loadPreview()}
+                />
+                <button className="canvas-btn" onClick={() => loadPreview()}>
+                  Load
+                </button>
+                <button className="canvas-btn" onClick={() => { detectPorts(); setNonce((n) => n + 1); }} title="Refresh">
+                  ↻
+                </button>
+              </>
+            )}
+            {tab === 'files' && (
+              <button className="canvas-btn" onClick={refreshFiles}>
+                ↻
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {tab === 'doc' ? (
         docSrc ? (
@@ -293,18 +332,22 @@ export function Canvas({ sessionId }: { sessionId: string }) {
             <button className="canvas-btn" style={{ marginTop: 10 }} onClick={retryPreview}>
               ↻ Retry
             </button>{' '}
-            or open the <b>Files</b> tab to browse the result.
+            or turn on <b>Dev</b> to browse the files.
           </div>
         ) : (
           <div className="canvas-empty">
             {detectedPorts.length === 0 ? (
               <>
-                No running dev server detected.
+                Getting your preview ready…
                 <br />
-                Ask the agent to start one in the background (e.g. "run the dev server"), then press ↻.
+                If it doesn’t appear, ask the agent to run it, or turn on <b>Dev</b> to pick a port.
               </>
             ) : (
-              <>Pick a detected port above, or type one and press <b>Load</b>.</>
+              <>
+                <button className="canvas-btn" onClick={() => loadPreview(String(detectedPorts[0]))}>
+                  ▶ Show preview
+                </button>
+              </>
             )}
           </div>
         )
