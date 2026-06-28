@@ -1,6 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVlSpec, renderChartSvg, makeSvgResponsive, chartSize, type ChartType } from '../src/agent/tools/chart';
+import { buildVlSpec, renderChartSvg, makeSvgResponsive, chartSize, validateChartData, type ChartType } from '../src/agent/tools/chart';
+
+test('validateChartData: flags data whose keys do not match x/y (the empty-chart bug), passes a match', () => {
+  // The real bug: bar_h with value field "kg" but data rows keyed nation/value → empty axes shipped.
+  const bad = validateChartData({ type: 'bar_h' as ChartType, x: 'nation', y: 'kg', data: [{ nation: 'Finland', value: 12 }, { nation: 'Norway', value: 9.9 }] } as any);
+  assert.ok(bad && /"kg" isn't in your data/.test(bad), 'should flag the missing y field: ' + bad);
+  assert.match(bad!, /nation, value/); // lists the actual keys to help the agent
+  // Correct field names → no error.
+  assert.equal(validateChartData({ type: 'bar_h' as ChartType, x: 'nation', y: 'value', data: [{ nation: 'Finland', value: 12 }] } as any), null);
+  // Non-numeric value field is flagged; numeric strings are accepted (Vega coerces).
+  assert.ok(/no numeric values/.test(validateChartData({ type: 'bar' as ChartType, x: 'm', y: 'v', data: [{ m: 'Jan', v: 'lots' }] } as any) || ''));
+  assert.equal(validateChartData({ type: 'bar' as ChartType, x: 'm', y: 'v', data: [{ m: 'Jan', v: '10' }] } as any), null);
+});
 
 const sample = {
   bar: { type: 'bar' as ChartType, data: [{ m: 'Jan', v: 10 }, { m: 'Feb', v: 22 }], x: 'm', y: 'v', value_labels: true },

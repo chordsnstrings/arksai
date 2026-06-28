@@ -288,6 +288,56 @@ export function makeSvgResponsive(svg: string): string {
   });
 }
 
+/**
+ * Validate that the data rows actually contain the fields the chosen chart type plots — the
+ * fix for the "chart renders ok but comes out empty (axes only, no bars)" bug. Vega-Lite happily
+ * produces a dataless chart when the spec's field names (x/y/series/value) don't match the keys in
+ * the data rows, so the tool used to report success and ship blank axes into a report. We catch the
+ * mismatch up front and hand back an actionable message (with the actual data keys) so the agent
+ * fixes the field names and re-renders, instead of shipping an empty figure. Pure + exported.
+ */
+export function validateChartData(args: ChartArgs): string | null {
+  const rows = Array.isArray(args.data) ? args.data.filter((r) => r && typeof r === 'object') : [];
+  if (!rows.length) return '`data` must be a non-empty array of row objects.';
+  const x = args.x || 'x';
+  const y = args.y || 'y';
+  const series = args.series || 'series';
+  const value = args.value || y;
+  const need: { f: string; numeric?: boolean }[] = [];
+  switch (args.type) {
+    case 'multi_line':
+    case 'stacked_bar':
+      need.push({ f: x }, { f: y, numeric: true }, { f: series });
+      break;
+    case 'dual_axis':
+      need.push({ f: x }, { f: y, numeric: true });
+      if (args.y2) need.push({ f: args.y2, numeric: true });
+      break;
+    case 'donut':
+      need.push({ f: series }, { f: value, numeric: true });
+      break;
+    case 'heatmap':
+      need.push({ f: x }, { f: y }, { f: value, numeric: true });
+      break;
+    default: // bar, bar_h, area, line
+      need.push({ f: x }, { f: y, numeric: true });
+  }
+  const keys = [...new Set(rows.flatMap((r) => Object.keys(r as object)))];
+  const has = (f: string) => rows.some((r) => Object.prototype.hasOwnProperty.call(r, f));
+  const numeric = (f: string) =>
+    rows.some((r) => {
+      const v = (r as any)[f];
+      return typeof v === 'number' ? isFinite(v) : typeof v === 'string' && v.trim() !== '' && isFinite(Number(v));
+    });
+  for (const { f, numeric: needNum } of need) {
+    if (!has(f))
+      return `the chart field "${f}" isn't in your data rows (their keys are: ${keys.join(', ')}). Set the matching x/y/series/value argument to one of those keys (or rename your data fields to match) — otherwise the chart renders with axes but NO bars/line.`;
+    if (needNum && !numeric(f))
+      return `the chart's value field "${f}" has no numeric values (Vega needs real numbers, not text). Pass "${f}" as numbers so the bars/line can be drawn.`;
+  }
+  return null;
+}
+
 /** Compile + render an SVG string from concise chart args. */
 export async function renderChartSvg(args: ChartArgs): Promise<string> {
   const vega: any = await nativeImport('vega');
@@ -401,8 +451,8 @@ export const renderChartTool: ToolDef = {
         items: { type: 'object' },
         description: 'Array of row objects, e.g. [{"month":"Jan","leads":120,"rate":3.1}, …].',
       },
-      x: { type: 'string', description: 'Field for the x-axis (category/time). For heatmap: the column dimension.' },
-      y: { type: 'string', description: 'Primary numeric field (the bars/line/area). For heatmap: the row dimension.' },
+      x: { type: 'string', description: 'Field for the x-axis (category/time). MUST exactly match a key in your data rows (case-sensitive) or the chart renders empty (axes, no bars). For heatmap: the column dimension.' },
+      y: { type: 'string', description: 'Primary numeric field (the bars/line/area) — MUST exactly match a numeric key in your data rows. For heatmap: the row dimension.' },
       y2: { type: 'string', description: 'dual_axis only: the second numeric field drawn as the line on the right axis.' },
       series: { type: 'string', description: 'Field that splits the data into multiple series (multi_line / stacked_bar) or the category (donut).' },
       value: { type: 'string', description: 'heatmap: the numeric field that colours each cell. donut: the slice size field (defaults to y).' },
@@ -422,6 +472,10 @@ export const renderChartTool: ToolDef = {
   summarize: (a) => `chart ${String(a.type ?? '')}${a.title ? ` · ${a.title}` : ''}`,
   async run(args, ctx) {
     if (!Array.isArray(args.data) || !args.data.length) return 'Error: `data` must be a non-empty array of row objects.';
+    // Catch a field-name mismatch (data keys ≠ x/y/series/value) BEFORE rendering — otherwise Vega
+    // emits a valid-but-empty chart (axes, no bars) and we'd ship blank axes into the report.
+    const bindErr = validateChartData(args as ChartArgs);
+    if (bindErr) return `Error: ${bindErr}`;
     let svg: string;
     try {
       svg = await renderChartSvg(args as ChartArgs);
@@ -429,6 +483,13 @@ export const renderChartTool: ToolDef = {
       return `Error: chart render failed — ${e?.message ?? e}`;
     }
     if (!svg || !svg.includes('<svg')) return 'Error: the chart rendered empty — check the data/field names.';
+    // Backstop: a bar/area chart with real data must contain mark elements. If the SVG came back
+    // with only axis scaffold (no <rect>/<path> marks), the data didn't bind — don't ship it.
+    if (/^(bar|bar_h|stacked_bar|area)$/.test(String(args.type))) {
+      const rectCount = (svg.match(/<rect\b/g) || []).length;
+      if (rectCount <= 1)
+        return 'Error: the chart rendered with axes but no bars — the data did not bind. Make sure the `x` (label) and `y` (numeric value) arguments exactly match the keys in your data rows, then render again.';
+    }
     // Make it fluid so it fills its .fig block instead of collapsing to a fixed-px corner.
     svg = makeSvgResponsive(svg);
 
