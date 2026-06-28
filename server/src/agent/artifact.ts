@@ -98,33 +98,86 @@ export function buildArtifactHtml(compiledJs: string, opts: { title: string; pal
 <style>
   ${fontFaceCss()}
   :root{ color-scheme: light;
-    --bg:#fbfbfa; --surface:#ffffff; --surface-2:#f3f4f2; --elevated:#ffffff;
-    --ink:#16181d; --ink-soft:#3a3d44; --muted:#5b616e; --line:#e8e8e4; --line-strong:#d8d8d2;
     ${paletteTokens(opts.palette)}
-    --radius:12px; --radius-sm:8px;
+    /* BESPOKE TINTED NEUTRALS — derived from the accent so bg/surface/ink/hairlines all share ONE
+       undertone (warm accent → warm ivory, cool accent → cool slate). Dead grey-on-grey is what
+       reads "cheap"; a faintly-tinted neutral ramp is the single biggest polish tell. Tints are
+       small (felt, not seen) and keep AA (the dark side stays ~87% ink, the light side ~96% paper). */
+    --bg:color-mix(in srgb, var(--accent) 4%, #fbfbf8);
+    --surface:color-mix(in srgb, var(--accent) 2%, #ffffff);
+    --surface-2:color-mix(in srgb, var(--accent) 5.5%, #f3f3f0);
+    --elevated:color-mix(in srgb, var(--accent) 2%, #ffffff);
+    --ink:color-mix(in srgb, var(--accent) 12%, #15161b);
+    --ink-soft:color-mix(in srgb, var(--accent) 12%, #3b3e45);
+    --muted:color-mix(in srgb, var(--accent) 11%, #5d636f);
+    --line:color-mix(in srgb, var(--accent) 9%, #e8e7e2);
+    --line-strong:color-mix(in srgb, var(--accent) 11%, #d8d6d0);
+    /* RADIUS + ELEVATION SCALES — the right value per role, not one flat token. Shadows are soft,
+       large-blur, low-opacity AND accent-tinted (lifted paper, not a 2010 drop shadow). */
+    --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px; --radius:12px; --radius-sm:8px;
+    --shadow-xs:0 1px 1.5px color-mix(in srgb, var(--accent) 13%, rgba(18,19,24,.05));
+    --shadow-sm:0 1px 2px rgba(18,19,24,.04), 0 3px 9px color-mix(in srgb, var(--accent) 12%, rgba(18,19,24,.05));
+    --shadow-md:0 2px 4px rgba(18,19,24,.04), 0 10px 26px color-mix(in srgb, var(--accent) 15%, rgba(18,19,24,.07));
+    --shadow-lg:0 4px 10px rgba(18,19,24,.05), 0 22px 54px color-mix(in srgb, var(--accent) 18%, rgba(18,19,24,.10));
+    --shadow:var(--shadow-md);
+    /* OPTICAL TYPE SCALE + tracking — refined metrics so text reads designed at every size. */
+    --text-xs:.75rem; --text-sm:.875rem; --text-base:1rem; --text-lg:1.125rem; --text-xl:1.375rem;
+    --text-2xl:1.75rem; --text-3xl:2.25rem; --text-4xl:3rem; --text-5xl:4rem;
+    --tracking-tight:-0.021em; --tracking-snug:-0.012em; --tracking-normal:0; --tracking-wide:.04em; --tracking-caps:.085em;
+    --measure:68ch;
     --font-sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
     --font-display:'Space Grotesk','Inter',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
     --font-serif:'Source Serif 4',Georgia,'Times New Roman',serif;
     --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,'Cascadia Mono',monospace;
-    --shadow:0 1px 2px rgba(16,18,29,.05),0 8px 24px rgba(16,18,29,.06);
   }
-  /* Dark theme — a coherent dark surface set with LIGHT ink. Applied either by theme:'dark'
-     (build-time class on <html>) or by the runtime contrast guard when a dark background is
-     detected. Ink/muted/surface/line all flip so text is always legible on the dark surface. */
+  /* Dark theme — a coherent, ACCENT-TINTED dark surface set with LIGHT ink (deep navy-charcoal for
+     a cobalt brand, warm graphite for amber, etc. — not flat #111). Applied by theme:'dark' or the
+     runtime contrast guard. Ink/muted/surface/line all flip so text stays legible on the surface. */
   html.artifact-dark{ color-scheme: dark;
-    --bg:#0f1216; --surface:#171b21; --surface-2:#1f242b; --elevated:#1c2128;
-    --ink:#f2f4f7; --ink-soft:#cbd1da; --muted:#99a1ad; --line:#2a2f38; --line-strong:#3a414c;
+    --bg:color-mix(in srgb, var(--accent) 8%, #0e1014);
+    --surface:color-mix(in srgb, var(--accent) 10%, #15191f);
+    --surface-2:color-mix(in srgb, var(--accent) 12%, #1d222a);
+    --elevated:color-mix(in srgb, var(--accent) 10%, #1a1f26);
+    --ink:color-mix(in srgb, var(--accent) 5%, #f3f5f8);
+    --ink-soft:color-mix(in srgb, var(--accent) 7%, #cbd1da);
+    --muted:color-mix(in srgb, var(--accent) 10%, #97a0ac);
+    --line:color-mix(in srgb, var(--accent) 16%, #272c34);
+    --line-strong:color-mix(in srgb, var(--accent) 18%, #39404a);
     --accent-tint:color-mix(in srgb, var(--accent) 26%, #14181e);
-    --shadow:0 1px 2px rgba(0,0,0,.45),0 10px 30px rgba(0,0,0,.55);
+    /* On dark, the EMPHASIS ramp (used as foreground text/icons, e.g. on an accent-tint chip)
+       must read BRIGHT, not the light-mode dark shade — otherwise it's accent-on-dark = invisible.
+       The solid fill --accent + its --accent-ink are left untouched so accent buttons keep working. */
+    --accent-deep:color-mix(in srgb, var(--accent) 58%, #ffffff);
+    --accent-2:color-mix(in srgb, var(--accent) 40%, #ffffff);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4), 0 3px 10px rgba(0,0,0,.4);
+    --shadow-md:0 2px 6px rgba(0,0,0,.45), 0 12px 32px rgba(0,0,0,.5);
+    --shadow-lg:0 6px 16px rgba(0,0,0,.5), 0 26px 60px rgba(0,0,0,.6);
   }
-  html.artifact-dark a{ color:color-mix(in srgb, var(--accent) 58%, #ffffff); }
-  *{box-sizing:border-box} html,body{margin:0}
-  body{background:var(--bg);color:var(--ink);font-family:var(--font-sans);line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
-  /* Designed-by-default type: headings + big figures get the display face and tight tracking,
-     so an artifact reads intentional even if the component sets no fonts of its own. */
-  h1,h2,h3,h4{font-family:var(--font-display);font-weight:700;letter-spacing:-0.018em;line-height:1.12;margin:0 0 .4em}
+  html.artifact-dark a{ color:color-mix(in srgb, var(--accent) 60%, #ffffff); }
+  *{box-sizing:border-box} html,body{margin:0} html{-webkit-text-size-adjust:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font-sans);line-height:1.55;
+       font-feature-settings:'kern' 1,'liga' 1,'calt' 1;-webkit-font-smoothing:antialiased;
+       -moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
   #root{min-height:100vh}
-  a{color:var(--accent)} button,input,select,textarea{font-family:inherit;font-size:inherit}
+  /* OPTICAL TYPE DEFAULTS — display face + per-size tracking + tuned line-height, so headings and
+     figures read intentional even when the component sets no type of its own. */
+  h1,h2,h3,h4{font-family:var(--font-display);color:var(--ink);margin:0 0 .5em;text-wrap:balance}
+  h1{font-size:clamp(1.95rem,1.4rem+1.9vw,2.6rem);font-weight:700;letter-spacing:var(--tracking-tight);line-height:1.07}
+  h2{font-size:var(--text-2xl);font-weight:700;letter-spacing:-0.016em;line-height:1.15}
+  h3{font-size:var(--text-xl);font-weight:600;letter-spacing:var(--tracking-snug);line-height:1.22}
+  h4{font-size:var(--text-lg);font-weight:600;letter-spacing:-0.006em;line-height:1.3}
+  p{margin:0 0 1em} small{font-size:var(--text-sm)}
+  a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+  ::selection{background:color-mix(in srgb, var(--accent) 22%, transparent)}
+  /* Refined, 0-SPECIFICITY defaults (:where) — smooth transitions, a tasteful focus ring, and a
+     crafted look for an UNSTYLED control. Any inline style or class the component sets always wins. */
+  :where(button,a,input,select,textarea,summary,[role=button],[tabindex]):focus-visible{outline:2px solid color-mix(in srgb, var(--accent) 52%, transparent);outline-offset:2px;border-radius:var(--r-sm)}
+  :where(button,a,input,select,[role=button]){transition:background-color .18s ease,color .18s ease,border-color .18s ease,box-shadow .2s ease,transform .18s ease}
+  :where(button){font:inherit;font-weight:600;letter-spacing:-0.003em;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r-md);padding:.55rem .95rem;cursor:pointer}
+  :where(button):hover{border-color:color-mix(in srgb, var(--accent) 32%, var(--line-strong));box-shadow:var(--shadow-sm)}
+  :where(input,select,textarea){font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r-md);padding:.5rem .7rem}
+  :where(input,select,textarea):focus-visible{border-color:color-mix(in srgb, var(--accent) 45%, var(--line-strong))}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
   .artifact-error{margin:24px;padding:16px 18px;border:1px solid #f3c0bd;background:#fdecea;color:#9e2722;border-radius:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;white-space:pre-wrap}
 </style>
 </head>

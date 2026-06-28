@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-28.2';
+export const WHATS_NEW_VERSION = '2026-06-28.3';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Beautiful, consistent type',
-    body: 'Quick visual things (a timer, a calculator, a widget) now use a polished, built-in font set — a clean display face for headings, crisp aligned numerals for timers and prices, and a refined body font — so they look designed and read the same on every device, instead of falling back to whatever font your phone or laptop happens to have.',
-  },
-  {
-    title: 'Always-legible on any background',
-    body: 'A dark, moody design keeps its text light automatically — no more hard-to-read dark-on-dark. You can also just ask for a dark theme and it works.',
+    title: 'Expensive-minimal polish',
+    body: 'Quick visual things now come out genuinely refined, not just clean: colours that share one warm or cool undertone instead of flat grey, soft layered shadows, crisp typography, and a built-in font set — the small details that make a design feel designed. It holds up in light and dark, on every device.',
   },
 ];
 

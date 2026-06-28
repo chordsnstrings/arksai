@@ -30,6 +30,15 @@ export const createArtifactTool: ToolDef = {
     'headings + large numerals (h1–h4 already use it); --font-mono (IBM Plex Mono) for figures that should ' +
     'align — timers, prices, stats, tables (add font-variant-numeric:tabular-nums on any changing number); ' +
     '--font-serif (Source Serif 4) only for an editorial long-form feel. ' +
+    'POLISH (minimal · modern · muted — refinement is the whole game; reach for the SCALE tokens, ' +
+    'do not invent flat values): the neutral system (--bg/--surface/--ink/--line) is already a bespoke ' +
+    'TINTED ramp derived from the accent — use those tokens, never a raw grey or #fff/#000. Elevation: ' +
+    '--shadow-sm/-md/-lg (soft, layered, accent-tinted — lift cards with these, never a hard drop shadow). ' +
+    'Radius: --r-sm/-md/-lg/-xl. Type scale: --text-xs…--text-5xl with --tracking-tight/-snug/-wide/-caps ' +
+    '(tighten big display, open up small UPPERCASE labels; put eyebrows/labels in --font-mono + ' +
+    'letter-spacing:var(--tracking-caps)). Aim for ONE generous hero moment + lots of restraint, ' +
+    'precise spacing on a 4/8px rhythm, hairline borders (--line), and a calm muted palette — expensive ' +
+    'minimalism, not a flat template. ' +
     'CONTRAST (important): for text use --ink (body), --ink-soft / --muted (secondary); for surfaces use --bg / ' +
     '--surface. These are guaranteed legible together. Do NOT hard-code a dark background colour while using ' +
     'the dark text tokens — that renders dark-on-dark. For a DARK / moody aesthetic, pass theme:"dark" (the ' +

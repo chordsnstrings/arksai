@@ -2,7 +2,10 @@
    toggles html.artifact-dark so the ink tokens always match the surface. Catches a component
    that paints a dark background while using light-theme text tokens (dark-on-dark). Idempotent
    and reality-based: re-runs after mount, on resize, and after async state settles. Lives in its
-   OWN file (NOT inside a template literal) so its regex backslashes survive verbatim. */
+   OWN file (NOT inside a template literal) so its regex backslashes survive verbatim.
+   NOTE: computed backgrounds may serialize as rgb()/rgba() OR color(srgb r g b / a) (the latter is
+   how Chromium serializes color-mix() results — which the tinted token system uses everywhere), so
+   parse BOTH or a tinted dark surface reads as "unparseable → light" and the dark theme is dropped. */
 (function () {
   function lum(r, g, b) {
     var a = [r, g, b].map(function (v) {
@@ -11,37 +14,48 @@
     });
     return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
   }
-  function colorsIn(s) {
-    var out = [], m;
-    var re = /rgba?\(([^)]+)\)|#([0-9a-fA-F]{6})\b/g;
-    while ((m = re.exec(s))) {
-      if (m[1]) {
-        var p = m[1].split(',').map(function (x) { return parseFloat(x); });
-        if (p.length < 4 || p[3] > 0.4) out.push([p[0], p[1], p[2]]);
-      } else if (m[2]) {
-        out.push([parseInt(m[2].slice(0, 2), 16), parseInt(m[2].slice(2, 4), 16), parseInt(m[2].slice(4, 6), 16)]);
-      }
+  // Parse one CSS color string → [r,g,b,a] (0-255 channels), handling rgb()/rgba() and
+  // color(srgb r g b [/ a]) with 0-1 channels. Returns null if it isn't a solid color.
+  function parse(str) {
+    if (!str) return null;
+    var m = str.match(/rgba?\(([^)]+)\)/);
+    if (m) {
+      var p = m[1].split(/[ ,\/]+/).map(parseFloat);
+      return [p[0], p[1], p[2], p.length > 3 && !isNaN(p[3]) ? p[3] : 1];
     }
-    return out;
+    m = str.match(/color\(\s*srgb\s+([0-9.eE+-]+)\s+([0-9.eE+-]+)\s+([0-9.eE+-]+)(?:\s*\/\s*([0-9.eE+-]+))?/);
+    if (m) {
+      return [parseFloat(m[1]) * 255, parseFloat(m[2]) * 255, parseFloat(m[3]) * 255, m[4] !== undefined ? parseFloat(m[4]) : 1];
+    }
+    return null;
+  }
+  function solidLum(str) {
+    var c = parse(str);
+    if (c && (isNaN(c[3]) || c[3] > 0.4)) return lum(c[0], c[1], c[2]);
+    return null;
+  }
+  // Average luminance of the color stops inside a gradient string (each stop may be rgb/color(srgb)).
+  function gradientLum(s) {
+    var re = /(rgba?\([^)]+\)|color\(\s*srgb[^)]+\))/g, m, ls = [];
+    while ((m = re.exec(s))) {
+      var L = solidLum(m[1]);
+      if (L !== null) ls.push(L);
+    }
+    if (!ls.length) return null;
+    var t = 0;
+    ls.forEach(function (x) { t += x; });
+    return t / ls.length;
   }
   function bgLumAt(x, y) {
     var el = document.elementFromPoint(x, y), depth = 0;
     while (el && depth++ < 40) {
       var cs = getComputedStyle(el);
-      var bc = cs.backgroundColor || '';
-      var m = bc.match(/rgba?\(([^)]+)\)/);
-      if (m) {
-        var p = m[1].split(',').map(function (v) { return parseFloat(v); });
-        if (p.length < 4 || p[3] > 0.4) return lum(p[0], p[1], p[2]);
-      }
+      var L = solidLum(cs.backgroundColor || '');
+      if (L !== null) return L;
       var bi = cs.backgroundImage || '';
       if (bi && bi !== 'none' && /gradient/.test(bi)) {
-        var cols = colorsIn(bi);
-        if (cols.length) {
-          var s = 0;
-          cols.forEach(function (c) { s += lum(c[0], c[1], c[2]); });
-          return s / cols.length;
-        }
+        var g = gradientLum(bi);
+        if (g !== null) return g;
       }
       el = el.parentElement;
     }

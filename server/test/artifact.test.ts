@@ -44,9 +44,25 @@ test('buildArtifactHtml: theme:dark flips to a dark surface with LIGHT ink (cont
   const html = buildArtifactHtml(js, { title: 'Dark', theme: 'dark' });
   // the <html> opts into the dark token set at build time
   assert.match(html, /<html lang="en" class="artifact-dark"/);
-  // the dark token block uses a dark bg and a LIGHT ink so text is legible
-  assert.match(html, /html\.artifact-dark\{[^}]*--bg:#0f1216/);
-  assert.match(html, /html\.artifact-dark\{[^}]*--ink:#f2f4f7/);
+  // the dark token block uses an accent-tinted dark bg and a near-white (LIGHT) ink so text is legible
+  assert.match(html, /html\.artifact-dark\{[^}]*--bg:color-mix\(in srgb, var\(--accent\) \d+% ?%?,? ?#0e1014/);
+  assert.match(html, /html\.artifact-dark\{[^}]*--ink:color-mix\(in srgb, var\(--accent\) \d+%, #f3f5f8/);
+});
+
+test('buildArtifactHtml: ships the polish execution layer (tinted neutrals, elevation + type scales)', async () => {
+  const js = await compileComponent(`function App(){ return <div>hi</div>; }`);
+  const html = buildArtifactHtml(js, { title: 'Polish', palette: 'cobalt' });
+  // bespoke TINTED neutrals derived from the accent (not dead grey) — the biggest polish tell
+  assert.match(html, /--bg:color-mix\(in srgb, var\(--accent\) \d/);
+  assert.match(html, /--ink:color-mix\(in srgb, var\(--accent\) \d/);
+  // an elevation SCALE with accent-tinted soft shadows (not one flat token)
+  assert.match(html, /--shadow-sm:/);
+  assert.match(html, /--shadow-lg:/);
+  // an optical TYPE scale + tracking tokens
+  assert.match(html, /--text-3xl:/);
+  assert.match(html, /--tracking-tight:/);
+  // refined 0-specificity defaults so an unstyled control still looks crafted
+  assert.match(html, /:where\(button\)\{/);
 });
 
 test('buildArtifactHtml: light is the default (no dark class) but the guard is always present', async () => {
