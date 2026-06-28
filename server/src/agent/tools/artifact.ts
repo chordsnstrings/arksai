@@ -31,7 +31,6 @@ export const createArtifactTool: ToolDef = {
       component: { type: 'string', description: 'The React component source. Must define `function App() { return (<…/>) }`. No imports/exports.' },
       title: { type: 'string', description: 'Artifact title (browser tab + heading context).' },
       palette: { type: 'string', description: `Palette name for the accent colour. One of: ${PALETTES.map((p) => p.name).join(', ')}. Default emerald.` },
-      output: { type: 'string', description: 'Output filename (default index.html so it previews + publishes at the root).' },
     },
     required: ['component'],
   },
@@ -40,8 +39,10 @@ export const createArtifactTool: ToolDef = {
   async run(args, ctx) {
     const src = String(args.component ?? '').trim();
     if (!src) return 'Error: `component` is required — the React component source (a function App that returns JSX).';
-    const outName = String(args.output || 'index.html').replace(/[^a-zA-Z0-9._-]/g, '-');
-    const finalName = /\.html?$/i.test(outName) ? outName : `${outName}.html`;
+    // ALWAYS index.html — the artifact is the page, and the canvas preview + publish + the tappable
+    // completion card all key off a root index.html. A descriptive name would silently break the
+    // preview card (the renderer only auto-detects index.html).
+    const finalName = 'index.html';
     let absOut: string;
     try {
       absOut = resolveInWorkspace(ctx.repoDir, finalName);
