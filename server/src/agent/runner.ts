@@ -1385,7 +1385,7 @@ export class AgentRun {
     // File-producing tools all flag the run as mutated so the completion gate fires — incl.
     // the document generators / renderer (a run that ONLY calls generate_pptx must still be gated).
     if (
-      ['write_file', 'edit_file', 'git_commit', 'generate_spreadsheet', 'generate_doc', 'generate_pptx', 'render_report'].includes(
+      ['write_file', 'edit_file', 'git_commit', 'generate_spreadsheet', 'generate_doc', 'generate_pptx', 'render_report', 'create_artifact'].includes(
         call.name,
       )
     )
