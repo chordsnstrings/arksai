@@ -65,11 +65,13 @@ export const createArtifactTool: ToolDef = {
     const sz = Math.round(fs.statSync(absOut).size / 1024);
     const pal = PALETTES.find((p) => p.name === String(args.palette || '').toLowerCase());
     return (
-      `Created ${finalName} (${sz} KB) — a self-contained, no-build artifact${pal ? `, ${pal.name} palette` : ''}. A TAPPABLE ` +
-      `preview card with a live thumbnail appears for the user automatically (renders instantly, no build) — so do NOT tell ` +
-      `them to "open the canvas" or paste the file path; just briefly say in ONE line what you made and what they can do with ` +
-      `it. It's publishable as-is with publish_app. To change it, edit the component and call create_artifact again. ` +
-      `(Frontend-only + single file — for a data-backed or multi-page app use create_react_app.)`
+      `Created ${finalName} (${sz} KB) — a self-contained, no-build artifact${pal ? `, ${pal.name} palette` : ''}. This is the ` +
+      `COMPLETE deliverable: it is one static HTML file with the React runtime inlined — do NOT add a server, package.json, ` +
+      `or any app scaffolding around it, and do NOT try to "boot" or verify it; it needs none of that and calling ` +
+      `create_artifact FINISHES the task. A TAPPABLE preview card with a live thumbnail appears for the user automatically, ` +
+      `so do NOT tell them to "open the canvas" or paste the path — just say in ONE short line what you made. It's publishable ` +
+      `as-is with publish_app. To change it, edit the component and call create_artifact again. (For a data-backed or ` +
+      `multi-page app, use create_react_app instead — that one IS a full app.)`
     );
   },
 };

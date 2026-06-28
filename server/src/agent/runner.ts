@@ -342,6 +342,7 @@ export class AgentRun {
   private usage = new Usage();
   private runningTasks = 0;
   private mutated = false; // did this run change files? (triggers the verify gate)
+  private producedArtifact = false; // create_artifact ran → show the preview card, but NOT the verify gate
   private verifyRounds = 0;
   private designRounds = 0; // bounded gating design-critique rounds (separate budget)
   private reviewRounds = 0; // bounded code-review-gate rounds (connected-repo work)
@@ -1006,10 +1007,12 @@ export class AgentRun {
       // document (PDF / spreadsheet / doc). Only after a successful run.
       let openCanvasEvent: { port?: number; file?: string; kind?: 'app' | 'pdf' | 'sheet' | 'doc' | 'image' } | null = null;
       const renderable = detectRenderable(dir);
+      // Show the auto-canvas + completion card when: a code-mode run mutated a real project, OR an
+      // artifact was produced (in ANY mode — an artifact is a self-contained renderable; it skips the
+      // verify gate but still earns the tappable preview card).
       if (
         finalStatus === 'done' &&
-        this.session.mode === 'code' &&
-        this.mutated &&
+        ((this.session.mode === 'code' && this.mutated) || this.producedArtifact) &&
         (looksLikeProject(dir) || renderable.renderable)
       ) {
         try {
@@ -1385,11 +1388,15 @@ export class AgentRun {
     // File-producing tools all flag the run as mutated so the completion gate fires — incl.
     // the document generators / renderer (a run that ONLY calls generate_pptx must still be gated).
     if (
-      ['write_file', 'edit_file', 'git_commit', 'generate_spreadsheet', 'generate_doc', 'generate_pptx', 'render_report', 'create_artifact'].includes(
+      ['write_file', 'edit_file', 'git_commit', 'generate_spreadsheet', 'generate_doc', 'generate_pptx', 'render_report'].includes(
         call.name,
       )
     )
       this.mutated = true;
+    // An artifact is a self-contained STATIC file: it must surface the tappable preview card
+    // (open_canvas + completion) but must NOT flip `mutated` — that would run the code verify gate,
+    // which pushes the agent to bolt a Node server onto a single HTML file (over-build + port mess).
+    if (call.name === 'create_artifact') this.producedArtifact = true;
     if (call.name === 'publish_app') this.emitProgress('publishing', 'Putting it online & checking the live URL…');
     // Finer beats while authoring so the long build/report wait visibly moves.
     else if (this.progressPhase === 'building' && TOOL_BEAT[call.name]) this.emitProgress('building', TOOL_BEAT[call.name]);
