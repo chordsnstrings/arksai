@@ -9,6 +9,7 @@ import {
   hasMenuToggle,
   hasToggleWiring,
   auditWebHygiene,
+  findMissingLocalAssets,
 } from '../src/agent/webHygiene';
 
 // A missing <meta viewport> is the headline blind spot of the browser smoke test (Playwright sets
@@ -71,6 +72,38 @@ test('auditWebHygiene: a broken page is flagged on all three; a good page is cle
     );
     const good = auditWebHygiene(dir);
     assert.deepEqual(good.defects, [], good.defects.join(' | '));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('findMissingLocalAssets / auditWebHygiene: flag a referenced local asset that does not exist', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'webhyg-'));
+  try {
+    // The real bug: index links site.css/site.js (exist) + landing.css/landing.js (missing).
+    fs.writeFileSync(path.join(dir, 'site.css'), '.x{color:#000}');
+    fs.writeFileSync(path.join(dir, 'site.js'), 'void 0');
+    const idx = path.join(dir, 'index.html');
+    const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+       <link rel="stylesheet" href="site.css">
+       <link rel="stylesheet" href="landing.css">
+       <link rel="stylesheet" href="https://fonts.example/x.css"></head>
+       <body><div class="wrap"></div><script src="site.js"></script><script src="landing.js"></script></body></html>`;
+    fs.writeFileSync(idx, html);
+
+    // The pure detector returns EXACTLY the missing local files (no existing, no external).
+    const miss = findMissingLocalAssets(html, idx, dir);
+    assert.deepEqual(miss.sort(), ['landing.css', 'landing.js']);
+
+    const r = auditWebHygiene(dir);
+    assert.ok(r.defects.some((d) => /don't exist/i.test(d) && /landing\.css/.test(d) && /landing\.js/.test(d)),
+      'should flag the missing assets: ' + r.defects.join(' | '));
+
+    // Create the missing files → the detector + audit clear.
+    fs.writeFileSync(path.join(dir, 'landing.css'), '.ring{border-radius:50%}');
+    fs.writeFileSync(path.join(dir, 'landing.js'), 'void 0');
+    assert.deepEqual(findMissingLocalAssets(html, idx, dir), []);
+    assert.ok(!auditWebHygiene(dir).defects.some((d) => /don't exist/i.test(d)));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

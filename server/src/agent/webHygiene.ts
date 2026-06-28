@@ -111,6 +111,38 @@ function findHtmlFiles(dir: string): string[] {
   return out.sort((a, b) => (/index\.html?$/i.test(a) ? -1 : 0) - (/index\.html?$/i.test(b) ? -1 : 0)).slice(0, 12);
 }
 
+// Local <link>/<script>/<img>/<source> references that point at a file in the workspace which does
+// NOT exist — a 404 at runtime, so its CSS/JS/image is silently missing and the page renders broken
+// (the recurring "I linked landing.css but only created site.css" bug, where the bespoke component
+// styles + the signature element render unstyled). Cheap, deterministic, browser-free — and exactly
+// the class the headless probe can miss when a static server answers a missing file with a 200 page.
+const ASSET_REF_RE =
+  /<(?:link\b[^>]*\bhref|script\b[^>]*\bsrc|img\b[^>]*\bsrc|source\b[^>]*\bsrc)\s*=\s*["']([^"']+)["']/gi;
+const VERIFIABLE_ASSET = /\.(css|js|mjs|png|jpe?g|gif|webp|svg|avif|woff2?|ttf|otf|ico|mp4|webm)$/i;
+
+export function findMissingLocalAssets(html: string, htmlFile: string, dir: string): string[] {
+  const missing: string[] = [];
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  ASSET_REF_RE.lastIndex = 0;
+  while ((m = ASSET_REF_RE.exec(html))) {
+    let ref = (m[1] || '').trim();
+    if (!ref || /^(https?:|\/\/|data:|blob:|mailto:|tel:|javascript:|#)/i.test(ref)) continue;
+    ref = ref.split(/[?#]/)[0];
+    if (!ref || !VERIFIABLE_ASSET.test(ref) || seen.has(ref)) continue;
+    seen.add(ref);
+    const abs = ref.startsWith('/')
+      ? path.join(dir, ref.replace(/^\/+/, ''))
+      : path.resolve(path.dirname(htmlFile), ref);
+    try {
+      if (!fs.existsSync(abs)) missing.push(ref);
+    } catch {
+      /* ignore */
+    }
+  }
+  return missing;
+}
+
 /** Audit a built/served static site's source for structural mobile defects. Never throws. */
 export function auditWebHygiene(dir: string): WebHygieneResult {
   let files: string[];
@@ -144,6 +176,11 @@ export function auditWebHygiene(dir: string): WebHygieneResult {
     if (hasMenuToggle(html) && !hasToggleWiring(html, css))
       defects.push(
         `${rel}: there's a menu/hamburger control but nothing wires it to open (no <script>, <details>, inline handler, or :checked/:target CSS) — the mobile menu won't open. Wire the toggle (JS classList toggle that shows the nav panel) or use the kit's working nav.`,
+      );
+    const missing = findMissingLocalAssets(html, f, dir);
+    if (missing.length)
+      defects.push(
+        `${rel}: links local file(s) that don't exist — ${missing.join(', ')}. A <link>/<script>/<img> points at a file you never created (it 404s), so its CSS/JS/image is missing and the page renders broken (e.g. unstyled signature elements or lists falling back to default bullets). Either CREATE the missing file(s) with the intended styles/script, or fix the reference to the file that actually exists (e.g. site.css). Do NOT ship a page with a broken local reference.`,
       );
   }
   return { ran: true, defects: [...new Set(defects)].slice(0, 8) };
