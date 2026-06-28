@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-27.1';
+export const WHATS_NEW_VERSION = '2026-06-27.2';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Bolder, better-designed colour',
-    body: 'A much richer palette library — confident, characterful colours matched to your subject (fresh greens, deep blues, warm corals, rich purples), not just quiet greys — every one contrast-checked so text stays readable. Your sites and docs come out looking designed, not default.',
+    title: 'Instant artifacts',
+    body: 'Quick visual things — a calculator, a chart, an interactive widget, a single landing section — now render instantly with no build wait, and you can publish them as-is. Fast to make, on-brand, and live in seconds.',
+  },
+  {
+    title: 'One-pick "looks" + richer colour',
+    body: 'A big new set of confident, characterful colour palettes plus complete ready-made "looks" (a palette + fonts + style in one pick, matched to your kind of business) — every one contrast-checked. Things come out looking designed from the first try, not default.',
   },
   {
     title: 'Reviewed before it goes live',

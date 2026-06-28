@@ -12,6 +12,8 @@ const fontsCss = fs.readFileSync(path.join(FONTS, 'fonts.css'), 'utf8');
 const COLOR_THEMES = ['slate', 'ink', 'indigo', 'ocean', 'sage', 'teal', 'clay', 'stone', 'plum', 'olive'];
 const TYPE_PAIRINGS = ['geometric', 'editorial', 'clean', 'startup', 'tech', 'journal', 'warm', 'humanist'];
 const DESIGN_KITS = ['minimal', 'paper', 'linen', 'calm', 'harbor'];
+// Confident "complete looks" added alongside the muted kits (palette + type + style in one pick).
+const CONFIDENT_LOOKS = ['fresh', 'bold', 'studio', 'warm', 'tech', 'boutique', 'trust', 'vibrant', 'signal'];
 const NEW_FONT_FILES = [
   'fraunces-600.woff2', 'outfit-600.woff2', 'sora-600.woff2', 'dmsans-400.woff2', 'dmsans-600.woff2',
   'manrope-600.woff2', 'jakarta-400.woff2', 'jakarta-600.woff2', 'lora-400.woff2', 'newsreader-400.woff2',
@@ -35,8 +37,8 @@ test('themes.css defines the typography pairings via data-type (8, clean only)',
   assert.match(themes, /\[data-type='warm'\][^}]*--font-display:\s*'Fraunces'/);
 });
 
-test('themes.css defines complete design kits via data-kit (5, muted)', () => {
-  for (const k of DESIGN_KITS) {
+test('themes.css defines complete looks via data-kit (muted + confident)', () => {
+  for (const k of [...DESIGN_KITS, ...CONFIDENT_LOOKS]) {
     assert.ok(themes.includes(`[data-kit='${k}']`), `missing design kit: ${k}`);
     const m = themes.match(new RegExp(`\\[data-kit='${k}'\\]\\s*\\{([^}]*)\\}`));
     assert.ok(m, `no block for kit ${k}`);

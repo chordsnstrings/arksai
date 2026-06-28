@@ -1,5 +1,6 @@
 import type { TaskProfile, TaskType } from './taskProfile';
 import { paletteMenu } from './palettes';
+import { looksMenu } from './looks';
 
 /**
  * The opinionated design brain. Generalized from the report protocol so EVERY
@@ -276,5 +277,8 @@ export function designContext(profile: TaskProfile): string {
   // The curated, pre-validated swatch book the agent picks an accent from when there's no brand
   // logo/colour — every entry is WCAG-AA, so the colour layer is good-and-fast by construction.
   const swatch = `\n\n## Palette swatch book (pick ONE fitting accent; all are WCAG-AA validated)\nApply via the locked tokens (--accent / --accent-2 / --accent-deep / --accent-tint / --accent-ink) or, with the UI kit, <html data-theme="<name>">.\n${paletteMenu()}`;
-  return (pack ? `${designCore}\n\n${pack}` : designCore) + swatch;
+  // Complete "looks" = a confident palette + a type pairing + a style in ONE pick. The FASTEST
+  // route to a high design floor: pick the look that fits the subject, then refine.
+  const looks = `\n\n## Complete looks (a vetted palette + type + style in one pick — fastest high floor)\nApply with <html data-kit="<name>"> (UI kit) or by setting the same --accent ramp + --font-display/--font-sans. Start from the fitting one, then make it bespoke.\n${looksMenu()}`;
+  return (pack ? `${designCore}\n\n${pack}` : designCore) + swatch + looks;
 }

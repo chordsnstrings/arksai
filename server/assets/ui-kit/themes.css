@@ -102,3 +102,17 @@
 [data-theme~='amber'] { --accent: #c2740a; --accent-2: #cc8a31; --accent-deep: #9b5d08; --accent-tint: #f9f1e7; --accent-ink: #15161a; }
 [data-theme~='coral'] { --accent: #e0514a; --accent-2: #e56d67; --accent-deep: #b3413b; --accent-tint: #fceeed; --accent-ink: #15161a; }
 [data-theme~='midnight'] { --accent: #1e293b; --accent-2: #424b5a; --accent-deep: #18212f; --accent-tint: #e9eaeb; --accent-ink: #ffffff; }
+
+/* ── COMPLETE LOOKS (data-kit) — a confident palette + type + style in ONE token ──────
+ * A high design floor in a single pick. Each pairs a vetted vivid accent (WCAG-AA) with a
+ * type pairing and a radius/shadow style. e.g. <html data-kit='fresh'>. */
+[data-kit='fresh'] { --accent:#0e7a52; --accent-2:#358f6e; --accent-deep:#0b6242; --accent-tint:#e7f2ee; --accent-ink:#ffffff; --r-sm:7px; --r-md:12px; --r-lg:18px; --font-display:'Space Grotesk',system-ui,sans-serif; --font-sans:'Inter',system-ui,sans-serif; }
+[data-kit='bold'] { --accent:#c5312b; --accent-2:#ce524d; --accent-deep:#9e2722; --accent-tint:#f9eaea; --accent-ink:#ffffff; --r-sm:4px; --r-md:7px; --r-lg:11px; --font-display:'Space Grotesk',system-ui,sans-serif; --font-sans:'Hanken Grotesk',system-ui,sans-serif; }
+[data-kit='studio'] { --accent:#7c3aed; --accent-2:#915af0; --accent-deep:#632ebe; --accent-tint:#f2ebfd; --accent-ink:#ffffff; --r-sm:10px; --r-md:16px; --r-lg:24px; --font-display:'Fraunces',Georgia,serif; --font-sans:'Inter',system-ui,sans-serif; }
+[data-kit='warm'] { --accent:#c2740a; --accent-2:#cc8a31; --accent-deep:#9b5d08; --accent-tint:#f9f1e7; --accent-ink:#15161a; --r-sm:8px; --r-md:14px; --r-lg:21px; --font-display:'Fraunces',Georgia,serif; --font-sans:'Lora',Georgia,serif; }
+[data-kit='tech'] { --accent:#2456c8; --accent-2:#4771d1; --accent-deep:#1d45a0; --accent-tint:#e9eefa; --accent-ink:#ffffff; --r-sm:5px; --r-md:8px; --r-lg:12px; --font-display:'Sora',system-ui,sans-serif; --font-sans:'Manrope',system-ui,sans-serif; --font-mono:'IBM Plex Mono',ui-monospace,monospace; }
+[data-kit='boutique'] { --accent:#7b2d6b; --accent-2:#904f83; --accent-deep:#622456; --accent-tint:#f2eaf0; --accent-ink:#ffffff; --r-sm:7px; --r-md:12px; --r-lg:18px; --font-display:'Source Serif 4',Georgia,serif; --font-sans:'Inter',system-ui,sans-serif; }
+[data-kit='trust'] { --accent:#0b6fae; --accent-2:#3286bb; --accent-deep:#09598b; --accent-tint:#e7f1f7; --accent-ink:#ffffff; --r-sm:5px; --r-md:8px; --r-lg:12px; --font-display:'Manrope',system-ui,sans-serif; --font-sans:'Plus Jakarta Sans',system-ui,sans-serif; }
+[data-kit='vibrant'] { --accent:#e0514a; --accent-2:#e56d67; --accent-deep:#b3413b; --accent-tint:#fceeed; --accent-ink:#15161a; --r-sm:10px; --r-md:16px; --r-lg:24px; --font-display:'Outfit',system-ui,sans-serif; --font-sans:'DM Sans',system-ui,sans-serif; }
+[data-kit='signal'] { --accent:#4f46e5; --accent-2:#6b64e9; --accent-deep:#3f38b7; --accent-tint:#ededfc; --accent-ink:#ffffff; --r-sm:5px; --r-md:9px; --r-lg:14px; --font-display:'Space Grotesk',system-ui,sans-serif; --font-sans:'Hanken Grotesk',system-ui,sans-serif; --font-mono:'IBM Plex Mono',ui-monospace,monospace; }
+[data-kit='fresh'] h1,[data-kit] h1,[data-kit] h2,[data-kit] h3,[data-kit] .hero h1,[data-kit] .display{font-family:var(--font-display);}

@@ -37,6 +37,7 @@ import { generateSpreadsheetTool } from './excel';
 import { generateDocTool } from './docx';
 import { generatePptxTool } from './pptx';
 import { convertDocumentTool } from './convert';
+import { createArtifactTool } from './artifact';
 import { switchModeTool, submitPlanTool } from './mode';
 import { fetchDataTool } from './data';
 import { fetchAdsTool } from './ads';
@@ -100,6 +101,7 @@ export const ALL_TOOLS: ToolDef[] = [
   generateDocTool,
   generatePptxTool,
   convertDocumentTool,
+  createArtifactTool,
   switchModeTool,
   submitPlanTool,
   fetchDataTool,
