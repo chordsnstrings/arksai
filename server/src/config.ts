@@ -53,6 +53,11 @@ export const config = {
   // Auto-Brief: inject the deterministic per-deliverable rigor scaffold into the system
   // prompt (Phase 1). On by default; set AUTO_BRIEF=0 to disable.
   autoBrief: process.env.AUTO_BRIEF !== '0',
+  // Design-brief compiler: for a VISUAL build, an upfront M3 pass rewrites the user's casual
+  // request into an expert, art-directed build brief (concept/palette/type/layout/signature/
+  // avoid) that the build then follows — the per-request "think first" step Claude does
+  // internally. On by default (needs the MiniMax key); set DESIGN_BRIEF=0 to disable.
+  designBrief: process.env.DESIGN_BRIEF !== '0',
   dataDir: process.env.DATA_DIR || path.join(repoRoot, 'data'),
   databaseUrl: process.env.DATABASE_URL || '',
   // Admin connection to a managed Postgres used to PROVISION per-app databases for deployed apps

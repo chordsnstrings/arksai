@@ -31,6 +31,7 @@ import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewSer
 import { auditWebHygiene } from './webHygiene';
 import { escalateModel, resolveProvider, selectModel } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
+import { compileDesignBrief, designBriefBlock } from './designBrief';
 import { routeExpertise } from './expertiseRouter';
 import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
 import { calibratedTypical, recordRunDurations } from './etaCalibration';
@@ -352,6 +353,7 @@ export class AgentRun {
   private engineCostUsd = 0; // external-engine spend this run (e.g. Suno)
   private accruedCostUsd = 0; // model spend this run, summed per concrete model
   private taskProfile!: TaskProfile; // classified at run start; drives design context + gating
+  private compiledBrief: string | null = null; // per-request expert design brief (visual builds)
   private autoExpertiseApplied = false; // true once the auto-router has set this.session.task (never overwrites a picked play)
   private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
   private progressPhase: ProgressPhase = 'understanding';
@@ -626,6 +628,17 @@ export class AgentRun {
     let memoryBlock = await this.loadMemoryBlock(dir);
     let systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile, userText);
 
+    // Design-brief compiler: for a VISUAL build, rewrite the user's casual request into an expert
+    // art-directed brief UP FRONT (one bounded M3 pass) and inject it — the per-request "think
+    // first" step Claude does internally, the piece Auto-Brief deliberately leaves to visual work.
+    // Fail-open: returns null on key-off/error/timeout and the build proceeds unchanged. Computed
+    // once and re-applied across a mode switch so we never pay for it twice.
+    if (this.taskProfile?.isVisual) {
+      this.emit({ type: 'progress', phase: 'understanding', label: 'Shaping the design brief', pct: 4 });
+      this.compiledBrief = await compileDesignBrief(userText, this.taskProfile, this.abort.signal);
+      if (this.compiledBrief) systemContent += designBriefBlock(this.compiledBrief);
+    }
+
     if (this.session.title === 'New session') {
       void this.generateTitleAsync(userText);
     }
@@ -856,6 +869,12 @@ export class AgentRun {
           this.addOnboardingTools(schemas, map);
           memoryBlock = await this.loadMemoryBlock(dir);
           systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile, userText);
+          // Carry the compiled design brief across the switch (e.g. chat→code to build); recompute
+          // it if the new mode is the first to be visual (and we don't already have one).
+          if (this.taskProfile?.isVisual && !this.compiledBrief) {
+            this.compiledBrief = await compileDesignBrief(userText, this.taskProfile, this.abort.signal);
+          }
+          if (this.compiledBrief && this.taskProfile?.isVisual) systemContent += designBriefBlock(this.compiledBrief);
           this.routeModel(userText, sysInfo);
           sysInfo(`↳ ${MODE_SWITCH_LINE[newMode]}`);
           this.emit({ type: 'session_meta_updated', meta: { id: sessionId, mode: newMode } });
