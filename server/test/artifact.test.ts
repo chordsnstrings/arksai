@@ -25,7 +25,27 @@ test('buildArtifactHtml: self-contained (inline React, no CDN), palette tokens b
   assert.match(html, /ReactDOM\.createRoot/);
   // the chosen palette's accent is present
   assert.match(html, /--accent:#2456c8/);
-  assert.match(html, /color-scheme: light/); // pinned — no half-baked dark flip
+  assert.match(html, /color-scheme: light/); // light is the default base
+  // the runtime contrast guard ships so dark-on-dark can never render
+  assert.match(html, /artifact-dark/);
+  assert.match(html, /elementFromPoint/);
+});
+
+test('buildArtifactHtml: theme:dark flips to a dark surface with LIGHT ink (contrast-safe)', async () => {
+  const js = await compileComponent(`function App(){ return <h1>Night</h1>; }`);
+  const html = buildArtifactHtml(js, { title: 'Dark', theme: 'dark' });
+  // the <html> opts into the dark token set at build time
+  assert.match(html, /<html lang="en" class="artifact-dark"/);
+  // the dark token block uses a dark bg and a LIGHT ink so text is legible
+  assert.match(html, /html\.artifact-dark\{[^}]*--bg:#0f1216/);
+  assert.match(html, /html\.artifact-dark\{[^}]*--ink:#f2f4f7/);
+});
+
+test('buildArtifactHtml: light is the default (no dark class) but the guard is always present', async () => {
+  const js = await compileComponent(`function App(){ return <h1>Day</h1>; }`);
+  const html = buildArtifactHtml(js, { title: 'Light' });
+  assert.doesNotMatch(html, /<html lang="en" class="artifact-dark"/);
+  assert.match(html, /classList\.toggle\('artifact-dark'/); // guard can still flip it at runtime
 });
 
 test('createArtifact tool: writes a runnable html and rejects a broken component', async () => {

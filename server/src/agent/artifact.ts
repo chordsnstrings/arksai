@@ -6,10 +6,15 @@ import { PALETTES } from './palettes';
 const RUNTIME_DIR = path.join(repoRoot, 'server', 'assets', 'artifact-runtime');
 let _react = '';
 let _reactDom = '';
-function runtime(): { react: string; reactDom: string } {
+let _guard = '';
+function runtime(): { react: string; reactDom: string; guard: string } {
   if (!_react) _react = fs.readFileSync(path.join(RUNTIME_DIR, 'react.min.js'), 'utf8');
   if (!_reactDom) _reactDom = fs.readFileSync(path.join(RUNTIME_DIR, 'react-dom.min.js'), 'utf8');
-  return { react: _react, reactDom: _reactDom };
+  // The contrast guard lives in its OWN file (not inside the template literal below) so its regex
+  // backslashes (\(, \), \b) survive verbatim — inlining JS-with-regex into a backtick string
+  // strips them and silently corrupts the regex.
+  if (!_guard) _guard = fs.readFileSync(path.join(RUNTIME_DIR, 'contrast-guard.js'), 'utf8');
+  return { react: _react, reactDom: _reactDom, guard: _guard };
 }
 
 /** Resolve a palette by name → its token block; default to a confident emerald if unknown. */
@@ -46,12 +51,19 @@ export async function compileComponent(src: string): Promise<string> {
  * the design tokens + chosen palette, and the compiled component mounted to #root. It renders
  * instantly in a browser with NO build step — so the Canvas previews it in ~1s and it can be
  * published as-is (a static file).
+ *
+ * CONTRAST is guaranteed two ways: (1) `theme:'dark'` flips the whole token set to a coherent
+ * dark surface + LIGHT ink (so a dark aesthetic is legible by construction); (2) an always-on
+ * runtime guard measures the background actually painted behind the content and flips the ink
+ * tokens light/dark to match — so even a component that hard-codes a dark background without
+ * declaring the theme can never render dark-on-dark text (the bug this fixes).
  */
-export function buildArtifactHtml(compiledJs: string, opts: { title: string; palette?: string }): string {
-  const { react, reactDom } = runtime();
+export function buildArtifactHtml(compiledJs: string, opts: { title: string; palette?: string; theme?: 'light' | 'dark' }): string {
+  const { react, reactDom, guard } = runtime();
   const title = (opts.title || 'Artifact').replace(/[<>]/g, '');
+  const htmlClass = opts.theme === 'dark' ? ' class="artifact-dark"' : '';
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${htmlClass}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -66,6 +78,16 @@ export function buildArtifactHtml(compiledJs: string, opts: { title: string; pal
     --font-serif:'Source Serif 4',Georgia,'Times New Roman',serif;
     --shadow:0 1px 2px rgba(16,18,29,.05),0 8px 24px rgba(16,18,29,.06);
   }
+  /* Dark theme — a coherent dark surface set with LIGHT ink. Applied either by theme:'dark'
+     (build-time class on <html>) or by the runtime contrast guard when a dark background is
+     detected. Ink/muted/surface/line all flip so text is always legible on the dark surface. */
+  html.artifact-dark{ color-scheme: dark;
+    --bg:#0f1216; --surface:#171b21; --surface-2:#1f242b; --elevated:#1c2128;
+    --ink:#f2f4f7; --ink-soft:#cbd1da; --muted:#99a1ad; --line:#2a2f38; --line-strong:#3a414c;
+    --accent-tint:color-mix(in srgb, var(--accent) 26%, #14181e);
+    --shadow:0 1px 2px rgba(0,0,0,.45),0 10px 30px rgba(0,0,0,.55);
+  }
+  html.artifact-dark a{ color:color-mix(in srgb, var(--accent) 58%, #ffffff); }
   *{box-sizing:border-box} html,body{margin:0}
   body{background:var(--bg);color:var(--ink);font-family:var(--font-sans);line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   #root{min-height:100vh}
@@ -77,6 +99,7 @@ export function buildArtifactHtml(compiledJs: string, opts: { title: string; pal
 <div id="root"></div>
 <script>${react}</script>
 <script>${reactDom}</script>
+<script>${guard}</script>
 <script>
 (function(){
   var React=window.React, ReactDOM=window.ReactDOM;

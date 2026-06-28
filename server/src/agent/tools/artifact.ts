@@ -22,8 +22,13 @@ export const createArtifactTool: ToolDef = {
     'fine — types are stripped). NO import/export — React is global and the hooks useState, useEffect, ' +
     'useRef, useMemo, useCallback, useReducer, useContext are provided as locals. Keep everything inline ' +
     '(no npm packages); style with inline styles or a <style> tag, and use the CSS variables that are ' +
-    'pre-set: --accent, --accent-2, --accent-deep, --accent-tint, --accent-ink, --ink, --muted, --bg, ' +
-    '--surface, --line, --radius, --font-sans, --font-serif. Pick a fitting `palette` for real colour. ' +
+    'pre-set: --accent, --accent-2, --accent-deep, --accent-tint, --accent-ink, --ink, --ink-soft, --muted, ' +
+    '--bg, --surface, --line, --radius, --font-sans, --font-serif. Pick a fitting `palette` for real colour. ' +
+    'CONTRAST (important): for text use --ink (body), --ink-soft / --muted (secondary); for surfaces use --bg / ' +
+    '--surface. These are guaranteed legible together. Do NOT hard-code a dark background colour while using ' +
+    'the dark text tokens — that renders dark-on-dark. For a DARK / moody aesthetic, pass theme:"dark" (the ' +
+    'token set flips to a dark surface with LIGHT ink automatically) and keep using the same tokens; do not ' +
+    'paint your own dark background. Put colour through --accent (on --accent-ink) for emphasis only. ' +
     'For a data-backed or multi-page APP use create_react_app instead (this is a single static view).',
   parameters: {
     type: 'object',
@@ -31,6 +36,7 @@ export const createArtifactTool: ToolDef = {
       component: { type: 'string', description: 'The React component source. Must define `function App() { return (<…/>) }`. No imports/exports.' },
       title: { type: 'string', description: 'Artifact title (browser tab + heading context).' },
       palette: { type: 'string', description: `Palette name for the accent colour. One of: ${PALETTES.map((p) => p.name).join(', ')}. Default emerald.` },
+      theme: { type: 'string', enum: ['light', 'dark'], description: 'Surface theme. "light" (default) = light surface + dark ink; "dark" = dark surface + LIGHT ink. Choose "dark" for a moody/night/focus aesthetic instead of hard-coding a dark background. The ink tokens flip automatically so text stays legible.' },
     },
     required: ['component'],
   },
@@ -57,7 +63,8 @@ export const createArtifactTool: ToolDef = {
       return `Error: the component didn't compile — fix it and call create_artifact again.\n\n${e?.message ?? e}`;
     }
 
-    const html = buildArtifactHtml(compiled, { title: String(args.title || 'Artifact'), palette: args.palette ? String(args.palette) : undefined });
+    const theme = String(args.theme || '').toLowerCase() === 'dark' ? 'dark' : 'light';
+    const html = buildArtifactHtml(compiled, { title: String(args.title || 'Artifact'), palette: args.palette ? String(args.palette) : undefined, theme });
     try {
       fs.writeFileSync(absOut, html);
     } catch (e: any) {
