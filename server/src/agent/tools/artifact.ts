@@ -23,7 +23,13 @@ export const createArtifactTool: ToolDef = {
     'useRef, useMemo, useCallback, useReducer, useContext are provided as locals. Keep everything inline ' +
     '(no npm packages); style with inline styles or a <style> tag, and use the CSS variables that are ' +
     'pre-set: --accent, --accent-2, --accent-deep, --accent-tint, --accent-ink, --ink, --ink-soft, --muted, ' +
-    '--bg, --surface, --line, --radius, --font-sans, --font-serif. Pick a fitting `palette` for real colour. ' +
+    '--bg, --surface, --line, --radius, --font-sans, --font-display, --font-serif, --font-mono. Pick a fitting ' +
+    '`palette` for real colour. ' +
+    'TYPE (elegant + uniform by default — high-quality fonts are EMBEDDED, so USE THE TOKENS and never name a ' +
+    'raw font or pull in Google Fonts): --font-sans (Inter) for body/UI; --font-display (Space Grotesk) for ' +
+    'headings + large numerals (h1–h4 already use it); --font-mono (IBM Plex Mono) for figures that should ' +
+    'align — timers, prices, stats, tables (add font-variant-numeric:tabular-nums on any changing number); ' +
+    '--font-serif (Source Serif 4) only for an editorial long-form feel. ' +
     'CONTRAST (important): for text use --ink (body), --ink-soft / --muted (secondary); for surfaces use --bg / ' +
     '--surface. These are guaranteed legible together. Do NOT hard-code a dark background colour while using ' +
     'the dark text tokens — that renders dark-on-dark. For a DARK / moody aesthetic, pass theme:"dark" (the ' +

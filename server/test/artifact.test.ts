@@ -26,6 +26,14 @@ test('buildArtifactHtml: self-contained (inline React, no CDN), palette tokens b
   // the chosen palette's accent is present
   assert.match(html, /--accent:#2456c8/);
   assert.match(html, /color-scheme: light/); // light is the default base
+  // fonts are EMBEDDED (base64 woff2 @font-face) so the artifact is elegant + uniform on every
+  // device — not falling back to a different system font each time
+  assert.match(html, /@font-face\{font-family:'Inter'/);
+  assert.match(html, /src:url\(data:font\/woff2;base64,/);
+  assert.match(html, /@font-face\{font-family:'Space Grotesk'/);
+  // the display + mono tokens exist so headings/figures read intentional
+  assert.match(html, /--font-display:'Space Grotesk'/);
+  assert.match(html, /--font-mono:'IBM Plex Mono'/);
   // the runtime contrast guard ships so dark-on-dark can never render
   assert.match(html, /artifact-dark/);
   assert.match(html, /elementFromPoint/);
