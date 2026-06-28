@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-28.5';
+export const WHATS_NEW_VERSION = '2026-06-28.6';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'You no longer have to spell out colours, layout or style. A quick one-liner like "a thing to track my water" is now turned into a proper design brief behind the scenes — a fitting palette, a clear layout, one signature moment, real details — so what you get back looks expertly designed from the first try, not generic.',
   },
   {
-    title: 'A cleaner "it’s ready" moment',
-    body: 'When something’s done you get one clean, tappable card — tap it to open the result full-screen, with an Open-in-new-tab and nothing else in the way. The technical bits (ports, files) are tucked behind a small "Dev" toggle for when you actually want them.',
+    title: 'One clean deliverable, not a pile of files',
+    body: 'Your downloads now show the finished thing only — not the icons, chart images and half-finished drafts used to build it, and not three versions of the same deck. One deck, one report, done.',
   },
 ];
 

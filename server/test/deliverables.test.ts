@@ -45,3 +45,31 @@ test('isNoiseDeliverable: genuine user deliverables pass through', () => {
     assert.equal(isNoiseDeliverable(f), false, `${f} should be a real deliverable`);
   }
 });
+
+import { isIntermediateAsset, dedupeVersions } from '../src/agent/runner';
+
+// The user's "why so many deliverables?" — a single deck surfaced 3 versioned PDFs + 6 icon
+// rasters + a slide-chart PNG. Intermediates (embedded assets) must not appear as downloads.
+test('isIntermediateAsset: embedded build assets are not standalone deliverables', () => {
+  for (const f of ['icon-4-0.png', 'icon-12.png', 'slide-chart-2.png', 'chart-1.png',
+                   'deck.preview.html', 'charts/top10.svg', 'charts/trend.png']) {
+    assert.equal(isIntermediateAsset(f), true, `${f} should be intermediate`);
+  }
+  // Real deliverables are NOT intermediates.
+  for (const f of ['freshbox-pitch-deck.pdf', 'model.xlsx', 'hero.png', 'logo.svg', 'report.docx']) {
+    assert.equal(isIntermediateAsset(f), false, `${f} should be a real deliverable`);
+  }
+});
+
+test('dedupeVersions: collapses revise-round versions, keeps distinct files', () => {
+  const mk = (name: string) => ({ name });
+  const kept = dedupeVersions([
+    mk('freshbox-pitch-deck.pdf'), mk('freshbox-pitch-deck-v2.pdf'), mk('freshbox-pitch-deck-v3.pdf'),
+    mk('freshbox-pitch-deck.pptx'),
+  ]).map((x) => x.name);
+  assert.deepEqual(kept, ['freshbox-pitch-deck-v3.pdf', 'freshbox-pitch-deck.pptx'], kept.join(','));
+
+  // Distinct files that merely share a stem with a trailing number are NOT merged.
+  const distinct = dedupeVersions([mk('sales-2024.pdf'), mk('sales-2025.pdf')]).map((x) => x.name);
+  assert.deepEqual(distinct.sort(), ['sales-2024.pdf', 'sales-2025.pdf']);
+});

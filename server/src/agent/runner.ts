@@ -143,6 +143,43 @@ export function isNoiseDeliverable(rel: string): boolean {
   return NOISE_NAMES.test(rel.split('/').pop() || '') || NOISE_PATH.test('/' + rel);
 }
 
+// Build INTERMEDIATES — assets generated only to be EMBEDDED into a primary deliverable (a deck,
+// report or doc), never things the user would download on their own. Surfacing them buried the real
+// deliverable under a pile of icon-/chart-/preview files (the user's "why so many?" complaint).
+const INTERMEDIATE_ASSET =
+  /^(icon[-_]\d+(?:[-_]\d+)?\.(?:png|jpe?g|webp|svg)|slide[-_]?chart[-_]?\d*\.(?:png|jpe?g|webp|svg)|chart[-_]?\d*\.(?:png|svg))$/i;
+export function isIntermediateAsset(rel: string): boolean {
+  const base = rel.split('/').pop() || '';
+  if (INTERMEDIATE_ASSET.test(base)) return true; // rasterised icons / slide charts that get embedded
+  if (/\.preview\.html?$/i.test(base)) return true; // the .pptx / artifact preview mirror
+  if (/(^|\/)charts\//i.test('/' + rel)) return true; // render_chart SVGs inlined into a report
+  return false;
+}
+
+// One deliverable can be rendered several times across revise rounds, each saved with a version
+// suffix (deck.pdf · deck-v2.pdf · deck-v3.pdf) — show only the LATEST of each, not every round.
+// Conservative: only collapses an explicit -v2 / _v2 / (2) / -final suffix on an OTHERWISE-IDENTICAL
+// base+extension, so "report-2024.pdf" and "report-2025.pdf" (distinct) are never merged.
+export function dedupeVersions<T extends { name: string }>(items: T[]): T[] {
+  const info = (name: string) => {
+    const ext = (name.match(/\.[a-z0-9]+$/i)?.[0] || '').toLowerCase();
+    const stem = ext ? name.slice(0, name.length - ext.length) : name;
+    const m = /^(.*?)[-_ ]*(?:v(\d+)|\((\d+)\)|final)$/i.exec(stem);
+    if (m) return { base: (m[1] || stem).toLowerCase(), ext, v: m[2] || m[3] ? Number(m[2] || m[3]) : 1.5 };
+    return { base: stem.toLowerCase(), ext, v: 1 };
+  };
+  const best = new Map<string, { it: T; v: number; i: number }>();
+  items.forEach((it, i) => {
+    const { base, ext, v } = info(it.name);
+    const key = base + ext;
+    const cur = best.get(key);
+    if (!cur || v > cur.v || (v === cur.v && i > cur.i)) best.set(key, { it, v, i });
+  });
+  // Preserve original ordering of the survivors.
+  const keep = new Set([...best.values()].map((x) => x.it));
+  return items.filter((it) => keep.has(it));
+}
+
 // Shown inline to the user when the agent re-routes itself. Warm + action-framed —
 // NOT "Switched to Build (Code) mode" jargon (the user never picks modes).
 const MODE_SWITCH_LINE: Record<SessionMode, string> = {
@@ -173,6 +210,7 @@ async function findDeliverables(repoDirPath: string, sinceTs: number): Promise<T
     const items: TimelineItem[] = [];
     for (const rel of matches.slice(0, 100)) {
       if (isNoiseDeliverable(rel)) continue; // scaffolding/config, not what the user asked for
+      if (isIntermediateAsset(rel)) continue; // icons/charts/preview embedded into a real deliverable
       const stat = fs.statSync(path.join(repoDirPath, rel));
       if (stat.mtimeMs >= sinceTs) {
         items.push({
@@ -185,7 +223,8 @@ async function findDeliverables(repoDirPath: string, sinceTs: number): Promise<T
         });
       }
     }
-    return items;
+    // Collapse revise-round versions (deck.pdf · deck-v2.pdf · deck-v3.pdf) → keep only the latest.
+    return dedupeVersions(items as Array<TimelineItem & { name: string }>);
   } catch {
     return [];
   }
