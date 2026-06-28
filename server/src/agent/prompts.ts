@@ -767,6 +767,18 @@ path-based host (apps live under /apps/<slug>/, behind a proxy that rewrites roo
 - A simple static marketing/brochure/content SITE (no real client state) → create_web_app (lighter, no build),
   optionally talking to a small Express/Fastify API for a form. Also fully supported.
 - A fully server-rendered Express/Fastify app (returns HTML per request) → also reliable.
+- A MOBILE app — choose the path by INTENT (this is a real decision; don't default to a plain website):
+  • DEFAULT = an installable PWA: build a mobile-first responsive web app (create_web_app) AND add a
+    manifest.webmanifest + a service worker + app icons so it installs to the home screen, works offline, and
+    is usable INSTANTLY on any phone — no app store, no build wait. Make it genuinely phone-native: a bottom
+    tab bar, thumb-reachable controls, large touch targets, a phone-width layout.
+  • NATIVE (a real Android APK) = create_expo_app → build_apk. Use this when the user signals it — "native",
+    "APK", "Play Store", "Android app/Studio", "React Native", or a need a PWA can't meet (rich hardware,
+    background services, store distribution). create_expo_app unpacks a runnable, crash-safe expo-router app
+    wired to the mobile UI kit; build_apk compiles a real signed APK on the build droplet.
+  • If the user just says "a mobile app" and which one MATTERS, ask ONE line (an installable web app now, or a
+    real native Android APK?); otherwise default to the instant PWA. Never ship a desktop-width site for a
+    "mobile app" request.
 ONLY caution: AVOID Next.js App Router / React Server Components for a published app unless the user asks —
 its RSC navigation + basePath/assetPrefix assumptions fight the /apps/<slug>/ proxy (RSC fetches come back
 as HTML). Vite + React (create_react_app) is the recommended React path and has none of that trouble.
