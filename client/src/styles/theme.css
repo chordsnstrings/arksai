@@ -1068,6 +1068,15 @@ button { font-family: inherit; cursor: pointer; }
 }
 .login-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 .login-card .error { color: var(--red); font-size: 13px; }
+.login-or { display: flex; align-items: center; gap: 10px; color: var(--text-faint); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin: 2px 0; }
+.login-or::before, .login-or::after { content: ''; flex: 1; height: 1px; background: var(--border-soft); }
+.google-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg-elev); color: var(--text); font-family: var(--label); font-size: 14px; font-weight: 600;
+  text-decoration: none; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.google-btn:hover { background: var(--bg); border-color: var(--accent); }
 
 .dialog-backdrop {
   position: fixed;

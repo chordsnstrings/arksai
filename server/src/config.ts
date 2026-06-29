@@ -145,6 +145,12 @@ export const config = {
   // both creds are set + connectorEncKey. Callback: <publicBaseUrl>/api/github/callback.
   githubOauthClientId: process.env.GITHUB_OAUTH_CLIENT_ID || '',
   githubOauthClientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET || '',
+  // Google OAuth client (generic) — powers "Sign in with Google" now and the Google Workspace
+  // connectors (Gmail / Calendar / Drive·Sheets) once Google verifies the consent screen. Login
+  // (openid/email/profile) works immediately; the Workspace scopes are restricted → verification.
+  // Login callback: <publicBaseUrl>/api/auth/google/callback. Dormant until both creds are set.
+  googleOauthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID || '',
+  googleOauthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || '',
   // Org prepaid wallet. Usage is always RECORDED (debited at run_finished). Enforcement (blocking
   // a run when the balance is exhausted) is OFF by default — observe-first during the BD pilot;
   // set WALLET_ENFORCE=true to hard-block at zero. Low-balance warning fires below this USD level.
