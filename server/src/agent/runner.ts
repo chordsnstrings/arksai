@@ -25,7 +25,7 @@ import { makeThinkFilter } from './thinkFilter';
 import { Usage } from './usage';
 import { checkLabel, detectStartCommand, needsExternalDb, verifyProject } from './verify';
 import { probeApp } from './runtimeCheck';
-import { checkDeliverable, type DeliverableKind } from './deliverableCheck';
+import { checkDeliverable, deterministicDeliverableDefects, type DeliverableKind } from './deliverableCheck';
 import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 import { auditWebHygiene } from './webHygiene';
@@ -385,6 +385,7 @@ export class AgentRun {
   private producedArtifact = false; // create_artifact ran → show the preview card, but NOT the verify gate
   private verifyRounds = 0;
   private designRounds = 0; // bounded gating design-critique rounds (separate budget)
+  private selfAuditRounds = 0; // cheap pre-completion deterministic self-audit rounds (separate budget — does NOT touch verify/design caps)
   private reviewRounds = 0; // bounded code-review-gate rounds (connected-repo work)
   private reviewPassed = false; // once the diff is approved, don't re-review (avoids repeat cost)
   private didRuntimeTest = false; // did the agent curl a running server this run?
@@ -866,6 +867,13 @@ export class AgentRun {
             liveItems.push({ kind: 'system', id: randomUUID(), level: 'error', text: msg, ts: Date.now() });
             stopReason = 'natural';
             break;
+          }
+          // Cheap pre-completion self-audit (first-try correctness): run the deterministic,
+          // model-free defect checks BEFORE the expensive gate so the agent fixes a known-bad
+          // result in-context (no vision call, no full re-loop). Bounded by its own counter.
+          if (this.mutated && !this.abort.signal.aborted) {
+            const audit = await this.runCheapSelfAudit(dir, liveItems, context);
+            if (audit === 'retry') continue;
           }
           // Completion gate: in Code mode, don't finish on unverified changes —
           // run the project's checks and, if they fail, keep fixing.
@@ -1551,6 +1559,69 @@ export class AgentRun {
       outputPreview,
     });
     return result;
+  }
+
+  /**
+   * Cheap pre-completion SELF-AUDIT (first-try correctness). Runs the same DETERMINISTIC,
+   * model-free defect checks the verify/report gates seed — web hygiene (missing viewport /
+   * broken local asset refs) + the xlsx formula/banner/section/numeric audits — but does it
+   * BEFORE the expensive gate so the agent fixes a known-bad result IN-CONTEXT instead of
+   * via a full tool-loop re-run after the gate (and with NO vision call spent).
+   *
+   * Bounded by its OWN counter (`selfAuditRounds`, cap 2) that is fully separate from
+   * `verifyRounds`/`designRounds` — it never consumes the gate's budget, and the gates still
+   * run afterwards as the backstop (now usually finding nothing). Pushes ONE terse pass/fail
+   * checklist on defects and returns 'retry'; 'ok' when clean or out of self-audit rounds.
+   */
+  private async runCheapSelfAudit(dir: string, liveItems: TimelineItem[], context: any[]): Promise<'retry' | 'ok'> {
+    const MAX_SELF_AUDIT = 2;
+    if (this.selfAuditRounds >= MAX_SELF_AUDIT || this.abort.signal.aborted) return 'ok';
+
+    const defects: string[] = [];
+
+    // Web (visual code builds): missing <meta viewport>, broken local <link>/<script>/<img> refs —
+    // pure source reads, no browser. Same function the verify gate uses, run earlier + cheaper.
+    if (this.session.mode === 'code' && this.taskProfile?.isVisual) {
+      try {
+        const renderable = detectRenderable(dir);
+        const webDir = renderable.staticDir ? path.join(dir, renderable.staticDir) : dir;
+        const hygiene = auditWebHygiene(webDir);
+        if (hygiene.defects.length) defects.push(...hygiene.defects);
+      } catch {
+        /* best-effort — never block completion on the self-audit */
+      }
+    }
+
+    // Spreadsheet model (any mode): hard-coded formulas, empty statement sheets, banner/section
+    // rows, impossible numbers — a SheetJS read + the pure audits. No vision, no re-render.
+    try {
+      const xlsx = await this.newestDeliverable(dir, ['.xlsx']).catch(() => null);
+      if (xlsx) {
+        const XLSX: any = await import('xlsx');
+        const wb = XLSX.read(fs.readFileSync(xlsx), { type: 'buffer' });
+        defects.push(...deterministicDeliverableDefects({ wb }));
+      }
+    } catch {
+      /* best-effort */
+    }
+
+    if (!defects.length) return 'ok';
+
+    this.selfAuditRounds++;
+    const sys = (text: string) => {
+      const item: TimelineItem = { kind: 'system', id: randomUUID(), level: 'info', text, ts: Date.now() };
+      liveItems.push(item);
+      this.emit({ type: 'timeline_item', item });
+    };
+    this.emitProgress('polishing', `Self-check — tightening it up (pass ${this.selfAuditRounds})…`);
+    sys(`↻ A quick self-check before finishing caught ${defects.length} fixable issue${defects.length > 1 ? 's' : ''} — handling ${defects.length > 1 ? 'them' : 'it'} now.`);
+    context.push({
+      role: 'user',
+      content:
+        `Before this is done, a fast automatic self-check found these concrete, fixable defects in what you just built. ` +
+        `Fix ONLY these (minimal targeted edits / re-produce the affected file), then continue — they will be re-checked:\n- ${defects.join('\n- ')}`,
+    });
+    return 'retry';
   }
 
   /**

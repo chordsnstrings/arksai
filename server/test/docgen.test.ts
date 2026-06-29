@@ -8,7 +8,7 @@ import { generateSpreadsheetTool, coerceNumeric, financialModelScaffold } from '
 import { generateDocTool } from '../src/agent/tools/docx';
 import { generatePptxTool } from '../src/agent/tools/pptx';
 import { iconSvg, hasIcon, ICON_NAMES } from '../src/agent/tools/icons';
-import { auditFormulaModel, detectEmptyPages, detectUnderfilledPages, detectBannerRows, detectSectionRows, auditNumericSanity, STRINGY_REF_RE } from '../src/agent/deliverableCheck';
+import { auditFormulaModel, detectEmptyPages, detectUnderfilledPages, detectBannerRows, detectSectionRows, auditNumericSanity, deterministicDeliverableDefects, STRINGY_REF_RE } from '../src/agent/deliverableCheck';
 
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-docgen-'));
 const ctx = (): ToolCtx => ({
@@ -330,6 +330,42 @@ test('auditFormulaModel: a plain data table is NOT flagged', async () => {
   );
   const r = auditFormulaModel(await readWb(path.join(ws, 'plain.xlsx')));
   assert.equal(r.isModel, false, r.reason);
+});
+
+test('deterministicDeliverableDefects(wb): equals the union of the seeded xlsx audits (one source of truth)', async () => {
+  // A hard-coded model with a box-drawing banner row → the extracted function must reproduce
+  // EXACTLY what checkDeliverable seeds: the formula message + detectBannerRows/SectionRows/auditNumericSanity.
+  await generateSpreadsheetTool.run(
+    {
+      output: 'detbad.xlsx',
+      sheets: [
+        { name: 'Assumptions', columns: [{ header: 'Driver' }, { header: 'Value', type: 'number' }], rows: [['Growth', 0.1], ['Start', 1000]] },
+        {
+          name: 'Cash Flow',
+          columns: [{ header: 'Month' }, { header: 'Revenue', type: 'currency' }],
+          rows: [['M1', 1000], ['M2', 1100], ['M3', 1210], ['Total', 3310]],
+        },
+      ],
+    },
+    ctx(),
+  );
+  const wb = await readWb(path.join(ws, 'detbad.xlsx'));
+  const got = deterministicDeliverableDefects({ wb });
+  const expectedTail = [...detectBannerRows(wb), ...detectSectionRows(wb), ...auditNumericSanity(wb)];
+  // The model is flagged → first defect is the formula message; the rest equal the other audits verbatim.
+  assert.ok(auditFormulaModel(wb).isModel, 'fixture should be a hard-coded model');
+  assert.match(got[0], /hard-coded/);
+  assert.deepEqual(got.slice(1), expectedTail, 'tail defects must equal the individual audits');
+});
+
+test('deterministicDeliverableDefects: pdfMeta runs the empty/under-filled page checks; clean inputs → []', () => {
+  assert.deepEqual(deterministicDeliverableDefects({}), []);
+  // a lonely interior page + a stranded page
+  const d = deterministicDeliverableDefects({ pdfMeta: { coverage: [0.05, 0.003, 0.06], extent: [1.0, 0.9, 0.27, 0.85] } });
+  assert.ok(d.some((x) => /^p2:/.test(x)), 'empty page flagged');
+  assert.ok(d.some((x) => /^p3:/.test(x)), 'underfilled page flagged');
+  // a clean workbook + well-filled pages → no defects
+  assert.deepEqual(deterministicDeliverableDefects({ pdfMeta: { coverage: [0.05, 0.07, 0.06], extent: [1.0, 0.88, 0.9] } }), []);
 });
 
 test('detectEmptyPages flags a lonely interior page but never the cover', () => {

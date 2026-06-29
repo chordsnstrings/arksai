@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-28.6';
+export const WHATS_NEW_VERSION = '2026-06-29.1';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'You describe it casually — we design it properly',
-    body: 'You no longer have to spell out colours, layout or style. A quick one-liner like "a thing to track my water" is now turned into a proper design brief behind the scenes — a fitting palette, a clear layout, one signature moment, real details — so what you get back looks expertly designed from the first try, not generic.',
-  },
-  {
-    title: 'One clean deliverable, not a pile of files',
-    body: 'Your downloads now show the finished thing only — not the icons, chart images and half-finished drafts used to build it, and not three versions of the same deck. One deck, one report, done.',
+    title: 'Right the first time — less waiting, fewer redos',
+    body: 'We added ready-made building blocks for the things we used to hand-build and debug (progress rings, stat cards, responsive tables, and a complete 3-statement financial-model spreadsheet), plus a fast self-check that catches fixable issues — a broken chart, an empty Cash-Flow sheet, a missing link — before finishing. The result is built correctly on the first attempt, so you get it sooner.',
   },
 ];
 

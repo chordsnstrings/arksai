@@ -585,6 +585,46 @@ export function auditNumericSanity(wb: any): string[] {
   return findings.slice(0, 4);
 }
 
+/**
+ * The deterministic, model-free defect checks for a deliverable — the SAME logic the
+ * design gate seeds — factored into one source of truth so the cheap pre-completion
+ * self-audit (runner.ts) can run it BEFORE the expensive vision gate and fix defects
+ * in-context, and `checkDeliverable` reuses it instead of duplicating the rules.
+ *   - wb: an already-parsed SheetJS workbook (xlsx) → formula/banner/section/numeric audits.
+ *   - pdfMeta: { coverage, extent } from rasterizePdf → empty/under-filled page checks.
+ * Pure + synchronous (best-effort on the workbook). Returns the flat list of
+ * human-readable defect strings; empty = clean.
+ */
+export function deterministicDeliverableDefects(opts: {
+  wb?: any;
+  pdfMeta?: { coverage: number[]; extent: number[] };
+}): string[] {
+  const defects: string[] = [];
+  if (opts.wb) {
+    try {
+      const audit = auditFormulaModel(opts.wb);
+      if (audit.isModel) {
+        defects.push(
+          `This spreadsheet is a financial/calculation model but every derived value is hard-coded (${audit.reason}). ` +
+            `Re-run generate_spreadsheet with LIVE formulas for every derived cell — totals as =SUM(...), and ` +
+            `growth/balances/ratios referencing the assumption cells, e.g. {"f":"C5*(1+Assumptions!B5)","v":<result>} — ` +
+            `so changing one assumption flows through. Keep the same structure and styling; include the cached result ` +
+            `"v" so the preview shows numbers.`,
+        );
+      }
+      defects.push(...detectBannerRows(opts.wb));
+      defects.push(...detectSectionRows(opts.wb));
+      defects.push(...auditNumericSanity(opts.wb));
+    } catch {
+      /* formula audit is best-effort — never block on it */
+    }
+  }
+  if (opts.pdfMeta) {
+    defects.push(...detectEmptyPages(opts.pdfMeta.coverage), ...detectUnderfilledPages(opts.pdfMeta.extent));
+  }
+  return defects;
+}
+
 // ---------------------------------------------------------------- main
 
 export async function checkDeliverable(abs: string, kind: DeliverableKind, signal: AbortSignal): Promise<DeliverableQC> {
@@ -616,25 +656,9 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
     try {
       const XLSX: any = await import('xlsx');
       const wb = XLSX.read(fs.readFileSync(abs), { type: 'buffer' });
-      const audit = auditFormulaModel(wb);
-      if (audit.isModel) {
-        seedDefects.push(
-          `This spreadsheet is a financial/calculation model but every derived value is hard-coded (${audit.reason}). ` +
-            `Re-run generate_spreadsheet with LIVE formulas for every derived cell — totals as =SUM(...), and ` +
-            `growth/balances/ratios referencing the assumption cells, e.g. {"f":"C5*(1+Assumptions!B5)","v":<result>} — ` +
-            `so changing one assumption flows through. Keep the same structure and styling; include the cached result ` +
-            `"v" so the preview shows numbers.`,
-        );
-      }
-      // Banner/separator rows shift cells down and corrupt formula references — flag them.
-      seedDefects.push(...detectBannerRows(wb));
-      // Plain-text/dash SECTION rows do the same row-shift damage — flag them too.
-      seedDefects.push(...detectSectionRows(wb));
-      // NUMERIC SANITY: a formula-driven model that still shows impossible numbers (a 140M
-      // line, a money cell < 1, a Total computing to 0) — a mis-referenced formula. The
-      // vision gate renders the computed value and can rationalise it, so this deterministic
-      // read of the values catches it even with no vision egress.
-      seedDefects.push(...auditNumericSanity(wb));
+      // The formula/banner/section/numeric audits — the SAME source of truth the cheap
+      // pre-completion self-audit uses (deterministicDeliverableDefects).
+      seedDefects.push(...deterministicDeliverableDefects({ wb }));
       if (seedDefects.length) {
         base.designVerdict = 'revise';
         base.designDefects = [...seedDefects];
@@ -656,7 +680,7 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
       // interior pages AND under-filled pages (content stops high, big blank bottom —
       // the ≥60% fill rule) instantly (no vision call) so they're caught even when the
       // vision model is unavailable and so a revise round can fix them cheaply.
-      const structural = [...detectEmptyPages(r.coverage), ...detectUnderfilledPages(r.extent)];
+      const structural = deterministicDeliverableDefects({ pdfMeta: { coverage: r.coverage, extent: r.extent } });
       if (structural.length) {
         seedDefects.push(...structural);
         base.designVerdict = 'revise';
