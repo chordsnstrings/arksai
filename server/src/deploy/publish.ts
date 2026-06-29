@@ -351,7 +351,20 @@ export async function publishSession(sessionId: string, name?: string): Promise<
           break;
         }
       }
-      if (!bound) status = 'error';
+      if (!bound) {
+        status = 'error';
+        // ACTIONABLE failure: the build passed but the server never listened, so the agent must know
+        // WHY (it otherwise loops — re-publishing + blind `node -c`/`ls`). The #1 cause is not binding
+        // process.env.PORT; surface that hint + the real startup log so it fixes the one thing.
+        const log = deploymentRegistry.tail(slug, 1500).trim();
+        buildError =
+          `The app built, but its server never started listening on its port within 15s, so it can't be served ` +
+          `(this is why the URL 404s / shows "not running"). The #1 cause is NOT reading process.env.PORT — you MUST ` +
+          `do \`const port = process.env.PORT || 4000; app.listen(port)\` (a hard-coded port is never reached). It may ` +
+          `also have crashed on startup. ${log ? `Here is the actual startup log — read it and fix the one real cause:\n\n${log}` : '(No startup output was captured — check that the entry file actually calls listen().)'}\n\n` +
+          `Fix that one thing and republish. Do NOT just re-publish the unchanged app or run blind diagnostics.`;
+        console.warn(`[deploy] ${slug} never bound port ${port}: ${log.slice(-300)}`);
+      }
     }
   }
 

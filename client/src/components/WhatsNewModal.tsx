@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-29.2';
+export const WHATS_NEW_VERSION = '2026-06-29.3';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -21,6 +21,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Financial models that are actually right',
     body: 'Spreadsheets with real formulas — including advanced ones like NPV, IRR and lookups, and linked 3-statement models — are now recalculated authoritatively before you get them, so every number is correct on first open and broken formulas (a #REF!, a divide-by-zero) are caught and fixed, not shipped. Complex models take the time they need to be right rather than being rushed and wrong.',
+  },
+  {
+    title: 'Faster fixes when a published app won’t start',
+    body: 'When an app builds but its server doesn’t come up, the system now pinpoints the real cause (and shows the actual startup error) instead of retrying blindly — so a publishing hiccup gets fixed in moments rather than spinning.',
   },
 ];
 
