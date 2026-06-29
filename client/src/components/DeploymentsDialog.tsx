@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Deployment, SessionMeta } from '@shared/types';
 import { api } from '../api/client';
 import { useEscClose } from '../hooks/useEscClose';
@@ -89,7 +90,11 @@ export function DeploymentsDialog({ meta, onClose }: { meta?: SessionMeta | null
     }
   };
 
-  return (
+  // Render through a portal to <body>: this dialog is mounted INSIDE the .topbar header
+  // (overflow:hidden, 48px tall, inside a containing-block ancestor), which clipped the
+  // position:fixed backdrop to the top-bar strip so the modal looked "hidden". A portal
+  // escapes that subtree so the modal centers over the whole viewport like every other dialog.
+  return createPortal(
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog wide" onClick={(e) => e.stopPropagation()}>
         <h2>{meta ? 'Publish & share' : 'Your live apps'}</h2>
@@ -208,6 +213,7 @@ export function DeploymentsDialog({ meta, onClose }: { meta?: SessionMeta | null
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
