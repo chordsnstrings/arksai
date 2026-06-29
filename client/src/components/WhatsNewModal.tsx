@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-29.3';
+export const WHATS_NEW_VERSION = '2026-06-29.4';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Financial models that are actually right',
-    body: 'Spreadsheets with real formulas — including advanced ones like NPV, IRR and lookups, and linked 3-statement models — are now recalculated authoritatively before you get them, so every number is correct on first open and broken formulas (a #REF!, a divide-by-zero) are caught and fixed, not shipped. Complex models take the time they need to be right rather than being rushed and wrong.',
+    title: 'It’s reviewed before it goes live — not after',
+    body: 'Publishing now runs the full quality review first and only puts your app online once it passes. You’ll never get a link to a rough draft and then watch it get reworked — it’s made right, then published. Same for spreadsheets: real formulas (NPV, IRR, lookups, linked models) are recalculated authoritatively so the numbers are correct from the first open.',
   },
   {
-    title: 'Faster fixes when a published app won’t start',
-    body: 'When an app builds but its server doesn’t come up, the system now pinpoints the real cause (and shows the actual startup error) instead of retrying blindly — so a publishing hiccup gets fixed in moments rather than spinning.',
+    title: 'The Publish window opens properly',
+    body: 'Fixed a bug where the Publish dialog was clipped into the top bar and looked hidden — it now opens centered, with your live link, copy, and open.',
   },
 ];
 

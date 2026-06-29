@@ -382,6 +382,8 @@ export class AgentRun {
   private usage = new Usage();
   private runningTasks = 0;
   private mutated = false; // did this run change files? (triggers the verify gate)
+  private verifiedClean = false; // the CURRENT file state passed the verify+design gate (reset on any mutation)
+  private wantsPublish = false; // the agent asked to publish a version that hasn't been reviewed yet
   private producedArtifact = false; // create_artifact ran → show the preview card, but NOT the verify gate
   private verifyRounds = 0;
   private designRounds = 0; // bounded gating design-critique rounds (separate budget)
@@ -876,8 +878,10 @@ export class AgentRun {
             if (audit === 'retry') continue;
           }
           // Completion gate: in Code mode, don't finish on unverified changes —
-          // run the project's checks and, if they fail, keep fixing.
-          if (this.session.mode === 'code' && this.mutated && !this.abort.signal.aborted) {
+          // run the project's checks and, if they fail, keep fixing. Skip when the
+          // current state already passed the gate (e.g. the review-before-publish path
+          // ran it), so we never double-review the same files.
+          if (this.session.mode === 'code' && this.mutated && !this.verifiedClean && !this.abort.signal.aborted) {
             const gate = await this.runVerifyGate(dir, liveItems, context);
             if (gate === 'retry') continue;
             if (gate === 'failed') {
@@ -885,6 +889,7 @@ export class AgentRun {
               stopReason = 'natural';
               break;
             }
+            if (gate === 'ok') this.verifiedClean = true;
           }
           // Report mode: auto-render + design-review the produced pages and bounded-revise
           // (the gate that replaces manual see_image so quality is guaranteed, not optional).
@@ -903,6 +908,31 @@ export class AgentRun {
           context.push({ role: 'tool', tool_call_id: call.id, content: result });
         }
         liveItems.push({ kind: 'tools', id: randomUUID(), calls: groupRecords, ts: Date.now() });
+
+        // REVIEW BEFORE PUBLISH: the agent asked to publish a version that hasn't passed the gate.
+        // Run the FULL verify + design review now — after all tool results are recorded, so the
+        // conversation order stays valid — and let publishing through only once it's clean. This is
+        // the structural guarantee that the user never gets a link to a draft (no publish-then-fix).
+        if (this.wantsPublish && !this.verifiedClean && this.session.mode === 'code' && this.mutated && !this.abort.signal.aborted) {
+          this.wantsPublish = false;
+          const gate = await this.runVerifyGate(dir, liveItems, context);
+          if (gate === 'failed') {
+            finalStatus = 'error';
+            stopReason = 'natural';
+            break;
+          }
+          if (gate === 'ok') {
+            this.verifiedClean = true;
+            context.push({
+              role: 'user',
+              content:
+                'Pre-publish review PASSED — the app is verified and looks good. Now call publish_app once to put it live; that is the final step.',
+            });
+          }
+          // gate === 'retry': the review injected concrete defects → loop so the agent fixes them
+          // BEFORE anything goes live.
+          continue;
+        }
 
         // The agent called switch_mode: move the session into the new mode and
         // reload its toolset, system prompt, and engine — then keep going.
@@ -1457,8 +1487,10 @@ export class AgentRun {
       ['write_file', 'edit_file', 'git_commit', 'generate_spreadsheet', 'generate_doc', 'generate_pptx', 'render_report'].includes(
         call.name,
       )
-    )
+    ) {
       this.mutated = true;
+      this.verifiedClean = false; // changed files → the prior review no longer applies
+    }
     // An artifact is a self-contained STATIC file: it must surface the tappable preview card
     // (open_canvas + completion) but must NOT flip `mutated` — that would run the code verify gate,
     // which pushes the agent to bolt a Node server onto a single HTML file (over-build + port mess).
@@ -1476,6 +1508,7 @@ export class AgentRun {
       // that creates index.html via bash gets no auto-canvas + no completion card.
       if (/(>>?|<<|\btee\b|\bcp\b|\bmv\b|\btouch\b|\bmkdir\b|sed\s+-i|\bnpm\b|\bnpx\b|\bpip\b|\bgit\b)/.test(cmd)) {
         this.mutated = true;
+        this.verifiedClean = false; // a file-writing bash command invalidates the prior review
       }
     }
 
@@ -1497,6 +1530,20 @@ export class AgentRun {
       } else if (args === null) {
         ok = false;
         result = 'Error: tool arguments were not valid JSON';
+      } else if (
+        call.name === 'publish_app' &&
+        this.session.mode === 'code' &&
+        this.mutated &&
+        !this.verifiedClean
+      ) {
+        // REVIEW BEFORE PUBLISH: never hand the user a link to a version that hasn't passed the
+        // verify + design review. Flag the intent; the post-batch gate runs the full review now,
+        // and the app only goes live (the agent's next publish_app) once it's clean.
+        this.wantsPublish = true;
+        result =
+          'Not published yet — this version must pass the automated quality review FIRST (it runs now). ' +
+          'The user must never get a link to an unreviewed draft, and we never publish-then-fix. ' +
+          'Fix anything the review flags; once it is clean, publishing goes through. Do not call publish_app again until then.';
       } else {
         const ctx: ToolCtx = {
           session: this.session,
