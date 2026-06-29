@@ -70,9 +70,13 @@ THIS, for THIS subject." Start from the bundled design system; never hand-roll m
   box; restraint everywhere else. USE THE BUNDLED craft.css COMPONENTS for an ambitious
   signature (.ticket is clip-safe + responsive BY CONSTRUCTION) rather than hand-building a
   fragile rotated/overlapping element from scratch — a hand-rolled elaborate component is the
-  thing that turns into a 20-round CSS-debugging loop. Compose the proven primitive; if you
-  truly need a bespoke element, keep it simple and overflow-safe (no rotation that clips edge
-  text, no overlap that hides content).
+  thing that turns into a 20-round CSS-debugging loop. SPECIFICALLY: for a progress ring /
+  gauge / radial % use craft.css .gauge (stroke-dasharray, never an animated SVG you rotate —
+  that hand-built "breath-ring" is the canonical 20-round trap); for a KPI / big-number tile
+  use .stat (mono tabular value + trend arrow); for any data table use .table-wrap/.table
+  (scrolls on mobile, never overflows). Compose the proven primitive; if you truly need a
+  bespoke element, keep it simple and overflow-safe (no rotation that clips edge text, no
+  overlap that hides content).
 - INTERACTIVE COMPONENTS (don't hand-roll a modal/tabs/carousel — they break + eat rounds):
   when the page genuinely needs real interactivity (a modal/dialog, tabs, a carousel, a tooltip,
   a dropdown menu, an accordion, a real select/switch), call add_web_components to self-host the

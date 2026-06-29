@@ -101,7 +101,7 @@ export const inspectUiTool: ToolDef = {
       n >= SOFT_CAP
         ? `\n\n⚠ You have inspected this build ${n} times. STOP re-inspecting now: the result is good enough to ship. ` +
           `If ONE element still isn't pixel-perfect, SIMPLIFY it (drop a rotation/overlap, use a robust ui-kit/craft.css ` +
-          `component like .ticket/.board/.spec instead of a hand-built fragile one) rather than fight CSS another round — ` +
+          `component like .ticket/.board/.spec/.gauge (progress ring)/.stat (KPI)/.table-wrap instead of a hand-built fragile one) rather than fight CSS another round — ` +
           `a clean simple version beats a fragile elaborate one. Then finish and publish; do not call inspect_ui again unless something is actually broken.`
         : `\n\n(Inspected the LIVE rendered app — act on THIS evidence, not a guess. After your fix, inspect ONCE more to confirm, ` +
           `then move on; don't re-inspect a minor nit repeatedly — if an element fights you, simplify it.)`;

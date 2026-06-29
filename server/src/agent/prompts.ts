@@ -3,6 +3,7 @@ import { config } from '../config';
 import { designContext } from './designSystem';
 import { expertiseFor } from './expertise';
 import { briefScaffold } from './brief';
+import { definitionOfDone } from './definitionOfDone';
 import type { TaskProfile, TaskType } from './taskProfile';
 
 /** The few targeted questions to ask up front, by deliverable type. */
@@ -226,7 +227,10 @@ export function buildSystemPrompt(
   // (role/criteria/method/verification/output/self-audit) that closes the gap between a
   // thin request and an expert brief — zero latency, no fabricated specifics.
   const scaffold = config.autoBrief ? briefScaffold(userText, profile, session.task) : null;
-  const exp = [expertise, scaffold].filter(Boolean).map((b) => `\n\n${b}`).join('');
+  // Definition of Done — the EXACT structural/visual checks the gate enforces, front-loaded so the
+  // first build aims to pass them (the visual/structural twin of Auto-Brief's SELF_AUDIT_GATE).
+  const dod = definitionOfDone(userText, profile, session.mode);
+  const exp = [expertise, scaffold, dod].filter(Boolean).map((b) => `\n\n${b}`).join('');
 
   // Agent-driven ORGANIZATION ONBOARDING — a warm, fully-visible setup conversation
   // (the user watches every step) that seeds the org's shared brand + profile.
@@ -859,7 +863,9 @@ KNOW WHEN TO STOP (don't whack-a-mole): inspect→fix→re-inspect ONCE to confi
 NOT re-inspect the same minor nit round after round. If an element keeps fighting you (it clips,
 overlaps, or collides across two or more fix attempts), SIMPLIFY it rather than keep tuning CSS:
 drop the rotation/overlap, or use a ROBUST bundled component (ui-kit/craft.css .ticket / .board /
-.spec / .stamp — clip-safe and responsive by construction) instead of a hand-built fragile one.
+.spec / .stamp / .gauge (progress ring) / .stat (KPI tile) / .table-wrap (responsive table) —
+clip-safe and responsive by construction) instead of a hand-built fragile one. (A hand-built
+animated SVG ring/gauge is the #1 such trap — use .gauge.)
 A clean simple version that ships beats a fragile elaborate one you polish for twenty rounds; once
 it looks genuinely good, finish and publish — "good" is the goal, not "pixel-perfect".
 

@@ -188,6 +188,80 @@
   .ticket-stub { flex-direction: row; gap: 0.5rem; border-left: 0; border-top: 2px dashed var(--craft-line); }
 }
 
+/* (5) GAUGE — a circular progress ring / radial meter, clip-safe + correct BY CONSTRUCTION.
+   Use it for ONE %/score/progress signature (dashboards, trackers, stat heroes). The arc is
+   drawn with stroke-dasharray + stroke-dashoffset — NEVER by rotating the fill (an animated
+   rotated ring is exactly the multi-round CSS trap to avoid). The single rotate(-90deg) is a
+   STATIC start-at-12-o'clock, not animation. r=52 is fixed so --circ = 2π·52 = 326.726.
+   Markup (set --val 0–100; optional --gauge-color):
+     <div class="gauge" style="--val:72">
+       <svg class="gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
+         <circle class="gauge-track" cx="60" cy="60" r="52"></circle>
+         <circle class="gauge-fill"  cx="60" cy="60" r="52"></circle>
+       </svg>
+       <div class="gauge-label"><span class="gauge-num mono" data-count="72">72</span><span class="gauge-unit">%</span></div>
+     </div> */
+.gauge {
+  --circ: 326.726; /* 2π·52 — keep in sync with r="52" in the markup */
+  --gauge-color: var(--accent, currentColor);
+  position: relative;
+  width: 100%;
+  max-width: 180px;
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+}
+.gauge--sm { max-width: 120px; }
+.gauge--lg { max-width: 240px; }
+.gauge-svg { width: 100%; height: 100%; display: block; }
+.gauge-track, .gauge-fill { fill: none; stroke-width: 9; }
+.gauge-track { stroke: color-mix(in srgb, var(--craft-line) 85%, transparent); }
+.gauge-fill {
+  stroke: var(--gauge-color);
+  stroke-linecap: round;
+  stroke-dasharray: var(--circ);
+  stroke-dashoffset: calc(var(--circ) * (1 - var(--val, 0) / 100));
+  transform: rotate(-90deg);            /* STATIC: start the arc at 12 o'clock (not animation) */
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.9s var(--craft-ease);
+}
+.gauge-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 0.06em; }
+.gauge-num { font-family: var(--craft-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: clamp(1.4rem, 1rem + 2.4vw, 2.2rem); line-height: 1; color: var(--ink, currentColor); }
+.gauge-unit { font-family: var(--craft-mono); font-size: 0.8em; color: var(--muted, #6b7280); align-self: flex-start; margin-top: 0.25em; }
+
+/* (6) STAT — a KPI tile: mono label · big tabular value · unit · optional trend. The number is
+   tabular-nums so a row of stats aligns perfectly; pairs with the kit's [data-count] count-up.
+   The trend arrow is currentColor (never an emoji).
+   Markup:
+     <div class="stat">
+       <div class="stat-label">Monthly revenue</div>
+       <div class="stat-value"><span class="stat-num" data-count="48200">48,200</span><span class="stat-unit">AED</span></div>
+       <div class="stat-trend is-up">12.4% vs last month</div>
+     </div> */
+.stat { display: flex; flex-direction: column; gap: 0.3rem; }
+.stat-label { font-family: var(--craft-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted, #6b7280); }
+.stat-value { display: flex; align-items: baseline; gap: 0.35rem; }
+.stat-num { font-family: var(--craft-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: clamp(1.6rem, 1.2rem + 1.8vw, 2.4rem); line-height: 1; letter-spacing: -0.01em; color: var(--ink, currentColor); }
+.stat-unit { font-family: var(--craft-mono); font-size: 0.85rem; color: var(--muted, #6b7280); }
+.stat-trend { display: inline-flex; align-items: center; gap: 0.35em; font-size: 0.8rem; font-weight: 500; color: var(--muted, #6b7280); }
+.stat-trend::before { font-family: var(--craft-mono); font-weight: 600; }
+.stat-trend.is-up { color: var(--success, #15803d); }
+.stat-trend.is-up::before { content: "\2191"; }   /* up arrow */
+.stat-trend.is-down { color: var(--danger, #b91c1c); }
+.stat-trend.is-down::before { content: "\2193"; }  /* down arrow */
+.stat-trend.is-flat::before { content: "\2192"; }  /* flat arrow */
+
+/* (7) TABLE — a responsive data table that NEVER overflows the page: on a narrow screen it
+   scrolls horizontally inside .table-wrap instead of pushing the layout wide. Right-align
+   numeric columns with class="num"; optional sticky label column via .table--sticky.
+   Markup: <div class="table-wrap"><table class="table table--sticky"> … </table></div> */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.table th, .table td { padding: 0.6rem 0.85rem; text-align: left; border-bottom: 1px solid var(--craft-line); white-space: nowrap; }
+.table th { font-family: var(--craft-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted, #6b7280); font-weight: 500; }
+.table td.num, .table th.num { text-align: right; font-family: var(--craft-mono); font-variant-numeric: tabular-nums; }
+.table tbody tr:hover { background: color-mix(in srgb, var(--accent, #888) 4%, transparent); }
+.table--sticky th:first-child, .table--sticky td:first-child { position: sticky; left: 0; background: var(--surface, #fff); z-index: 1; }
+
 /* ---- richer micro-interactions (tasteful; all reduced-motion-safe below) ---- */
 /* .tilt — a subtle pointer-agnostic lift+tilt for a hero/feature card. */
 .tilt { transition: transform 0.25s var(--craft-ease), box-shadow 0.25s var(--craft-ease); }
@@ -270,7 +344,7 @@
 [data-reveal].in .board-row:nth-child(6) { transition-delay: 0.25s; }
 
 @media (prefers-reduced-motion: reduce) {
-  .lift, .with-arrow::after, .nav-underline a::after, .ticket, .tilt, .sheen::after { transition: none !important; }
+  .lift, .with-arrow::after, .nav-underline a::after, .ticket, .tilt, .sheen::after, .gauge-fill { transition: none !important; }
   .float { animation: none !important; }
   .tilt:hover { transform: none; }
   [data-reveal].reveal-hidden .board-row,

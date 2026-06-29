@@ -79,8 +79,10 @@ export const addUiKitTool: ToolDef = {
       `already fluid/responsive); COMPONENTS (.btn .card .field .input .switch .segmented .tabs .table .badge ` +
       `.alert .avatar .progress .kpi .price .quote .menu dialog .accordion .toast — all with states); and SECTION ` +
       `PATTERNS (.hero/.hero-split/.hero-center .features .bento .stat-band .pricing .testimonials .cta[.is-accent] ` +
-      `.logos .split .footer) + CRAFT/SIGNATURE (craft.css: .eyebrow-rule .board .spec .stamp .ticket .lift .tilt ` +
-      `.sheen .with-arrow .nav-underline). COMPOSE these blocks into a bespoke page — never output a generic ` +
+      `.logos .split .footer) + CRAFT/SIGNATURE (craft.css: .eyebrow-rule .board .spec .stamp .ticket .gauge ` +
+      `(progress ring) .stat (KPI tile) .table-wrap/.table (responsive) .lift .tilt ` +
+      `.sheen .with-arrow .nav-underline). COMPOSE these blocks into a bespoke page — never hand-build a progress ` +
+      `ring/gauge or a responsive table (use .gauge/.table-wrap); never output a generic ` +
       `centered-hero template. MOTION (the page should feel alive, but stay MINIMAL · MODERN · POLISHED — micro-` +
       `animations, never busy): add [data-reveal] (scroll-in), [data-count] (stat count-up), .lift/.tilt/.sheen hovers; ` +
       `open-props.css adds optional easings (var(--ease-elastic-3)), animations (var(--animation-fade-in)) and gradients ` +
