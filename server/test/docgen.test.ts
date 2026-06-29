@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ToolCtx } from '../src/agent/tools/common';
-import { generateSpreadsheetTool, coerceNumeric } from '../src/agent/tools/excel';
+import { generateSpreadsheetTool, coerceNumeric, financialModelScaffold } from '../src/agent/tools/excel';
 import { generateDocTool } from '../src/agent/tools/docx';
 import { generatePptxTool } from '../src/agent/tools/pptx';
 import { iconSvg, hasIcon, ICON_NAMES } from '../src/agent/tools/icons';
@@ -545,4 +545,28 @@ test('iconSvg renders a recolourable line icon and falls back gracefully', () =>
   assert.match(iconSvg('nope'), /<svg[\s\S]*<\/svg>/);
   // a bare hex (no #) is normalised
   assert.match(iconSvg('users', 'ff0000'), /stroke="#ff0000"/);
+});
+
+test('financialModelScaffold: the 3-statement template passes every xlsx gate by construction', async () => {
+  // The scaffold structurally returns 3 sheets; build the real .xlsx and run it through the very
+  // gates that rejected the empty Cash Flow in the live test.
+  const sheets = financialModelScaffold();
+  assert.deepEqual(sheets.map((s) => s.name), ['Assumptions', 'Income', 'CashFlow']);
+
+  const res = await generateSpreadsheetTool.run({ template: 'financial-model', output: 'fm.xlsx' }, ctx());
+  assert.match(res, /fm\.xlsx/);
+  const wb = await readWb(path.join(ws, 'fm.xlsx'));
+
+  // A genuine formula model (not flagged): no empty statement sheet, no hard-coded summary, no stringy ref.
+  const fm = auditFormulaModel(wb);
+  assert.equal(fm.isModel, false, `should be a clean formula model, got: ${fm.reason}`);
+  // No banner/section divider rows that would shift cells + break refs.
+  assert.deepEqual(detectBannerRows(wb), []);
+  assert.deepEqual(detectSectionRows(wb), []);
+  // No numeric-sanity defects (outliers / rate-leaks / all-zero derived rows).
+  assert.deepEqual(auditNumericSanity(wb), []);
+  // The Cash Flow sheet is genuinely populated (the bug this prevents): Ending cash is a real number.
+  const cf = wb.Sheets['CashFlow'];
+  const hasEndingCash = Object.keys(cf).some((a) => a[0] !== '!' && typeof cf[a].v === 'number' && cf[a].v > 0);
+  assert.ok(hasEndingCash, 'CashFlow has populated numeric cells');
 });

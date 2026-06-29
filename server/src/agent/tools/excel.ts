@@ -100,6 +100,68 @@ function firstCellLabel(cell: any): string {
 }
 
 /**
+ * A correct-by-construction 3-statement financial-model SKELETON (Assumptions → Income →
+ * CashFlow), seeded by generate_spreadsheet's template:"financial-model". The cross-sheet wiring
+ * is exactly right — every derived cell is a live {f,v} formula with ABSOLUTE refs, no banner/
+ * section rows, and a FULLY-POPULATED Cash Flow — so it passes auditFormulaModel / detectBannerRows
+ * / emptyStatementSheet / auditNumericSanity by construction (the empty-Cash-Flow gap can't recur).
+ * The model then renames line items + tunes the Assumptions for its business; the formulas flow.
+ * Single-word sheet names (no spaces/&) so refs need no quoting; names match the statement regexes.
+ */
+export function financialModelScaffold(): Array<{ name: string; columns: ColSpec[]; rows: any[] }> {
+  const cur: ColSpec[] = [
+    { header: 'Line item', type: 'text' },
+    { header: 'Year 1', type: 'currency' },
+    { header: 'Year 2', type: 'currency' },
+    { header: 'Year 3', type: 'currency' },
+  ];
+  const f = (formula: string, v: number) => ({ f: formula, v }); // formula cell (no leading "=")
+  return [
+    {
+      // INPUT sheet — hard-coded drivers are correct here (the model edits these numbers).
+      name: 'Assumptions',
+      columns: [{ header: 'Driver', type: 'text' }, { header: 'Value', type: 'number' }],
+      rows: [
+        ['Starting revenue', 500000],     // B2
+        ['Revenue growth (yoy)', 0.15],   // B3
+        ['COGS (% of revenue)', 0.4],     // B4
+        ['Operating expenses (% of revenue)', 0.3], // B5
+        ['Tax rate', 0.09],               // B6
+        ['Depreciation per year', 10000], // B7
+        ['Capex per year', 50000],        // B8
+        ['Starting cash', 100000],        // B9
+      ],
+    },
+    {
+      name: 'Income',
+      columns: cur,
+      rows: [
+        ['Revenue', f('Assumptions!$B$2', 500000), f('B2*(1+Assumptions!$B$3)', 575000), f('C2*(1+Assumptions!$B$3)', 661250)],
+        ['Cost of goods sold', f('-B2*Assumptions!$B$4', -200000), f('-C2*Assumptions!$B$4', -230000), f('-D2*Assumptions!$B$4', -264500)],
+        ['Gross profit', f('B2+B3', 300000), f('C2+C3', 345000), f('D2+D3', 396750)],
+        ['Operating expenses', f('-B2*Assumptions!$B$5', -150000), f('-C2*Assumptions!$B$5', -172500), f('-D2*Assumptions!$B$5', -198375)],
+        ['Depreciation', f('-Assumptions!$B$7', -10000), f('-Assumptions!$B$7', -10000), f('-Assumptions!$B$7', -10000)],
+        ['EBIT', f('B4+B5+B6', 140000), f('C4+C5+C6', 162500), f('D4+D5+D6', 188375)],
+        ['Tax', f('-B7*Assumptions!$B$6', -12600), f('-C7*Assumptions!$B$6', -14625), f('-D7*Assumptions!$B$6', -16953.75)],
+        ['Net income', f('B7+B8', 127400), f('C7+C8', 147875), f('D7+D8', 171421.25)],
+      ],
+    },
+    {
+      name: 'CashFlow',
+      columns: cur,
+      rows: [
+        ['Net income', f('Income!$B$9', 127400), f('Income!$C$9', 147875), f('Income!$D$9', 171421.25)],
+        ['Add: depreciation', f('-Income!$B$6', 10000), f('-Income!$C$6', 10000), f('-Income!$D$6', 10000)],
+        ['Less: capital expenditure', f('-Assumptions!$B$8', -50000), f('-Assumptions!$B$8', -50000), f('-Assumptions!$B$8', -50000)],
+        ['Net change in cash', f('B2+B3+B4', 87400), f('C2+C3+C4', 107875), f('D2+D3+D4', 131421.25)],
+        ['Beginning cash', f('Assumptions!$B$9', 100000), f('B7', 187400), f('C7', 295275)],
+        ['Ending cash', f('B6+B5', 187400), f('C6+C5', 295275), f('D6+D5', 426696.25)],
+      ],
+    },
+  ];
+}
+
+/**
  * Build ONE worksheet into the workbook with the full ArksAI styling pass: branded frozen
  * header, typed number/date formats, zebra banding, auto widths, auto-filter, and — for
  * finance — bold/ruled total rows. Pulled out so the fresh build AND the incremental
@@ -224,6 +286,7 @@ export const generateSpreadsheetTool: ToolDef = {
     type: 'object',
     properties: {
       output: { type: 'string', description: 'Output filename, e.g. "sales.xlsx". Default data.xlsx. For a staged build, keep the SAME filename across calls.' },
+      template: { type: 'string', enum: ['financial-model'], description: 'Seed a correct, fully-wired skeleton instead of building from scratch. "financial-model" → a 3-statement model (Assumptions → Income → CashFlow) with live cross-sheet formulas and a POPULATED cash-flow statement (never an empty tab). Call this FIRST for any multi-sheet/3-statement model, then customise: re-call generate_spreadsheet with append:true (or overwrite) to rename line items, tune the Assumptions, or add detail. Omit `sheets` when using a template.' },
       append: { type: 'boolean', description: 'When true, ADD these sheets to the existing file (same output name) instead of overwriting — for building a large multi-sheet model a few (2-3) sheets per call. A sheet whose name already exists is replaced. Default false (fresh file).' },
       accent: { type: 'string', description: 'Header accent colour as hex (e.g. "#4f46e5"). Use the brand accent if known.' },
       sheets: {
@@ -257,15 +320,17 @@ export const generateSpreadsheetTool: ToolDef = {
         },
       },
     },
-    required: ['sheets'],
   },
   modes: ['code', 'report'],
   summarize: (a) => `spreadsheet ${String(a.output ?? 'data.xlsx')}`,
   async run(args, ctx) {
     const outName = String(args.output || 'data.xlsx').replace(/[^a-zA-Z0-9._-]/g, '-');
     const finalName = outName.toLowerCase().endsWith('.xlsx') ? outName : `${outName}.xlsx`;
-    const sheets = Array.isArray(args.sheets) ? args.sheets : [];
-    if (!sheets.length) return 'Error: provide at least one sheet (name, columns, rows).';
+    let sheets = Array.isArray(args.sheets) ? args.sheets : [];
+    // template:"financial-model" → seed the correct, fully-wired 3-statement skeleton (the model
+    // then customises via a follow-up append/overwrite call). Only seeds when no sheets are given.
+    if (!sheets.length && String(args.template || '') === 'financial-model') sheets = financialModelScaffold();
+    if (!sheets.length) return 'Error: provide at least one sheet (name, columns, rows), or set template:"financial-model".';
     // Recompute formula cells' cached values so the in-app PREVIEW shows correct numbers
     // (models often write a wrong/0 cached value; the formula itself is preserved + Excel
     // recalculates the download regardless, so this is a strictly-improving preview fix).
