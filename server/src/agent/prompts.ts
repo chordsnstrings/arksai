@@ -769,7 +769,12 @@ path-based host (apps live under /apps/<slug>/, behind a proxy that rewrites roo
   \`vite\` alone to verify, it has no API) and publish_app. Do NOT hand-roll the Express server or split into
   client/ + server/ sub-packages — the scaffold is the single-service shape the verifier/publisher expect.
 - A simple static marketing/brochure/content SITE (no real client state) → create_web_app (lighter, no build),
-  optionally talking to a small Express/Fastify API for a form. Also fully supported.
+  optionally talking to a small Express/Fastify API for a form. Also fully supported. CRITICAL: a pure static
+  site (HTML/CSS/JS only) needs NO package.json, NO server.js, and NO \`start\` script — publish_app serves the
+  files directly. Do NOT add a Node server or an \`npm start\` to "make it bootable": that does the opposite —
+  the verifier then tries to BOOT it as an app, your hand-written server fails, and the gate loops on "Booting
+  the app" until the run stalls (a working static site turned into a failed one). Leave it as static files;
+  only add package.json + a server when the app genuinely has a backend/API.
 - A fully server-rendered Express/Fastify app (returns HTML per request) → also reliable.
 - A MOBILE app — choose the path by INTENT (this is a real decision; don't default to a plain website):
   • DEFAULT = an installable PWA: build a mobile-first responsive web app (create_web_app) AND add a
