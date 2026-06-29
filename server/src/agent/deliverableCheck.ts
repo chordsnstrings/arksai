@@ -218,6 +218,93 @@ async function renderViaSoffice(abs: string): Promise<{ pngs: Buffer[]; pages: n
   }
 }
 
+// Excel error spilled into a cell value (a mis-reference, /0, unknown name, …).
+const CELL_ERR_RE = /^#(REF|DIV\/0|VALUE|NAME|N\/A|NULL|NUM)[!?]/;
+
+/**
+ * Authoritative recalc of an .xlsx via headless LibreOffice — it recomputes EVERY Excel function
+ * (NPV/IRR/VLOOKUP/INDEX-MATCH/dates/iterative-circular), far beyond the 8-function JS evaluator —
+ * then writes the real computed values back as each formula cell's cached result into the ORIGINAL
+ * file (preserving its styling + formula strings), so the in-app preview and first open show the
+ * truth. Surfaces every error cell that only appears after a real recompute (a model-supplied
+ * cached value masks a #REF! in the as-written file). Returns null when soffice is unavailable/fails
+ * (callers degrade to the JS recalculator). Shared by the recalc_spreadsheet tool + the deliverable gate.
+ */
+export async function recalcXlsxViaSoffice(
+  abs: string,
+): Promise<{ formulaCount: number; wroteBack: number; errorCells: string[] } | null> {
+  try {
+    const { execFileSync } = await import('node:child_process');
+    const os = await import('node:os');
+    // Use the default profile (the same invocation renderViaSoffice uses, proven in prod). A fresh
+    // per-call -env profile hits LibreOffice's "source file could not be loaded" first-run failure;
+    // the default profile is warm. soffice can silently no-op (exit 0, write nothing) when a stale
+    // lock is held, so retry once if the first attempt produces no output.
+    const convert = (): string | null => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'recalc-'));
+      try {
+        execFileSync('soffice', ['--headless', '--calc', '--convert-to', 'xlsx', '--outdir', tmp, abs], {
+          timeout: 90_000,
+          stdio: 'ignore',
+        });
+      } catch {
+        return null;
+      }
+      const f = fs.readdirSync(tmp).find((x) => x.toLowerCase().endsWith('.xlsx'));
+      return f ? path.join(tmp, f) : null;
+    };
+    const outPath = convert() ?? convert();
+    if (!outPath) return null;
+    const XLSX: any = await import('xlsx');
+    const rwb = XLSX.read(fs.readFileSync(outPath), { type: 'buffer', cellFormula: true });
+    const computed = new Map<string, number>(); // "Sheet!B9" -> value
+    const errorCells: string[] = [];
+    let formulaCount = 0;
+    for (const name of rwb.SheetNames) {
+      const sh = rwb.Sheets[name];
+      for (const addr of Object.keys(sh)) {
+        if (addr[0] === '!') continue;
+        const c = sh[addr];
+        if (c.f) formulaCount++;
+        if (c.t === 'e' || (typeof c.v === 'string' && CELL_ERR_RE.test(c.v))) {
+          errorCells.push(`${name}!${addr}${typeof c.w === 'string' ? ` (${c.w})` : ''}`);
+        } else if (typeof c.v === 'number' && Number.isFinite(c.v)) {
+          computed.set(`${name}!${addr}`, c.v);
+        }
+      }
+    }
+    // Write the recomputed results back into the original (cached values only; styling untouched).
+    let wroteBack = 0;
+    try {
+      const mod: any = await import('exceljs');
+      const ExcelJS = mod.default ?? mod;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.readFile(abs);
+      wb.calcProperties.fullCalcOnLoad = true;
+      wb.eachSheet((ws: any) =>
+        ws.eachRow({ includeEmpty: false }, (row: any) =>
+          row.eachCell({ includeEmpty: false }, (cell: any) => {
+            const v = cell.value;
+            const f = v && typeof v === 'object' && typeof v.formula === 'string' ? v.formula : undefined;
+            if (!f) return;
+            const val = computed.get(`${ws.name}!${cell.address}`);
+            if (typeof val === 'number') {
+              cell.value = { formula: f, result: val };
+              wroteBack++;
+            }
+          }),
+        ),
+      );
+      await wb.xlsx.writeFile(abs);
+    } catch {
+      /* writeback best-effort — Excel recalculates on open regardless */
+    }
+    return { formulaCount, wroteBack, errorCells };
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------- functional checks
 
 async function functionalCheck(abs: string, kind: DeliverableKind): Promise<{ ok: boolean; detail: string; pages?: number }> {
@@ -638,6 +725,12 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
     detail: '',
   };
   if (!fs.existsSync(abs)) return { ...base, functionalOk: false, functionalDetail: 'file not found', detail: 'file not found' };
+
+  // 0) Authoritative recalc for spreadsheets: run the workbook through LibreOffice so the cached
+  //    values are TRUE (advanced formulas our JS evaluator can't compute) and so a #REF!/#VALUE!
+  //    that a model-supplied cached value was masking is surfaced — the functional check + audits
+  //    below then see the real recomputed state. Best-effort; no-op when soffice is unavailable.
+  if (kind === 'xlsx') await recalcXlsxViaSoffice(abs).catch(() => null);
 
   // 1) Functional check first — a broken file shouldn't be design-reviewed.
   const fn = await functionalCheck(abs, kind);

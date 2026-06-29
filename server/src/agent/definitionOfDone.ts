@@ -38,7 +38,8 @@ const XLSX_DOD = `## Definition of Done — your FIRST workbook must already pas
 - EVERY statement sheet you include (P&L, Balance Sheet, Cash Flow) is FULLY POPULATED with line-item rows + formulas — never a header-only stub (an empty Cash Flow tab IS rejected).
 - No decorative banner / section-divider rows inside a calc sheet (a "── CASH FLOW ──" row shifts every cell and breaks absolute references) — header on row 1, data from row 2.
 - Totals via =SUM(); cross-sheet references use absolute $col$row and start with "=".
-- For a 3-statement / multi-sheet model, START from the financial-model template (generate_spreadsheet template:"financial-model") so the cross-sheet wiring is correct by construction, then fill/rename the line items.`;
+- For a 3-statement / multi-sheet model, START from the financial-model template (generate_spreadsheet template:"financial-model") so the cross-sheet wiring is correct by construction, then fill/rename the line items.
+- If the model needs formulas generate_spreadsheet can't express (circular interest↔debt↔cash, NPV/IRR, VLOOKUP), build it with openpyxl (real formulas, not literals) and run recalc_spreadsheet ONCE — finish only with ZERO error cells. A correct model is worth a longer build.`;
 
 /**
  * The Definition-of-Done block for this request, or null when none applies (today's behaviour).

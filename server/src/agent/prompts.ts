@@ -147,18 +147,26 @@ function docToolsSlice(): string {
   over all the tabs and get back only the answer (the data stays out of the chat, so
   it scales to huge files). Don't page thousands of raw cells into the conversation.
   To CREATE a deliverable:
-  • Spreadsheet (.xlsx) → use generate_spreadsheet (styled + validated for you:
+  • Spreadsheet (.xlsx) → use generate_spreadsheet by DEFAULT (styled + validated for you:
     branded header, number/date formats, zebra, frozen header, bold total rows). It
     supports FORMULAS — pass cells like "=B2*C2" (or {f,v}) so models are
-    formula-driven and one assumption flows through. Don't hand-write an exceljs or
-    openpyxl script (a value-dumping script is rejected by the model gate). For a
-    LARGE / granular model (e.g. a 3-year MONTH-BY-MONTH CAPEX+OPEX, many sheets),
-    build it in a FEW stages so it never stalls: first call = the "Assumptions" sheet
-    plus 1-2 schedules, then call again with append:true adding the next 2-3 sheets
-    per call (CAPEX+OPEX, then Personnel+Summary…) — a few sheets per call, not one at
-    a time (slow) and not all at once (truncates) — each referencing Assumptions with
-    cross-sheet formulas (=Assumptions!$B$2). Ground the drivers in REAL figures (research rents,
-    salaries, equipment costs) — never invent them.
+    formula-driven and one assumption flows through. NEVER ship a value-dumping script
+    (all literals) — the gate rejects it. For a LARGE / granular model (e.g. a 3-year
+    MONTH-BY-MONTH CAPEX+OPEX, many sheets), build it in a FEW stages: first call = the
+    "Assumptions" sheet plus 1-2 schedules, then call again with append:true adding the
+    next 2-3 sheets per call (CAPEX+OPEX, then Personnel+Summary…) — a few sheets per call,
+    not one at a time (slow) and not all at once (truncates) — each referencing Assumptions
+    with cross-sheet formulas (=Assumptions!$B$2). Ground the drivers in REAL figures
+    (research rents, salaries, equipment costs) — never invent them.
+    ESCALATE TO openpyxl when generate_spreadsheet genuinely can't express the model — a true
+    3-statement model with circular links (interest↔debt↔cash), NPV/IRR/XIRR, VLOOKUP/INDEX-MATCH,
+    dynamic period logic, or intricate cross-sheet wiring. This is legitimate (it's what an expert
+    does when there's no quick structured answer): write a Python/openpyxl script with REAL
+    FORMULAS in the cells (ws["B9"] = "=SUM(...)", not dumped literals — literals are rejected),
+    run it ONCE, then call recalc_spreadsheet ONCE to compute every value authoritatively and
+    surface any error cells. Do NOT hand-loop soffice/openpyxl to re-verify — recalc_spreadsheet
+    is the single trustworthy check; a clean report means you're done. Getting a correct model
+    on the first try is the goal even if it takes longer — a wrong-but-fast model is the failure.
   • Editable document (.docx) → use generate_doc (typographic, brand accent,
     real tables). For a print-locked, richly designed PDF use render_report.
   • Slide deck (.pptx) → use generate_pptx (editorial 16:9, designed cover, charts

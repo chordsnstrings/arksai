@@ -281,7 +281,13 @@ export const generateSpreadsheetTool: ToolDef = {
     'live formulas; then RECONCILE each source document\'s extracted total back to its printed total and surface any ' +
     'mismatch; and DE-DUPE identical documents. Dropping a row, a supplier, or a whole document — or mis-filing a row ' +
     'into the wrong month — is the #1 failure here; the reconciliation is what catches it, so always include it. For a ' +
-    'SCANNED PDF read the page IMAGES with see_image (its text layer is unreliable).',
+    'SCANNED PDF read the page IMAGES with see_image (its text layer is unreliable). ' +
+    'WHEN TO ESCALATE TO openpyxl: this tool is the default and is validated for you, but for a model it ' +
+    'genuinely can\'t express cleanly — a true 3-statement model with circular links (interest↔debt↔cash), ' +
+    'NPV/IRR/XIRR, VLOOKUP/INDEX-MATCH, dynamic period logic — you MAY build it by hand with a Python/openpyxl ' +
+    'script (write REAL formulas into the cells, never dumped literals), then call recalc_spreadsheet ONCE to ' +
+    'compute every value authoritatively and check for error cells. A correct one-shot model is worth a longer ' +
+    'build; don\'t hand-loop soffice to re-verify — recalc_spreadsheet is the single trustworthy check.',
   parameters: {
     type: 'object',
     properties: {

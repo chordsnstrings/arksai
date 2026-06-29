@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-29.1';
+export const WHATS_NEW_VERSION = '2026-06-29.2';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Right the first time — less waiting, fewer redos',
-    body: 'We added ready-made building blocks for the things we used to hand-build and debug (progress rings, stat cards, responsive tables, and a complete 3-statement financial-model spreadsheet), plus a fast self-check that catches fixable issues — a broken chart, an empty Cash-Flow sheet, a missing link — before finishing. The result is built correctly on the first attempt, so you get it sooner.',
+    title: 'Financial models that are actually right',
+    body: 'Spreadsheets with real formulas — including advanced ones like NPV, IRR and lookups, and linked 3-statement models — are now recalculated authoritatively before you get them, so every number is correct on first open and broken formulas (a #REF!, a divide-by-zero) are caught and fixed, not shipped. Complex models take the time they need to be right rather than being rushed and wrong.',
   },
 ];
 
