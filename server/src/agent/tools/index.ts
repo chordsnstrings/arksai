@@ -27,6 +27,7 @@ import { addMobileUiKitTool } from './mobile-ui-kit';
 import { addAppBackendTool } from './app-backend';
 import { createExpoAppTool } from './expo-app';
 import { createWebAppTool } from './web-app';
+import { addPwaTool } from './pwa';
 import { designDirectionTool } from './design-direction';
 import { addWebComponentsTool } from './web-components';
 import { createReactAppTool } from './react-app';
@@ -90,6 +91,7 @@ export const ALL_TOOLS: ToolDef[] = [
   addUiKitTool,
   designDirectionTool,
   createWebAppTool,
+  addPwaTool,
   addWebComponentsTool,
   createReactAppTool,
   inspectUiTool,

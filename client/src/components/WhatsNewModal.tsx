@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-29.4';
+export const WHATS_NEW_VERSION = '2026-06-29.5';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'It’s reviewed before it goes live — not after',
-    body: 'Publishing now runs the full quality review first and only puts your app online once it passes. You’ll never get a link to a rough draft and then watch it get reworked — it’s made right, then published. Same for spreadsheets: real formulas (NPV, IRR, lookups, linked models) are recalculated authoritatively so the numbers are correct from the first open.',
+    title: 'Turn any app into an installable phone app — instantly',
+    body: 'Ask to make your app installable / work offline and it now happens in one fast, reliable step: a proper install setup, an offline mode, and real app icons — done right the first time instead of the slow back-and-forth it used to take.',
   },
   {
-    title: 'The Publish window opens properly',
-    body: 'Fixed a bug where the Publish dialog was clipped into the top bar and looked hidden — it now opens centered, with your live link, copy, and open.',
+    title: 'It’s reviewed before it goes live — not after',
+    body: 'Publishing runs the full quality review first and only puts your app online once it passes — you’ll never get a link to a rough draft and then watch it get reworked. And the Publish window (which was getting clipped into the top bar) now opens centered with your live link.',
   },
 ];
 

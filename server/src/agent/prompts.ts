@@ -785,10 +785,14 @@ path-based host (apps live under /apps/<slug>/, behind a proxy that rewrites roo
   only add package.json + a server when the app genuinely has a backend/API.
 - A fully server-rendered Express/Fastify app (returns HTML per request) → also reliable.
 - A MOBILE app — choose the path by INTENT (this is a real decision; don't default to a plain website):
-  • DEFAULT = an installable PWA: build a mobile-first responsive web app (create_web_app) AND add a
-    manifest.webmanifest + a service worker + app icons so it installs to the home screen, works offline, and
-    is usable INSTANTLY on any phone — no app store, no build wait. Make it genuinely phone-native: a bottom
-    tab bar, thumb-reachable controls, large touch targets, a phone-width layout.
+  • DEFAULT = an installable PWA: build a mobile-first responsive web app (create_web_app), then call
+    add_pwa to make it installable. ALWAYS use add_pwa for this — do NOT hand-write a manifest, service
+    worker, or icons (a hand-rolled PWA reliably misses an icon file or ships a service worker that breaks
+    the checks, which sends the build into a slow fix loop). add_pwa writes a valid manifest, a safe offline
+    service worker, and REAL generated icons (never a missing file) and wires them in — correct by
+    construction, one call. Make it genuinely phone-native: a bottom tab bar, thumb-reachable controls, large
+    touch targets, a phone-width layout. The app must also work fully WITHOUT the service worker (progressive
+    enhancement) — never gate core functionality on the SW.
   • NATIVE (a real Android APK) = create_expo_app → build_apk. Use this when the user signals it — "native",
     "APK", "Play Store", "Android app/Studio", "React Native", or a need a PWA can't meet (rich hardware,
     background services, store distribution). create_expo_app unpacks a runnable, crash-safe expo-router app

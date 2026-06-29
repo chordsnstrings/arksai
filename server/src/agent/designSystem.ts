@@ -232,11 +232,12 @@ charting lib's legend, label every series — never leave a legend reading "unde
 or blank; with one series, turn the legend off.`,
   mobile: `Task: a mobile app. FIRST choose PWA vs NATIVE — DEFAULT to PWA unless native is truly required:
 - PWA (the DEFAULT for most "make me an app" requests — instant, free, live at a shareable URL, no
-  store and no build wait): build a real INSTALLABLE app with the WEB kit (add_ui_kit) — a web
-  manifest (name, icons, theme_color, display:standalone), a service worker for offline + caching,
-  an app shell, add-to-home-screen, thumb-friendly bottom-anchored actions, safe-area padding, large
-  readable type, simple nav; works offline; test narrow widths. Publish it → the user installs from
-  the browser. CHOOSE PWA when there is no app-store requirement and the device needs are
+  store and no build wait): build a real INSTALLABLE app with the WEB kit (create_web_app / add_ui_kit) —
+  an app shell, thumb-friendly bottom-anchored actions, safe-area padding, large readable type, simple
+  nav; then call add_pwa to make it installable (it writes the manifest, a safe offline service worker,
+  and real icons correctly — do NOT hand-write any of those, that loops the gate). Build core
+  functionality to work WITHOUT the service worker (progressive enhancement). Publish it → the user
+  installs from the browser. CHOOSE PWA when there is no app-store requirement and the device needs are
   web-supported (camera via getUserMedia, geolocation, web push where available, offline storage).
 - NATIVE Android/iOS (only when needed — app-store presence, robust native device APIs, background/
   push, or a true-native feel): EXPO + REACT NATIVE — NOT HTML/CSS, NOT add_ui_kit. Flow: (1)

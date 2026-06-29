@@ -159,7 +159,11 @@ export async function browserSmokeTest(
   const pageErrors: string[] = [];
   const failedRequests: string[] = [];
   try {
-    const ctx = await browser.newContext();
+    // Block service workers during the probe: a PWA's SW caches/intercepts requests and can make
+    // the headless check see stale/blank content or phantom errors, which used to send the gate into
+    // a needless fix loop. A correct PWA is progressive enhancement — it MUST work without the SW —
+    // so checking the no-SW path is both correct and stable. PWA assets are validated deterministically.
+    const ctx = await browser.newContext({ serviceWorkers: 'block' });
     const page = await ctx.newPage();
     const origin = new URL(url).origin;
     page.on('console', (m: any) => {
