@@ -1,7 +1,8 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from './config';
-import { GOOGLE_SCOPES, buildAuthUrl, exchangeCode, fetchUserInfo, googleConfigured } from './googleOauth';
+import { GOOGLE_SCOPES, buildAuthUrl, exchangeCode, fetchUserInfo, googleClientId, googleConfigured } from './googleOauth';
+import { setGoogleCreds } from './googleRuntime';
 import { track } from './analytics/track';
 import { getSetting, setSetting } from './db';
 import { getRate } from './lib/fx';
@@ -188,8 +189,20 @@ export function registerAuth(app: FastifyInstance) {
       maxAge: 600,
     });
     return reply.redirect(
-      buildAuthUrl({ clientId: config.googleOauthClientId, redirectUri: googleLoginRedirect(), scope: GOOGLE_SCOPES.login, state, prompt: 'select_account' }),
+      buildAuthUrl({ clientId: googleClientId(), redirectUri: googleLoginRedirect(), scope: GOOGLE_SCOPES.login, state, prompt: 'select_account' }),
     );
+  });
+
+  // Operator configures the Google OAuth client (id + secret) WITHOUT editing .env — stored in
+  // app_settings (secret encrypted via lib/crypto). Flips "Sign in with Google" on immediately.
+  app.post('/api/admin/google-oauth/configure', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Super-admin only.' });
+    const b = (req.body ?? {}) as { clientId?: string; clientSecret?: string };
+    const clientId = String(b.clientId ?? '').trim();
+    const clientSecret = String(b.clientSecret ?? '').trim();
+    if (!clientId || !clientSecret) return reply.code(400).send({ error: 'clientId and clientSecret are required.' });
+    await setGoogleCreds(clientId, clientSecret);
+    return { ok: true, enabled: googleConfigured(), callbackUrl: googleLoginRedirect() };
   });
 
   app.get('/api/auth/google/callback', async (req, reply) => {

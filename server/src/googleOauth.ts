@@ -1,4 +1,4 @@
-import { config } from './config';
+import { googleCreds } from './googleRuntime';
 
 // Shared Google OAuth 2.0 core — used by "Sign in with Google" (login) now, and by the Google
 // Workspace connectors (Gmail / Calendar / Drive·Sheets) once the consent screen is verified.
@@ -18,7 +18,12 @@ export const GOOGLE_SCOPES = {
 } as const;
 
 export function googleConfigured(): boolean {
-  return !!config.googleOauthClientId && !!config.googleOauthClientSecret;
+  return !!googleCreds();
+}
+
+/** The configured client id (env or stored), or '' when unconfigured. */
+export function googleClientId(): string {
+  return googleCreds()?.clientId ?? '';
 }
 
 /** Pure: build the Google consent URL. `accessType:'offline' + prompt:'consent'` yields a refresh
@@ -65,10 +70,12 @@ function parseTokenResponse(j: any, fallbackRefresh?: string): GoogleTokens {
 }
 
 export async function exchangeCode(code: string, redirectUri: string): Promise<GoogleTokens> {
+  const creds = googleCreds();
+  if (!creds) throw new Error('Google OAuth is not configured.');
   const body = new URLSearchParams({
     code,
-    client_id: config.googleOauthClientId,
-    client_secret: config.googleOauthClientSecret,
+    client_id: creds.clientId,
+    client_secret: creds.clientSecret,
     redirect_uri: redirectUri,
     grant_type: 'authorization_code',
   });
@@ -78,10 +85,12 @@ export async function exchangeCode(code: string, redirectUri: string): Promise<G
 }
 
 export async function refreshAccessToken(refreshToken: string): Promise<GoogleTokens> {
+  const creds = googleCreds();
+  if (!creds) throw new Error('Google OAuth is not configured.');
   const body = new URLSearchParams({
     refresh_token: refreshToken,
-    client_id: config.googleOauthClientId,
-    client_secret: config.googleOauthClientSecret,
+    client_id: creds.clientId,
+    client_secret: creds.clientSecret,
     grant_type: 'refresh_token',
   });
   const r = await fetch(TOKEN_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
