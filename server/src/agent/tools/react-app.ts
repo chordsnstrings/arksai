@@ -85,9 +85,11 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// DATA_DIR lets a host mount a persistent disk (e.g. DigitalOcean App Platform);
-// defaults to ./data beside the app. The platform also persists this on republish.
-const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+// The SQLite file lives in ./data BESIDE the app by construction — a single, writable,
+// deployment-stable location that persists on republish. Use APP_DATA_DIR (a dedicated name)
+// only to mount a persistent disk on an external host; never the generic DATA_DIR, which the
+// hosting platform sets for its OWN storage and would otherwise hijack the app's DB path.
+const dataDir = process.env.APP_DATA_DIR || path.join(__dirname, '..', 'data');
 fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new Database(path.join(dataDir, 'app.db'));
@@ -194,7 +196,10 @@ export const createReactAppTool: ToolDef = {
     'process.env.PORT, and `npm start` serves the built SPA AND the API on one port — use this for any ' +
     'app that PERSISTS data. After scaffolding: npm install, build screens in src/ from src/components/ui, ' +
     '(with backend) add your routes in server/index.js + tables in server/db.js, then publish_app (runs the ' +
-    'Vite build + boots the server). For a simple static marketing/brochure SITE, use create_web_app instead.',
+    'Vite build + boots the server). The SQLite file path is handled FOR YOU — it lives at ./data/app.db ' +
+    'beside the app by construction; do NOT change it, set DATA_DIR, or hunt for/move the .db file (that path ' +
+    'is correct and stable, and chasing it is a wasted loop). Just add your tables in server/db.js. For a ' +
+    'simple static marketing/brochure SITE, use create_web_app instead.',
   parameters: {
     type: 'object',
     properties: {

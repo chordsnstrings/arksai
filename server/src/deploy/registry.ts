@@ -58,13 +58,18 @@ class DeploymentRegistry {
     this.kill(slug);
     fs.mkdirSync(dir, { recursive: true });
     const logFd = fs.openSync(path.join(dir, '.deploy.log'), 'a');
+    // A PUBLISHED app runs in production (childEnv now defaults workspaces to development so
+    // agent-time `npm install` pulls devDeps — deployments override it). Don't let ArksAI's OWN
+    // DATA_DIR (the platform's storage volume) leak in: a generic-named app would write its SQLite
+    // to /data/app.db (shared across apps + an absolute path the agent then loops trying to locate).
+    // The app's own .env may still set it.
+    const base = childEnv();
+    delete (base as any).DATA_DIR;
     const child = spawn('bash', ['-c', startCmd], {
       cwd: dir,
-      // A PUBLISHED app runs in production (childEnv now defaults workspaces to
-      // development so agent-time `npm install` pulls devDeps — deployments override it).
       // Also inject the app's own .env (provisioned DATABASE_URL etc.) so a DB-backed app gets its
       // connection string at runtime even if it doesn't use dotenv — and it survives restarts.
-      env: { ...childEnv(), ...readDotEnv(dir), PORT: String(port), HOST: '127.0.0.1', NODE_ENV: 'production' },
+      env: { ...base, ...readDotEnv(dir), PORT: String(port), HOST: '127.0.0.1', NODE_ENV: 'production' },
       detached: true,
       stdio: ['ignore', logFd, logFd],
     });

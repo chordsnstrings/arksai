@@ -3,12 +3,14 @@
  *
  * Dev/default storage. migrate() is idempotent (safe to call on every boot). For larger
  * apps swap to Postgres later behind the same query helpers — keep schema in migrations.
- * DB file lives in the app's working dir (DATA_DIR override for the deploy volume).
+ * DB file lives in the app's working dir by construction. Override only with the dedicated
+ * APP_DATA_DIR (a persistent disk on an external host) — never the generic DATA_DIR, which
+ * the hosting platform sets for its OWN storage and would otherwise hijack the app's DB path.
  */
 const path = require('node:path');
 const Database = require('better-sqlite3');
 
-const file = process.env.DB_FILE || path.join(process.env.DATA_DIR || '.', 'app.db');
+const file = process.env.DB_FILE || path.join(process.env.APP_DATA_DIR || '.', 'app.db');
 const db = new Database(file);
 db.pragma('journal_mode = WAL'); // safe concurrent reads
 db.pragma('foreign_keys = ON');
