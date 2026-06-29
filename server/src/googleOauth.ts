@@ -11,10 +11,11 @@ const USERINFO_ENDPOINT = 'https://www.googleapis.com/oauth2/v3/userinfo';
 /** Scope presets. Login is non-sensitive (works immediately); the rest are sensitive/restricted
  *  and need Google app verification before production use. */
 export const GOOGLE_SCOPES = {
-  login: 'openid email profile',
+  identity: 'openid email', // just to read which account connected
   gmail: 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send',
   calendar: 'https://www.googleapis.com/auth/calendar.events',
   drive: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets.readonly',
+  ads: 'https://www.googleapis.com/auth/adwords',
 } as const;
 
 export function googleConfigured(): boolean {

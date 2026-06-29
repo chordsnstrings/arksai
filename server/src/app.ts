@@ -28,6 +28,7 @@ import { registerEmailRoutes } from './routes/email';
 import { registerRobotRoutes } from './routes/robots';
 import { registerConnectorRoutes } from './routes/connectors';
 import { registerGithubRoutes } from './routes/github';
+import { registerGoogleConnectRoutes } from './routes/googleConnect';
 import { registerWalletRoutes } from './routes/wallet';
 import { registerIncidentRoutes } from './routes/incidents';
 import { registerBuildRoutes } from './routes/builds';
@@ -109,6 +110,7 @@ export async function buildApp() {
   registerRobotRoutes(app);
   registerConnectorRoutes(app);
   registerGithubRoutes(app);
+  registerGoogleConnectRoutes(app);
   registerWalletRoutes(app);
   registerIncidentRoutes(app);
   registerBuildRoutes(app);

@@ -197,6 +197,9 @@ export const api = {
   githubCreateRepo: (name: string, isPrivate: boolean) =>
     request<{ repo: GithubRepo }>('/api/github/repos', { method: 'POST', body: JSON.stringify({ name, private: isPrivate }) }).then((r) => r.repo),
   githubDisconnect: () => request<{ ok: boolean }>('/api/github/connection', { method: 'DELETE' }),
+  googleConnStatus: () =>
+    request<{ enabled: boolean; connected: boolean; email: string | null; scopes: string | null; status: string }>('/api/google/status'),
+  googleDisconnect: () => request<{ ok: boolean }>('/api/google/connection', { method: 'DELETE' }),
   // Org wallet / invoicing
   getWallet: (orgId: string) => request<WalletView>(`/api/orgs/${orgId}/wallet`),
   getWalletLedger: (orgId: string, limit = 100) =>

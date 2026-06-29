@@ -1,7 +1,7 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from './config';
-import { GOOGLE_SCOPES, buildAuthUrl, exchangeCode, fetchUserInfo, googleClientId, googleConfigured } from './googleOauth';
+import { googleConfigured } from './googleOauth';
 import { setGoogleCreds } from './googleRuntime';
 import { track } from './analytics/track';
 import { getSetting, setSetting } from './db';
@@ -170,31 +170,8 @@ export function registerAuth(app: FastifyInstance) {
     return { ok: true, superadmin: true };
   });
 
-  // Which pre-auth login methods this deployment offers (so the login screen shows the right buttons).
-  app.get('/api/auth/providers', async () => ({ google: googleConfigured() }));
-
-  // --- Sign in with Google (login/identity; non-sensitive scopes, no Google verification needed) ---
-  const googleLoginRedirect = () => `${config.publicBaseUrl}/api/auth/google/callback`;
-
-  app.get('/api/auth/google/start', async (req, reply) => {
-    if (!googleConfigured()) return reply.code(404).send({ error: 'Google sign-in is not configured.' });
-    const state = randomBytes(16).toString('hex');
-    // CSRF: bind the state to a short-lived signed cookie and verify it on the callback.
-    reply.setCookie('g_oauth_state', state, {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      signed: true,
-      secure: config.cookieSecure,
-      maxAge: 600,
-    });
-    return reply.redirect(
-      buildAuthUrl({ clientId: googleClientId(), redirectUri: googleLoginRedirect(), scope: GOOGLE_SCOPES.login, state, prompt: 'select_account' }),
-    );
-  });
-
-  // Operator configures the Google OAuth client (id + secret) WITHOUT editing .env — stored in
-  // app_settings (secret encrypted via lib/crypto). Flips "Sign in with Google" on immediately.
+  // Operator sets the Google OAuth client (id + secret) WITHOUT editing .env — stored in app_settings
+  // (secret encrypted via lib/crypto). Powers the Google Workspace + Ads CONNECTORS (not login).
   app.post('/api/admin/google-oauth/configure', async (req, reply) => {
     if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Super-admin only.' });
     const b = (req.body ?? {}) as { clientId?: string; clientSecret?: string };
@@ -202,35 +179,7 @@ export function registerAuth(app: FastifyInstance) {
     const clientSecret = String(b.clientSecret ?? '').trim();
     if (!clientId || !clientSecret) return reply.code(400).send({ error: 'clientId and clientSecret are required.' });
     await setGoogleCreds(clientId, clientSecret);
-    return { ok: true, enabled: googleConfigured(), callbackUrl: googleLoginRedirect() };
-  });
-
-  app.get('/api/auth/google/callback', async (req, reply) => {
-    const q = (req.query ?? {}) as { code?: string; state?: string; error?: string };
-    const back = (status: string) => reply.redirect(`/?login=google&status=${status}`);
-    if (q.error || !q.code || !q.state) return back('cancelled');
-    const raw = req.cookies?.['g_oauth_state'];
-    const u = raw ? req.unsignCookie(raw) : { valid: false, value: null };
-    reply.clearCookie('g_oauth_state', { path: '/' });
-    if (!u.valid || !u.value || u.value !== q.state) return back('state'); // CSRF / stale
-    let profile;
-    try {
-      const tokens = await exchangeCode(q.code, googleLoginRedirect());
-      profile = await fetchUserInfo(tokens.accessToken);
-    } catch {
-      return back('error');
-    }
-    // SECURITY: trust only a Google-verified email, and never auto-create access. The email must
-    // already belong to an ArksAI user (invited/provisioned) — otherwise no account, ask for an invite.
-    if (!profile.email || !profile.emailVerified) return back('unverified');
-    const user = await getUserByEmail(profile.email);
-    if (!user) return back('no-account');
-    const orgs = user.isSuperadmin ? await listOrgs() : await orgsForUser(user.id);
-    if (!user.isSuperadmin && orgs.length === 0) return back('no-org');
-    const token = await createAuthSession(user.id, orgs[0]?.id ?? null);
-    setSessCookie(reply, token);
-    track('app_open', { userId: user.id, orgId: orgs[0]?.id ?? null });
-    return reply.redirect('/');
+    return { ok: true, enabled: googleConfigured(), callbackUrl: `${config.publicBaseUrl}/api/google/callback` };
   });
 
   app.get('/api/auth/me', async (req, reply) => {
@@ -305,9 +254,6 @@ export function registerAuth(app: FastifyInstance) {
     req.identity = isApi ? await resolveIdentity(req) : null;
     const open =
       url === '/api/auth/login' ||
-      url === '/api/auth/providers' ||
-      url === '/api/auth/google/start' ||
-      url === '/api/auth/google/callback' ||
       url === '/api/invites/accept' ||
       url === '/healthz' ||
       // Public B2B lead capture from the landing page (POST only; GET is admin).

@@ -124,6 +124,93 @@ function GithubCard() {
   );
 }
 
+const GG_ICON = (
+  <svg width="20" height="20" viewBox="0 0 18 18" aria-hidden="true">
+    <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" />
+    <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z" />
+    <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z" />
+    <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.47.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z" />
+  </svg>
+);
+
+/** Account-level Google Workspace connection: Gmail / Calendar / Drive·Sheets for the agent & robots. */
+function GoogleCard() {
+  const [status, setStatus] = useState<{ enabled: boolean; connected: boolean; email?: string | null } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const load = () => api.googleConnStatus().then(setStatus).catch(() => setStatus({ enabled: false, connected: false }));
+  useEffect(() => {
+    load();
+    // Surface the OAuth round-trip result (?google=connected|failed|invalid).
+    const p = new URLSearchParams(window.location.search);
+    const r = p.get('google');
+    if (r) {
+      setMsg(r === 'connected' ? 'Google connected.' : r === 'cancelled' ? 'Connection cancelled.' : `Couldn’t connect (${r}).`);
+      p.delete('google');
+      const qs = p.toString();
+      window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    }
+  }, []);
+
+  if (!status) return <div className="conn-card">Loading…</div>;
+
+  if (!status.enabled) {
+    return (
+      <div className="conn-card">
+        <div className="conn-head">
+          {GG_ICON} <strong>Google Workspace</strong>
+        </div>
+        <div className="conn-note">Google isn’t enabled on this workspace yet — the operator needs to add a Google OAuth client.</div>
+      </div>
+    );
+  }
+
+  const connect = () => {
+    window.location.href = '/api/google/connect';
+  };
+  const disconnect = async () => {
+    setBusy(true);
+    await api.googleDisconnect().catch(() => {});
+    await load();
+    setBusy(false);
+  };
+
+  return (
+    <div className="conn-card">
+      <div className="conn-head">
+        {GG_ICON} <strong>Google Workspace</strong>
+        {status.connected ? (
+          <span className="conn-badge ok">{status.email || 'connected'}</span>
+        ) : (
+          <span className="conn-badge">Not connected</span>
+        )}
+        <span style={{ flex: 1 }} />
+        {status.connected ? (
+          <button className="cancel" disabled={busy} onClick={disconnect}>
+            Disconnect
+          </button>
+        ) : (
+          <button className="send-btn" onClick={connect}>
+            Connect Google
+          </button>
+        )}
+      </div>
+      <div className="conn-note">
+        {status.connected
+          ? 'Connected — the agent & robots can work with your Gmail, Calendar, Drive/Sheets and Google Ads.'
+          : 'Connect your Google account so the agent & robots can send/read email (Gmail), manage events (Calendar), read your Sheets/Drive, and pull Google Ads performance.'}
+      </div>
+      {msg && <div className="conn-ok">{msg}</div>}
+      <div className="conn-note" style={{ color: 'var(--text-faint)', fontSize: 11.5 }}>
+        These use Google-restricted permissions — until this app finishes Google’s verification, only
+        people added as test users in Google Cloud can connect. (Google Ads reporting also needs a
+        developer token added by the operator.)
+      </div>
+    </div>
+  );
+}
+
 /**
  * The Connections hub — a user-facing place to manage every connector. GitHub for everyone;
  * the ad-platform connectors for org admins. Designed to grow as we add more connectors.
@@ -145,6 +232,8 @@ export function ConnectionsDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <GithubCard />
+
+        <GoogleCard />
 
         {isAdmin && (
           <div className="conn-card">

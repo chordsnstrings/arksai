@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-29.6';
+export const WHATS_NEW_VERSION = '2026-06-29.7';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Sign in with Google',
-    body: 'Team members can now log in with their Google account — one tap, no password. (It only works for people already invited to your workspace, so access stays controlled.)',
+    title: 'Connect your Google account',
+    body: 'In Connections you can now link Google — Gmail, Calendar, Drive/Sheets and Google Ads — so the agent and your robots can work with your Google data. Your tokens are encrypted and only ever used on your behalf.',
   },
   {
     title: 'Turn any app into an installable phone app — instantly',

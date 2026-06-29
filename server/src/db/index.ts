@@ -489,6 +489,23 @@ async function migrate() {
   )`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_github_conn_user ON github_connections(user_id)`);
 
+  // Per-user Google Workspace connection (Gmail / Calendar / Drive·Sheets for the agent + robots).
+  // Access + refresh tokens stored ENCRYPTED (AES-256-GCM via lib/crypto). One row per user.
+  await q(`CREATE TABLE IF NOT EXISTS google_connections(
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    org_id TEXT,
+    email TEXT,
+    access_token_enc TEXT NOT NULL,
+    refresh_token_enc TEXT,
+    scopes TEXT,
+    expires_at ${INT},
+    status TEXT NOT NULL,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_google_conn_user ON google_connections(user_id)`);
+
   // Org prepaid wallet (cached balance) + append-only ledger (the statement/invoice source of
   // truth). ALL amounts are integer MICRO-USD (USD×1e6) so balances never drift. USD is canonical;
   // a floating display currency (BDT) is shown as an indicative conversion only.
