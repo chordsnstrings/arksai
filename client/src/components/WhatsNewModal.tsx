@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-29.7';
+export const WHATS_NEW_VERSION = '2026-06-30.1';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Connect your Google account',
-    body: 'In Connections you can now link Google — Gmail, Calendar, Drive/Sheets and Google Ads — so the agent and your robots can work with your Google data. Your tokens are encrypted and only ever used on your behalf.',
-  },
-  {
-    title: 'Turn any app into an installable phone app — instantly',
-    body: 'Ask to make your app installable / work offline and it now happens in one fast, reliable step: a proper install setup, an offline mode, and real app icons — done right the first time instead of the slow back-and-forth it used to take.',
-  },
-  {
-    title: 'It’s reviewed before it goes live — not after',
-    body: 'Publishing runs the full quality review first and only puts your app online once it passes — you’ll never get a link to a rough draft and then watch it get reworked. And the Publish window (which was getting clipped into the top bar) now opens centered with your live link.',
+    title: 'A bigger, bolder design range — 40 fresh looks',
+    body: 'Your builds now draw from 40 hand-tested modern design directions — clean product dashboards, Apple-style bento, glassmorphism (including Apple’s new Liquid Glass), calendar-heatmaps, editorial luxury, even cyberpunk and synthwave. The agent picks the one that fits your subject, so every app and website looks distinct and current instead of like the same template.',
   },
 ];
 

@@ -1,6 +1,8 @@
 import type { TaskProfile, TaskType } from './taskProfile';
 import { paletteMenu } from './palettes';
 import { looksMenu } from './looks';
+import { directionsMenu } from './directions';
+import { config } from '../config';
 
 /**
  * The opinionated design brain. Generalized from the report protocol so EVERY
@@ -285,5 +287,11 @@ export function designContext(profile: TaskProfile): string {
   // Complete "looks" = a confident palette + a type pairing + a style in ONE pick. The FASTEST
   // route to a high design floor: pick the look that fits the subject, then refine.
   const looks = `\n\n## Complete looks (a vetted palette + type + style in one pick — fastest high floor)\nApply with <html data-kit="<name>"> (UI kit) or by setting the same --accent ramp + --font-display/--font-sans. Start from the fitting one, then make it bespoke.\n${looksMenu()}`;
-  return (pack ? `${designCore}\n\n${pack}` : designCore) + swatch + looks;
+  // The richer, modern, tested DIRECTION library: 40 complete recipes (a layout archetype + a font
+  // trio + an accent + a signature), each validated on a real build. This is how the agent gets
+  // RANGE — it picks the ONE that fits the subject so output is modern + varied, never templated.
+  const directions = config.directionLibrary
+    ? `\n\n## Direction library — 40 tested modern recipes (PICK ONE that fits the subject)\nThese are vetted complete starting points that go BEYOND the smooth-only defaults above — bolder, more current, structurally varied. Choose the SINGLE direction whose archetype + mood genuinely fit THIS subject (vary it across builds — never default to the same one), then apply it:\n- Use its exact FONT TRIO via a Google Fonts <link> (these recipes are vetted, so their type choices — incl. bolder faces like Bricolage/Unbounded/Bodoni/Sora — are intentional and override the smooth-only font list above WHEN you pick that direction).\n- Use its accent as --accent and build the neutral system + ramp around it per the colour rules above; run validate_palette so every text passes AA.\n- Build the direction's SIGNATURE archetype as the page's structure (e.g. a heatmap hero, a command bar, a bento grid, a glass stack) — that's what makes it non-templated.\nORIGINALITY: invent your OWN brand name + real copy grounded in the subject — never reuse a direction's id/name as the product name. SELF-EXPLANATORY: label every number with its meaning (a streak is "3 day streak", a count is "2 of 5 done" — never a bare digit).\n${directionsMenu()}`
+    : '';
+  return (pack ? `${designCore}\n\n${pack}` : designCore) + swatch + looks + directions;
 }

@@ -61,6 +61,11 @@ export const config = {
   // Per-session preview-port allocation (kills the canvas port race). Default on;
   // set PREVIEW_PORT_ALLOC=0 to fall back to the legacy fixed-4000 + /proc-scan path.
   previewPortAlloc: process.env.PREVIEW_PORT_ALLOC !== '0',
+  // Direction library: inject the curated catalog of 40 tested modern design directions
+  // (a layout archetype + a font trio + an accent + a signature) into the design context for
+  // visual builds, so the agent picks a fitting, modern, varied look instead of one default.
+  // On by default; set DIRECTION_LIBRARY=0 to disable.
+  directionLibrary: process.env.DIRECTION_LIBRARY !== '0',
   dataDir: process.env.DATA_DIR || path.join(repoRoot, 'data'),
   databaseUrl: process.env.DATABASE_URL || '',
   // Admin connection to a managed Postgres used to PROVISION per-app databases for deployed apps
