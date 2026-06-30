@@ -12,6 +12,12 @@ const DEV_PORTS = [4000, 5173, 5174, 3000, 3001, 4200, 8080, 8000, 5000, 4173, 8
 
 function pickPreviewPort(ports: number[], prefer?: number | null): number | undefined {
   if (prefer && ports.includes(prefer)) return prefer; // the exact open_canvas port wins
+  // The server now returns ONLY this session's recorded preview port (a single,
+  // authoritative entry) — trust it directly. No /proc scanning, no DEV_PORTS
+  // guessing, and it works for the allocated 42xxx range too (outside the legacy
+  // 3000–9999 window below). The heuristic remains only as a legacy fallback for
+  // PREVIEW_PORT_ALLOC=0, where /ports returns the raw multi-port list.
+  if (ports.length === 1) return ports[0];
   for (const p of DEV_PORTS) if (ports.includes(p)) return p;
   // No well-known dev port: only auto-pick if there's a single plausible
   // app-range port. Otherwise let the user choose to avoid loading noise.
