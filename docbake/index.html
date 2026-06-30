@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ArksAI — Doc bake-off (PPTX + PDF through our system)</title>
+<style>
+ body{margin:0;background:#0f1115;color:#e7eaee;font:15px/1.55 -apple-system,Inter,system-ui,sans-serif;padding:28px 20px 60px}
+ .wrap{max-width:1040px;margin:0 auto}
+ h1{font-size:23px;margin:0 0 4px;letter-spacing:-.01em}
+ .sub{color:#9aa3af;margin:0 0 24px;font-size:13.5px}
+ h2{font-size:15px;margin:30px 0 10px;color:#fff}
+ img{width:100%;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.4);display:block;margin:6px 0 16px}
+ table{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0 18px}
+ th,td{text-align:left;padding:7px 10px;border-bottom:1px solid #232733}
+ th{color:#9aa3af;font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
+ td b{color:#fff}
+ .links{display:flex;flex-wrap:wrap;gap:8px}
+ a.btn{display:inline-block;background:#181b20;border:1px solid #2a2f3a;color:#cfd6df;text-decoration:none;padding:7px 12px;border-radius:9px;font-size:12.5px}
+ a.btn:hover{border-color:#3a4250;color:#fff}
+ .accent{color:#36c08f}
+ .note{color:#9aa3af;font-size:12.5px}
+</style></head><body><div class="wrap">
+<h1>Doc bake-off — PPTX + PDF <span class="accent">through our system</span></h1>
+<p class="sub">Same UAE car-wash market brief (1-page PDF) + SparkleWash 6-slide investor deck. Each model authored the HTML / slide-spec; ArksAI's REAL <code>render_report</code> (Chromium <code>page.pdf</code>) and <code>generate_pptx</code> (pptxgenjs) tools produced the artifacts — 100% success, no stalls.</p>
+
+<table>
+ <tr><th>Model</th><th>PDF author</th><th>PDF $</th><th>PPTX author</th><th>PPTX $</th><th>Open</th></tr>
+ <tr><td><b>Claude</b> <span class="note">(ref)</span></td><td>—</td><td>—</td><td>—</td><td>—</td><td class="links"><a class="btn" href="Claude.report.pdf">PDF</a><a class="btn" href="Claude.deck.pptx">PPTX</a></td></tr>
+ <tr><td><b>DeepSeek-V4-flash</b></td><td>74.6s</td><td class="accent">$0.0024</td><td>29.9s</td><td class="accent">$0.0011</td><td class="links"><a class="btn" href="DeepSeek-V4-flash.report.pdf">PDF</a><a class="btn" href="DeepSeek-V4-flash.deck.pptx">PPTX</a></td></tr>
+ <tr><td><b>GLM-4.7</b></td><td>73.3s</td><td>$0.0143</td><td>25.0s</td><td>$0.0054</td><td class="links"><a class="btn" href="GLM-4.7.report.pdf">PDF</a><a class="btn" href="GLM-4.7.deck.pptx">PPTX</a></td></tr>
+ <tr><td><b>DeepSeek-V4-pro</b></td><td>300.4s ⚠️</td><td>$0.0475</td><td>53.6s</td><td>$0.0121</td><td class="links"><a class="btn" href="DeepSeek-V4-pro.report.pdf">PDF</a><a class="btn" href="DeepSeek-V4-pro.deck.pptx">PPTX</a></td></tr>
+</table>
+<p class="note">⚠️ V4-pro over-reasons on the big single PDF (300s) — the same stall pattern M3 has. The cheap/fast tier (V4-flash / GLM-4.7) is both cheaper AND faster with no quality loss on templated deliverables.</p>
+
+<h2>PDF reports — side by side</h2>
+<img src="compare_reports.png" alt="PDF report comparison">
+
+<h2>PPTX deck covers — side by side</h2>
+<img src="compare_decks.png" alt="PPTX deck cover comparison">
+<p class="note">The deck cover is design-identical across all four models — <code>generate_pptx</code> owns the layout, so the brain only fills copy. The $0.0011 V4-flash deck is visually indistinguishable from the premium tier; the only differentiator is copy/interpretation.</p>
+</div></body></html>
