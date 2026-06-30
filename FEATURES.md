@@ -158,6 +158,7 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 - Dark mode for the Engineering (developer) team, with a smooth animated dark↔light crossfade (mobile + desktop, reduced-motion aware).
 
 ## Platform plumbing
+- **Per-session preview ports (no more canvas race)** — each session's in-canvas app preview now gets ONE unique, recorded port (range 42000–42999) via an atomic in-process allocator, instead of every app sharing port 4000 and the client scanning `/proc` to *guess* which port is which. Two users previewing two apps at once no longer collide or mis-load each other's app; the `/ports` endpoint returns the session's own port authoritatively (no noise-port mis-pick on reload). Flag-gated (`PREVIEW_PORT_ALLOC=0` restores the legacy path); verified with concurrent sessions each serving its own app.
 - Projects — persistent workspaces (instructions, defaults, branding, knowledge base) that sessions inherit.
 - Memory (global/repo/project scopes + ARKS.md); custom slash commands.
 - Dual-driver storage (Postgres or SQLite); durable timeline; cost/token accounting.

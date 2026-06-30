@@ -3,6 +3,8 @@ import path from 'node:path';
 import { execBash } from '../lib/exec';
 import { detectStartCommand } from './verify';
 import { processRegistry } from './processes';
+import { config } from '../config';
+import { previewRegistry } from '../sandbox/previewRegistry';
 
 export interface Renderable {
   /** Can this be shown in the canvas preview (a web app or static HTML)? */
@@ -141,6 +143,9 @@ export function detectFrontendBuild(dir: string): { outDir: string } | null {
 export function startPreviewServer(sessionId: string, dir: string, r: Renderable): number | null {
   try {
     processRegistry.killAllForSession(sessionId);
+    // One unique, recorded port per session (kills the canvas port race). Legacy fixed-4000
+    // remains available via PREVIEW_PORT_ALLOC=0 for rollback.
+    const port = config.previewPortAlloc ? previewRegistry.allocPort(sessionId) : 4000;
     // Build-to-static frontend → build (if needed) then serve the static output. This is the
     // default because the static build renders reliably through the canvas proxy, whereas a
     // dev server's absolute module paths + HMR websocket do not.
@@ -151,18 +156,19 @@ export function startPreviewServer(sessionId: string, dir: string, r: Renderable
         `if [ ! -d "${out}" ] || [ -z "$(ls -A "${out}" 2>/dev/null)" ]; then ` +
         `(test -d node_modules || npm install --no-audit --no-fund --loglevel=error) && npm run build; fi; ` +
         `if [ -d "${out}" ]; then cd "${out}"; fi; ` +
-        `exec python3 -m http.server 4000 --bind 0.0.0.0`;
+        `exec python3 -m http.server ${port} --bind 0.0.0.0`;
       processRegistry.start(sessionId, cmd, dir, 'preview');
-      return 4000;
+      return port;
     }
     if (r.startCmd) {
-      processRegistry.start(sessionId, r.startCmd, dir, 'preview');
-      return 4000;
+      // The app reads PORT from its env — hand it the allocated port (childEnv default is 4000).
+      processRegistry.start(sessionId, r.startCmd, dir, 'preview', { PORT: String(port) });
+      return port;
     }
     if (r.staticDir) {
       const serveDir = path.join(dir, r.staticDir);
-      processRegistry.start(sessionId, 'python3 -m http.server 4000 --bind 0.0.0.0', serveDir, 'preview');
-      return 4000;
+      processRegistry.start(sessionId, `python3 -m http.server ${port} --bind 0.0.0.0`, serveDir, 'preview');
+      return port;
     }
   } catch {
     /* preview is a convenience — a failure here must not fail the run */

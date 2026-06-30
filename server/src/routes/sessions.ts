@@ -150,6 +150,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
     try {
       deleteWorkspace(id);
     } catch {}
+    previewRegistry.release(id);
     bus.emitGlobal({ type: 'session_deleted', sessionId: id, orgId: sess.orgId });
     return { ok: true };
   });
@@ -330,6 +331,12 @@ export function registerSessionRoutes(app: FastifyInstance) {
   app.get('/api/sessions/:id/ports', async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
+    // Authoritative: if this session has an allocated preview port, return ONLY it — the
+    // client never has to guess among noise ports (2024/2025/ephemeral) on reload.
+    if (config.previewPortAlloc) {
+      const p = previewRegistry.portFor(id);
+      if (p != null) return { ports: [p] };
+    }
     return { ports: await listListeningPorts() };
   });
 }
@@ -337,6 +344,7 @@ export function registerSessionRoutes(app: FastifyInstance) {
 import fs from 'node:fs';
 import { config } from '../config';
 import { listeningPorts } from '../lib/ports';
+import { previewRegistry } from '../sandbox/previewRegistry';
 
 /** Listening ports inside the container, excluding the app's own. */
 async function listListeningPorts(): Promise<number[]> {

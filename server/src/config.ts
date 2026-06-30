@@ -53,6 +53,9 @@ export const config = {
   // Auto-Brief: inject the deterministic per-deliverable rigor scaffold into the system
   // prompt (Phase 1). On by default; set AUTO_BRIEF=0 to disable.
   autoBrief: process.env.AUTO_BRIEF !== '0',
+  // Per-session preview-port allocation (kills the canvas port race). Default on;
+  // set PREVIEW_PORT_ALLOC=0 to fall back to the legacy fixed-4000 + /proc-scan path.
+  previewPortAlloc: process.env.PREVIEW_PORT_ALLOC !== '0',
   dataDir: process.env.DATA_DIR || path.join(repoRoot, 'data'),
   databaseUrl: process.env.DATABASE_URL || '',
   clientDist:
