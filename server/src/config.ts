@@ -58,6 +58,9 @@ export const config = {
   // avoid) that the build then follows — the per-request "think first" step Claude does
   // internally. On by default (needs the MiniMax key); set DESIGN_BRIEF=0 to disable.
   designBrief: process.env.DESIGN_BRIEF !== '0',
+  // Per-session preview-port allocation (kills the canvas port race). Default on;
+  // set PREVIEW_PORT_ALLOC=0 to fall back to the legacy fixed-4000 + /proc-scan path.
+  previewPortAlloc: process.env.PREVIEW_PORT_ALLOC !== '0',
   dataDir: process.env.DATA_DIR || path.join(repoRoot, 'data'),
   databaseUrl: process.env.DATABASE_URL || '',
   // Admin connection to a managed Postgres used to PROVISION per-app databases for deployed apps

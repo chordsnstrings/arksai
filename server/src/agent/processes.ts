@@ -29,7 +29,13 @@ class ProcessRegistry {
   private children = new Map<string, ReturnType<typeof spawn>>();
   private counter = 0;
 
-  start(sessionId: string, command: string, cwd: string, name?: string): BgProcess {
+  start(
+    sessionId: string,
+    command: string,
+    cwd: string,
+    name?: string,
+    extraEnv: Record<string, string> = {},
+  ): BgProcess {
     const live = this.listForSession(sessionId).filter((p) => !p.exited);
     if (live.length >= MAX_PER_SESSION) {
       throw new Error(
@@ -46,7 +52,7 @@ class ProcessRegistry {
 
     const child = spawn('bash', ['-c', command], {
       cwd,
-      env: childEnv(),
+      env: childEnv(extraEnv),
       detached: true, // own process group so kill() takes the whole tree
       stdio: ['ignore', fd, fd],
     });
