@@ -1,0 +1,521 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Sparkle Car Wash - Book Now</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --text: #1e293b;
+            --light: #f1f5f9;
+            --border: #e2e8f0;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f8fafc;
+            color: var(--text);
+            line-height: 1.6;
+            padding: 1rem;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 2rem 0 1rem;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: #64748b;
+            font-size: 1.1rem;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 900px;
+            margin: 0 auto 2rem;
+            background-color: white;
+            border-radius: 1.25rem;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        /* Form Groups */
+        .form-group {
+            margin-bottom: 2.5rem;
+        }
+
+        .form-group h2 {
+            font-size: 1.25rem;
+            color: var(--text);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--light);
+        }
+
+        /* Package Grid */
+        .packages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .package-option input[type="radio"] {
+            display: none;
+        }
+
+        .package-card {
+            border: 2px solid var(--border);
+            border-radius: 1rem;
+            padding: 1.75rem;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            text-align: center;
+            background-color: white;
+        }
+
+        .package-card:hover {
+            border-color: #cbd5e1;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .package-option input[type="radio"]:checked + .package-card {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+            transform: translateY(-4px);
+        }
+
+        .package-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        .price {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 1.25rem;
+        }
+
+        .services {
+            list-style: none;
+            text-align: left;
+        }
+
+        .services li {
+            margin-bottom: 0.75rem;
+            padding-left: 1.5rem;
+            position: relative;
+            color: #475569;
+        }
+
+        .services li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        /* Date/Time & Details Grid */
+        .datetime-grid,
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .input-group label {
+            font-weight: 500;
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+
+        .input-group input {
+            padding: 0.875rem;
+            border: 1px solid var(--border);
+            border-radius: 0.625rem;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            color: var(--text);
+        }
+
+        .input-group input::placeholder {
+            color: #94a3b8;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        /* Submit Button */
+        .submit-btn {
+            width: 100%;
+            padding: 1.125rem;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.625rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .submit-btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Hidden Class */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Confirmation Section */
+        .confirmation-section {
+            text-align: center;
+        }
+
+        .confirmation-card {
+            max-width: 550px;
+            margin: 0 auto;
+        }
+
+        .success-icon {
+            font-size: 5rem;
+            margin-bottom: 1rem;
+        }
+
+        .confirmation-card h2 {
+            font-size: 1.75rem;
+            color: var(--text);
+            margin-bottom: 1rem;
+        }
+
+        .booking-code {
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background-color: var(--light);
+            border-radius: 0.625rem;
+            color: var(--text);
+        }
+
+        .booking-code strong {
+            color: var(--primary);
+            font-size: 1.4rem;
+        }
+
+        .booking-details {
+            text-align: left;
+            background-color: var(--light);
+            padding: 1.75rem;
+            border-radius: 0.625rem;
+            margin-bottom: 2rem;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .detail-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: #64748b;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 1rem 0;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            .container {
+                padding: 1.25rem;
+                border-radius: 1rem;
+            }
+
+            .header h1 {
+                font-size: 1.75rem;
+            }
+
+            .packages-grid {
+                gap: 1rem;
+            }
+
+            .package-card {
+                padding: 1.25rem;
+            }
+
+            .price {
+                font-size: 1.875rem;
+            }
+
+            .confirmation-card h2 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>✨ Sparkle Car Wash</h1>
+        <p>Book your car wash in 3 easy steps</p>
+    </header>
+
+    <main class="container">
+        <!-- Booking Form -->
+        <section id="booking-form" class="booking-section">
+            <form id="wash-form">
+                <!-- Package Selection -->
+                <div class="form-group">
+                    <h2>1. Choose Your Package</h2>
+                    <div class="packages-grid">
+                        <!-- Basic Package -->
+                        <div class="package-option">
+                            <input type="radio" id="pkg-basic" name="package" value="Basic" required>
+                            <label for="pkg-basic" class="package-card">
+                                <h3>Basic</h3>
+                                <div class="price">$25</div>
+                                <ul class="services">
+                                    <li>Exterior Hand Wash</li>
+                                    <li>Tire Shine & Conditioner</li>
+                                    <li>Air Freshener</li>
+                                </ul>
+                            </label>
+                        </div>
+
+                        <!-- Deluxe Package -->
+                        <div class="package-option">
+                            <input type="radio" id="pkg-deluxe" name="package" value="Deluxe" required>
+                            <label for="pkg-deluxe" class="package-card">
+                                <h3>Deluxe</h3>
+                                <div class="price">$45</div>
+                                <ul class="services">
+                                    <li>All Basic Services</li>
+                                    <li>Full Interior Vacuum</li>
+                                    <li>Dashboard & Console Wipe</li>
+                                </ul>
+                            </label>
+                        </div>
+
+                        <!-- Premium Package -->
+                        <div class="package-option">
+                            <input type="radio" id="pkg-premium" name="package" value="Premium" required>
+                            <label for="pkg-premium" class="package-card">
+                                <h3>Premium</h3>
+                                <div class="price">$65</div>
+                                <ul class="services">
+                                    <li>All Deluxe Services</li>
+                                    <li>Hand Wax & Paint Sealant</li>
+                                    <li>Engine Bay Shine</li>
+                                    <li>Glass Water Repellent</li>
+                                </ul>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Date & Time Selection -->
+                <div class="form-group">
+                    <h2>2. Pick Date & Time</h2>
+                    <div class="datetime-grid">
+                        <div class="input-group">
+                            <label for="wash-date">Appointment Date</label>
+                            <input type="date" id="wash-date" name="date" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="wash-time">Appointment Time</label>
+                            <input type="time" id="wash-time" name="time" min="09:00" max="17:00" step="900" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Customer Details -->
+                <div class="form-group">
+                    <h2>3. Your Details</h2>
+                    <div class="details-grid">
+                        <div class="input-group">
+                            <label for="customer-name">Full Name</label>
+                            <input type="text" id="customer-name" name="name" placeholder="John Doe" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="car-details">Car Details (Make/Model/Color)</label>
+                            <input type="text" id="car-details" name="car" placeholder="Toyota Camry, Silver" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="customer-phone">Phone Number</label>
+                            <input type="tel" id="customer-phone" name="phone" placeholder="(555) 123-4567" pattern="[0-9\-\(\)\s]{7,}" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="submit-btn">Book My Wash 🚗</button>
+            </form>
+        </section>
+
+        <!-- Confirmation Section -->
+        <section id="confirmation" class="confirmation-section hidden">
+            <div class="confirmation-card">
+                <div class="success-icon">✅</div>
+                <h2>Booking Confirmed!</h2>
+                <p class="booking-code">Booking Code: <strong id="conf-code"></strong></p>
+                
+                <div class="booking-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Package:</span>
+                        <span class="detail-value" id="conf-package"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Date:</span>
+                        <span class="detail-value" id="conf-date"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Time:</span>
+                        <span class="detail-value" id="conf-time"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Customer Name:</span>
+                        <span class="detail-value" id="conf-name"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Car Details:</span>
+                        <span class="detail-value" id="conf-car"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Phone Number:</span>
+                        <span class="detail-value" id="conf-phone"></span>
+                    </div>
+                </div>
+
+                <button id="new-booking-btn" class="submit-btn">Make Another Booking</button>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>&copy; 2024 Sparkle Car Wash. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Generate unique booking code (format: CAR-XXXXXX where X is alphanumeric)
+        function generateBookingCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return `CAR-${code}`;
+        }
+
+        // Format date to human-readable string
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        // Set minimum date to today on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('wash-date').min = today;
+        });
+
+        // Handle form submission
+        document.getElementById('wash-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            // Get form data
+            const formData = new FormData(e.target);
+            const booking = {
+                code: generateBookingCode(),
+                package: formData.get('package'),
+                date: formData.get('date'),
+                time: formData.get('time'),
+                name: formData.get('name').trim(),
+                car: formData.get('car').trim(),
+                phone: formData.get('phone').trim(),
+                createdAt: new Date().toISOString()
+            };
+
+            // Save to localStorage
+            let bookings = JSON.parse(localStorage.getItem('carWashBookings')) || [];
+            bookings.push(booking);
+            localStorage.setItem('carWashBookings', JSON.stringify(bookings));
+
+            // Populate confirmation
+            document.getElementById('conf-code').textContent = booking.code;
+            document.getElementById('conf-package').textContent = booking.package;
+            document.getElementById('conf-date').textContent = formatDate(booking.date);
+            document.getElementById('conf-time').textContent = booking.time;
+            document.getElementById('conf-name').textContent = booking.name;
+            document.getElementById('conf-car').textContent = booking.car;
+            document.getElementById('conf-phone').textContent = booking.phone;
+
+            // Switch sections
+            document.getElementById('booking-form').classList.add('hidden');
+            document.getElementById('confirmation').classList.remove('hidden');
+        });
+
+        // Handle new booking button
+        document.getElementById('new-booking-btn').addEventListener('click', () => {
+            document.getElementById('wash-form').reset();
+            document.getElementById('confirmation').classList.add('hidden');
+            document.getElementById('booking-form').classList.remove('hidden');
+        });
+    </script>
+</body>
+</html>
+```

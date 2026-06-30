@@ -1,0 +1,820 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sparkle Car Wash – Book Now</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+    <style>
+        /* ── Reset & Base ── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #dbeafe;
+            --accent: #f59e0b;
+            --accent-light: #fef3c7;
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-300: #cbd5e1;
+            --gray-400: #94a3b8;
+            --gray-500: #64748b;
+            --gray-600: #475569;
+            --gray-700: #334155;
+            --gray-800: #1e293b;
+            --gray-900: #0f172a;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.10);
+            --transition: 0.25s ease;
+            --font: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--gray-50);
+            color: var(--gray-800);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px 48px;
+        }
+
+        /* ── Container ── */
+        .app {
+            max-width: 720px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        /* ── Header ── */
+        .header {
+            text-align: center;
+            padding: 32px 20px 28px;
+            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+            border-radius: var(--radius);
+            color: #fff;
+            margin-bottom: 32px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            top: -60%;
+            right: -20%;
+            width: 300px;
+            height: 300px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .header-icon {
+            font-size: 2.8rem;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 4px;
+        }
+
+        .header p {
+            font-size: 0.95rem;
+            opacity: 0.85;
+            font-weight: 400;
+        }
+
+        /* ── Card ── */
+        .card {
+            background: #fff;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 28px 24px;
+            margin-bottom: 24px;
+            transition: box-shadow var(--transition);
+        }
+
+        .card-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title .step {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        /* ── Package Cards ── */
+        .packages {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .package-card {
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            padding: 18px 12px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+            background: #fff;
+            user-select: none;
+            position: relative;
+        }
+
+        .package-card:hover {
+            border-color: var(--gray-300);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+        }
+
+        .package-card.selected {
+            border-color: var(--primary);
+            background: var(--primary-light);
+            box-shadow: 0 0 0 1px var(--primary);
+        }
+
+        .package-card.selected .pkg-name {
+            color: var(--primary-dark);
+        }
+
+        .package-card .pkg-icon {
+            font-size: 1.8rem;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .package-card .pkg-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--gray-800);
+            transition: color var(--transition);
+        }
+
+        .package-card .pkg-price {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--gray-900);
+            margin-top: 4px;
+        }
+
+        .package-card .pkg-price small {
+            font-weight: 400;
+            font-size: 0.75rem;
+            color: var(--gray-500);
+        }
+
+        .package-card .pkg-desc {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+
+        .package-card .check {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: transparent;
+            transition: all var(--transition);
+        }
+
+        .package-card.selected .check {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        /* ── Form Elements ── */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group.full {
+            grid-column: 1 / -1;
+        }
+
+        .form-group label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+
+        .form-group input,
+        .form-group select {
+            font-family: var(--font);
+            font-size: 0.95rem;
+            padding: 10px 14px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            background: #fff;
+            color: var(--gray-800);
+            transition: border-color var(--transition), box-shadow var(--transition);
+            outline: none;
+            width: 100%;
+            appearance: auto;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        .form-group input::placeholder {
+            color: var(--gray-400);
+        }
+
+        .form-group input.error,
+        .form-group select.error {
+            border-color: #ef4444;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.10);
+        }
+
+        .error-msg {
+            font-size: 0.75rem;
+            color: #ef4444;
+            min-height: 0;
+            opacity: 0;
+            transition: opacity var(--transition);
+            pointer-events: none;
+        }
+
+        .error-msg.visible {
+            opacity: 1;
+        }
+
+        /* ── Time slots (fallback for select) ── */
+        select option {
+            padding: 8px;
+        }
+
+        /* ── Submit Button ── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: var(--font);
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 14px 32px;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+            width: 100%;
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .btn-secondary {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            border: 2px solid var(--gray-200);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-200);
+            border-color: var(--gray-300);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+        }
+
+        /* ── Confirmation ── */
+        .confirmation {
+            display: none;
+            animation: fadeUp 0.45s ease forwards;
+        }
+
+        .confirmation.visible {
+            display: block;
+        }
+
+        @keyframes fadeUp {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .confirmation .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #dcfce7;
+            color: #166534;
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 6px 16px 6px 12px;
+            border-radius: 100px;
+            margin-bottom: 16px;
+        }
+
+        .confirmation .badge .icon {
+            font-size: 1.1rem;
+        }
+
+        .confirmation .code-box {
+            background: var(--gray-100);
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            text-align: center;
+            margin: 16px 0 20px;
+            border: 2px dashed var(--gray-300);
+        }
+
+        .confirmation .code-box .label {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 500;
+        }
+
+        .confirmation .code-box .code {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            color: var(--gray-900);
+            margin-top: 2px;
+            font-family: monospace;
+        }
+
+        .confirmation .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 20px;
+            margin: 16px 0 24px;
+        }
+
+        .confirmation .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .confirmation .detail-item .label {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            font-weight: 500;
+        }
+
+        .confirmation .detail-item .value {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--gray-800);
+        }
+
+        /* ── Booking form (hidden after submit) ── */
+        .booking-form.hidden {
+            display: none;
+        }
+
+        /* ── Toast / notification ── */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: var(--gray-900);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 100px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            box-shadow: var(--shadow-lg);
+            opacity: 0;
+            transition: all 0.4s ease;
+            pointer-events: none;
+            z-index: 100;
+            max-width: 90vw;
+            white-space: nowrap;
+        }
+
+        .toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+            body {
+                padding: 16px 12px 32px;
+            }
+
+            .header {
+                padding: 24px 16px 20px;
+            }
+
+            .header h1 {
+                font-size: 1.35rem;
+            }
+
+            .header-icon {
+                font-size: 2.2rem;
+            }
+
+            .card {
+                padding: 20px 16px;
+            }
+
+            .packages {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .package-card {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                text-align: left;
+                padding: 14px 16px;
+            }
+
+            .package-card .pkg-icon {
+                font-size: 1.5rem;
+                margin-bottom: 0;
+                flex-shrink: 0;
+            }
+
+            .package-card .pkg-info {
+                flex: 1;
+            }
+
+            .package-card .pkg-name {
+                font-size: 0.9rem;
+            }
+
+            .package-card .pkg-price {
+                font-size: 1rem;
+                margin-top: 0;
+            }
+
+            .package-card .pkg-desc {
+                margin-top: 2px;
+            }
+
+            .package-card .check {
+                position: static;
+                flex-shrink: 0;
+                margin-left: auto;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+
+            .confirmation .details-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .confirmation .code-box .code {
+                font-size: 1.4rem;
+            }
+
+            .btn {
+                padding: 12px 24px;
+                font-size: 0.95rem;
+            }
+
+            .toast {
+                font-size: 0.8rem;
+                padding: 10px 18px;
+                bottom: 16px;
+            }
+        }
+
+        @media (min-width: 641px) and (max-width: 768px) {
+            .packages {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 10px;
+            }
+
+            .package-card {
+                padding: 14px 8px 12px;
+            }
+
+            .package-card .pkg-icon {
+                font-size: 1.5rem;
+            }
+
+            .package-card .pkg-price {
+                font-size: 1rem;
+            }
+        }
+
+        /* ── Utility ── */
+        .mt-8 {
+            margin-top: 8px;
+        }
+        .mt-16 {
+            margin-top: 16px;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .flex {
+            display: flex;
+        }
+        .gap-8 {
+            gap: 8px;
+        }
+        .gap-12 {
+            gap: 12px;
+        }
+        .items-center {
+            align-items: center;
+        }
+        .justify-center {
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app" id="app">
+
+        <!-- ─── Header ─── -->
+        <header class="header">
+            <span class="header-icon">🚗</span>
+            <h1>Sparkle Car Wash</h1>
+            <p>Book your premium wash in seconds</p>
+        </header>
+
+        <!-- ─── Toast ─── -->
+        <div class="toast" id="toast"></div>
+
+        <!-- ─── Booking Form ─── -->
+        <div class="booking-form" id="bookingForm">
+
+            <!-- Step 1: Package -->
+            <div class="card">
+                <div class="card-title">
+                    <span class="step">1</span>
+                    Choose a Wash Package
+                </div>
+                <div class="packages" id="packages">
+                    <!-- Basic -->
+                    <div class="package-card" data-package="basic" data-price="9.99" data-desc="Exterior wash &amp; dry">
+                        <span class="pkg-icon">🧼</span>
+                        <div class="pkg-info">
+                            <div class="pkg-name">Basic</div>
+                            <div class="pkg-price">$9.99 <small></small></div>
+                            <div class="pkg-desc">Exterior wash &amp; dry</div>
+                        </div>
+                        <span class="check">✓</span>
+                    </div>
+                    <!-- Deluxe -->
+                    <div class="package-card" data-package="deluxe" data-price="19.99" data-desc="Exterior + interior vacuum">
+                        <span class="pkg-icon">✨</span>
+                        <div class="pkg-info">
+                            <div class="pkg-name">Deluxe</div>
+                            <div class="pkg-price">$19.99 <small></small></div>
+                            <div class="pkg-desc">Exterior + interior vacuum</div>
+                        </div>
+                        <span class="check">✓</span>
+                    </div>
+                    <!-- Premium -->
+                    <div class="package-card" data-package="premium" data-price="29.99" data-desc="Full detail + wax + shine">
+                        <span class="pkg-icon">🌟</span>
+                        <div class="pkg-info">
+                            <div class="pkg-name">Premium</div>
+                            <div class="pkg-price">$29.99 <small></small></div>
+                            <div class="pkg-desc">Full detail + wax + shine</div>
+                        </div>
+                        <span class="check">✓</span>
+                    </div>
+                </div>
+                <div class="error-msg" id="packageError">Please select a package.</div>
+            </div>
+
+            <!-- Step 2: Date & Time -->
+            <div class="card">
+                <div class="card-title">
+                    <span class="step">2</span>
+                    Pick Date &amp; Time
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dateInput">Date</label>
+                        <input type="date" id="dateInput" />
+                        <div class="error-msg" id="dateError">Please select a valid date.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="timeInput">Time</label>
+                        <select id="timeInput">
+                            <option value="">Select time…</option>
+                        </select>
+                        <div class="error-msg" id="timeError">Please select a time.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Details -->
+            <div class="card">
+                <div class="card-title">
+                    <span class="step">3</span>
+                    Your Details
+                </div>
+                <div class="form-row">
+                    <div class="form-group full">
+                        <label for="nameInput">Full Name</label>
+                        <input type="text" id="nameInput" placeholder="e.g. Jane Smith" autocomplete="name" />
+                        <div class="error-msg" id="nameError">Please enter your name.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="carInput">Car Model / Plate</label>
+                        <input type="text" id="carInput" placeholder="e.g. Tesla Model 3 · ABC-1234" autocomplete="off" />
+                        <div class="error-msg" id="carError">Please enter your car info.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="phoneInput">Phone Number</label>
+                        <input type="tel" id="phoneInput" placeholder="e.g. (555) 123-4567" autocomplete="tel" />
+                        <div class="error-msg" id="phoneError">Please enter a valid phone number.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit -->
+            <button class="btn" id="submitBtn">📋 Book Now</button>
+        </div>
+
+        <!-- ─── Confirmation ─── -->
+        <div class="card confirmation" id="confirmation">
+            <div class="badge">
+                <span class="icon">✅</span> Booking Confirmed
+            </div>
+            <div class="code-box">
+                <div class="label">Booking Code</div>
+                <div class="code" id="bookingCode">—</div>
+            </div>
+            <div class="details-grid" id="confDetails">
+                <div class="detail-item">
+                    <span class="label">Package</span>
+                    <span class="value" id="confPackage">—</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">Price</span>
+                    <span class="value" id="confPrice">—</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">Date</span>
+                    <span class="value" id="confDate">—</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">Time</span>
+                    <span class="value" id="confTime">—</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">Name</span>
+                    <span class="value" id="confName">—</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">Car</span>
+                    <span class="value" id="confCar">—</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">Phone</span>
+                    <span class="value" id="confPhone">—</span>
+                </div>
+            </div>
+            <button class="btn btn-secondary" id="newBookingBtn">🔄 Book Another</button>
+        </div>
+
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // ─── DOM refs ───
+            const packages = document.querySelectorAll('.package-card');
+            const dateInput = document.getElementById('dateInput');
+            const timeInput = document.getElementById('timeInput');
+            const nameInput = document.getElementById('nameInput');
+            const carInput = document.getElementById('carInput');
+            const phoneInput = document.getElementById('phoneInput');
+            const submitBtn = document.getElementById('submitBtn');
+            const bookingForm = document.getElementById('bookingForm');
+            const confirmation = document.getElementById('confirmation');
+            const bookingCode = document.getElementById('bookingCode');
+            const confPackage = document.getElementById('confPackage');
+            const confPrice = document.getElementById('confPrice');
+            const confDate = document.getElementById('confDate');
+            const confTime = document.getElementById('confTime');
+            const confName = document.getElementById('confName');
+            const confCar = document.getElementById('confCar');
+            const confPhone = document.getElementById('confPhone');
+            const newBookingBtn = document.getElementById('newBookingBtn');
+            const toast = document.getElementById('toast');
+
+            // Error refs
+            const packageError = document.getElementById('packageError');
+            const dateError = document.getElementById('dateError');
+            const timeError = document.getElementById('timeError');
+            const nameError = document.getElementById('nameError');
+            const carError = document.getElementById('carError');
+            const phoneError = document.getElementById('phoneError');
+
+            // ─── State ───
+            let selectedPackage = null;
+            let selectedPrice = null;
+
+            // ─── Generate time slots ───
+            function populateTimeSlots() {
+                const slots = [];
+                for (let h = 8; h <= 18; h++) {
+                    for (let m = 0; m < 60; m += 30) {
+                        if (h === 18 && m > 0) break;
+                        const hour = h.toString().padStart(2, '0');
+                        const min = m.toString().padStart(2, '0');
+                        const label = formatTime(h, m);
+                        slots.push({ value: `${hour}:${min}`, label });
+                    }
+                }
+                timeInput.innerHTML = '<option value="">Select time…</option>';
+                slots.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.value;
+                    opt.textContent

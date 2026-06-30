@@ -1,0 +1,701 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AquaClean - Premium Car Wash Booking</title>
+    <!-- Importing a clean font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Using FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary: #0288d1;
+            --primary-dark: #01579b;
+            --accent: #4fc3f7;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --text-light: #666666;
+            --border-radius: 12px;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            --success: #2e7d32;
+            --error: #d32f2f;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- Header --- */
+        header {
+            background: var(--card-bg);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* --- Main Layout --- */
+        main {
+            flex: 1;
+            max-width: 800px;
+            width: 100%;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .section-title {
+            margin-bottom: 1.5rem;
+            font-size: 1.25rem;
+            color: var(--text-main);
+            border-left: 4px solid var(--primary);
+            padding-left: 10px;
+        }
+
+        /* --- Booking Form Card --- */
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        /* --- Package Selection --- */
+        .packages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .package-option {
+            border: 2px solid #e0e0e0;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            position: relative;
+        }
+
+        .package-option:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .package-option.selected {
+            border-color: var(--primary);
+            background-color: rgba(2, 136, 209, 0.05);
+        }
+
+        .package-option input[type="radio"] {
+            display: none;
+        }
+
+        .pkg-icon {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .pkg-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .pkg-price {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+        }
+
+        .pkg-desc {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            margin-top: 0.5rem;
+        }
+
+        /* --- Date & Time --- */
+        .datetime-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 600px) {
+            .datetime-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Time Slots */
+        .time-slots {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .time-slot {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+            text-align: center;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .time-slot:hover {
+            border-color: var(--accent);
+        }
+
+        .time-slot.selected {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* --- Customer Details --- */
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 600px) {
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* --- Submit Button --- */
+        .btn-submit {
+            width: 100%;
+            padding: 1rem;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-submit:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .btn-submit:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* --- My Bookings List --- */
+        .booking-item {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .booking-info h4 {
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .booking-info p {
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .booking-code {
+            background: #e3f2fd;
+            color: var(--primary-dark);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 20px;
+            background: #e8f5e9;
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        /* --- Modal --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2.5rem;
+            border-radius: var(--border-radius);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: scale(1);
+        }
+
+        .success-icon {
+            font-size: 3rem;
+            color: var(--success);
+            margin-bottom: 1rem;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-code {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 1rem 0;
+            letter-spacing: 2px;
+        }
+
+        .btn-close {
+            margin-top: 1.5rem;
+            background: transparent;
+            border: 1px solid var(--text-light);
+            padding: 0.6rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-close:hover {
+            background: #f0f0f0;
+        }
+
+        /* --- Toast Notification --- */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transform: translateY(100px);
+            transition: transform 0.3s ease;
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+
+        .toast.error {
+            background: var(--error);
+        }
+
+        .toast.success {
+            background: var(--success);
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-top: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            <i class="fa-solid fa-droplet"></i> AquaClean
+        </div>
+        <nav>
+            <!-- Simple placeholder nav -->
+            <span style="font-size: 0.9rem; color: var(--text-light);">Professional Car Care</span>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Booking Section -->
+        <section class="card">
+            <h2 class="section-title">Book Your Wash</h2>
+            <form id="bookingForm">
+                
+                <!-- 1. Package Selection -->
+                <div class="form-group">
+                    <label>Select Package</label>
+                    <div class="packages-grid" id="packagesContainer">
+                        <!-- Packages injected via JS -->
+                    </div>
+                </div>
+
+                <!-- 2. Date & Time -->
+                <div class="datetime-container">
+                    <div class="form-group">
+                        <label for="date">Date</label>
+                        <input type="date" id="date" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Time Slot</label>
+                        <div class="time-slots" id="timeSlotsContainer">
+                            <!-- Time slots injected via JS -->
+                        </div>
+                        <input type="hidden" id="selectedTime" required>
+                    </div>
+                </div>
+
+                <!-- 3. Customer Details -->
+                <div class="details-grid">
+                    <div class="form-group">
+                        <label for="name">Full Name</label>
+                        <input type="text" id="name" class="form-control" placeholder="John Doe" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Phone Number</label>
+                        <input type="tel" id="phone" class="form-control" placeholder="(555) 123-4567" required>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 2rem;">
+                    <label for="car">Car Model & Plate</label>
+                    <input type="text" id="car" class="form-control" placeholder="e.g. Toyota Camry, ABC-1234" required>
+                </div>
+
+                <button type="submit" class="btn-submit" id="submitBtn">
+                    Confirm Booking <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+        </section>
+
+        <!-- My Bookings Section -->
+        <section>
+            <h2 class="section-title">My Bookings</h2>
+            <div id="bookingsList">
+                <!-- Bookings loaded from localStorage -->
+                <p style="color: var(--text-light); text-align: center; padding: 1rem;">No bookings found.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        &copy; 2023 AquaClean Car Wash. All rights reserved.
+    </footer>
+
+    <!-- Success Modal -->
+    <div class="modal-overlay" id="successModal">
+        <div class="modal-content">
+            <div class="success-icon">
+                <i class="fa-regular fa-circle-check"></i>
+            </div>
+            <h3 class="modal-title">Booking Confirmed!</h3>
+            <p style="color: var(--text-light);">Please save your booking code.</p>
+            <div class="modal-code" id="modalBookingCode">CW-0000</div>
+            <p style="font-size: 0.9rem; margin-bottom: 1rem;">We'll see you on <span id="modalDate" style="font-weight: 600;"></span>.</p>
+            <button class="btn-close" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <i class="fa-solid fa-info-circle"></i>
+        <span id="toastMessage">Message goes here</span>
+    </div>
+
+    <script>
+        // --- Data ---
+        const packages = [
+            { id: 'basic', name: 'Basic Wash', price: 20, icon: 'fa-soap', desc: 'Exterior wash & dry' },
+            { id: 'deluxe', name: 'Deluxe', price: 35, icon: 'fa-spray-can-sparkles', desc: 'Includes interior vacuum' },
+            { id: 'premium', name: 'Premium', price: 50, icon: 'fa-gem', desc: 'Full detail + wax coating' }
+        ];
+
+        const timeSlots = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00'];
+
+        // --- State ---
+        let selectedPackage = null;
+        let selectedTime = null;
+
+        // --- DOM Elements ---
+        const packagesContainer = document.getElementById('packagesContainer');
+        const timeSlotsContainer = document.getElementById('timeSlotsContainer');
+        const dateInput = document.getElementById('date');
+        const selectedTimeInput = document.getElementById('selectedTime');
+        const bookingForm = document.getElementById('bookingForm');
+        const bookingsList = document.getElementById('bookingsList');
+        const modal = document.getElementById('successModal');
+        const modalBookingCode = document.getElementById('modalBookingCode');
+        const modalDate = document.getElementById('modalDate');
+
+        // --- Initialization ---
+        function init() {
+            renderPackages();
+            renderTimeSlots();
+            setMinDate();
+            loadBookings();
+        }
+
+        // Set minimum date to today
+        function setMinDate() {
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.setAttribute('min', today);
+        }
+
+        // --- Render Functions ---
+        function renderPackages() {
+            packagesContainer.innerHTML = packages.map(pkg => `
+                <div class="package-option" onclick="selectPackage('${pkg.id}')" id="pkg-${pkg.id}">
+                    <input type="radio" name="package" value="${pkg.id}" ${selectedPackage === pkg.id ? 'checked' : ''}>
+                    <div class="pkg-icon"><i class="fa-solid ${pkg.icon}"></i></div>
+                    <div class="pkg-name">${pkg.name}</div>
+                    <div class="pkg-price">$${pkg.price}</div>
+                    <div class="pkg-desc">${pkg.desc}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderTimeSlots() {
+            timeSlotsContainer.innerHTML = timeSlots.map(time => `
+                <div class="time-slot ${selectedTime === time ? 'selected' : ''}" onclick="selectTime('${time}')">
+                    ${time}
+                </div>
+            `).join('');
+        }
+
+        // --- Interaction Handlers ---
+        window.selectPackage = (id) => {
+            selectedPackage = id;
+            // Update UI
+            document.querySelectorAll('.package-option').forEach(el => el.classList.remove('selected'));
+            document.getElementById(`pkg-${id}`).classList.add('selected');
+        };
+
+        window.selectTime = (time) => {
+            selectedTime = time;
+            selectedTimeInput.value = time; // Update hidden input for form validation
+            renderTimeSlots(); // Re-render to show selection
+        };
+
+        // --- Form Submission ---
+        bookingForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            // Custom Validation
+            if (!selectedPackage) {
+                showToast('Please select a wash package.', 'error');
+                return;
+            }
+            if (!selectedTime) {
+                showToast('Please select a time slot.', 'error');
+                return;
+            }
+            if (!dateInput.value) {
+                showToast('Please select a date.', 'error');
+                return;
+            }
+
+            // Gather Data
+            const formData = {
+                id: Date.now(), // Unique ID
+                code: generateBookingCode(),
+                package: packages.find(p => p.id === selectedPackage),
+                date: dateInput.value,
+                time: selectedTime,
+                customer: {
+                    name: document.getElementById('name').value,
+                    phone: document.getElementById('phone').value,
+                    car: document.getElementById('car').value
+                },
+                status: 'Confirmed'
+            };
+
+            saveBooking(formData);
+        });
+
+        // --- Logic Functions ---
+        function generateBookingCode() {
+            // Generates code like CW-8492
+            const randomPart = Math.floor(1000 + Math.random() * 9000);
+            return `CW-${randomPart}`;
+        }
+
+        function saveBooking(booking) {
+            // Get existing bookings
+            const bookings = JSON.parse(localStorage.getItem('aquaclean_bookings') || '[]');
+            
+            // Add new booking to top
+            bookings.unshift(booking);
+            
+            // Save back to storage
+            localStorage.setItem('aquaclean_bookings', JSON.stringify(bookings));
+
+            // Show Success
+            showSuccessModal(booking);
+            
+            // Reset Form
+            bookingForm.reset();
+            selectedPackage = null;
+            selectedTime = null;
+            renderPackages();
+            renderTimeSlots();
+            
+            // Reload list
+            loadBookings();
+        }
+
+        function loadBookings() {
+            const bookings = JSON.parse(localStorage.getItem('aquaclean_bookings') || '[]');
+            
+            if (bookings.length === 0) {
+                bookingsList.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 1rem;">No bookings found.</p>';
+                return;
+            }
+
+            bookingsList.innerHTML = bookings.map(b => `
+                <div class="booking-item">
+                    <div class="booking-info">
+                        <h4>${b.package.name} <span class="booking-code">${b.code}</span></h4>
+                        <p><i class="fa-regular fa-calendar"></i> ${b.date} at ${b.time}</p>
+                        <p><i class="fa-solid fa-car"></i> ${b.customer.car}</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <span class="status-badge">${b.status}</span>
+                        <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">$${b.package.price}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- UI Feedback ---
+        function showSuccessModal(booking) {
+            modalBookingCode.textContent = booking.code;
+            modalDate.textContent = `${booking.date} @ ${booking.time}`;
+            modal.classList.add('active');
+        }
+
+        window.closeModal = () => {
+            modal.classList.remove('active');
+        };
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toastMessage');
+            
+            toast.className = `toast ${type}`;
+            msgEl.textContent = message;
+            
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Run Init
+        init();
+
+    </script>
+</body>
+</html>
+```

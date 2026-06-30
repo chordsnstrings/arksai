@@ -1,0 +1,642 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SparkleWash | Car Wash Booking</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --secondary: #10b981;
+            --dark: #1f2937;
+            --light: #f9fafb;
+            --gray: #9ca3af;
+            --border: #e5e7eb;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            background-color: #f3f4f6;
+            color: var(--dark);
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .logo i {
+            font-size: 2.5rem;
+        }
+
+        .logo h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+        }
+
+        .tagline {
+            color: var(--gray);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        @media (min-width: 768px) {
+            .app-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-title i {
+            color: var(--primary);
+        }
+
+        .package-options {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .package {
+            border: 2px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .package:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .package.selected {
+            border-color: var(--primary);
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+
+        .package-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .package-name {
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+
+        .package-price {
+            font-weight: 800;
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        .package-desc {
+            color: var(--gray);
+            font-size: 0.95rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .package-features {
+            list-style: none;
+            margin-top: 1rem;
+        }
+
+        .package-features li {
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .package-features i {
+            color: var(--secondary);
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--dark);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: border 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .datetime-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .submit-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 1rem 2rem;
+            font-size: 1.125rem;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .submit-btn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .submit-btn:active {
+            transform: scale(0.98);
+        }
+
+        .confirmation {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .confirmation.show {
+            display: block;
+        }
+
+        .confirmation-icon {
+            font-size: 4rem;
+            color: var(--secondary);
+            margin-bottom: 1.5rem;
+        }
+
+        .confirmation h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: var(--dark);
+        }
+
+        .confirmation p {
+            margin-bottom: 1rem;
+            color: var(--gray);
+        }
+
+        .booking-code {
+            background-color: #f0f9ff;
+            border: 2px dashed var(--primary);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: 2px;
+        }
+
+        .booking-details {
+            text-align: left;
+            background-color: var(--light);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            margin-top: 2rem;
+        }
+
+        .booking-details h3 {
+            margin-bottom: 1rem;
+            color: var(--dark);
+        }
+
+        .booking-details p {
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .booking-details span:first-child {
+            font-weight: 600;
+        }
+
+        .new-booking-btn {
+            background-color: var(--dark);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1.5rem;
+            transition: background 0.2s;
+        }
+
+        .new-booking-btn:hover {
+            background-color: #374151;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        .required::after {
+            content: " *";
+            color: #ef4444;
+        }
+
+        .error-message {
+            color: #ef4444;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-car"></i>
+                <h1>SparkleWash</h1>
+            </div>
+            <p class="tagline">Book a professional car wash in minutes. Choose your package, pick a time, and drive away sparkling.</p>
+        </header>
+
+        <main class="app-container">
+            <section class="card">
+                <h2 class="card-title"><i class="fas fa-spray-can-sparkles"></i> Select Wash Package</h2>
+                <div class="package-options">
+                    <div class="package" data-package="basic">
+                        <div class="package-header">
+                            <div class="package-name">Basic Wash</div>
+                            <div class="package-price">$19.99</div>
+                        </div>
+                        <p class="package-desc">Exterior wash and dry, tire cleaning, and window cleaning.</p>
+                        <ul class="package-features">
+                            <li><i class="fas fa-check-circle"></i> Exterior Hand Wash</li>
+                            <li><i class="fas fa-check-circle"></i> Tire and Wheel Clean</li>
+                            <li><i class="fas fa-check-circle"></i> Window Cleaning</li>
+                            <li><i class="fas fa-check-circle"></i> Towel Dry</li>
+                        </ul>
+                    </div>
+
+                    <div class="package selected" data-package="deluxe">
+                        <div class="package-header">
+                            <div class="package-name">Deluxe Wash</div>
+                            <div class="package-price">$34.99</div>
+                        </div>
+                        <p class="package-desc">Everything in Basic, plus interior vacuuming and dashboard cleaning.</p>
+                        <ul class="package-features">
+                            <li><i class="fas fa-check-circle"></i> Everything in Basic</li>
+                            <li><i class="fas fa-check-circle"></i> Interior Vacuuming</li>
+                            <li><i class="fas fa-check-circle"></i> Dashboard & Console Clean</li>
+                            <li><i class="fas fa-check-circle"></i> Interior Wipe Down</li>
+                        </ul>
+                    </div>
+
+                    <div class="package" data-package="premium">
+                        <div class="package-header">
+                            <div class="package-name">Premium Wash</div>
+                            <div class="package-price">$54.99</div>
+                        </div>
+                        <p class="package-desc">Full service: Deluxe plus wax, interior conditioning, and air freshener.</p>
+                        <ul class="package-features">
+                            <li><i class="fas fa-check-circle"></i> Everything in Deluxe</li>
+                            <li><i class="fas fa-check-circle"></i> Hand Wax & Polish</li>
+                            <li><i class="fas fa-check-circle"></i> Leather & Vinyl Conditioning</li>
+                            <li><i class="fas fa-check-circle"></i> Air Freshener & Final Inspection</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h2 class="card-title"><i class="fas fa-calendar-alt"></i> Booking Details</h2>
+                <form id="bookingForm">
+                    <div class="form-group">
+                        <label for="customerName" class="required">Full Name</label>
+                        <input type="text" id="customerName" placeholder="John Smith" required>
+                        <div class="error-message" id="nameError">Please enter your name</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="carModel" class="required">Car Model</label>
+                        <input type="text" id="carModel" placeholder="Toyota Camry 2020" required>
+                        <div class="error-message" id="carError">Please enter your car model</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone" class="required">Phone Number</label>
+                        <input type="tel" id="phone" placeholder="(555) 123-4567" required>
+                        <div class="error-message" id="phoneError">Please enter a valid phone number</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bookingDate" class="required">Date</label>
+                        <input type="date" id="bookingDate" required>
+                        <div class="error-message" id="dateError">Please select a date</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bookingTime" class="required">Time Slot</label>
+                        <select id="bookingTime" required>
+                            <option value="" disabled selected>Select a time</option>
+                            <option value="09:00">09:00 AM</option>
+                            <option value="10:00">10:00 AM</option>
+                            <option value="11:00">11:00 AM</option>
+                            <option value="13:00">01:00 PM</option>
+                            <option value="14:00">02:00 PM</option>
+                            <option value="15:00">03:00 PM</option>
+                            <option value="16:00">04:00 PM</option>
+                        </select>
+                        <div class="error-message" id="timeError">Please select a time slot</div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-calendar-check"></i> Confirm Booking
+                    </button>
+                </form>
+            </section>
+
+            <section class="card confirmation" id="confirmationSection">
+                <div class="confirmation-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h2>Booking Confirmed!</h2>
+                <p>Your car wash appointment has been scheduled successfully.</p>
+                <p>Your booking code is:</p>
+                <div class="booking-code" id="bookingCodeDisplay">SP-0000</div>
+                <p>Please save this code for your records. We'll send a reminder SMS before your appointment.</p>
+
+                <div class="booking-details">
+                    <h3>Booking Summary</h3>
+                    <p><span>Package:</span> <span id="summaryPackage">Deluxe Wash</span></p>
+                    <p><span>Date & Time:</span> <span id="summaryDateTime">-</span></p>
+                    <p><span>Name:</span> <span id="summaryName">-</span></p>
+                    <p><span>Car:</span> <span id="summaryCar">-</span></p>
+                    <p><span>Phone:</span> <span id="summaryPhone">-</span></p>
+                    <p><span>Total:</span> <span id="summaryPrice">$34.99</span></p>
+                </div>
+
+                <button class="new-booking-btn" id="newBookingBtn">
+                    <i class="fas fa-plus"></i> Make Another Booking
+                </button>
+            </section>
+        </main>
+
+        <footer>
+            <p>© 2023 SparkleWash Car Wash. All rights reserved.</p>
+            <p><i class="fas fa-phone"></i> Customer Support: (800) 555-WASH</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Package selection
+            const packages = document.querySelectorAll('.package');
+            let selectedPackage = 'deluxe';
+            
+            packages.forEach(pkg => {
+                pkg.addEventListener('click', function() {
+                    packages.forEach(p => p.classList.remove('selected'));
+                    this.classList.add('selected');
+                    selectedPackage = this.dataset.package;
+                });
+            });
+
+            // Set minimum date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('bookingDate').min = today;
+
+            // Form submission
+            const bookingForm = document.getElementById('bookingForm');
+            const confirmationSection = document.getElementById('confirmationSection');
+            const errorMessages = document.querySelectorAll('.error-message');
+            
+            // Generate booking code
+            function generateBookingCode() {
+                const prefix = 'SP';
+                const randomNum = Math.floor(1000 + Math.random() * 9000);
+                return `${prefix}-${randomNum}`;
+            }
+
+            // Get package details
+            function getPackageDetails(pkg) {
+                const details = {
+                    basic: { name: 'Basic Wash', price: '$19.99' },
+                    deluxe: { name: 'Deluxe Wash', price: '$34.99' },
+                    premium: { name: 'Premium Wash', price: '$54.99' }
+                };
+                return details[pkg] || details.deluxe;
+            }
+
+            // Format date
+            function formatDate(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+            }
+
+            // Validate phone number
+            function validatePhone(phone) {
+                const phoneRegex = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/;
+                return phoneRegex.test(phone.replace(/\s/g, ''));
+            }
+
+            // Show error
+            function showError(fieldId, messageId) {
+                document.getElementById(fieldId).style.borderColor = '#ef4444';
+                document.getElementById(messageId).classList.add('show');
+            }
+
+            // Hide errors
+            function hideErrors() {
+                errorMessages.forEach(msg => msg.classList.remove('show'));
+                const inputs = document.querySelectorAll('input, select');
+                inputs.forEach(input => input.style.borderColor = '');
+            }
+
+            // Save to localStorage
+            function saveBooking(bookingData) {
+                let bookings = JSON.parse(localStorage.getItem('sparklewashBookings')) || [];
+                bookings.push(bookingData);
+                localStorage.setItem('sparklewashBookings', JSON.stringify(bookings));
+            }
+
+            // Form submission handler
+            bookingForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                hideErrors();
+                
+                // Get form values
+                const name = document.getElementById('customerName').value.trim();
+                const car = document.getElementById('carModel').value.trim();
+                const phone = document.getElementById('phone').value.trim();
+                const date = document.getElementById('bookingDate').value;
+                const time = document.getElementById('bookingTime').value;
+                
+                // Validation flags
+                let isValid = true;
+                
+                // Validate fields
+                if (!name) {
+                    showError('customerName', 'nameError');
+                    isValid = false;
+                }
+                
+                if (!car) {
+                    showError('carModel', 'carError');
+                    isValid = false;
+                }
+                
+                if (!phone || !validatePhone(phone)) {
+                    showError('phone', 'phoneError');
+                    isValid = false;
+                }
+                
+                if (!date) {
+                    showError('bookingDate', 'dateError');
+                    isValid = false;
+                }
+                
+                if (!time) {
+                    showError('bookingTime', 'timeError');
+                    isValid = false;
+                }
+                
+                if (!isValid) return;
+                
+                // Get package details
+                const packageDetails = getPackageDetails(selectedPackage);
+                
+                // Generate booking code
+                const bookingCode = generateBookingCode();
+                
+                // Create booking object
+                const bookingData = {
+                    id: bookingCode,
+                    package: selectedPackage,
+                    packageName: packageDetails.name,
+                    price: packageDetails.price,
+                    customerName: name,
+                    carModel: car,
+                    phone: phone,
+                    date: date,
+                    time: time,
+                    bookingTime: new Date().toISOString()
+                };
+                
+                // Save to localStorage
+                saveBooking(bookingData);
+                
+                // Update confirmation section
+                document.getElementById('bookingCodeDisplay').textContent = bookingCode;
+                document.getElementById('summaryPackage').textContent = packageDetails.name;
+                document.getElementById('summaryDateTime').textContent = `${formatDate(date)} at ${time}`;
+                document.getElementById('summaryName').textContent = name;
+                document.getElementById('summaryCar').textContent = car;
+                document.getElementById('summaryPhone').textContent = phone;
+                document.getElementById('summaryPrice').textContent = packageDetails.price;
+                
+                // Show confirmation
+                bookingForm.reset();
+                document.querySelector('.package[data-package="deluxe"]').classList.add('selected');
+                document.querySelectorAll('.package:not([data-package="deluxe"])').forEach(p => p.classList.remove('selected'));
+                selectedPackage = 'deluxe';
+                
+                confirmationSection.classList.add('show');
+                confirmationSection.scrollIntoView({ behavior: 'smooth' });
+            });
+
+            // New booking button
+            document.getElementById('newBookingBtn').addEventListener('click', function() {
+                confirmationSection.classList.remove('show');
+                document.getElementById('customerName').focus();
+            });
+        });
+    </script>
+</body>
+</html>
+```
