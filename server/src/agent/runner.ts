@@ -29,7 +29,7 @@ import { checkDeliverable, deterministicDeliverableDefects, type DeliverableKind
 import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 import { auditWebHygiene } from './webHygiene';
-import { escalateModel, resolveProvider, selectModel } from './router';
+import { escalateModel, resolveProvider, selectModel, type Provider } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
 import { compileDesignBrief, designBriefBlock } from './designBrief';
 import { isSimpleBuild, simpleBuildGuidance, simpleBuildNudge, SIMPLE_BUILD_NUDGE_AT } from './simpleBuild';
@@ -427,15 +427,17 @@ export class AgentRun {
   private activeModel = '';
   private activeApiModel = '';
   private activePricingId = '';
+  private activeProvider: Provider = 'minimax';
 
   constructor(private session: SessionMeta) {}
 
-  /** Point the run at a concrete model (resolving the real MiniMax API id). */
+  /** Point the run at a concrete model (resolving the real provider + API id). */
   private setActiveModel(modelId: string) {
     const r = resolveProvider(modelId);
     this.activeModel = modelId;
     this.activeApiModel = r.apiModel;
     this.activePricingId = r.pricingId;
+    this.activeProvider = r.provider;
   }
 
   /** When falling back M3 → DeepSeek mid-conversation, drop M3's reasoning_content from the
@@ -1266,6 +1268,102 @@ export class AgentRun {
     });
   }
 
+  /**
+   * Call a BytePlus coding-plan model (Dola / "ArksAI Swift") on its OpenAI-compatible endpoint and
+   * yield the raw OpenAI streaming chunks the loop already consumes (choices[].delta + usage) — no
+   * translation needed. Dola is fast and doesn't starve under concurrency (unlike M3), so this is a
+   * plain streamed fetch with a user-abort + a total deadline; a HARD failure escalates to M3 (in
+   * createCompletionWithRetry). Params are already OpenAI-shaped (messages/tools).
+   */
+  private async createOpenAIStream(params: any): Promise<AsyncIterable<any>> {
+    const body: Record<string, unknown> = {
+      model: this.activeApiModel,
+      messages: params.messages || [],
+      stream: true,
+      stream_options: { include_usage: true },
+      max_tokens: 16000,
+      temperature: 0.4,
+    };
+    if (params.tools?.length) {
+      body.tools = params.tools;
+      body.tool_choice = 'auto';
+    }
+    const ac = new AbortController();
+    const DEADLINE_MS = Number(process.env.BYTEPLUS_DEADLINE_MS || '240000') || 240_000;
+    let rejectDeadline: ((e: any) => void) | null = null;
+    const deadline = new Promise<never>((_, rej) => {
+      rejectDeadline = rej;
+    });
+    deadline.catch(() => {});
+    const timer = setTimeout(() => {
+      ac.abort();
+      rejectDeadline?.(Object.assign(new Error(`BytePlus (${this.activeApiModel}) stalled — no response within ${DEADLINE_MS / 1000}s.`), { byteplusStall: true }));
+    }, DEADLINE_MS);
+    const onUserAbort = () => {
+      ac.abort();
+      rejectDeadline?.(new Error('interrupted by user'));
+    };
+    if (this.abort.signal.aborted) onUserAbort();
+    else this.abort.signal.addEventListener('abort', onUserAbort, { once: true });
+    const cleanup = () => {
+      clearTimeout(timer);
+      this.abort.signal.removeEventListener('abort', onUserAbort);
+    };
+    let resp: Response;
+    try {
+      resp = await Promise.race([
+        fetch(`${config.byteplusBaseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${config.byteplusApiKey}`, 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: ac.signal,
+        }),
+        deadline,
+      ]);
+    } catch (e) {
+      cleanup();
+      throw e;
+    }
+    if (!resp.ok || !resp.body) {
+      cleanup();
+      const detail = await resp.text().catch(() => '');
+      throw new Error(`BytePlus ${resp.status}: ${detail.slice(0, 300)}`);
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    async function* iterate(): AsyncGenerator<any> {
+      let buf = '';
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line.startsWith('data:')) continue;
+            const data = line.slice(5).trim();
+            if (data === '[DONE]') return;
+            try {
+              yield JSON.parse(data);
+            } catch {
+              /* keepalive / partial line — ignore */
+            }
+          }
+        }
+      } finally {
+        cleanup();
+        try {
+          reader.releaseLock();
+        } catch {
+          /* already released */
+        }
+      }
+    }
+    return iterate();
+  }
+
   /** Retry transient API failures (network blips, 429/5xx) with backoff. All models are
    *  MiniMax, served via the ANTHROPIC-compatible endpoint (not the OpenAI one): on the
    *  OpenAI surface M3's thinking is forced ON and unbounded — it reasons for minutes and
@@ -1276,11 +1374,22 @@ export class AgentRun {
   private async createCompletionWithRetry(params: any): Promise<AsyncIterable<any>> {
     const delays = [2000, 4000, 8000];
     let triedFallback = false;
+    let triedByteplusEscalate = false;
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.createMinimaxStream(params);
+        return this.activeProvider === 'byteplus'
+          ? await this.createOpenAIStream(params)
+          : await this.createMinimaxStream(params);
       } catch (err) {
         if (this.abort.signal.aborted) throw err;
+        // Hard failure on the Swift fast lane (Dola) → escalate to M3 once and retry, so a simple
+        // build never dead-ends on the fast provider. (Transient errors still just back off.)
+        if (!isTransientApiError(err) && this.activeProvider === 'byteplus' && !triedByteplusEscalate) {
+          triedByteplusEscalate = true;
+          this.setActiveModel(MAX_MODEL);
+          this.emit({ type: 'timeline_item', item: { kind: 'system', id: randomUUID(), level: 'info', text: '↳ Switching to ArksAI Max to finish.', ts: Date.now() } });
+          continue;
+        }
         // Hard failure on M3 → fall back to the fast MiniMax model once and retry.
         if (!isTransientApiError(err) && this.activeModel === MAX_MODEL && !triedFallback) {
           triedFallback = true;

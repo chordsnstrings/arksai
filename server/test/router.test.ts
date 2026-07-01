@@ -33,3 +33,39 @@ test('escalateModel: Flash steps up to M3 and M3 is the cap', () => {
   assert.equal(escalateModel(FAST_MODEL, { minimaxAvailable: true }), MAX_MODEL);
   assert.equal(escalateModel(MAX_MODEL, { minimaxAvailable: true }), MAX_MODEL);
 });
+
+// --- BytePlus / Dola "Swift" fast lane (config-gated) ---
+import { resolveProvider, byteplusReady } from '../src/agent/router';
+import { SWIFT_MODEL } from '../../shared/types';
+import { config } from '../src/config';
+
+test('Swift fast lane: light CODE build routes to Dola ONLY when BytePlus is configured', () => {
+  const prev = config.byteplusApiKey;
+  try {
+    config.byteplusApiKey = ''; // no key → unchanged behaviour (stays M3)
+    assert.equal(byteplusReady(), false);
+    assert.equal(selectModel('a simple counter app', 'code', { minimaxAvailable: true }).model, MAX_MODEL);
+
+    config.byteplusApiKey = 'ark-test'; // key present → light code goes to Swift
+    assert.equal(byteplusReady(), true);
+    assert.equal(selectModel('a simple counter app', 'code', { minimaxAvailable: true }).model, SWIFT_MODEL);
+    // heavy code + report still go to M3 even with the key
+    assert.equal(selectModel('architect a distributed microservice platform with a database schema', 'code', { minimaxAvailable: true }).model, MAX_MODEL);
+    assert.equal(selectModel('summarize this', 'report', { minimaxAvailable: true }).model, MAX_MODEL);
+    // a light CHAT turn is not a build → still Flash, never Swift
+    assert.equal(selectModel('rename a file', 'chat', { minimaxAvailable: true }).model, FAST_MODEL);
+  } finally {
+    config.byteplusApiKey = prev;
+  }
+});
+
+test('resolveProvider maps Swift to the byteplus provider + coding model; escalates to M3', () => {
+  const r = resolveProvider(SWIFT_MODEL);
+  assert.equal(r.provider, 'byteplus');
+  assert.equal(r.apiModel, config.byteplusModel);
+  assert.equal(r.pricingId, SWIFT_MODEL);
+  assert.equal(escalateModel(SWIFT_MODEL, { minimaxAvailable: true }), MAX_MODEL);
+  // MiniMax ids stay on minimax
+  assert.equal(resolveProvider(MAX_MODEL).provider, 'minimax');
+  assert.equal(resolveProvider(FAST_MODEL).provider, 'minimax');
+});

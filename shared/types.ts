@@ -96,6 +96,9 @@ export const AUTO_MODEL = 'arksai-auto';
 export const MAX_MODEL = 'arksai-max';
 /** MiniMax M2.7-highspeed — the fast/cheap tier. */
 export const FAST_MODEL = 'arksai-flash';
+/** ByteDance Dola-Seed-2.0-pro (BytePlus coding plan) — the fast lane for simple builds.
+ *  Only used when BytePlus is configured; otherwise simple builds stay on MiniMax. */
+export const SWIFT_MODEL = 'arksai-swift';
 export const isAutoModel = (id: string): boolean => id === AUTO_MODEL;
 
 /** The full selectable lineup (all MiniMax-backed). */
@@ -139,6 +142,9 @@ export const KNOWN_MODELS: Record<string, ModelPricing> = {
   // ArksAI Flash = MiniMax M2.7-highspeed (fast/cheap tier). Output priced lower
   // than M3 as an ESTIMATE — validate against MiniMax billing and tune.
   'arksai-flash': { label: 'ArksAI Flash', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.2, outputPerM: 0.6 },
+  // ArksAI Swift = Dola-Seed-2.0-pro on the BytePlus coding plan (flat-rate). Nominal per-token
+  // estimate for the cost bar (the plan is flat, so marginal cost is ~0); tune to the plan.
+  'arksai-swift': { label: 'ArksAI Swift', inputCacheHitPerM: 0.03, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
 };
 
 export function pricingFor(model: string): ModelPricing {

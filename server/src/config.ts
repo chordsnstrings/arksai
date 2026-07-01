@@ -83,6 +83,12 @@ export const config = {
     path.join(repoRoot, 'client', 'dist'),
   deepseekApiKey: process.env.DEEPSEEK_API_KEY || '',
   deepseekBaseUrl: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+  // BytePlus (ByteDance ModelArk) — the OpenAI-compatible CODING-PLAN endpoint (flat-rate).
+  // Powers "ArksAI Swift" (Dola-Seed-2.0-pro) as the fast lane for simple builds. DORMANT until
+  // ARK_API_KEY is set: with no key, simple builds stay on MiniMax (no behaviour change).
+  byteplusApiKey: process.env.ARK_API_KEY || '',
+  byteplusBaseUrl: process.env.BYTEPLUS_BASE_URL || 'https://ark.ap-southeast.bytepluses.com/api/coding/v3',
+  byteplusModel: process.env.BYTEPLUS_MODEL || 'seed-2-0-pro',
   // Non-thinking DeepSeek alias used for one-shot robot reply drafting (fast, decisive;
   // the thinking v4-pro is slow for short outputs). Env-overridable.
   deepseekReplyModel: process.env.DEEPSEEK_REPLY_MODEL || 'deepseek-chat',

@@ -1,6 +1,9 @@
 import type { SessionMode } from '../../../shared/types';
-import { MAX_MODEL, FAST_MODEL } from '../../../shared/types';
+import { MAX_MODEL, FAST_MODEL, SWIFT_MODEL } from '../../../shared/types';
 import { config } from '../config';
+
+/** BytePlus (Dola/Swift) is available as the fast lane only when its key is configured. */
+export const byteplusReady = (): boolean => !!config.byteplusApiKey;
 
 export type Tier = 'light' | 'standard' | 'heavy';
 
@@ -34,8 +37,11 @@ export interface RouteOpts {
 }
 
 const tierModel = (tier: Tier, mode: SessionMode, _o: RouteOpts): string => {
-  // All MiniMax now. Quality/agentic/designed work → M3 (Max). Quick/light turns →
-  // the fast model (Flash). The runner falls M3 → Flash within MiniMax if M3 stalls.
+  // Simple (light) CODE build → the Swift fast lane (Dola) when BytePlus is configured; it's fast +
+  // high-quality on small builds, and pairs with the simple-build lean pipeline. Falls through to M3
+  // when BytePlus isn't set up, so behaviour is unchanged without a key.
+  if (mode === 'code' && tier === 'light' && byteplusReady()) return SWIFT_MODEL;
+  // Otherwise MiniMax: quality/agentic/designed work → M3 (Max); quick non-code light turns → Flash.
   if (mode === 'code' || mode === 'report') return MAX_MODEL;
   if (tier === 'light') return FAST_MODEL;
   return MAX_MODEL; // standard + heavy → M3
@@ -44,6 +50,7 @@ const tierModel = (tier: Tier, mode: SessionMode, _o: RouteOpts): string => {
 const LABELS: Record<string, string> = {
   [FAST_MODEL]: 'ArksAI Flash',
   [MAX_MODEL]: 'ArksAI Max',
+  [SWIFT_MODEL]: 'ArksAI Swift',
 };
 
 /** Pick a concrete model for a task. Pure + deterministic so it's testable. */
@@ -65,20 +72,24 @@ export function selectModel(task: string, mode: SessionMode, o: RouteOpts): { mo
 
 /** Escalate one notch when verification keeps failing or the model stalls. */
 export function escalateModel(current: string, _o: RouteOpts): string {
+  if (current === SWIFT_MODEL) return MAX_MODEL; // Dola struggled → escalate to M3
   if (current === FAST_MODEL) return MAX_MODEL;
   return current; // M3 is already the top
 }
 
-export type Provider = 'minimax';
+export type Provider = 'minimax' | 'byteplus';
 export interface Resolved {
   provider: Provider;
   apiModel: string; // the id actually sent to the provider's API
   pricingId: string; // id used for cost lookup (branded, stable)
 }
 
-/** Map a branded/selectable model id to the MiniMax API model + a stable pricing id.
- *  Max → M3, Flash → the fast model; anything else defaults to M3. */
+/** Map a branded/selectable model id to the provider + API model + a stable pricing id.
+ *  Swift → Dola on BytePlus; Max → M3, Flash → the fast MiniMax model; anything else → M3. */
 export function resolveProvider(modelId: string): Resolved {
+  if (modelId === SWIFT_MODEL) {
+    return { provider: 'byteplus', apiModel: config.byteplusModel, pricingId: SWIFT_MODEL };
+  }
   if (modelId === FAST_MODEL) {
     return { provider: 'minimax', apiModel: config.minimaxFallbackModel, pricingId: FAST_MODEL };
   }
