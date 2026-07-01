@@ -17,6 +17,7 @@ import {
   apkPath,
 } from '../build/androidBuild';
 import { setBuildToken, setSnapshotId, doToken, snapshotId } from '../build/runtime';
+import { setByteplusKey, byteplusConfigured } from '../agent/byteplusRuntime';
 import { startBake } from '../build/bake';
 
 function tokenOk(want: string, got: unknown): boolean {
@@ -55,6 +56,16 @@ export function registerBuildRoutes(app: FastifyInstance) {
     }
     if (!token && !snap) return reply.code(400).send({ error: 'Provide doToken and/or snapshotId.' });
     return { ok: true, hasToken: !!doToken(), snapshotId: snapshotId() || null, configured: isBuildConfigured() };
+  });
+
+  // Operator only: activate the BytePlus/Dola fast lane ("ArksAI Swift") by storing the ark key
+  // (encrypted at rest, no SSH/redeploy). Once set, light-tier code builds route to Swift.
+  app.post('/api/admin/providers/byteplus', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    const key = String((req.body as any)?.key || '').trim();
+    if (!key.startsWith('ark-')) return reply.code(400).send({ error: 'Provide a BytePlus ark key (ark-…).' });
+    await setByteplusKey(key);
+    return { ok: true, configured: byteplusConfigured() };
   });
 
   app.post('/api/admin/build/bake', async (req, reply) => {

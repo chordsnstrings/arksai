@@ -1,9 +1,11 @@
 import type { SessionMode } from '../../../shared/types';
 import { MAX_MODEL, FAST_MODEL, SWIFT_MODEL } from '../../../shared/types';
 import { config } from '../config';
+import { byteplusConfigured } from './byteplusRuntime';
 
-/** BytePlus (Dola/Swift) is available as the fast lane only when its key is configured. */
-export const byteplusReady = (): boolean => !!config.byteplusApiKey;
+/** BytePlus (Dola/Swift) is available as the fast lane only when its key is configured
+ *  (env ARK_API_KEY or the encrypted app_settings value loaded at boot). */
+export const byteplusReady = (): boolean => byteplusConfigured();
 
 export type Tier = 'light' | 'standard' | 'heavy';
 

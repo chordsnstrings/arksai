@@ -9,6 +9,7 @@ import { startAnalyticsDigest } from './analytics/digest';
 import { startRobotPoller } from './robots/poller';
 import { startBuildReaper } from './build/androidBuild';
 import { loadBuildRuntime } from './build/runtime';
+import { loadByteplusRuntime } from './agent/byteplusRuntime';
 import { loadDbRuntime } from './deploy/dbRuntime';
 import { loadGithubRuntime } from './github/runtime';
 import { loadGoogleRuntime } from './googleRuntime';
@@ -33,6 +34,7 @@ async function main() {
   startDeploymentHealthMonitor(); // restart any published app whose process died (self-healing)
   startAnalyticsDigest(); // periodic platform metric snapshots (+ optional webhook)
   await loadBuildRuntime(); // load DO token + snapshot id from app_settings (if not in env)
+  await loadByteplusRuntime(); // load the BytePlus/Dola ark key from app_settings (if not in env)
   await loadDbRuntime(); // load the managed-Postgres admin URL from app_settings (if not in env)
   await loadGithubRuntime(); // load GitHub OAuth-app creds from app_settings (if not in env)
   await loadGoogleRuntime(); // load Google OAuth-client creds from app_settings (if not in env)

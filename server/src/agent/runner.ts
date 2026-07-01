@@ -33,6 +33,7 @@ import { escalateModel, resolveProvider, selectModel, type Provider } from './ro
 import { classifyTask, type TaskProfile } from './taskProfile';
 import { compileDesignBrief, designBriefBlock } from './designBrief';
 import { isSimpleBuild, simpleBuildGuidance, simpleBuildNudge, SIMPLE_BUILD_NUDGE_AT } from './simpleBuild';
+import { byteplusKey } from './byteplusRuntime';
 import { routeExpertise } from './expertiseRouter';
 import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
 import { calibratedTypical, recordRunDurations } from './etaCalibration';
@@ -1314,7 +1315,7 @@ export class AgentRun {
       resp = await Promise.race([
         fetch(`${config.byteplusBaseUrl}/chat/completions`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${config.byteplusApiKey}`, 'content-type': 'application/json' },
+          headers: { Authorization: `Bearer ${byteplusKey()}`, 'content-type': 'application/json' },
           body: JSON.stringify(body),
           signal: ac.signal,
         }),
