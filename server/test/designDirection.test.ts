@@ -141,3 +141,37 @@ test('the design critique fails generic/templated output (distinctiveness)', () 
   assert.match(DESIGN_RUBRIC_PROMPT, /competent-but-generic is a FAIL/);
   assert.match(DESIGN_RUBRIC_PROMPT, /SIGNATURE/);
 });
+
+test('normalizeBrief SEEDS the type trio + accent + signature from a library direction', () => {
+  const b = normalizeBrief({ concept: 'Night Shift', direction: 'cyber' });
+  assert.equal(b.type.display.family, 'Space Grotesk');
+  assert.equal(b.type.data.family, 'JetBrains Mono');
+  assert.equal(b.palette.accent, '#00e5ff'); // cyber accent
+  assert.ok(/HUD|neon|glow/i.test(b.signature), 'signature seeded from the direction');
+  // cyber is a dark direction → dark neutral defaults
+  assert.equal(b.palette.paper, '#0e1016');
+  // a non-embedded seeded face → a Google-Fonts @import is attached
+  assert.ok(b.fontsLink && b.fontsLink.includes('fonts.googleapis.com'), 'fontsLink set');
+  assert.ok(buildTokensCss(b).startsWith('@import url("https://fonts.googleapis.com'), 'tokens.css leads with the @import');
+});
+
+test('explicit args still override a seeded direction', () => {
+  const b = normalizeBrief({ concept: 'x', direction: 'linear', palette: { accent: 'c0342b' }, type: { display: { family: 'Lora' } } });
+  assert.equal(b.palette.accent, '#c0342b'); // explicit accent wins over linear's
+  assert.equal(b.type.display.family, 'Lora'); // explicit display wins
+});
+
+test('a fully-embedded seeded direction needs no font @import', () => {
+  const b = normalizeBrief({ concept: 'x', direction: 'vercel' }); // Inter / Inter / JetBrains Mono
+  // vercel uses JetBrains Mono (non-embedded) → link present; sanity: link only when a non-embedded face is used
+  const b2 = normalizeBrief({ concept: 'x', direction: 'things' }); // Inter / Inter / IBM Plex Mono — all embedded
+  assert.equal(b2.fontsLink, undefined, 'no @import when every seeded face is self-hosted');
+  assert.ok(!buildTokensCss(b2).startsWith('@import'));
+  assert.ok(b.fontsLink); // vercel's JetBrains Mono is not in the embedded set
+});
+
+test('the rubric rewards committing to a modern direction and no longer auto-flags bold faces', () => {
+  assert.match(DESIGN_RUBRIC_PROMPT, /recognizable modern DIRECTION\/archetype/);
+  assert.match(DESIGN_RUBRIC_PROMPT, /NO discernible direction/);
+  assert.match(DESIGN_RUBRIC_PROMPT, /not merely for being bold/);
+});

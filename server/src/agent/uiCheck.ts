@@ -74,11 +74,17 @@ export const DESIGN_RUBRIC_PROMPT =
   'serif + a terracotta/clay accent; (c) black + an acid/neon-green accent; (d) broadsheet-hairlines pastiche. ' +
   'Reward a deliberate concept carried through type + colour + structure, a SIGNATURE element that means ' +
   'something (a data/board/spec/stamp keyed to real content, not a decorative gradient box), and a clear ' +
-  'point of view.\n' +
-  '• TYPOGRAPHY: a real modular scale, strong quiet hierarchy, and SMOOTH, CALM, UNIFORM type — reward a refined ' +
-  'calm serif (e.g. Source Serif/Lora/Newsreader) or a clean sans (Inter/DM Sans/Manrope) display + body that look ' +
-  'even and considered, plus a mono/data face for labels/figures. FLAG an irregular/spiky/high-contrast or quirky ' +
-  'display face (it reads uneven), and flag a heading rendering in a plain system fallback (no embedded font).\n' +
+  'point of view. Reward a page that COMMITS to a recognizable modern DIRECTION/archetype and builds its ' +
+  'signature — e.g. a product DASHBOARD (a focal metric + stat tiles/charts), an APPLE-BENTO grid, a GLASS ' +
+  'stack, a COMMAND-BAR app, a CALENDAR-HEATMAP, an EDITORIAL-LUXURY or BRUTALIST or CYBER/SYNTH look; a build ' +
+  'with NO discernible direction — a generic centered hero over a plain list/cards — is templated → REVISE.\n' +
+  '• TYPOGRAPHY: a real modular scale, strong quiet hierarchy, and type EMBEDDED (never a plain system fallback). ' +
+  'A deliberate, LEGIBLE display face is good — a calm serif (Source Serif/Lora/Newsreader), a clean sans ' +
+  '(Inter/DM Sans/Manrope), OR a bolder characterful face (a grotesque like Space Grotesk/Bricolage/Unbounded, or ' +
+  'a high-contrast serif like Bodoni) WHEN it is an intentional, on-concept choice that stays even and readable, ' +
+  'paired with a mono/data face for labels/figures. FLAG a display face ONLY when it actually hurts legibility or ' +
+  'looks unintentional/off-brand — not merely for being bold; and flag a heading rendering in a plain system ' +
+  'fallback (no embedded font).\n' +
   '• COLOUR: a distinctive, confident, concept-grounded palette with ONE accent used sparingly — flag generic ' +
   'blue/indigo-on-white.\n' +
   '• SPACING & ALIGNMENT: consistent rhythm on a grid, generous whitespace, not cramped or sparsely empty.\n' +

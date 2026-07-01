@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveInWorkspace, type ToolDef } from './common';
+import { directionById, directionFontsLink, DIRECTIONS } from '../directions';
 
 /**
  * design_direction — the ART-DIRECTION phase.
@@ -29,6 +30,9 @@ export interface DesignBrief {
   };
   signature: string;
   motion: string;
+  /** Google-Fonts <link> that loads the type trio (set when seeded from a library direction whose
+   *  faces aren't in the self-hosted embedded set). Prepended into tokens.css as an @import. */
+  fontsLink?: string;
 }
 
 const HEX = /^#?[0-9a-fA-F]{6}$/;
@@ -57,11 +61,20 @@ function readableInkOn(hex: string): string {
   return L > 0.42 ? '#14161b' : '#ffffff';
 }
 
-/** Normalize raw tool args into a complete, sane brief (forgiving, but commits to a decision). */
+/** Normalize raw tool args into a complete, sane brief (forgiving, but commits to a decision).
+ *  If `direction` names a library recipe, its font trio + accent + signature SEED the defaults
+ *  (explicit args still win), and the direction's Google-Fonts link is attached so tokens.css can
+ *  load its faces. Dark directions also seed dark neutral defaults so the theme stays coherent. */
 export function normalizeBrief(args: any): DesignBrief {
   const t = args?.type ?? {};
   const p = args?.palette ?? {};
-  const accent = cleanHex(p.accent, '#1b4d3e');
+  const dir = typeof args?.direction === 'string' ? directionById(args.direction.trim()) : undefined;
+  // seed defaults from the chosen direction (or the smooth-calm defaults when none)
+  const seedDisplay = dir?.display ?? 'Source Serif 4';
+  const seedBody = dir?.body ?? 'Inter';
+  const seedData = dir?.data ?? 'IBM Plex Mono';
+  const accent = cleanHex(p.accent, dir?.accent ?? '#1b4d3e');
+  const dark = !!dir?.dark;
   const role = (x: any, famFallback: string): TypeRole => ({
     family: cleanFont(x?.family, famFallback),
     role: cleanStr(x?.role, '', 60) || undefined,
@@ -70,31 +83,35 @@ export function normalizeBrief(args: any): DesignBrief {
   const anti = Array.isArray(args?.antiDefaults)
     ? args.antiDefaults.map((s: any) => cleanStr(s, '', 80)).filter(Boolean).slice(0, 5)
     : [];
+  const type = {
+    display: role(t.display, seedDisplay),
+    body: role(t.body, seedBody),
+    data: role(t.data, seedData),
+  };
+  // only attach a Google-Fonts @import if a seeded (non-embedded) face is actually in use
+  const embedded = new Set(['Inter', 'Source Serif 4', 'Space Grotesk', 'IBM Plex Mono', 'Space Mono']);
+  const usesNonEmbedded = [type.display.family, type.body.family, type.data.family].some((f) => !embedded.has(f));
+  const fontsLink = dir && usesNonEmbedded ? directionFontsLink({ ...dir, display: type.display.family, body: type.body.family, data: type.data.family } as any) : undefined;
   return {
     concept: cleanStr(args?.concept, 'Untitled direction', 80),
     rationale: cleanStr(args?.rationale, '', 600),
     structureEncodes: cleanStr(args?.structureEncodes, '', 300),
     antiDefaults: anti.length ? anti : ['generic minimal-muted blue-on-white', 'cream + serif + terracotta', 'black + acid-green'],
-    type: {
-      // smooth, calm, uniform defaults — distinctiveness comes from concept/palette/signature,
-      // never an irregular typeface (Spectral/Bricolage/Playfair read spiky and uneven).
-      display: role(t.display, 'Source Serif 4'),
-      body: role(t.body, 'Inter'),
-      data: role(t.data, 'IBM Plex Mono'),
-    },
+    type,
     palette: {
-      ink: cleanHex(p.ink, '#14201a'),
+      ink: cleanHex(p.ink, dark ? '#eef0f7' : '#14201a'),
       brand: cleanHex(p.brand, accent),
-      paper: cleanHex(p.paper, '#f5f3ec'),
-      surface: cleanHex(p.surface, '#ffffff'),
-      line: cleanHex(p.line, '#d8d5c9'),
-      muted: cleanHex(p.muted, '#5d6760'),
+      paper: cleanHex(p.paper, dark ? '#0e1016' : '#f5f3ec'),
+      surface: cleanHex(p.surface, dark ? '#171a22' : '#ffffff'),
+      line: cleanHex(p.line, dark ? '#2a2e3a' : '#d8d5c9'),
+      muted: cleanHex(p.muted, dark ? '#9aa1b2' : '#5d6760'),
       accent,
       accentInk: cleanHex(p.accentInk, readableInkOn(accent)),
-      accentRationale: cleanStr(p.accentRationale, '', 200),
+      accentRationale: cleanStr(p.accentRationale, dir ? `${dir.name}: ${dir.signature}` : '', 200),
     },
-    signature: cleanStr(args?.signature, '', 300),
+    signature: cleanStr(args?.signature, dir?.signature ?? '', 300),
     motion: cleanStr(args?.motion, 'one easing token; nav underline; button lift + arrow nudge', 200),
+    fontsLink,
   };
 }
 
@@ -102,7 +119,9 @@ const fam = (r: TypeRole, fallbacks: string): string => `"${r.family}", ${fallba
 
 /** Render the locked brief into tokens.css — the handoff the page links (with rationale comments). */
 export function buildTokensCss(b: DesignBrief): string {
-  return `/* ============================================================
+  // @import (if any) MUST lead the file, before any other rule — loads the direction's fonts.
+  const fontImport = b.fontsLink ? `@import url("${b.fontsLink}");\n` : '';
+  return `${fontImport}/* ============================================================
    ${b.concept} — design direction (locked by design_direction)
    ${b.rationale}
    Avoiding: ${b.antiDefaults.join(' · ')}
@@ -199,12 +218,15 @@ export const designDirectionTool: ToolDef = {
     'real world (e.g. an immigration consultancy → "Port of Entry", travel documents); what the page ' +
     'STRUCTURE encodes that is TRUE (real country codes / SKUs / dates / places, never generic 01/02/03); ' +
     'a deliberate TYPE TRIO with roles (display / body / a MONO data face) chosen on purpose, NOT the ' +
-    'defaults. Fonts must ALWAYS be SMOOTH, CALM and UNIFORM — distinctiveness comes from the concept, ' +
-    'palette and signature, NEVER a loud/irregular typeface. Choose ONLY from this smooth embedded set — ' +
-    'calm/vintage serif display: Source Serif 4, Lora, Newsreader; clean sans (body or ' +
-    'display): Inter, DM Sans, Manrope, Plus Jakarta Sans, Outfit; data/mono: IBM Plex Mono, Space Mono. ' +
-    'AVOID the irregular/spiky faces (Spectral, Bricolage Grotesque, Syne, Unbounded, Playfair) and do NOT ' +
-    'name JetBrains Mono or an unbundled weight. Then a concept-grounded ' +
+    'defaults. FASTEST PATH: pass `direction` = one of the tested library recipe ids (see the Direction ' +
+    'library in the design prompt — e.g. "linear", "bento", "glass-liquid", "cyber", "luxe", "heatmap") to ' +
+    'SEED the type trio + accent + signature from that modern recipe; then layer your subject-grounded ' +
+    'concept, palette rationale, and real structure on top. When you seed a direction its font trio is ' +
+    'intentional and may use a bolder face (Bricolage/Unbounded/Bodoni/Sora) — its fonts load automatically ' +
+    'via the generated tokens.css. Otherwise (no direction) keep type SMOOTH, CALM and UNIFORM from this ' +
+    'embedded set — serif display: Source Serif 4, Lora, Newsreader; clean sans: Inter, DM Sans, Manrope, ' +
+    'Plus Jakarta Sans, Outfit; data/mono: IBM Plex Mono, Space Mono — distinctiveness then comes from the ' +
+    'concept, palette and signature, never a loud typeface. Then a concept-grounded ' +
     'PALETTE with a rationale (not default ' +
     'blue-on-white); ONE meaningful SIGNATURE element; and the named AI-default looks you are AVOIDING. ' +
     'It writes design-direction.json + DESIGN.md + tokens.css into the workspace. Then call create_web_app ' +
@@ -213,6 +235,7 @@ export const designDirectionTool: ToolDef = {
   parameters: {
     type: 'object',
     properties: {
+      direction: { type: 'string', enum: DIRECTIONS.map((d) => d.id), description: 'Optional: seed the type trio + accent + signature from a tested library recipe id (e.g. "linear", "bento", "glass-liquid", "cyber", "luxe", "heatmap"). Pick the one that fits the subject; your explicit type/palette still override.' },
       concept: { type: 'string', description: 'A named concept grounded in the subject (e.g. "Port of Entry", "The Workshop Ledger").' },
       rationale: { type: 'string', description: 'One or two sentences: why this concept fits THIS subject.' },
       structureEncodes: { type: 'string', description: 'What the page structure encodes that is TRUE — real codes/SKUs/dates/places used as markers, not generic numbers.' },
@@ -267,8 +290,11 @@ export const designDirectionTool: ToolDef = {
       `Locked the design direction "${brief.concept}" at ${at}: design-direction.json + DESIGN.md + tokens.css ` +
       `(palette accent ${brief.palette.accent}; type ${brief.type.display.family} / ${brief.type.body.family} / ` +
       `${brief.type.data.family}; signature: ${brief.signature || 'TBD'}).\n` +
+      (brief.fontsLink
+        ? `The type trio loads automatically via tokens.css (an @import for ${brief.type.display.family} / ${brief.type.body.family} / ${brief.type.data.family}) — you can skip add_fonts for these.\n`
+        : '') +
       `NEXT: (1) call add_fonts and confirm these families are embedded (${brief.type.display.family}, ` +
-      `${brief.type.body.family}, ${brief.type.data.family}); (2) call create_web_app (it now PRESERVES this ` +
+      `${brief.type.body.family}, ${brief.type.data.family})${brief.fontsLink ? ' — or rely on the tokens.css @import above' : ''}; (2) call create_web_app (it now PRESERVES this ` +
       `tokens.css); (3) build the page to this direction — use the mono DATA face for labels/codes/figures, and ` +
       `build the ONE signature moment from ui-kit/craft.css (.board / .spec / .stamp) keyed to REAL data for this ` +
       `subject (never generic 01/02/03). Tell the user the concept in ONE line, then build.`
