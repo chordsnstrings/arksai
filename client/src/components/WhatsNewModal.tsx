@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-30.1';
+export const WHATS_NEW_VERSION = '2026-06-30.2';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -21,6 +21,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'A bigger, bolder design range — 40 fresh looks',
     body: 'Your builds now draw from 40 hand-tested modern design directions — clean product dashboards, Apple-style bento, glassmorphism (including Apple’s new Liquid Glass), calendar-heatmaps, editorial luxury, even cyberpunk and synthwave. The agent picks the one that fits your subject, so every app and website looks distinct and current instead of like the same template.',
+  },
+  {
+    title: 'Simple things build fast — and stay simple',
+    body: 'When you ask for something small, it now builds a small thing — quickly. No more watching a quick tool balloon into extra pages and settings you didn’t ask for: the agent keeps a simple request focused, gets the core working, and finishes.',
   },
 ];
 

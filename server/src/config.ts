@@ -61,6 +61,11 @@ export const config = {
   // Per-session preview-port allocation (kills the canvas port race). Default on;
   // set PREVIEW_PORT_ALLOC=0 to fall back to the legacy fixed-4000 + /proc-scan path.
   previewPortAlloc: process.env.PREVIEW_PORT_ALLOC !== '0',
+  // Simple-build fast path: for a trivially-simple (light-tier) code build, inject
+  // anti-over-engineering guidance, cap the design-critique to 1 round, and nudge the
+  // model to ship once it's over-building — so a small ask stays small + fast. Default
+  // on; set SIMPLE_FAST_PATH=0 to disable.
+  simpleFastPath: process.env.SIMPLE_FAST_PATH !== '0',
   // Direction library: inject the curated catalog of 40 tested modern design directions
   // (a layout archetype + a font trio + an accent + a signature) into the design context for
   // visual builds, so the agent picks a fitting, modern, varied look instead of one default.

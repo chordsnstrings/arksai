@@ -32,6 +32,7 @@ import { auditWebHygiene } from './webHygiene';
 import { escalateModel, resolveProvider, selectModel } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
 import { compileDesignBrief, designBriefBlock } from './designBrief';
+import { isSimpleBuild, simpleBuildGuidance, simpleBuildNudge, SIMPLE_BUILD_NUDGE_AT } from './simpleBuild';
 import { routeExpertise } from './expertiseRouter';
 import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
 import { calibratedTypical, recordRunDurations } from './etaCalibration';
@@ -396,6 +397,8 @@ export class AgentRun {
   private accruedCostUsd = 0; // model spend this run, summed per concrete model
   private taskProfile!: TaskProfile; // classified at run start; drives design context + gating
   private compiledBrief: string | null = null; // per-request expert design brief (visual builds)
+  private simpleBuild = false; // light-tier code build → the simple-build fast path (lean pipeline)
+  private simpleNudged = false; // one-time "ship the simplest version" nudge already sent
   private autoExpertiseApplied = false; // true once the auto-router has set this.session.task (never overwrites a picked play)
   private progressPct = 0; // monotonic 0–100 for the live progress bar (never regresses)
   private progressPhase: ProgressPhase = 'understanding';
@@ -670,6 +673,11 @@ export class AgentRun {
     let memoryBlock = await this.loadMemoryBlock(dir);
     let systemContent = buildSystemPrompt(this.session, dir, memoryBlock, this.taskProfile, userText);
 
+    // Simple-build fast path: a light-tier code build stays lean — inject anti-over-engineering
+    // guidance now, and cap design rounds + nudge to ship (below). Keeps a small ask small + fast.
+    this.simpleBuild = config.simpleFastPath && isSimpleBuild(this.taskProfile, this.session.mode);
+    if (this.simpleBuild) systemContent += `\n\n${simpleBuildGuidance()}`;
+
     // Design-brief compiler: for a VISUAL build, rewrite the user's casual request into an expert
     // art-directed brief UP FRONT (one bounded M3 pass) and inject it — the per-request "think
     // first" step Claude does internally, the piece Auto-Brief deliberately leaves to visual work.
@@ -741,6 +749,11 @@ export class AgentRun {
         if (this.usage.totalTokens > maxRunTokens) {
           stopReason = 'budget';
           break;
+        }
+        // Simple-build fast path: if a small ask is clearly over-building, nudge it to ship ONCE.
+        if (this.simpleBuild && !this.simpleNudged && iteration > SIMPLE_BUILD_NUDGE_AT) {
+          this.simpleNudged = true;
+          context.push({ role: 'user', content: simpleBuildNudge() });
         }
         truncateContext(context);
         await flushLive(); // persist prior turn's items + running token/cost totals (live progress)
@@ -952,6 +965,9 @@ export class AgentRun {
             this.compiledBrief = await compileDesignBrief(userText, this.taskProfile, this.abort.signal);
           }
           if (this.compiledBrief && this.taskProfile?.isVisual) systemContent += designBriefBlock(this.compiledBrief);
+          // Re-evaluate the simple-build fast path for the new mode (e.g. chat→code to build).
+          this.simpleBuild = config.simpleFastPath && isSimpleBuild(this.taskProfile, newMode);
+          if (this.simpleBuild) systemContent += `\n\n${simpleBuildGuidance()}`;
           this.routeModel(userText, sysInfo);
           sysInfo(`↳ ${MODE_SWITCH_LINE[newMode]}`);
           this.emit({ type: 'session_meta_updated', meta: { id: sessionId, mode: newMode } });
@@ -1858,7 +1874,7 @@ export class AgentRun {
       probe.ui?.designVerdict === 'revise' &&
       probe.ui.designDefects?.length
     ) {
-      if (this.designRounds < MAX_DESIGN_ROUNDS) {
+      if (this.designRounds < (this.simpleBuild ? 1 : MAX_DESIGN_ROUNDS)) {
         this.designRounds++;
         const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
         if (next !== this.activeModel) this.setActiveModel(next);
