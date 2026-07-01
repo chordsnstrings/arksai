@@ -40,6 +40,7 @@ import { generatePptxTool } from './pptx';
 import { convertDocumentTool } from './convert';
 import { createArtifactTool } from './artifact';
 import { switchModeTool, submitPlanTool } from './mode';
+import { checkpointTool } from './checkpoint';
 import { fetchDataTool } from './data';
 import { fetchAdsTool } from './ads';
 import { sendWebhookTool } from './outbound';
@@ -55,6 +56,7 @@ import { querySpreadsheetTool } from './query';
 import { readPresentationTool } from './presentation';
 
 export const ALL_TOOLS: ToolDef[] = [
+  checkpointTool,
   webSearchTool,
   webFetchTool,
   generateMusicTool,

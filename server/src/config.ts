@@ -61,6 +61,10 @@ export const config = {
   // Per-session preview-port allocation (kills the canvas port race). Default on;
   // set PREVIEW_PORT_ALLOC=0 to fall back to the legacy fixed-4000 + /proc-scan path.
   previewPortAlloc: process.env.PREVIEW_PORT_ALLOC !== '0',
+  // Checkpointed long-build mode (Phase 4): for a large build, the agent works task-by-task
+  // and calls checkpoint(...) after each milestone → a durable git commit so the build is
+  // resumable if interrupted. Opt-in (set CHECKPOINT_BUILDS=1) while it beds in.
+  checkpointBuilds: process.env.CHECKPOINT_BUILDS === '1',
   // Simple-build fast path: for a trivially-simple (light-tier) code build, inject
   // anti-over-engineering guidance, cap the design-critique to 1 round, and nudge the
   // model to ship once it's over-building — so a small ask stays small + fast. Default

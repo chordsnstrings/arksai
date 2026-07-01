@@ -34,6 +34,7 @@ import { classifyTask, type TaskProfile } from './taskProfile';
 import { compileDesignBrief, designBriefBlock } from './designBrief';
 import { isSimpleBuild, simpleBuildGuidance, simpleBuildNudge, SIMPLE_BUILD_NUDGE_AT } from './simpleBuild';
 import { byteplusKey } from './byteplusRuntime';
+import { checkpointResumeNote, checkpointPlanGuidance } from './checkpoint';
 import { routeExpertise } from './expertiseRouter';
 import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
 import { calibratedTypical, recordRunDurations } from './etaCalibration';
@@ -680,6 +681,14 @@ export class AgentRun {
     // guidance now, and cap design rounds + nudge to ship (below). Keeps a small ask small + fast.
     this.simpleBuild = config.simpleFastPath && isSimpleBuild(this.taskProfile, this.session.mode);
     if (this.simpleBuild) systemContent += `\n\n${simpleBuildGuidance()}`;
+
+    // Phase 4 (checkpointed long builds): resume a build that has prior checkpoints (so finished
+    // work isn't redone), else steer a fresh LARGE build to proceed in durable, resumable tasks.
+    if (config.checkpointBuilds && this.session.mode === 'code') {
+      const resume = checkpointResumeNote(dir);
+      if (resume) systemContent += resume;
+      else if (this.taskProfile?.tier === 'heavy') systemContent += `\n\n${checkpointPlanGuidance()}`;
+    }
 
     // Design-brief compiler: for a VISUAL build, rewrite the user's casual request into an expert
     // art-directed brief UP FRONT (one bounded M3 pass) and inject it — the per-request "think
