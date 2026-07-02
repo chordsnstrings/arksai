@@ -37,7 +37,7 @@ import { isSimpleBuild, simpleBuildGuidance, simpleBuildNudge, SIMPLE_BUILD_NUDG
 import { byteplusKey } from './byteplusRuntime';
 import { checkpointResumeNote, checkpointPlanGuidance, readCheckpoints, recordCheckpoint } from './checkpoint';
 import { routeExpertise } from './expertiseRouter';
-import { isAutoModel, MAX_MODEL, FAST_MODEL, HEAVY_GLM51_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
+import { isAutoModel, MAX_MODEL, FAST_MODEL, HEAVY_GLM51_MODEL, HEAVY_KIMI_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
 import { calibratedTypical, recordRunDurations } from './etaCalibration';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // generous headroom under MiniMax's large context window
@@ -424,6 +424,8 @@ export class AgentRun {
   // fast model makes more cross-reference errors on a financial model, so we keep M3 where
   // we can). Counts stalls across the run.
   private minimaxStalls = 0;
+  // BytePlus (GLM/Kimi) mid-stream silences this run — drives the stall ladder in the run loop.
+  private byteplusStalls = 0;
   private forceFastThisTurn = false;
   // The concrete model the orchestrator is using right now (resolved from the
   // session model, which may be the virtual 'arksai-auto').
@@ -879,6 +881,34 @@ export class AgentRun {
               sysInfo(`↳ That step ran long — finishing it on ArksAI Flash, then back to ArksAI Max.`);
             }
             continue;
+          }
+          // BytePlus (GLM/Kimi) went silent mid-stream. Nothing is committed to the context
+          // until a turn completes, so RECOVER instead of dying — a checkpointed build must
+          // never be killed by one silent stream (this exact error killed the TaskForge run).
+          // Ladder: retry the model (a stall is usually a transient serving hiccup) → switch
+          // to the next heavy coder (Kimi, same coding plan) → retry it → last resort M3
+          // (a different provider entirely; its own stall handling takes over from there).
+          if (err?.byteplusStall && !this.abort.signal.aborted) {
+            this.byteplusStalls++;
+            this.emit({ type: 'turn_reset', runId: this.runId });
+            if (this.byteplusStalls === 1 || this.byteplusStalls === 3) {
+              sysInfo('↳ The engine went quiet — retrying that step.');
+              await new Promise((r) => setTimeout(r, 1500));
+              continue;
+            }
+            if (this.byteplusStalls === 2 && this.activeModel !== HEAVY_KIMI_MODEL) {
+              this.dropM3Reasoning(context); // reasoning fields are model-specific — clean before switching
+              this.setActiveModel(HEAVY_KIMI_MODEL);
+              sysInfo('↳ Still quiet — switching engines to keep the build moving.');
+              continue;
+            }
+            if (this.byteplusStalls <= 4 && this.activeModel !== MAX_MODEL) {
+              this.dropM3Reasoning(context);
+              this.setActiveModel(MAX_MODEL);
+              sysInfo('↳ Switching to ArksAI Max to finish this build.');
+              continue;
+            }
+            // 5+ stalls across three engines → genuinely stuck; fall through to the terminal error.
           }
           // The connection dropped mid-reply (a "premature close" / terminated socket).
           // Nothing is committed to the context until a turn completes, so redo the turn
@@ -1463,6 +1493,9 @@ export class AgentRun {
           : await this.createMinimaxStream(params);
       } catch (err) {
         if (this.abort.signal.aborted) throw err;
+        // A BytePlus STALL bubbles to the run loop's stall ladder (retry → Kimi → M3) — the
+        // instant escalate below is for hard API errors (4xx/5xx), not silence.
+        if ((err as any)?.byteplusStall) throw err;
         // Hard failure on the Swift fast lane (Dola) → escalate to M3 once and retry, so a simple
         // build never dead-ends on the fast provider. (Transient errors still just back off.)
         if (!isTransientApiError(err) && this.activeProvider === 'byteplus' && !triedByteplusEscalate) {
