@@ -121,8 +121,23 @@ Tests: pure `buildVideoContent` (params/roles/flags incl. draft→480p, duration
 compiler fail-open, provider dispatch (no key → Hailuo path untouched). Gate: **live on
 arksai.studio** — a real chat ask produces a draft, then a final, both playable; cost visible.
 
-**Phase 2 — the video card.** `VideoCard.tsx` + canvas playback + Render-final/Tweak buttons +
-WhatsNew/FEATURES. Gate: Playwright — card renders, buttons prefill, video plays.
+**Phase 2 — the VIDEO STUDIO (a dedicated surface, like the Android section — operator direction
+2026-07-02).** Video is a studio workflow, not a chat thread. A sidebar entry **"Video"** opens a
+full-page studio (`client/src/components/VideoStudio.tsx`, route `/video`, same pattern as the
+Android/Robots surfaces):
+- **Brief composer** (left): structured, zero-jargon fields — what it's for (ad / reel / demo /
+  cinematic), where it runs (9:16 / 16:9 / 1:1 chips), length slider (4–12 s), audio toggle
+  (+ optional dialogue line), an optional image drop (animate it). One button: **"Make a draft"**.
+- **Draft rail** (right): every draft as a playing card — video player, param chips, cost line,
+  and per-card actions **Render final (1080p)** · **Tweak** (one adjustment field) · **Download**.
+  Finals get a ★ and live at the top. This is the draft-ladder made visual: compare drafts
+  side-by-side, promote the winner.
+- **Library** (below): all videos ever made in the workspace (from `videos/` across sessions),
+  filter by aspect/date, re-open params to remix.
+- Engine-wise the studio drives the SAME `generate_video` tool through a lightweight session (like
+  the Android surface drives build_apk) — no parallel pipeline to maintain. The chat flow (Flow A)
+  keeps working and shows a compact `VideoCard` that links into the studio.
+Gate: Playwright — studio renders, brief→draft→final walk works, library lists; WhatsNew/FEATURES.
 
 **Phase 3 — Seedance 2.0 suite.** Edit/extend/reference flows (uploads of video/audio already
 land in `uploads/`), routing rules, `-fast`/`-mini` tiers, cost confirmation in intake (no draft
