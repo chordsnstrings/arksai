@@ -93,6 +93,14 @@ export const config = {
   byteplusApiKey: process.env.ARK_API_KEY || '',
   byteplusBaseUrl: process.env.BYTEPLUS_BASE_URL || 'https://ark.ap-southeast.bytepluses.com/api/coding/v3',
   byteplusModel: process.env.BYTEPLUS_MODEL || 'seed-2-0-pro',
+  // Heavy-tier BytePlus coders under evaluation for the heavy build lane (branded id → concrete
+  // coding-plan model id; env-overridable). All confirmed doing streaming tool-calls on the coding
+  // endpoint. glm-5-2 is NOT here — it's not activated on the account (ModelNotOpen).
+  byteplusHeavyModels: {
+    'arksai-heavy-glm': process.env.BYTEPLUS_GLM_MODEL || 'glm-4-7-251222',
+    'arksai-heavy-ds4': process.env.BYTEPLUS_DS4_MODEL || 'deepseek-v4-pro-260425',
+    'arksai-heavy-code': process.env.BYTEPLUS_CODE_MODEL || 'seed-2-0-code-preview-260328',
+  } as Record<string, string>,
   // Non-thinking DeepSeek alias used for one-shot robot reply drafting (fast, decisive;
   // the thinking v4-pro is slow for short outputs). Env-overridable.
   deepseekReplyModel: process.env.DEEPSEEK_REPLY_MODEL || 'deepseek-chat',

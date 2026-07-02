@@ -101,6 +101,14 @@ export const FAST_MODEL = 'arksai-flash';
 export const SWIFT_MODEL = 'arksai-swift';
 export const isAutoModel = (id: string): boolean => id === AUTO_MODEL;
 
+/** Heavy-tier BytePlus coders under evaluation for the heavy build lane (bake-off vs M3).
+ *  Selectable-by-id (not advertised in the default lineup) only when BytePlus is configured;
+ *  each maps to a concrete BytePlus coding-plan model via config.byteplusHeavyModels. */
+export const HEAVY_GLM_MODEL = 'arksai-heavy-glm';
+export const HEAVY_DS4_MODEL = 'arksai-heavy-ds4';
+export const HEAVY_SEEDCODE_MODEL = 'arksai-heavy-code';
+export const HEAVY_BYTEPLUS_MODELS = [HEAVY_GLM_MODEL, HEAVY_DS4_MODEL, HEAVY_SEEDCODE_MODEL];
+
 /** The full selectable lineup (all MiniMax-backed). */
 export const FALLBACK_MODEL_IDS = [AUTO_MODEL, MAX_MODEL, FAST_MODEL];
 /** Kept for older imports. */
@@ -145,6 +153,10 @@ export const KNOWN_MODELS: Record<string, ModelPricing> = {
   // ArksAI Swift = Dola-Seed-2.0-pro on the BytePlus coding plan (flat-rate). Nominal per-token
   // estimate for the cost bar (the plan is flat, so marginal cost is ~0); tune to the plan.
   'arksai-swift': { label: 'ArksAI Swift', inputCacheHitPerM: 0.03, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
+  // Heavy-tier BytePlus coders (bake-off vs M3). Prices per BytePlus console (June 2026), per 1M tokens.
+  'arksai-heavy-glm': { label: 'ArksAI Heavy (GLM-4.7)', inputCacheHitPerM: 0.11, inputCacheMissPerM: 0.6, outputPerM: 2.2 },
+  'arksai-heavy-ds4': { label: 'ArksAI Heavy (DeepSeek-V4-pro)', inputCacheHitPerM: 0.145, inputCacheMissPerM: 1.74, outputPerM: 3.48 },
+  'arksai-heavy-code': { label: 'ArksAI Heavy (Seed-2.0-Code)', inputCacheHitPerM: 0.2, inputCacheMissPerM: 1.0, outputPerM: 4.0 },
 };
 
 export function pricingFor(model: string): ModelPricing {

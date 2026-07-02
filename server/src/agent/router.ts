@@ -92,6 +92,11 @@ export function resolveProvider(modelId: string): Resolved {
   if (modelId === SWIFT_MODEL) {
     return { provider: 'byteplus', apiModel: config.byteplusModel, pricingId: SWIFT_MODEL };
   }
+  // Heavy-tier BytePlus coders (bake-off): branded id → concrete coding-plan model, same adapter.
+  const heavy = config.byteplusHeavyModels[modelId];
+  if (heavy) {
+    return { provider: 'byteplus', apiModel: heavy, pricingId: modelId };
+  }
   if (modelId === FAST_MODEL) {
     return { provider: 'minimax', apiModel: config.minimaxFallbackModel, pricingId: FAST_MODEL };
   }

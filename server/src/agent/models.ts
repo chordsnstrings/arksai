@@ -1,5 +1,6 @@
 import { config } from '../config';
 import { AUTO_MODEL, FAST_MODEL, MAX_MODEL, pricingFor, type ModelInfo } from '../../../shared/types';
+import { byteplusConfigured } from './byteplusRuntime';
 
 /** The selectable lineup — all MiniMax-backed. Auto leads (the default the chat
  *  uses), then the directly-selectable tiers (Max = M3, Flash = M2.7-highspeed).
@@ -21,5 +22,8 @@ export async function isValidModel(id: string): Promise<boolean> {
   if (!id) return false;
   if (id === AUTO_MODEL) return true;
   if (id === MAX_MODEL || id === FAST_MODEL) return !!config.minimaxApiKey;
+  // Heavy-tier BytePlus coders under evaluation: reachable by id (not in the advertised lineup)
+  // when BytePlus is configured, so the heavy-lane bake-off can pin them without a UI change.
+  if (id in config.byteplusHeavyModels) return byteplusConfigured();
   return false;
 }

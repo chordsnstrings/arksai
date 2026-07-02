@@ -70,3 +70,12 @@ test('resolveProvider maps Swift to the byteplus provider + coding model; escala
   assert.equal(resolveProvider(MAX_MODEL).provider, 'minimax');
   assert.equal(resolveProvider(FAST_MODEL).provider, 'minimax');
 });
+
+test('resolveProvider maps heavy-tier BytePlus coders to the concrete coding-plan model', () => {
+  for (const [branded, apiModel] of Object.entries(config.byteplusHeavyModels)) {
+    const r = resolveProvider(branded);
+    assert.equal(r.provider, 'byteplus', `${branded} → byteplus`);
+    assert.equal(r.apiModel, apiModel, `${branded} → ${apiModel}`);
+    assert.equal(r.pricingId, branded); // priced/labelled under the branded id
+  }
+});
