@@ -45,6 +45,33 @@ const STYLES: { id: string; label: string; brief: string }[] = [
   { id: 'none', label: 'No preset', brief: '' },
 ];
 
+// Camera-move presets — the 8 official Seedance moves + Auto. "Auto" lets the server prompt
+// compiler pick the best single move for the subject (push-in for people, orbit for products,
+// aerial for landscapes). Picking one injects that exact move so exactly ONE is ever directed.
+const CAMERAS: { id: string; label: string; phrase: string }[] = [
+  { id: 'auto', label: 'Auto', phrase: '' },
+  { id: 'push', label: 'Push-in', phrase: 'slow push-in toward the subject' },
+  { id: 'pull', label: 'Pull-out', phrase: 'slow pull-out revealing the wider scene' },
+  { id: 'pan', label: 'Pan', phrase: 'smooth lateral pan' },
+  { id: 'track', label: 'Tracking', phrase: 'tracking shot that follows the subject' },
+  { id: 'orbit', label: 'Orbit', phrase: 'slow orbit around the subject' },
+  { id: 'aerial', label: 'Aerial', phrase: 'aerial drone shot descending over the scene' },
+  { id: 'handheld', label: 'Handheld', phrase: 'handheld with subtle natural shake' },
+  { id: 'fixed', label: 'Fixed', phrase: 'fixed locked-off shot, no camera movement' },
+];
+
+// Lighting presets — the highest-impact lever. "Auto" defers to the compiler's tasteful default.
+const LIGHTS: { id: string; label: string; phrase: string }[] = [
+  { id: 'auto', label: 'Auto', phrase: '' },
+  { id: 'golden', label: 'Golden hour', phrase: 'golden hour, warm directional light' },
+  { id: 'daylight', label: 'Soft daylight', phrase: 'soft natural daylight, bright and even' },
+  { id: 'rim', label: 'Rim light', phrase: 'dramatic rim light on a dark background' },
+  { id: 'neon', label: 'Neon', phrase: 'neon-lit with a colourful glow' },
+  { id: 'backlit', label: 'Backlit', phrase: 'backlit with a soft glow halo' },
+  { id: 'overcast', label: 'Overcast', phrase: 'soft overcast diffused light' },
+  { id: 'moody', label: 'Moody', phrase: 'moody low-key light with deep shadows' },
+];
+
 export function VideoStudio({ onClose }: { onClose: () => void }) {
   const setActive = useStore((s) => s.setActive);
   const beginRun = useStore((s) => s.beginRun);
@@ -57,6 +84,8 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [ratio, setRatio] = useState('9:16');
   const [duration, setDuration] = useState(8);
   const [style, setStyle] = useState('cinematic');
+  const [camera, setCamera] = useState('auto');
+  const [light, setLight] = useState('auto');
   const [audio, setAudio] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -70,6 +99,10 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       `Scene: ${scene.trim()}`,
     ];
     if (styleObj.brief) lines.push(`Look: ${styleObj.brief}.`);
+    const cam = CAMERAS.find((c) => c.id === camera)?.phrase;
+    if (cam) lines.push(`Camera: ${cam} (one steady move).`);
+    const lit = LIGHTS.find((l) => l.id === light)?.phrase;
+    if (lit) lines.push(`Lighting: ${lit}.`);
     if (dialogue.trim()) lines.push(`Spoken dialogue (say it verbatim, lip-synced): "${dialogue.trim()}"`);
     lines.push(audio ? 'Include native audio (ambience + any dialogue).' : 'No audio — silent clip.');
     if (model !== 'auto') lines.push(`Use ${MODELS.find((m) => m.id === model)?.label}.`);
@@ -133,6 +166,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           />
         </label>
 
+        <div className="aw-step">2 · Direction <em style={{ fontWeight: 400, fontStyle: 'normal', color: 'var(--text-faint)' }}>· Auto is smart — override only if you want</em></div>
         <div className="aw-field">
           <span className="aw-label">Look</span>
           <div className="aw-grid">
@@ -144,7 +178,29 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="aw-step">2 · Format</div>
+        <div className="aw-field">
+          <span className="aw-label">Camera move <em>(one steady move — the pro rule)</em></span>
+          <div className="aw-chips">
+            {CAMERAS.map((c) => (
+              <button key={c.id} className={`aw-chip ${camera === c.id ? 'on' : ''}`} onClick={() => setCamera(c.id)} type="button">
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="aw-field">
+          <span className="aw-label">Lighting</span>
+          <div className="aw-chips">
+            {LIGHTS.map((l) => (
+              <button key={l.id} className={`aw-chip ${light === l.id ? 'on' : ''}`} onClick={() => setLight(l.id)} type="button">
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="aw-step">3 · Format</div>
         <div className="aw-field">
           <span className="aw-label">Aspect ratio</span>
           <div className="aw-grid">

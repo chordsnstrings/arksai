@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.8';
+export const WHATS_NEW_VERSION = '2026-07-02.9';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'The new Video page (🎬 in the sidebar) lets you describe a shot, add spoken lines, pick the format, and generate it with synchronized sound — a quick draft first, then the full render. Clips can now run up to 15 seconds, and everything you make lands in a library you can replay any time.',
   },
   {
-    title: 'Just describe the shot — we direct it',
-    body: 'You only write what happens; behind the scenes we now expand it into a full professional prompt — the right single camera move, lighting, film look, synced audio, and stability guards — so videos come out sharper and steadier without you learning any of the craft.',
+    title: 'One-tap direction for video',
+    body: 'The Video page now has clickable presets for camera move (push-in, orbit, tracking, aerial…), lighting (golden hour, rim, neon…) and look. Leave everything on Auto and we pick the perfect setup for your scene, or tap to direct it yourself — either way the shot comes out sharp and steady.',
   },
 ];
 
