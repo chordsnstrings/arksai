@@ -215,7 +215,11 @@ export const generateVideoTool: ToolDef = {
         if (args.first_frame_image) {
           imageUrl = fileToDataUrl(resolveInWorkspace(ctx.repoDir, String(args.first_frame_image)));
         }
-        const compiled = compileVideoPrompt({ brief: prompt, dialogue: args.dialogue ? String(args.dialogue) : undefined });
+        const compiled = compileVideoPrompt({
+          brief: prompt,
+          dialogue: args.dialogue ? String(args.dialogue) : undefined,
+          durationSec: Number(args.duration) || undefined,
+        });
         const draft = args.final !== true;
         const { id, built } = await createVideoTask(
           {

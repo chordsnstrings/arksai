@@ -267,8 +267,9 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Compact tools strip — everything beyond chats, one tap away, pinned at the bottom so
-          it never pushes the recent chats down. Labeled (discoverable) + live badges. */}
+      {/* Compact tools strip — everything beyond chats, one tap away, pinned at the bottom so it
+          never pushes the recent chats down. Two tidy clusters: the places you go (top) and
+          setup/admin (below a hairline). Labeled (discoverable) + live badges. */}
       <div className="sb-tools">
         <button className="sb-tool" onClick={() => { onActivity(); if (window.innerWidth <= 860) toggleNav(false); }}>
           🔔 Activity {actBadge > 0 && <NavBadge n={actBadge} />}
@@ -281,6 +282,8 @@ export function Sidebar({
         </button>
         <button className="sb-tool" onClick={onAndroid}>📱 Android</button>
         <button className="sb-tool" onClick={onVideo}>🎬 Video</button>
+      </div>
+      <div className="sb-tools sb-tools-sub">
         <button className="sb-tool" onClick={onConnections}>
           <ConnectorIcon /> Connect
         </button>

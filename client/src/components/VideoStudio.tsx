@@ -29,7 +29,13 @@ const RATIOS: { id: string; label: string; hint: string; box: [number, number] }
   { id: '1:1', label: 'Square', hint: 'feed · grid', box: [20, 20] },
 ];
 
-const DURATIONS = [4, 6, 8, 10];
+// Duration options by model — the API's verified ranges: 1.5 = 4–12s, 2.0 = 4–15s.
+// Auto assumes the 1.5 default (12s ceiling); picking 2.0 unlocks 15s.
+const DURATIONS_BY_MODEL: Record<ModelChoice, number[]> = {
+  auto: [4, 6, 8, 10, 12],
+  'arksai-video-15': [4, 6, 8, 10, 12],
+  'arksai-video-20': [4, 6, 8, 10, 12, 15],
+};
 
 const STYLES: { id: string; label: string; brief: string }[] = [
   { id: 'cinematic', label: 'Cinematic', brief: 'cinematic, shallow depth of field, filmic color, smooth camera move' },
@@ -156,7 +162,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
         <div className="aw-field">
           <span className="aw-label">Duration</span>
           <div className="aw-segs">
-            {DURATIONS.map((d) => (
+            {DURATIONS_BY_MODEL[model].map((d) => (
               <button key={d} className={`aw-seg ${duration === d ? 'on' : ''}`} onClick={() => setDuration(d)} type="button">
                 <strong>{d}s</strong>
               </button>
@@ -168,7 +174,16 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           <span className="aw-label">Model</span>
           <div className="aw-grid">
             {MODELS.map((m) => (
-              <button key={m.id} className={`aw-card ${model === m.id ? 'on' : ''}`} onClick={() => setModel(m.id)} type="button">
+              <button
+                key={m.id}
+                className={`aw-card ${model === m.id ? 'on' : ''}`}
+                onClick={() => {
+                  setModel(m.id);
+                  const allowed = DURATIONS_BY_MODEL[m.id];
+                  if (!allowed.includes(duration)) setDuration(Math.min(...allowed.filter((d) => d >= duration).concat(allowed[allowed.length - 1])));
+                }}
+                type="button"
+              >
                 <strong>{m.label}</strong><span>{m.hint}</span>
               </button>
             ))}

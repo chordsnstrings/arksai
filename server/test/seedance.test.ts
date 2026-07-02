@@ -50,14 +50,30 @@ test('video: invalid resolution/aspect fall back to safe defaults', () => {
 
 // ---- compileVideoPrompt (pure): director-grade defaults, never overrides the author ----
 
-test('videoBrief: adds camera/style/audio only when missing; dialogue is spoken verbatim', () => {
+test('videoBrief: adds camera/lighting/style/audio only when missing; dialogue is spoken verbatim', () => {
   const bare = compileVideoPrompt({ brief: 'a barista pours latte art' });
   assert.match(bare, /Camera:/);
+  assert.match(bare, /Lighting:/);
   assert.match(bare, /Style:/);
   assert.match(bare, /Audio:/);
-  const authored = compileVideoPrompt({ brief: 'Slow push-in on a barista, cinematic 35mm, we hear the espresso machine' });
-  assert.doesNotMatch(authored, /Camera: a smooth/);
+  // Exactly ONE camera move is directed (the single-move rule).
+  assert.equal((bare.match(/Camera:/g) || []).length, 1);
+  // A person in frame → anatomy-stability negatives.
+  assert.match(bare, /no warped faces or hands/);
+
+  // Fully-authored brief: the compiler must not fight explicit camera/lighting/style/audio.
+  const authored = compileVideoPrompt({ brief: 'Slow push-in on a barista, cinematic 35mm, golden hour light, we hear the espresso machine' });
+  assert.doesNotMatch(authored, /Camera: one/);
+  assert.doesNotMatch(authored, /Lighting: soft/);
   assert.doesNotMatch(authored, /Style: premium/);
+  assert.doesNotMatch(authored, /Audio: natural ambient/);
+
+  // Dialogue is quoted verbatim (the synced-audio signal).
   const talk = compileVideoPrompt({ brief: 'a founder at a desk', dialogue: 'Welcome to TaskForge.' });
   assert.match(talk, /a clear voice says "Welcome to TaskForge\."/);
+
+  // A product hero orbits; a landscape rises; long shots add the no-flicker negative.
+  assert.match(compileVideoPrompt({ brief: 'a sleek phone on a pedestal' }), /orbit/);
+  assert.match(compileVideoPrompt({ brief: 'a wide mountain valley at dawn' }), /aerial rise/);
+  assert.match(compileVideoPrompt({ brief: 'abstract shapes flowing', durationSec: 10 }), /no temporal flicker/);
 });
