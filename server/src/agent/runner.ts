@@ -1293,7 +1293,10 @@ export class AgentRun {
       messages: params.messages || [],
       stream: true,
       stream_options: { include_usage: true },
-      max_tokens: 16000,
+      // Big single-file writes on the reasoning coders (GLM-5.1 measured ~27k completion tokens
+      // INCLUDING reasoning for one complete app file) — 16k truncated the tool-call args mid-JSON,
+      // which the loop then retried, burning tokens. Headroom is cheap; truncation is not.
+      max_tokens: Number(process.env.BYTEPLUS_MAX_TOKENS || '40000') || 40_000,
       temperature: 0.4,
     };
     if (params.tools?.length) {
@@ -1301,16 +1304,27 @@ export class AgentRun {
       body.tool_choice = 'auto';
     }
     const ac = new AbortController();
-    const DEADLINE_MS = Number(process.env.BYTEPLUS_DEADLINE_MS || '240000') || 240_000;
+    // IDLE deadline, not a total one: a healthy heavy generation streams for 9+ minutes (GLM-5.1
+    // writes a complete app in one pass), and the old fixed 240s total timer aborted it mid-file —
+    // the wave-2 "operation was aborted" failures. Re-armed on every received chunk below, so only
+    // a stream that goes silent is killed.
+    const IDLE_MS = Number(process.env.BYTEPLUS_IDLE_MS || '180000') || 180_000;
     let rejectDeadline: ((e: any) => void) | null = null;
     const deadline = new Promise<never>((_, rej) => {
       rejectDeadline = rej;
     });
     deadline.catch(() => {});
-    const timer = setTimeout(() => {
-      ac.abort();
-      rejectDeadline?.(Object.assign(new Error(`BytePlus (${this.activeApiModel}) stalled — no response within ${DEADLINE_MS / 1000}s.`), { byteplusStall: true }));
-    }, DEADLINE_MS);
+    let stalled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        stalled = true;
+        ac.abort();
+        rejectDeadline?.(Object.assign(new Error(`BytePlus (${this.activeApiModel}) stalled — no data for ${IDLE_MS / 1000}s.`), { byteplusStall: true }));
+      }, IDLE_MS);
+    };
+    arm();
     const onUserAbort = () => {
       ac.abort();
       rejectDeadline?.(new Error('interrupted by user'));
@@ -1343,12 +1357,14 @@ export class AgentRun {
     }
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
+    const apiModel = this.activeApiModel;
     async function* iterate(): AsyncGenerator<any> {
       let buf = '';
       try {
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
+          arm(); // data flowed — a healthy long generation is never killed, only silence is
           buf += decoder.decode(value, { stream: true });
           let nl: number;
           while ((nl = buf.indexOf('\n')) >= 0) {
@@ -1364,6 +1380,10 @@ export class AgentRun {
             }
           }
         }
+      } catch (e) {
+        // Surface a mid-stream idle-abort as the descriptive stall error (not a bare AbortError).
+        if (stalled) throw Object.assign(new Error(`BytePlus (${apiModel}) stalled mid-stream — no data for ${IDLE_MS / 1000}s.`), { byteplusStall: true });
+        throw e;
       } finally {
         cleanup();
         try {

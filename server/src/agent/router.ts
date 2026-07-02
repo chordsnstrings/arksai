@@ -1,5 +1,5 @@
 import type { SessionMode } from '../../../shared/types';
-import { MAX_MODEL, FAST_MODEL, SWIFT_MODEL } from '../../../shared/types';
+import { MAX_MODEL, FAST_MODEL, SWIFT_MODEL, HEAVY_GLM51_MODEL } from '../../../shared/types';
 import { config } from '../config';
 import { byteplusConfigured } from './byteplusRuntime';
 
@@ -43,6 +43,11 @@ const tierModel = (tier: Tier, mode: SessionMode, _o: RouteOpts): string => {
   // high-quality on small builds, and pairs with the simple-build lean pipeline. Falls through to M3
   // when BytePlus isn't set up, so behaviour is unchanged without a key.
   if (mode === 'code' && tier === 'light' && byteplusReady()) return SWIFT_MODEL;
+  // HEAVY code build → GLM-5.1 (bake-off-validated 2026-07-02: with the craft/restraint prompt it
+  // one-shot a complete, correct, disciplined app at Claude-level quality for ~$0.11, while M3 went
+  // 0-for-2 on the same brief — a 404 ship and a 26-min non-converging loop). M3 remains the
+  // escalation target on a hard BytePlus failure, and the default when BytePlus isn't configured.
+  if (mode === 'code' && tier === 'heavy' && byteplusReady()) return HEAVY_GLM51_MODEL;
   // Otherwise MiniMax: quality/agentic/designed work → M3 (Max); quick non-code light turns → Flash.
   if (mode === 'code' || mode === 'report') return MAX_MODEL;
   if (tier === 'light') return FAST_MODEL;
@@ -53,6 +58,7 @@ const LABELS: Record<string, string> = {
   [FAST_MODEL]: 'ArksAI Flash',
   [MAX_MODEL]: 'ArksAI Max',
   [SWIFT_MODEL]: 'ArksAI Swift',
+  [HEAVY_GLM51_MODEL]: 'ArksAI Heavy',
 };
 
 /** Pick a concrete model for a task. Pure + deterministic so it's testable. */

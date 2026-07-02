@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.1';
+export const WHATS_NEW_VERSION = '2026-07-02.2';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A faster lane for quick builds',
-    body: 'Simple asks now run on a dedicated fast lane, so a quick tool, page, or utility comes back sooner — without losing any of the polish. Bigger, more involved builds still get the full treatment.',
+    title: 'Big builds got a new brain — and a plan',
+    body: 'Complex builds now run on a new engine tuned for large jobs, and they work the way a senior engineer does: plan the steps first, build one at a time, save progress at every milestone. Long builds finish cleaner, cost less, and survive interruptions.',
   },
   {
-    title: 'A more resilient platform',
-    body: 'Behind the scenes we hardened the platform so automated jobs can never disrupt the live service — your workspace stays up, always.',
+    title: 'First-time-right craftsmanship',
+    body: 'Every build now follows a stricter one-pass discipline — leaner code, no dead weight, and a self-check for mobile fit, working buttons, and saved data before it ever reaches you.',
   },
 ];
 

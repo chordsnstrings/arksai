@@ -64,7 +64,12 @@ export const config = {
   // Checkpointed long-build mode (Phase 4): for a large build, the agent works task-by-task
   // and calls checkpoint(...) after each milestone → a durable git commit so the build is
   // resumable if interrupted. Opt-in (set CHECKPOINT_BUILDS=1) while it beds in.
-  checkpointBuilds: process.env.CHECKPOINT_BUILDS === '1',
+  // Plan-by-plan heavy builds (Phase 4): ON by default — a heavy code build gets the
+  // "outline ordered tasks → build one → checkpoint() → verify → next" steering + durable
+  // git checkpoints with a resume note, so a long build is bounded and survives interruption
+  // (the runaway/abort failures in the heavy-model bake-off were unbounded single-pass runs).
+  // Set CHECKPOINT_BUILDS=0 to disable.
+  checkpointBuilds: process.env.CHECKPOINT_BUILDS !== '0',
   // Simple-build fast path: for a trivially-simple (light-tier) code build, inject
   // anti-over-engineering guidance, cap the design-critique to 1 round, and nudge the
   // model to ship once it's over-building — so a small ask stays small + fast. Default

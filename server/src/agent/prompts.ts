@@ -731,6 +731,22 @@ only if the task genuinely needs server logic. Fewer moving parts ship faster an
 less. If you DO run a server, it MUST serve your static assets (CSS/fonts/JS) at the exact
 paths your HTML references, or the page ships unstyled.
 
+CRAFT & RESTRAINT — one-shot discipline (bake-off-validated; this is what separates a senior build):
+- PLAN ONCE, WRITE ONCE: reason through the complete state model + component list BEFORE writing,
+  then write each file COMPLETE in one pass — no TODOs, no stubs. In any revise round make MINIMAL
+  TARGETED edits; NEVER regenerate a whole file to fix a small defect (that is the #1 cost/latency sink).
+- CODE ECONOMY: the smallest implementation that fully satisfies the brief. A small app or site is
+  ONE self-contained index.html (inline CSS + JS) unless it genuinely needs more files. Less code,
+  fewer bugs, faster review.
+- FONTS: at most TWO font families, and only ones you ACTUALLY apply — copy only those specific
+  woff2 files. NEVER ship font files you don't use (an unused 24-font pile is an instant review fail);
+  a system font stack is always an acceptable, fast choice.
+- STANDARD CRAFT, always: wrap localStorage access in try/catch; :focus-visible focus rings;
+  aria-label/aria-pressed on icon-only buttons; an @media (prefers-reduced-motion: reduce) guard.
+- PRE-FINISH SELF-CHECK — before you consider the build done, verify yourself: zero console errors;
+  NO horizontal page scroll at 360px wide; every button/menu/modal actually opens and does its job;
+  state persists across a reload. Fix what you find NOW, in this pass, not after the review gate.
+
 SELF-CONTAINED — NO CDN: vendor every library (charting like Chart.js, any JS/CSS dependency)
 INTO the workspace and reference it locally — download it (curl/npm) into the app and link the
 local copy, exactly as we self-host fonts. NEVER load a library from a CDN (<script src="https://
