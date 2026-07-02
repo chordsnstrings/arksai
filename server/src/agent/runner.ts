@@ -428,6 +428,10 @@ export class AgentRun {
   private byteplusStalls = 0;
   // "tool::error-prefix" of the most recent failed tool call — the repeat-error circuit-breaker.
   private lastToolErrorSig = '';
+  // A publish passed the full pre-launch review and is LIVE — the run's terminal state.
+  // After this, no verify/design gate may reopen in this run (the TaskForge run kept
+  // polish→republish→review cycling AFTER a clean publish until the loop guard parked it).
+  private publishedClean = false;
   private forceFastThisTurn = false;
   // The concrete model the orchestrator is using right now (resolved from the
   // session model, which may be the virtual 'arksai-auto').
@@ -1013,6 +1017,14 @@ export class AgentRun {
         for (const call of calls) {
           if (this.abort.signal.aborted) break;
           let result = await this.executeTool(call, map, dir, groupRecords);
+          // Published + green = DONE. A clean, review-passed publish is the terminal state of a
+          // build run — deliver the link and stop; never re-open checks/polish on a shipped app.
+          if (call.name === 'publish_app' && result.startsWith('Published live at')) {
+            this.publishedClean = true;
+            this.verifiedClean = true;
+            result +=
+              '\n\n[SYSTEM] The build is DELIVERED — this publish passed the full pre-launch review. Give the user the URL and END the run NOW. Do not run more checks, make more edits, or publish again in this run; if you want polish ideas, mention them as optional notes.';
+          }
           // Repeat-error circuit-breaker: the SAME tool failing with the SAME error means the
           // diagnosis is wrong, not the luck — models (all of them, in the 2026-07-02 judgment
           // bake-off) only reliably stop when the repetition is pointed out in the result itself.
@@ -1938,6 +1950,10 @@ export class AgentRun {
     liveItems: TimelineItem[],
     context: any[],
   ): Promise<'retry' | 'failed' | 'ok'> {
+    // The app already published clean this run (full pre-launch review passed on the LIVE URL) —
+    // that is the strongest verification that exists; nothing may reopen after it. Any republish
+    // still gets publish_app's own live smoke test, so this can never ship an unchecked change.
+    if (this.publishedClean) return 'ok';
     const MAX_VERIFY = 4;
     this.verifyRounds++;
     const sys = (level: 'info' | 'error', text: string) => {
