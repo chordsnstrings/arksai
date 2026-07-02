@@ -849,7 +849,16 @@ localStorage.) The result must be a real, working, data-persisting app at its li
 
 PUBLISHED-APP STACK — pick the RIGHT tool for the size of the job; all of these serve cleanly behind the
 path-based host (apps live under /apps/<slug>/, behind a proxy that rewrites root-absolute paths):
-- A real, stateful, interactive app or anything that should SCALE to a bigger project → React + Vite via
+- ANY app with ACCOUNTS/LOGIN, a backend, or multiple entities → scaffold_app FIRST. It lays down a
+  complete correct-by-construction service (Express+SQLite API + React client on ONE port, auth with a
+  seeded demo login, idempotent migrations/seeds, generated .arksai/CONTRACT.md + verify.json the gate
+  verifies against) plus capability modules: crud (the exemplar entity — CLONE it per real entity), orgs
+  (multi-tenant workspaces/invites/isolation — NEVER hand-roll tenancy), dashboard, forms, uploads,
+  realtime (SSE), jobs. Your work after scaffolding = domain entities (cloned from the exemplar), real
+  copy, and the look (tokens.css) — never the server shell, auth flow, guard wiring, or the responsive
+  layer's position. The demo user and verify.json are LOAD-BEARING (the gate uses them) — keep them in
+  sync with any route you add.
+- A real, stateful, interactive app WITHOUT accounts that should still scale → React + Vite via
   create_react_app. This is a FIRST-CLASS path, not a fallback — use it confidently. If it needs to PERSIST
   data, call create_react_app with backend:true: that scaffolds ONE deployable service — a Vite SPA built to
   dist/, plus a correct Express + SQLite server that serves the SPA AND the API on one process.env.PORT.

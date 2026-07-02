@@ -1,0 +1,8 @@
+{
+  "name": "dashboard",
+  "label": "Dashboard (stats + ring)",
+  "deps": ["crud"],
+  "mounts": [{ "path": "/api/stats", "router": "./routes/stats.js", "auth": true }],
+  "nav": [{ "key": "dashboard", "label": "Dashboard", "icon": "dashboard", "page": "./pages/Dashboard.jsx" }],
+  "verify": { "routes": [{ "method": "GET", "path": "/api/stats", "auth": true, "expect": 200 }] }
+}

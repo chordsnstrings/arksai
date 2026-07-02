@@ -1,0 +1,9 @@
+{
+  "name": "jobs",
+  "label": "Background jobs (in-process)",
+  "deps": [],
+  "mounts": [{ "path": "/api/jobs", "router": "./routes/jobs.js", "auth": true }],
+  "nav": [],
+  "boot": "./jobs/runner.js",
+  "verify": { "routes": [{ "method": "GET", "path": "/api/jobs", "auth": true, "expect": 200 }] }
+}

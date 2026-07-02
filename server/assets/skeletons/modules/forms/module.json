@@ -1,0 +1,11 @@
+{
+  "name": "forms",
+  "label": "Forms & submissions",
+  "deps": [],
+  "mounts": [
+    { "path": "/api/submissions", "router": "./routes/submissions.js", "auth": true },
+    { "path": "/api/submit", "router": "./routes/submit.js", "auth": false }
+  ],
+  "nav": [{ "key": "submissions", "label": "Submissions", "icon": "board", "page": "./pages/Submissions.jsx" }],
+  "verify": { "routes": [{ "method": "POST", "path": "/api/submit", "expect": 400 }] }
+}

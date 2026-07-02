@@ -153,6 +153,69 @@ const dedupe = (a: string[]) => [...new Set(a)].slice(0, 8);
  * blank-page check. Degrades gracefully (ran=false) when Playwright/Chromium
  * isn't available, so it never breaks a run.
  */
+/** The scaffold-declared verification manifest (.arksai/verify.json) — when present the gate
+ *  verifies DETERMINISTICALLY: the walker signs in with the declared demo account instead of
+ *  parsing the page, and every declared route is asserted (works for API-only apps too). */
+export interface VerifyManifest {
+  demo?: { email: string; password: string };
+  routes?: Array<{ method: string; path: string; auth?: boolean; expect: number }>;
+  sse?: string;
+}
+
+/** Assert the manifest's routes against the running app. Returns defect lines (empty = pass). */
+export async function checkManifestRoutes(origin: string, manifest: VerifyManifest, signal: AbortSignal): Promise<string[]> {
+  const issues: string[] = [];
+  let token = '';
+  if (manifest.demo) {
+    try {
+      const r = await fetch(`${origin}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(manifest.demo),
+        signal,
+      });
+      const d: any = await r.json().catch(() => ({}));
+      if (r.ok && d?.token) token = d.token;
+      else issues.push(`verify.json: the declared demo login failed (${r.status} ${String(d?.error ?? '')}) — the seeded demo user and the manifest are out of sync.`);
+    } catch (e: any) {
+      issues.push(`verify.json: demo login request failed — ${e?.message ?? e}`);
+    }
+  }
+  for (const route of manifest.routes || []) {
+    try {
+      const r = await fetch(origin + route.path, {
+        method: route.method || 'GET',
+        headers: {
+          ...(route.auth && token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(route.method === 'POST' ? { 'content-type': 'application/json' } : {}),
+        },
+        ...(route.method === 'POST' ? { body: '{}' } : {}),
+        signal,
+      });
+      if (r.status !== route.expect) {
+        issues.push(`verify.json: ${route.method} ${route.path} returned ${r.status}, the manifest expects ${route.expect} — a declared route is broken (or the manifest is stale; update .arksai/verify.json alongside the route).`);
+      }
+    } catch (e: any) {
+      issues.push(`verify.json: ${route.method} ${route.path} failed — ${e?.message ?? e}`);
+    }
+  }
+  if (manifest.sse) {
+    try {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 5000);
+      const r = await fetch(origin + manifest.sse, { signal: ac.signal });
+      const reader = (r.body as any)?.getReader?.();
+      const first = reader ? await reader.read() : null;
+      clearTimeout(timer);
+      try { reader?.cancel(); } catch {}
+      if (!r.ok || !first || first.done) issues.push(`verify.json: the SSE endpoint ${manifest.sse} did not stream an event within 5s.`);
+    } catch (e: any) {
+      if (!/abort/i.test(String(e?.message))) issues.push(`verify.json: SSE check failed — ${e?.message ?? e}`);
+    }
+  }
+  return issues.slice(0, 6);
+}
+
 /**
  * Authenticated page walk (deterministic, ONE bounded pass — never a loop). The first-load
  * checks only ever see the page that loads first: an auth wall hid every inner page from the
@@ -165,15 +228,16 @@ const dedupe = (a: string[]) => [...new Set(a)].slice(0, 8);
  * (3+ ellipsized fields hiding >30% of their text — names reduced to initials).
  * Best-effort: any failure returns what was found so far; the page ends back at 1280px.
  */
-export async function walkPagesAuthenticated(page: any): Promise<string[]> {
+export async function walkPagesAuthenticated(page: any, declaredCreds?: { email: string; password: string }): Promise<string[]> {
   const issues: string[] = [];
   const dbg = (...a: unknown[]) => { if (process.env.ARKS_WALK_DEBUG) console.error('[walk]', ...a); };
   // Fresh entry state: the earlier interaction pass clicked buttons/submitted garbage into the
   // SPA (it may sit on a signup view where the demo credentials aren't shown) — reload first.
   await page.reload({ waitUntil: 'load', timeout: 12_000 }).catch(() => null);
   await page.waitForTimeout(1000);
-  // 1 · Demo login (only when the app advertises credentials — we never guess real ones).
-  const creds = await page
+  // 1 · Demo login: the manifest's declared creds win; else only when the app advertises
+  // credentials on the page (we never guess real ones).
+  const creds = declaredCreds || await page
     .evaluate(() => {
       const d: any = (globalThis as any).document;
       const text = d?.body?.innerText || '';
@@ -351,7 +415,7 @@ export async function walkPagesAuthenticated(page: any): Promise<string[]> {
 export async function browserSmokeTest(
   url: string,
   signal: AbortSignal,
-  opts?: { visual?: boolean; designBrief?: string },
+  opts?: { visual?: boolean; designBrief?: string; manifest?: VerifyManifest | null },
 ): Promise<UiCheckResult> {
   if (signal.aborted) return { ...base, detail: 'Browser check skipped: aborted.' };
 
@@ -855,7 +919,7 @@ export async function browserSmokeTest(
     let pageAuditIssues: string[] = [];
     if (!blank && !signal.aborted) {
       try {
-        pageAuditIssues = await walkPagesAuthenticated(page);
+        pageAuditIssues = await walkPagesAuthenticated(page, opts?.manifest?.demo);
         if (pageAuditIssues.length >= 0) {
           await page.goto(url, { waitUntil: 'load', timeout: 12_000 }).catch(() => null);
           await page.waitForTimeout(700);
@@ -863,6 +927,12 @@ export async function browserSmokeTest(
       } catch {
         /* best-effort — never break the check */
       }
+    }
+
+    // Scaffold-declared verification (deterministic; covers API-only apps the walker can't click).
+    let manifestIssues: string[] = [];
+    if (opts?.manifest && !signal.aborted) {
+      try { manifestIssues = await checkManifestRoutes(new URL(url).origin, opts.manifest, signal); } catch {}
     }
 
     const docFailed = !resp || resp.status() >= 400;
@@ -878,7 +948,8 @@ export async function browserSmokeTest(
       !!mobileNavIssue ||
       !!contrastIssue ||
       !!hoverIssue ||
-      pageAuditIssues.length > 0;
+      pageAuditIssues.length > 0 ||
+      manifestIssues.length > 0;
 
     // True visual judgment: if vision is configured, actually LOOK at the page
     // (the text-only model can't). For visual tasks run the DESIGN RUBRIC (gating
@@ -935,6 +1006,7 @@ export async function browserSmokeTest(
     if (contrastIssue) lines.push(`✗ ${contrastIssue}`);
     if (hoverIssue) lines.push(`✗ ${hoverIssue}`);
     if (pageAuditIssues.length) lines.push(`✗ Signed-in page audit found layout defects:\n  - ${pageAuditIssues.join('\n  - ')}`);
+    if (manifestIssues.length) lines.push(`✗ Declared verification (verify.json) failed:\n  - ${manifestIssues.join('\n  - ')}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
     if (leaked.length) lines.push(`⚠ Value leaked into the UI:\n  - ${leaked.join('\n  - ')}`);
     if (interacted) lines.push('• Interaction pass ran (seeded inputs, submitted a form, clicked primary actions).');

@@ -1,0 +1,14 @@
+{
+  "name": "orgs",
+  "label": "Multi-tenant workspaces (orgs + invites + isolation)",
+  "deps": [],
+  "mounts": [
+    { "path": "/api/orgs", "router": "./routes/orgs.js", "auth": true },
+    { "path": "/api/orgs/:slug/members", "router": "./routes/members.js", "auth": true, "org": true }
+  ],
+  "nav": [{ "key": "members", "label": "Members", "icon": "members", "page": "./pages/Members.jsx" }],
+  "verify": {
+    "routes": [{ "method": "GET", "path": "/api/orgs", "auth": true, "expect": 200 }],
+    "isolation": { "orgRoute": "/api/orgs/__DEMO_ORG__/members" }
+  }
+}

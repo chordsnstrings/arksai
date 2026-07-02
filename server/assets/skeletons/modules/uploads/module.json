@@ -1,0 +1,9 @@
+{
+  "name": "uploads",
+  "label": "File uploads",
+  "deps": [],
+  "extraDeps": { "multer": "^1.4.5-lts.1" },
+  "mounts": [{ "path": "/api/files", "router": "./routes/files.js", "auth": true }],
+  "nav": [],
+  "verify": { "routes": [{ "method": "GET", "path": "/api/files", "auth": true, "expect": 200 }] }
+}

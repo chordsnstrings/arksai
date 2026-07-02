@@ -1,0 +1,8 @@
+{
+  "name": "realtime",
+  "label": "Live updates (SSE-first)",
+  "deps": [],
+  "mounts": [{ "path": "/api/live", "router": "./routes/live.js", "auth": false }],
+  "nav": [],
+  "verify": { "sse": "/api/live/events" }
+}

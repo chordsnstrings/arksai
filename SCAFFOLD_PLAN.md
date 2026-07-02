@@ -141,7 +141,15 @@ Scaffolds only stay "correct by construction" if the construction is tested:
    product using `scaffold_app`, published and gate-checked — scaffold rot pages the
    operator instead of a customer finding it.
 
-## Phases
+## Phases (status 2026-07-02)
+**SHIPPED: Phases 1 + 2 core** — service skeleton (auth built in), modules crud/orgs/dashboard/
+forms/uploads/realtime/jobs, scaffold_app + brownfield guard, CONTRACT.md + verify.json
+generation, gate reads the manifest (walker creds + route assertions + SSE), prompt steering,
+5-test conformance suite; the all-modules golden app booted and passed the full gate clean.
+**REMAINING**: catalog/booking/cms-lite modules; `data/` preservation across republish;
+`api-only` + `service-py` + Vue/Svelte variants; archetype auto-routing at the plan gate;
+nightly canary; brownfield guided-diff modules; WS upgrade-forwarding test.
+
 - **Phase 1 — the workhorse (kills the TaskForge class outright)**: `service` skeleton
   (Express + SQLite + Vite/React client, auth module built-in-able), CONTRACT.md +
   verify.json generation, gate reads verify.json (walker creds + route manifest),

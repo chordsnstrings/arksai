@@ -1,0 +1,8 @@
+{
+  "name": "crud",
+  "label": "CRUD exemplar (items)",
+  "deps": [],
+  "mounts": [{ "path": "/api/items", "router": "./routes/items.js", "auth": true }],
+  "nav": [{ "key": "items", "label": "Items", "icon": "projects", "page": "./pages/Items.jsx" }],
+  "verify": { "routes": [{ "method": "GET", "path": "/api/items", "auth": true, "expect": 200 }] }
+}

@@ -3,7 +3,18 @@ import path from 'node:path';
 import { execBash } from '../lib/exec';
 import { listeningPorts } from '../lib/ports';
 import { processRegistry } from './processes';
-import { browserSmokeTest, type UiCheckResult } from './uiCheck';
+import { browserSmokeTest, type UiCheckResult, type VerifyManifest } from './uiCheck';
+
+/** The scaffold-declared verification manifest, when the workspace has one. */
+export function readVerifyManifest(dir: string): VerifyManifest | null {
+  try {
+    const raw = fs.readFileSync(path.join(dir, '.arksai', 'verify.json'), 'utf8');
+    const m = JSON.parse(raw);
+    return m && typeof m === 'object' ? (m as VerifyManifest) : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * If the agent locked a bespoke design direction (design_direction → design-direction.json),
@@ -256,7 +267,11 @@ export async function probeApp(
     const servesHtml = /<!doctype html|<html[\s>]/i.test(root.text);
     if (baseOk && servesHtml && !signal.aborted) {
       phase('Checking it renders in a real browser…');
-      ui = await browserSmokeTest(`http://127.0.0.1:${port}/`, signal, { visual: opts?.visual, designBrief: readDesignBrief(dir) });
+      ui = await browserSmokeTest(`http://127.0.0.1:${port}/`, signal, {
+        visual: opts?.visual,
+        designBrief: readDesignBrief(dir),
+        manifest: readVerifyManifest(dir),
+      });
     }
 
     const lines = checks.map((c) => `  ${c.method} ${c.path} → ${c.code ?? 'no response'}${c.note ? '  ' + c.note : ''}`);

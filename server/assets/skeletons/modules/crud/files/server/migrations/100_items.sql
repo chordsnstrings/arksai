@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS items (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_items_user ON items(user_id);

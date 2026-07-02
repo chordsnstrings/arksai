@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.17';
+export const WHATS_NEW_VERSION = '2026-07-02.18';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,16 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'The new Video page (🎬 in the sidebar) lets you describe a shot, add spoken lines, pick the format, and generate it with synchronized sound — a quick draft first, then the full render. Clips can now run up to 15 seconds, and everything you make lands in a library you can replay any time.',
   },
   {
-    title: 'Real people in your videos',
-    body: 'Upload a photo of a real person you have the rights to and they star in your clip — we animate their actual photo, so the face is exactly theirs, and with a spoken line they say it with lip-sync. The right engine is picked automatically; no more rejections.',
-  },
-  {
-    title: 'Product videos from one photo',
-    body: 'The Video page has a new Product mode: upload your product photo, pick a backdrop (studio, dark luxury, lifestyle…), add a spoken tagline — and get a commercial-grade hero video where the product stays exactly yours.',
-  },
-  {
-    title: 'Chain camera moves like a director',
-    body: 'New shot sequencer: stack multiple motions in one video — aerial over the scene, zoom in on the subject, pull back out — as simple cards you drag to reorder. Plus 20 product backdrops, from marble and silk to water splash and neon night.',
+    title: 'Apps are built on a proven foundation',
+    body: 'Every app with accounts or a database now starts from a pre-verified foundation — login, workspaces, invites, data isolation, file uploads, live updates — so the parts that must never break are the same battle-tested parts every time. Your app is the content, the look, and the ideas on top.',
   },
   {
     title: 'The quality check now uses your app like a person',
