@@ -39,16 +39,13 @@ export interface RouteOpts {
 }
 
 const tierModel = (tier: Tier, mode: SessionMode, _o: RouteOpts): string => {
-  // Simple (light) CODE build → the Swift fast lane (Dola) when BytePlus is configured; it's fast +
-  // high-quality on small builds, and pairs with the simple-build lean pipeline. Falls through to M3
-  // when BytePlus isn't set up, so behaviour is unchanged without a key.
-  if (mode === 'code' && tier === 'light' && byteplusReady()) return SWIFT_MODEL;
-  // HEAVY code build → GLM-5.1 (bake-off-validated 2026-07-02: with the craft/restraint prompt it
-  // one-shot a complete, correct, disciplined app at Claude-level quality for ~$0.11, while M3 went
-  // 0-for-2 on the same brief — a 404 ship and a 26-min non-converging loop). M3 remains the
-  // escalation target on a hard BytePlus failure, and the default when BytePlus isn't configured.
-  if (mode === 'code' && tier === 'heavy' && byteplusReady()) return HEAVY_GLM51_MODEL;
-  // Otherwise MiniMax: quality/agentic/designed work → M3 (Max); quick non-code light turns → Flash.
+  // CODING = ALL-BYTEPLUS (operator decision 2026-07-02: "for coding remove M3 completely — stick
+  // to GLM-5.1, it gives better output"). Light builds keep the validated Swift/Dola fast lane;
+  // everything else in CODE mode is GLM-5.1. M3 is NOT a coding tier anymore — it remains only
+  // (a) the no-key fallback so the product still works without BytePlus, (b) the emergency
+  // fallback on a hard BytePlus API failure (resilience, not routing), and (c) the REPORT engine.
+  if (mode === 'code' && byteplusReady()) return tier === 'light' ? SWIFT_MODEL : HEAVY_GLM51_MODEL;
+  // Otherwise MiniMax: reports + no-key coding → M3 (Max); quick non-code light turns → Flash.
   if (mode === 'code' || mode === 'report') return MAX_MODEL;
   if (tier === 'light') return FAST_MODEL;
   return MAX_MODEL; // standard + heavy → M3
@@ -66,23 +63,29 @@ export function selectModel(task: string, mode: SessionMode, o: RouteOpts): { mo
   const tier = complexityTier(task, mode);
   const model = tierModel(tier, mode, o);
   const why =
-    model === MAX_MODEL && (mode === 'code' || mode === 'report')
-      ? mode === 'code'
-        ? 'coding'
-        : 'a designed deliverable'
-      : tier === 'light'
-        ? 'a quick task'
-        : tier === 'standard'
-          ? 'a moderate task'
-          : 'a complex task';
+    mode === 'code'
+      ? tier === 'heavy'
+        ? 'a complex build'
+        : tier === 'light'
+          ? 'a quick build'
+          : 'coding'
+      : model === MAX_MODEL && mode === 'report'
+        ? 'a designed deliverable'
+        : tier === 'light'
+          ? 'a quick task'
+          : tier === 'standard'
+            ? 'a moderate task'
+            : 'a complex task';
   return { model, tier, reason: `${LABELS[model] ?? model} — ${why}` };
 }
 
-/** Escalate one notch when verification keeps failing or the model stalls. */
+/** Escalate one notch when verification keeps failing or the model stalls.
+ *  Coding is all-BytePlus: Swift escalates to GLM-5.1 (never M3); GLM-5.1 is the coding cap.
+ *  M3 remains the cap only for MiniMax paths (chat/report). */
 export function escalateModel(current: string, _o: RouteOpts): string {
-  if (current === SWIFT_MODEL) return MAX_MODEL; // Dola struggled → escalate to M3
+  if (current === SWIFT_MODEL) return byteplusReady() ? HEAVY_GLM51_MODEL : MAX_MODEL;
   if (current === FAST_MODEL) return MAX_MODEL;
-  return current; // M3 is already the top
+  return current; // GLM-5.1 (code) / M3 (report) are their lanes' caps
 }
 
 export type Provider = 'minimax' | 'byteplus';

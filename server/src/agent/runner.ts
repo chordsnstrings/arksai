@@ -29,14 +29,14 @@ import { checkDeliverable, deterministicDeliverableDefects, type DeliverableKind
 import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 import { auditWebHygiene } from './webHygiene';
-import { escalateModel, resolveProvider, selectModel, type Provider } from './router';
+import { escalateModel, resolveProvider, selectModel, byteplusReady, type Provider } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
 import { compileDesignBrief, designBriefBlock } from './designBrief';
 import { isSimpleBuild, simpleBuildGuidance, simpleBuildNudge, SIMPLE_BUILD_NUDGE_AT } from './simpleBuild';
 import { byteplusKey } from './byteplusRuntime';
 import { checkpointResumeNote, checkpointPlanGuidance } from './checkpoint';
 import { routeExpertise } from './expertiseRouter';
-import { isAutoModel, MAX_MODEL, FAST_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
+import { isAutoModel, MAX_MODEL, FAST_MODEL, HEAVY_GLM51_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
 import { calibratedTypical, recordRunDurations } from './etaCalibration';
 
 const CONTEXT_TOKEN_BUDGET = 50_000; // generous headroom under MiniMax's large context window
@@ -537,7 +537,10 @@ export class AgentRun {
   private floorModel(): string | null {
     if (this.activeModel !== FAST_MODEL) return null;
     if (this.session.mode === 'report') return MAX_MODEL;
-    if (this.session.mode === 'code' && this.taskProfile?.isVisual && this.taskProfile.tier !== 'light') return MAX_MODEL;
+    // Coding floor is GLM-5.1 (all-BytePlus coding); M3 only when BytePlus isn't configured.
+    if (this.session.mode === 'code' && this.taskProfile?.isVisual && this.taskProfile.tier !== 'light') {
+      return byteplusReady() ? HEAVY_GLM51_MODEL : MAX_MODEL;
+    }
     return null;
   }
 

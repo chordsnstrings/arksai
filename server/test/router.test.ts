@@ -34,6 +34,27 @@ test('escalateModel: Flash steps up to M3 and M3 is the cap', () => {
   assert.equal(escalateModel(MAX_MODEL, { minimaxAvailable: true }), MAX_MODEL);
 });
 
+// Operator decision (2026-07-02): coding is ALL-BytePlus — M3 removed from code routing entirely.
+test('coding removes M3 completely: standard + heavy code → GLM-5.1; Swift escalates to GLM-5.1', () => {
+  try {
+    __setByteplusKeyForTest('ark-test');
+    // standard-tier code (no heavy keywords, no easy keywords) → GLM-5.1, not M3
+    const std = selectModel('build a booking website for a dental clinic with an availability calendar', 'code', { minimaxAvailable: true });
+    assert.equal(std.model, HEAVY_GLM51_MODEL, `standard code routed to ${std.model}`);
+    // escalation from the fast lane stays inside BytePlus
+    assert.equal(escalateModel(SWIFT_MODEL, { minimaxAvailable: true }), HEAVY_GLM51_MODEL);
+    // GLM-5.1 is the coding cap (no escalation to M3)
+    assert.equal(escalateModel(HEAVY_GLM51_MODEL, { minimaxAvailable: true }), HEAVY_GLM51_MODEL);
+    // report mode still uses M3
+    assert.equal(selectModel('summarize this', 'report', { minimaxAvailable: true }).model, MAX_MODEL);
+  } finally {
+    __setByteplusKeyForTest('');
+  }
+  // without a BytePlus key, coding falls back to M3 (the product still works)
+  assert.equal(selectModel('build a booking website for a dental clinic with an availability calendar', 'code', { minimaxAvailable: true }).model, MAX_MODEL);
+  assert.equal(escalateModel(SWIFT_MODEL, { minimaxAvailable: true }), MAX_MODEL);
+});
+
 // --- BytePlus / Dola "Swift" fast lane (config-gated) ---
 import { resolveProvider, byteplusReady } from '../src/agent/router';
 import { SWIFT_MODEL, HEAVY_GLM51_MODEL } from '../../shared/types';
