@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.10';
+export const WHATS_NEW_VERSION = '2026-07-02.11';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,12 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'The new Video page (🎬 in the sidebar) lets you describe a shot, add spoken lines, pick the format, and generate it with synchronized sound — a quick draft first, then the full render. Clips can now run up to 15 seconds, and everything you make lands in a library you can replay any time.',
   },
   {
-    title: 'Start from your own photos',
-    body: 'Video now takes images: upload a start frame (the clip opens on it), an end frame (it lands on it — the two together animate a smooth transition), or reference photos to keep a product, face or style consistent across the shot.',
-  },
-  {
-    title: 'Richer, illustrated presets',
-    body: 'The camera-move, lighting and look presets now each carry a little icon so you can see what they do at a glance — and there are many more of them (crane, dolly-zoom, FPV, spotlight, candlelight, noir, luxury and more). Auto still picks the perfect setup if you’d rather not choose.',
+    title: 'Put a character in your video',
+    body: 'Upload a photo of a person (or mascot) on the Video page and they star in your clip — the same face and look held throughout. Add a spoken line and they say it with lip-sync. You can also start or end the video on your own photo.',
   },
 ];
 

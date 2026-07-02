@@ -112,12 +112,15 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [startFrame, setStartFrame] = useState<Pick2 | null>(null);
   const [endFrame, setEndFrame] = useState<Pick2 | null>(null);
   const [refs, setRefs] = useState<Pick2[]>([]);
+  // Character: a person/mascot photo whose identity is kept consistent across the whole clip
+  // (Seedance 2.0's Character Library). With a spoken line it lip-syncs. Verified live 2026-07-02.
+  const [character, setCharacter] = useState<Pick2 | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   const canBuild = scene.trim().length > 5 && !busy;
 
-  function brief(img: { startPath?: string; endPath?: string; refPaths: string[] }): string {
+  function brief(img: { startPath?: string; endPath?: string; refPaths: string[]; characterPath?: string }): string {
     const styleObj = STYLES.find((s) => s.id === style)!;
     const lines: string[] = [
       `Generate a ${duration}s ${RATIOS.find((r) => r.id === ratio)?.label.toLowerCase()} (${ratio}) video.`,
@@ -128,6 +131,13 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
     if (cam) lines.push(`Camera: ${cam} (one steady move).`);
     const lit = LIGHTS.find((l) => l.id === light)?.phrase;
     if (lit) lines.push(`Lighting: ${lit}.`);
+    // Character: a reference image whose identity is locked; with a line it lip-syncs.
+    if (img.characterPath) {
+      lines.push(
+        `Character: this is the person/character for the video — pass it as a reference_image and keep their EXACT face, hair and identity consistent throughout, do not change their appearance: ${img.characterPath}`,
+      );
+      if (dialogue.trim()) lines.push('The character SPEAKS the line above out loud with accurate lip-sync, matching mouth movements.');
+    }
     if (dialogue.trim()) lines.push(`Spoken dialogue (say it verbatim, lip-synced): "${dialogue.trim()}"`);
     lines.push(audio ? 'Include native audio (ambience + any dialogue).' : 'No audio — silent clip.');
     // Image inputs → explicit generate_video params.
@@ -135,8 +145,9 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
     if (img.endPath) lines.push(`End the video on this exact image — pass it as last_frame_image: ${img.endPath}${img.startPath ? ' (so it animates the start frame INTO the end frame).' : '.'}`);
     if (img.refPaths.length) {
       lines.push(`Keep the subject/style from these reference images consistent — pass them as reference_images: ${img.refPaths.join(', ')}`);
-      if (model === 'auto') lines.push('Reference images work best on Video 2.0 — use it.');
     }
+    // Character + references both live best on Video 2.0 (its Character Library).
+    if (model === 'auto' && (img.characterPath || img.refPaths.length)) lines.push('Use Video 2.0 — its character/reference consistency is strongest.');
     if (model !== 'auto') lines.push(`Use ${MODELS.find((m) => m.id === model)?.label}.`);
     lines.push(
       '',
@@ -161,7 +172,8 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       const startPath = (await up(startFrame))[0];
       const endPath = (await up(endFrame))[0];
       const refPaths = await up(refs);
-      const msg = brief({ startPath, endPath, refPaths });
+      const characterPath = (await up(character))[0];
+      const msg = brief({ startPath, endPath, refPaths, characterPath });
       addUserMessage(session.id, msg);
       beginRun(session.id);
       await api.sendMessage(session.id, msg);
@@ -207,6 +219,17 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             maxLength={160}
           />
         </label>
+
+        <div className="aw-field">
+          <span className="aw-label">Character <em>(optional — upload a person; we keep them consistent, and they can speak)</em></span>
+          <div className="vs-character">
+            <FrameTile label="" hint="add a face" pick={character} onPick={(p) => setCharacter(p)} />
+            <div className="vs-char-copy">
+              <p>Upload a photo of a person (or mascot) and they become the star of your video — the same face and look held across the whole clip. Add a spoken line above and they’ll say it with lip-sync.</p>
+              <p className="aw-note">Works best on ArksAI Video 2.0 — we’ll pick it automatically.</p>
+            </div>
+          </div>
+        </div>
 
         <div className="aw-field">
           <span className="aw-label">Frames &amp; references <em>(optional — start on / end on a photo, or keep a subject consistent)</em></span>
@@ -331,7 +354,7 @@ function FrameTile({ label, hint, pick, onPick }: { label: string; hint: string;
   };
   return (
     <div className="vs-frame">
-      <span className="vs-frame-label">{label}</span>
+      {label && <span className="vs-frame-label">{label}</span>}
       {pick ? (
         <div className="vs-frame-box has">
           <img src={pick.url} alt={label} />

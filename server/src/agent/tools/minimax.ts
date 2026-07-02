@@ -182,6 +182,10 @@ export const generateVideoTool: ToolDef = {
     'orbit / handheld / static) + style/light (bright, premium) + what we HEAR. SUBJECT FIDELITY: ' +
     'describe people explicitly to match the audience/market, name places precisely — a vague noun ' +
     'gives the wrong face or building. If dialogue is wanted, pass it in `dialogue` (spoken verbatim).\n' +
+    'CHARACTER: to keep a specific person consistent, pass their photo(s) in `reference_images` and ' +
+    'state "keep their exact face/identity" in the prompt (Video 2.0 is strongest here); with a `dialogue` ' +
+    'line the character lip-syncs it. To animate a still, pass it as `first_frame_image`; a start→end ' +
+    'transition uses `first_frame_image` + `last_frame_image`.\n' +
     'PARAMS: aspect_ratio 9:16 (phone/social) · 16:9 (wide) · 1:1; duration 4–12 s (default 8); ' +
     'model "auto" (default) | "video-1.5" | "video-2.0". Saved to videos/ and offered as a download.',
   parameters: {
