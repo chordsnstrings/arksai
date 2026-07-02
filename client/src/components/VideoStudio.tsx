@@ -18,6 +18,17 @@ import { PresetIcon } from './VideoPresetIcon';
 type ModelChoice = 'auto' | 'arksai-video-15' | 'arksai-video-20';
 /** A staged image: the File + a preview object-URL. */
 type Pick2 = { file: File; url: string };
+/** What kind of video: a free-form scene, or a product ad built from the product's photo. */
+type StudioKind = 'scene' | 'product';
+
+/** Product-ad backdrops — each is the exact set-dressing phrase for a commercial hero shot. */
+const BACKDROPS: { id: string; label: string; phrase: string }[] = [
+  { id: 'studio', label: 'Studio white', phrase: 'seamless white studio sweep, soft natural shadows, commercial catalogue finish' },
+  { id: 'dark', label: 'Dark luxury', phrase: 'dark luxury backdrop, dramatic rim light, subtle reflective surface below the product' },
+  { id: 'lifestyle', label: 'Lifestyle', phrase: 'a natural lifestyle setting where the product is used, softly blurred background' },
+  { id: 'nature', label: 'Organic', phrase: 'organic natural staging — stone, wood, water or foliage textures around the product' },
+  { id: 'tech', label: 'Tech', phrase: 'sleek minimal tech environment, cool tones, soft gradient light' },
+];
 
 const MODELS: { id: ModelChoice; label: string; hint: string }[] = [
   { id: 'auto', label: 'Auto', hint: 'we pick the right one' },
@@ -98,8 +109,15 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const addUserMessage = useStore((s) => s.addUserMessage);
   const sessions = useStore((s) => s.sessions);
 
+  const [kind, setKind] = useState<StudioKind>('scene');
   const [scene, setScene] = useState('');
   const [dialogue, setDialogue] = useState('');
+  // Product mode: the product's actual photo (animated with exact fidelity), name, spoken
+  // tagline, and a commercial backdrop.
+  const [productPhoto, setProductPhoto] = useState<Pick2 | null>(null);
+  const [productName, setProductName] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [backdrop, setBackdrop] = useState('studio');
   const [model, setModel] = useState<ModelChoice>('auto');
   const [ratio, setRatio] = useState('9:16');
   const [duration, setDuration] = useState(8);
@@ -118,7 +136,28 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  const canBuild = scene.trim().length > 5 && !busy;
+  const canBuild = kind === 'product' ? productName.trim().length > 1 && !busy : scene.trim().length > 5 && !busy;
+
+  /** The product-ad brief — a commercial hero-shot plan built from the product's own photo. */
+  function productBrief(img: { productPath?: string }): string {
+    const bd = BACKDROPS.find((b) => b.id === backdrop)!;
+    const cam = CAMERAS.find((c) => c.id === camera)?.phrase || 'slow orbit around the product';
+    const lit = LIGHTS.find((l) => l.id === light)?.phrase || 'clean studio softbox lighting, even and flattering';
+    const lines: string[] = [
+      `Generate a ${duration}s ${RATIOS.find((r) => r.id === ratio)?.label.toLowerCase()} (${ratio}) PRODUCT video ad for "${productName.trim()}".`,
+      scene.trim() ? `About the product: ${scene.trim()}` : '',
+      `Shot plan: a premium commercial product hero — the product is the star, perfectly centered and in crisp focus; ${bd.phrase}; ${cam} (one steady move); ${lit}. No text overlays baked into the video. End beat: the product settles center-frame in its hero pose.`,
+      img.productPath
+        ? `Use the product's ACTUAL photo — pass it as first_frame_image (the video starts on the photo itself, so the product is exactly ours): ${img.productPath}`
+        : '',
+      tagline.trim() ? `Voiceover (spoken clearly): "${tagline.trim()}"` : '',
+      audio ? 'Audio: subtle premium ambience' + (tagline.trim() ? ' under the voiceover.' : ', no music.') : 'No audio — silent clip.',
+      model !== 'auto' ? `Use ${MODELS.find((m) => m.id === model)?.label}.` : '',
+      '',
+      "Make a DRAFT first (fast 480p) so I can approve the direction, then I'll ask for the final. Use the generate_video tool.",
+    ];
+    return lines.filter(Boolean).join('\n');
+  }
 
   function brief(img: { startPath?: string; endPath?: string; refPaths: string[]; characterPath?: string }): string {
     const styleObj = STYLES.find((s) => s.id === style)!;
@@ -180,11 +219,17 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
         const r = await api.uploadSessionFiles(session.id, list.map((x) => x.file));
         return r.files.map((f) => f.name); // already repo-relative ("uploads/<file>")
       };
-      const startPath = (await up(startFrame))[0];
-      const endPath = (await up(endFrame))[0];
-      const refPaths = await up(refs);
-      const characterPath = (await up(character))[0];
-      const msg = brief({ startPath, endPath, refPaths, characterPath });
+      let msg: string;
+      if (kind === 'product') {
+        const productPath = (await up(productPhoto))[0];
+        msg = productBrief({ productPath });
+      } else {
+        const startPath = (await up(startFrame))[0];
+        const endPath = (await up(endFrame))[0];
+        const refPaths = await up(refs);
+        const characterPath = (await up(character))[0];
+        msg = brief({ startPath, endPath, refPaths, characterPath });
+      }
       addUserMessage(session.id, msg);
       beginRun(session.id);
       await api.sendMessage(session.id, msg);
@@ -208,6 +253,54 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       </header>
 
       <div className="android-wizard">
+        <div className="aw-field">
+          <div className="aw-segs">
+            <button className={`aw-seg ${kind === 'scene' ? 'on' : ''}`} onClick={() => setKind('scene')} type="button">
+              <strong>Scene</strong><span>describe any shot</span>
+            </button>
+            <button className={`aw-seg ${kind === 'product' ? 'on' : ''}`} onClick={() => setKind('product')} type="button">
+              <strong>Product video</strong><span>a commercial for your product</span>
+            </button>
+          </div>
+        </div>
+
+        {kind === 'product' ? (
+          <>
+            <div className="aw-step">1 · The product</div>
+            <div className="aw-field">
+              <span className="aw-label">Product photo <em>(we animate the actual photo — the product stays exactly yours)</em></span>
+              <div className="vs-character">
+                <FrameTile label="" hint="add the product" pick={productPhoto} onPick={(p) => setProductPhoto(p)} />
+                <div className="vs-char-copy">
+                  <p>A clean shot of the product works best — centered, good light, plain background if you have one. Without a photo we stage the product from your description instead.</p>
+                </div>
+              </div>
+            </div>
+            <label className="aw-field">
+              <span className="aw-label">Product name</span>
+              <input className="aw-input" value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="e.g. Aurora Face Serum" maxLength={60} />
+            </label>
+            <label className="aw-field">
+              <span className="aw-label">What is it / what should the ad emphasise? <em>(optional)</em></span>
+              <textarea className="aw-input" rows={2} value={scene} onChange={(e) => setScene(e.target.value)} placeholder="e.g. A vitamin-C serum in frosted glass — emphasise the golden droplets and the glass texture." />
+            </label>
+            <label className="aw-field">
+              <span className="aw-label">Spoken tagline <em>(optional — a voiceover says it)</em></span>
+              <input className="aw-input" value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder='e.g. "Glow, bottled."' maxLength={160} />
+            </label>
+            <div className="aw-field">
+              <span className="aw-label">Backdrop</span>
+              <div className="aw-grid">
+                {BACKDROPS.map((b) => (
+                  <button key={b.id} className={`aw-card ${backdrop === b.id ? 'on' : ''}`} onClick={() => setBackdrop(b.id)} type="button">
+                    <strong>{b.label}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
         <div className="aw-step">1 · The shot</div>
         <label className="aw-field">
           <span className="aw-label">What happens in the video?</span>
@@ -255,8 +348,11 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             </p>
           )}
         </div>
+          </>
+        )}
 
         <div className="aw-step">2 · Direction <em style={{ fontWeight: 400, fontStyle: 'normal', color: 'var(--text-faint)' }}>· Auto is smart — override only if you want</em></div>
+        {kind === 'scene' && (
         <div className="aw-field">
           <span className="aw-label">Look</span>
           <div className="aw-grid">
@@ -267,6 +363,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </div>
+        )}
 
         <div className="aw-field">
           <span className="aw-label">Camera move <em>(one steady move — the pro rule)</em></span>
