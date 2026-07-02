@@ -34,7 +34,7 @@ export interface UiCheckResult {
  *  stuck fixing things that don't need fixing — when uncertain, a defect is cosmetic. Pure. */
 export function isBlockingDefect(line: string): boolean {
   const t = String(line || '');
-  return /overflow|scrolls? side|horizontal scroll|unreadable|illegible|invisible|contrast|WCAG|AA\b|broken|dead|does(n't| not) (work|open|respond)|no effect|blank|empty page|crash|exception|uncaught|error\b|cut[- ]?off|clipped|overlap|collid|failed request|404|500|missing (nav|menu|button|content)|cannot|can't (click|open|read|see)/i.test(t);
+  return /overflow|scrolls? side|horizontal scroll|unreadable|illegible|invisible|contrast|WCAG|AA\b|broken|dead|does(n't| not) (work|open|respond)|no effect|blank|empty page|crash|exception|uncaught|error\b|cut[- ]?off|clipped|overlap|collid|truncat|failed request|404|500|missing (nav|menu|button|content)|cannot|can't (click|open|read|see)/i.test(t);
 }
 
 /** A 4xx from an auth endpoint during the interaction pass is the app REJECTING our seeded
@@ -153,6 +153,201 @@ const dedupe = (a: string[]) => [...new Set(a)].slice(0, 8);
  * blank-page check. Degrades gracefully (ran=false) when Playwright/Chromium
  * isn't available, so it never breaks a run.
  */
+/**
+ * Authenticated page walk (deterministic, ONE bounded pass — never a loop). The first-load
+ * checks only ever see the page that loads first: an auth wall hid every inner page from the
+ * gate (real live incident — a published app's Members page truncated names to initials and a
+ * sidebar chip overlapped every heading on mobile; the gate saw only the login screen and
+ * passed). If the page shows a login form AND demo credentials in its text, sign in and visit
+ * each nav destination once, at phone + desktop widths, running three layout detectors:
+ * clipped-content (visible boxes cut by the viewport edge outside any scroll container),
+ * heading-overlap (another element covering >25% of an h1–h3), and truncation clusters
+ * (3+ ellipsized fields hiding >30% of their text — names reduced to initials).
+ * Best-effort: any failure returns what was found so far; the page ends back at 1280px.
+ */
+export async function walkPagesAuthenticated(page: any): Promise<string[]> {
+  const issues: string[] = [];
+  const dbg = (...a: unknown[]) => { if (process.env.ARKS_WALK_DEBUG) console.error('[walk]', ...a); };
+  // Fresh entry state: the earlier interaction pass clicked buttons/submitted garbage into the
+  // SPA (it may sit on a signup view where the demo credentials aren't shown) — reload first.
+  await page.reload({ waitUntil: 'load', timeout: 12_000 }).catch(() => null);
+  await page.waitForTimeout(1000);
+  // 1 · Demo login (only when the app advertises credentials — we never guess real ones).
+  const creds = await page
+    .evaluate(() => {
+      const d: any = (globalThis as any).document;
+      const text = d?.body?.innerText || '';
+      if (!/demo/i.test(text)) return null;
+      const m = text.match(/([\w.+-]+@[\w.-]+\.\w{2,})\s*[\/|·:]\s*(\S{4,32})/);
+      const hasPassword = !!d.querySelector('input[type="password"]');
+      return m && hasPassword ? { email: m[1], password: m[2] } : null;
+    })
+    .catch(() => null);
+  dbg('creds:', JSON.stringify(creds));
+  if (!creds) return issues;
+
+  // String-form evaluate: tsx/esbuild keepNames injects __name() helpers into serialized
+  // callbacks with inner named functions, which don't exist in the browser — a string body
+  // bypasses serialization entirely (same trick as creative.ts's document.fonts evaluate).
+  const loggedIn = await page
+    .evaluate(
+      '((c) => {' +
+        'var setNative = function(el, value) {' +
+        '  try {' +
+        '    var proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;' +
+        '    var d = Object.getOwnPropertyDescriptor(proto, "value");' +
+        '    if (d && d.set) d.set.call(el, value); else el.value = value;' +
+        '  } catch (e) { el.value = value; }' +
+        '  el.dispatchEvent(new Event("input", { bubbles: true }));' +
+        '  el.dispatchEvent(new Event("change", { bubbles: true }));' +
+        '};' +
+        'var email = document.querySelector(\'input[type="email"], input[name*="mail" i], input[autocomplete="username"]\');' +
+        'var pass = document.querySelector(\'input[type="password"]\');' +
+        'if (!email || !pass) return false;' +
+        'setNative(email, c.email); setNative(pass, c.password);' +
+        'var form = pass.closest("form");' +
+        'if (form && form.requestSubmit) form.requestSubmit();' +
+        'else { var b = form && form.querySelector(\'button[type="submit"],button\'); if (b) b.click(); }' +
+        'return true;' +
+      '})(' + JSON.stringify(creds) + ')',
+    )
+    .catch((e: any) => {
+      dbg('login threw:', e?.message ?? e);
+      return false;
+    });
+  dbg('loggedIn:', loggedIn);
+  if (!loggedIn) return issues;
+  await page.waitForTimeout(1800);
+  const authed = await page
+    .evaluate(() => !(globalThis as any).document.querySelector('input[type="password"]'))
+    .catch(() => false);
+  dbg('authed:', authed);
+  if (!authed) return issues;
+
+  // 2 · Nav destinations (≤5, by visible label; re-queried per click — SPAs re-render).
+  const labels: string[] = await page
+    .evaluate(() => {
+      const d: any = (globalThis as any).document;
+      const out: string[] = [];
+      d.querySelectorAll('nav a, nav button, aside a, aside button, [class*="nav-item"], [role="navigation"] a').forEach((el: any) => {
+        const t = (el.innerText || el.getAttribute('aria-label') || '').trim();
+        if (t && t.length <= 24 && el.offsetParent !== null && !/sign\s*out|log\s*out|delete/i.test(t) && !out.includes(t)) out.push(t);
+      });
+      return out.slice(0, 5);
+    })
+    .catch(() => []);
+
+  dbg('labels:', JSON.stringify(labels));
+  // 3 · Detectors, run on the CURRENT page at the CURRENT viewport.
+  const detect = (where: string) =>
+    page.evaluate(
+      '((tag) => {' +
+        'var found = [];' +
+        'var vw = window.innerWidth || 0;' +
+        'var vis = function(el) {' +
+        '  if (!el || el.offsetParent === null) return false;' +
+        '  var cs = getComputedStyle(el);' +
+        '  return cs.visibility !== "hidden" && parseFloat(cs.opacity || "1") > 0.1;' +
+        '};' +
+        'var inScroller = function(el) {' +
+        '  var e = el.parentElement;' +
+        '  while (e) { var cs = getComputedStyle(e); if (/(auto|scroll)/.test(cs.overflowX)) return true; e = e.parentElement; }' +
+        '  return false;' +
+        '};' +
+        'var all = Array.prototype.slice.call(document.querySelectorAll("body *"), 0, 2500);' +
+        // a · clipped content outside any horizontal scroll container
+        'for (var i = 0; i < all.length; i++) {' +
+        '  var el = all[i];' +
+        '  if (!vis(el)) continue;' +
+        '  var r = el.getBoundingClientRect();' +
+        '  if (r.width < 60 || r.height < 24) continue;' +
+        '  if (r.right - vw > 12 && r.left < vw - 20 && !inScroller(el)) {' +
+        '    var label = ((el.innerText || "").trim().slice(0, 40)) || (el.className && el.className.toString ? el.className.toString().slice(0, 40) : el.tagName);' +
+        '    found.push(tag + ": content is clipped/cut off at the right edge (\\"" + label + "\\") — the box extends " + Math.round(r.right - vw) + "px past the viewport with no scroll container.");' +
+        '    break;' +
+        '  }' +
+        '}' +
+        // b · heading overlap
+        'var heads = Array.prototype.filter.call(document.querySelectorAll("h1,h2,h3"), vis);' +
+        'headloop: for (var hI = 0; hI < heads.length; hI++) {' +
+        '  var h = heads[hI]; var hr = h.getBoundingClientRect();' +
+        '  if (hr.width < 40 || hr.height < 14) continue;' +
+        '  for (var j = 0; j < all.length; j++) {' +
+        '    var o = all[j];' +
+        '    if (o === h || o.contains(h) || h.contains(o) || !vis(o)) continue;' +
+        '    var cs2 = getComputedStyle(o); var bg = cs2.backgroundColor;' +
+        '    var solid = bg && bg !== "transparent" && !/rgba?\\([^)]*,\\s*0\\)/.test(bg);' +
+        '    if (!solid && !o.querySelector("img,svg")) continue;' +
+        '    var r2 = o.getBoundingClientRect();' +
+        '    var ix = Math.max(0, Math.min(hr.right, r2.right) - Math.max(hr.left, r2.left));' +
+        '    var iy = Math.max(0, Math.min(hr.bottom, r2.bottom) - Math.max(hr.top, r2.top));' +
+        '    if (ix * iy > 0.25 * hr.width * hr.height && r2.width * r2.height < 4 * hr.width * hr.height) {' +
+        '      found.push(tag + ": the heading \\"" + (h.innerText || "").trim().slice(0, 40) + "\\" is overlapped/covered by another element (" + ((o.className && o.className.toString ? o.className.toString() : o.tagName) || "").slice(0, 40) + ").");' +
+        '      break headloop;' +
+        '    }' +
+        '  }' +
+        '}' +
+        // c · truncation cluster
+        'var bad = [];' +
+        'for (var k = 0; k < all.length; k++) {' +
+        '  var t = all[k];' +
+        '  if (!vis(t)) continue;' +
+        '  if (getComputedStyle(t).textOverflow !== "ellipsis") continue;' +
+        '  if (t.scrollWidth - t.clientWidth > 6 && t.clientWidth > 0) {' +
+        '    var hidden = 1 - t.clientWidth / t.scrollWidth;' +
+        '    if (hidden > 0.3) bad.push((t.innerText || "").trim().slice(0, 24));' +
+        '  }' +
+        '}' +
+        'if (bad.length >= 3) {' +
+        '  found.push(tag + ": " + bad.length + " text fields are truncated to a fraction of their content (e.g. \\"" + bad[0] + "…\\") — give identity/name columns the flexible space instead of fixed widths.");' +
+        '}' +
+        'return found;' +
+      '})(' + JSON.stringify(where) + ')',
+    );
+
+  // 4 · Walk: for each destination, click by label, then detect at 390px and 1280px.
+  const seen = new Set<string>();
+  for (const label of labels) {
+    try {
+      const clicked = await page.evaluate((t: string) => {
+        const d: any = (globalThis as any).document;
+        const els = Array.from(d.querySelectorAll('nav a, nav button, aside a, aside button, [class*="nav-item"], [role="navigation"] a')) as any[];
+        const el = els.find((e) => (e.innerText || e.getAttribute('aria-label') || '').trim() === t && e.offsetParent !== null);
+        if (el) {
+          el.click();
+          return true;
+        }
+        return false;
+      }, label);
+      dbg('clicked', label, clicked);
+      if (!clicked) continue;
+      await page.waitForTimeout(900);
+      for (const vw of [390, 1280]) {
+        await page.setViewportSize({ width: vw, height: vw < 500 ? 844 : 860 });
+        await page.waitForTimeout(350);
+        const found: string[] = await detect(`Signed-in page "${label}" at ${vw}px`).catch((e: any) => {
+          dbg('detect threw:', e?.message ?? e);
+          return [];
+        });
+        dbg('detect', label, vw, JSON.stringify(found));
+        for (const iss of found) {
+          const key = iss.replace(/at \d+px/, '');
+          if (!seen.has(key)) {
+            seen.add(key);
+            issues.push(iss);
+          }
+        }
+        if (issues.length >= 6) break;
+      }
+    } catch {
+      /* keep walking */
+    }
+    if (issues.length >= 6) break;
+  }
+  await page.setViewportSize({ width: 1280, height: 800 }).catch(() => {});
+  return issues.slice(0, 6);
+}
+
 export async function browserSmokeTest(
   url: string,
   signal: AbortSignal,
@@ -653,6 +848,23 @@ export async function browserSmokeTest(
       ? `Illegible on hover — these controls lose contrast in their hover state (the background changes but the text colour doesn't, or vice-versa), so the label gets hard to read when a user points at it. Set BOTH the hover background AND the hover text colour together and keep WCAG AA (4.5:1 body, 3:1 large) in EVERY state — default, hover, focus, active. Offenders:\n  - ${hoverIssues.join('\n  - ')}`
       : '';
 
+    // AUTHENTICATED PAGE WALK: sign in with advertised demo credentials and audit every nav
+    // destination at phone + desktop widths (clipped content / covered headings / truncation
+    // clusters). One bounded pass; restores the entry page after so the vision review below
+    // still judges the first screen.
+    let pageAuditIssues: string[] = [];
+    if (!blank && !signal.aborted) {
+      try {
+        pageAuditIssues = await walkPagesAuthenticated(page);
+        if (pageAuditIssues.length >= 0) {
+          await page.goto(url, { waitUntil: 'load', timeout: 12_000 }).catch(() => null);
+          await page.waitForTimeout(700);
+        }
+      } catch {
+        /* best-effort — never break the check */
+      }
+    }
+
     const docFailed = !resp || resp.status() >= 400;
     const ce = dedupe(consoleErrors);
     const pe = dedupe(pageErrors);
@@ -665,7 +877,8 @@ export async function browserSmokeTest(
       !!responsiveIssue ||
       !!mobileNavIssue ||
       !!contrastIssue ||
-      !!hoverIssue;
+      !!hoverIssue ||
+      pageAuditIssues.length > 0;
 
     // True visual judgment: if vision is configured, actually LOOK at the page
     // (the text-only model can't). For visual tasks run the DESIGN RUBRIC (gating
@@ -721,6 +934,7 @@ export async function browserSmokeTest(
     if (mobileNavIssue) lines.push(`✗ ${mobileNavIssue}`);
     if (contrastIssue) lines.push(`✗ ${contrastIssue}`);
     if (hoverIssue) lines.push(`✗ ${hoverIssue}`);
+    if (pageAuditIssues.length) lines.push(`✗ Signed-in page audit found layout defects:\n  - ${pageAuditIssues.join('\n  - ')}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
     if (leaked.length) lines.push(`⚠ Value leaked into the UI:\n  - ${leaked.join('\n  - ')}`);
     if (interacted) lines.push('• Interaction pass ran (seeded inputs, submitted a form, clicked primary actions).');

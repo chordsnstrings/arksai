@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.16';
+export const WHATS_NEW_VERSION = '2026-07-02.17';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -35,12 +35,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'New shot sequencer: stack multiple motions in one video — aerial over the scene, zoom in on the subject, pull back out — as simple cards you drag to reorder. Plus 20 product backdrops, from marble and silk to water splash and neon night.',
   },
   {
-    title: 'A sharper, more honest assistant',
-    body: 'Chat now runs on a faster brain that we benchmarked head-to-head on real judgment calls, and the whole system learned new discipline: errors get diagnosed instead of retried, big builds are recognised as big, and every resumed build carries its own contract so nothing drifts.',
-  },
-  {
-    title: 'Long builds don’t give up',
-    body: 'If the build engine ever goes quiet mid-step, ArksAI now retries automatically and, if needed, switches to a backup engine to keep going — big builds recover instead of stopping with an error.',
+    title: 'The quality check now uses your app like a person',
+    body: 'Before anything is delivered, ArksAI now signs into the app it built (with the demo account), opens every page on both phone and desktop, and catches what a human would: overlapping titles, names squeezed into initials, content cut off the screen edge. Once it passes, it ships — no endless re-checking.',
   },
 ];
 

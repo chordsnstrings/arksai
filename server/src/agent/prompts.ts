@@ -793,9 +793,17 @@ CRAFT & RESTRAINT — one-shot discipline (bake-off-validated; this is what sepa
   a system font stack is always an acceptable, fast choice.
 - STANDARD CRAFT, always: wrap localStorage access in try/catch; :focus-visible focus rings;
   aria-label/aria-pressed on icon-only buttons; an @media (prefers-reduced-motion: reduce) guard.
+- RESPONSIVE RULES LAST: every @media block goes at the END of the stylesheet, AFTER the base
+  rules — a media rule declared above a base rule with the same selector is SILENTLY overridden
+  (same specificity → source order wins) and your mobile layout half-applies. One responsive
+  layer at the bottom of the file. Tables/lists: give the NAME/identity column the flexible
+  space (fixed side columns + 1fr name, not the reverse), and don't render a column that is
+  empty for every row. Never show an "overdue" label on a COMPLETED item.
 - PRE-FINISH SELF-CHECK — before you consider the build done, verify yourself: zero console errors;
   NO horizontal page scroll at 360px wide; every button/menu/modal actually opens and does its job;
-  state persists across a reload. Fix what you find NOW, in this pass, not after the review gate.
+  state persists across a reload. If the app has a login, ALSO open each main page once signed in
+  (the review gate does exactly this with your demo credentials — inner pages are checked too).
+  Fix what you find NOW, in this pass, not after the review gate.
 
 SELF-CONTAINED — NO CDN: vendor every library (charting like Chart.js, any JS/CSS dependency)
 INTO the workspace and reference it locally — download it (curl/npm) into the app and link the

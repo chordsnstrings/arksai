@@ -143,6 +143,65 @@ export function findMissingLocalAssets(html: string, htmlFile: string, dir: stri
   return missing;
 }
 
+/**
+ * CSS cascade lint (pure): a responsive `@media (max-width…)` rule declared ABOVE the base rule
+ * for the same selector is SILENTLY overridden for every property the base rule also sets (same
+ * specificity → source order wins). This exact disease shipped a live app whose entire mobile
+ * layer half-applied (art panel that was display:none'd showed anyway, a sidebar chip overlapped
+ * every page heading). Returns actionable defect lines; empty when the cascade is clean.
+ */
+export function auditCssCascade(css: string): string[] {
+  const defects: string[] = [];
+  // Collect max-width media blocks with their end offsets: [{end, rules: {selector → props[]}}]
+  // Pass 1: locate ALL @media block ranges (any kind) so later matches inside one can be skipped.
+  const allMedia: { start: number; end: number; isMaxWidth: boolean }[] = [];
+  const mediaRe = /@media[^{]*\{/g;
+  let m: RegExpExecArray | null;
+  while ((m = mediaRe.exec(css))) {
+    let depth = 1;
+    let i = m.index + m[0].length;
+    while (i < css.length && depth > 0) {
+      if (css[i] === '{') depth++;
+      else if (css[i] === '}') depth--;
+      i++;
+    }
+    allMedia.push({ start: m.index, end: i, isMaxWidth: /max-width/.test(m[0]) });
+    mediaRe.lastIndex = i; // don't re-match inside the block
+  }
+  const insideMedia = (idx: number) => allMedia.some((b) => idx > b.start && idx < b.end);
+
+  // Pass 2: for each rule inside a max-width block, look for a LATER top-level rule with the
+  // same selector re-declaring one of the same properties — the later rule wins everywhere.
+  for (const b of allMedia) {
+    if (!b.isMaxWidth) continue;
+    const body = css.slice(css.indexOf('{', b.start) + 1, b.end - 1);
+    const ruleRe = /([^{}]+)\{([^{}]*)\}/g;
+    let r: RegExpExecArray | null;
+    while ((r = ruleRe.exec(body))) {
+      const sel = r[1].trim();
+      if (!sel || sel.startsWith('@')) continue;
+      const props = r[2].split(';').map((p) => p.split(':')[0].trim().toLowerCase()).filter(Boolean);
+      if (!props.length) continue;
+      const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const laterRe = new RegExp(`(?:^|\\}|\\n|;)\\s*${esc}\\s*\\{([^{}]*)\\}`, 'g');
+      laterRe.lastIndex = b.end;
+      let later: RegExpExecArray | null;
+      while ((later = laterRe.exec(css))) {
+        if (insideMedia(later.index + later[0].indexOf(sel))) continue; // media-vs-media is fine
+        const laterProps = later[1].split(';').map((p) => p.split(':')[0].trim().toLowerCase());
+        const clash = props.filter((p) => laterProps.includes(p));
+        if (clash.length) {
+          defects.push(
+            `CSS cascade bug: the responsive rule "${sel} { ${clash.join(', ')} }" inside a max-width @media block is declared BEFORE the base "${sel}" rule, so the base rule overrides it at EVERY width (same specificity → source order wins) — the mobile style silently never applies. Move @media blocks BELOW the base rules (keep a responsive layer at the END of the stylesheet).`,
+          );
+          break;
+        }
+      }
+    }
+  }
+  return [...new Set(defects)].slice(0, 4);
+}
+
 /** Audit a built/served static site's source for structural mobile defects. Never throws. */
 export function auditWebHygiene(dir: string): WebHygieneResult {
   let files: string[];
@@ -168,6 +227,7 @@ export function auditWebHygiene(dir: string): WebHygieneResult {
       defects.push(
         `${rel}: missing <meta name="viewport"> — on a phone the page renders at desktop width and zooms out (tiny, unusable). Add <meta name="viewport" content="width=device-width, initial-scale=1"> in <head>.`,
       );
+    for (const c of auditCssCascade(css)) defects.push(`${rel}: ${c}`);
     const mins = findFixedMinWidths(css);
     if (mins.length)
       defects.push(

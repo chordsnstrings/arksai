@@ -9,8 +9,10 @@ import {
   hasMenuToggle,
   hasToggleWiring,
   auditWebHygiene,
+  auditCssCascade,
   findMissingLocalAssets,
 } from '../src/agent/webHygiene';
+import { isBlockingDefect } from '../src/agent/uiCheck';
 
 // A missing <meta viewport> is the headline blind spot of the browser smoke test (Playwright sets
 // the viewport itself), so the deterministic check must catch it.
@@ -117,4 +119,46 @@ test('auditWebHygiene: no HTML in the dir → did not run, no defects', () => {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('auditCssCascade: a media rule declared above its base rule is flagged (the TaskForge disease)', () => {
+  // The exact shipped pattern: @media above the base rule → base display:flex overrides
+  // the mobile display:none at every width (the art panel showed on phones).
+  const broken = `
+@media (max-width: 900px) { .auth-art { display: none; } .org-pill { padding: 8px; } }
+.auth-art { display: flex; align-items: flex-end; padding: 56px; }
+.org-pill { display: flex; padding: 10px 12px; }
+`;
+  const d = auditCssCascade(broken);
+  assert.ok(d.length >= 1, 'expected cascade defects');
+  assert.match(d.join('\n'), /\.auth-art/);
+  assert.match(d.join('\n'), /source order/);
+
+  // The fixed layout — media blocks at the END — is clean.
+  const fixed = `
+.auth-art { display: flex; align-items: flex-end; padding: 56px; }
+.org-pill { display: flex; padding: 10px 12px; }
+@media (max-width: 900px) { .auth-art { display: none; } .org-pill { padding: 8px; } }
+`;
+  assert.equal(auditCssCascade(fixed).length, 0);
+
+  // Media-vs-media (two breakpoints touching the same selector) is NOT a defect.
+  const twoMedias = `
+.card { padding: 20px; }
+@media (max-width: 900px) { .card { padding: 12px; } }
+@media (max-width: 480px) { .card { padding: 8px; } }
+`;
+  assert.equal(auditCssCascade(twoMedias).length, 0);
+
+  // A media rule whose base rule sets DIFFERENT properties is fine (no property clash).
+  const noClash = `
+@media (max-width: 720px) { .nav { gap: 4px; } }
+.nav { color: red; }
+`;
+  assert.equal(auditCssCascade(noClash).length, 0);
+});
+
+test('isBlockingDefect: truncation and signed-in page-audit lines block', () => {
+  assert.equal(isBlockingDefect('Signed-in page "Members" at 390px: 6 text fields are truncated to a fraction of their content'), true);
+  assert.equal(isBlockingDefect('the heading "Members" is overlapped/covered by another element'), true);
 });
