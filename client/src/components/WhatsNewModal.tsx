@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.14';
+export const WHATS_NEW_VERSION = '2026-07-02.15';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -29,6 +29,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Product videos from one photo',
     body: 'The Video page has a new Product mode: upload your product photo, pick a backdrop (studio, dark luxury, lifestyle…), add a spoken tagline — and get a commercial-grade hero video where the product stays exactly yours.',
+  },
+  {
+    title: 'Chain camera moves like a director',
+    body: 'New shot sequencer: stack multiple motions in one video — aerial over the scene, zoom in on the subject, pull back out — as simple cards you drag to reorder. Each shot gets its slice of the clip automatically.',
   },
   {
     title: 'Long builds don’t give up',

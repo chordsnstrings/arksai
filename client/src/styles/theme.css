@@ -2700,6 +2700,37 @@ button { font-family: inherit; cursor: pointer; }
   cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .vs-refs-row { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Shot-sequence builder — draggable beat cards */
+.vs-beats { display: flex; flex-direction: column; gap: 6px; }
+.vs-beat {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elev);
+  padding: 6px 9px; cursor: grab;
+}
+.vs-beat:active { cursor: grabbing; }
+.vs-beat-grip { color: var(--text-faint); font-size: 13px; flex-shrink: 0; }
+.vs-beat-n {
+  width: 19px; height: 19px; border-radius: 50%; background: var(--accent-dim); color: var(--accent);
+  font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.vs-beat-move {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+  font-size: 12.5px; padding: 5px 7px; flex-shrink: 0; cursor: pointer;
+}
+.vs-beat-what {
+  flex: 1; min-width: 80px; background: none; border: none; border-bottom: 1px dashed var(--border);
+  color: var(--text); font-size: 12.5px; padding: 4px 2px; outline: none;
+}
+.vs-beat-what:focus { border-bottom-color: var(--accent); }
+.vs-beat-time { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.vs-beat-x { background: none; border: none; color: var(--text-faint); font-size: 15px; cursor: pointer; padding: 0 2px; flex-shrink: 0; }
+.vs-beat-x:hover { color: #e2554b; }
+.vs-beat-add {
+  align-self: flex-start; background: none; border: 1px dashed var(--border); border-radius: 10px;
+  color: var(--text-muted); font-size: 12.5px; padding: 6px 12px; cursor: pointer;
+}
+.vs-beat-add:hover { border-color: var(--accent); color: var(--accent); }
+
 /* Character block — a bigger tile + explainer */
 .vs-character { display: flex; gap: 14px; align-items: flex-start; }
 .vs-character .vs-frame-box { width: 108px; height: 108px; }

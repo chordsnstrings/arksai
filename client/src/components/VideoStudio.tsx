@@ -21,6 +21,11 @@ type Pick2 = { file: File; url: string };
 /** What kind of video: a free-form scene, or a product ad built from the product's photo. */
 type StudioKind = 'scene' | 'product';
 
+/** One beat of a multi-shot sequence: a camera motion + what we see during it. Seedance 2.0
+ *  natively supports sequenced motion in one continuous clip (aerial → zoom in → pull out);
+ *  the "one steady move" rule applies WITHIN a beat, not across the sequence. */
+type Beat = { id: number; move: string; what: string };
+
 /** Product-ad backdrops — each is the exact set-dressing phrase for a commercial hero shot. */
 const BACKDROPS: { id: string; label: string; phrase: string }[] = [
   { id: 'studio', label: 'Studio white', phrase: 'seamless white studio sweep, soft natural shadows, commercial catalogue finish' },
@@ -124,6 +129,8 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [style, setStyle] = useState('cinematic');
   const [camera, setCamera] = useState('auto');
   const [light, setLight] = useState('auto');
+  // Multi-shot sequence (2+ beats overrides the single camera move).
+  const [beats, setBeats] = useState<Beat[]>([]);
   const [audio, setAudio] = useState(true);
   // Image inputs (all optional): a start frame the clip opens on, an end frame it lands on
   // (start+end = a controlled transition), and reference images whose subject/style are kept.
@@ -138,15 +145,32 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
 
   const canBuild = kind === 'product' ? productName.trim().length > 1 && !busy : scene.trim().length > 5 && !busy;
 
+  /** Compile the ordered beats into a timed shot sequence (empty when fewer than 2 beats). */
+  function beatsBlock(): string {
+    if (beats.length < 2) return '';
+    const per = duration / beats.length;
+    const seq = beats
+      .map((b, i) => {
+        const t0 = Math.round(i * per);
+        const t1 = i === beats.length - 1 ? duration : Math.round((i + 1) * per);
+        const mv = CAMERAS.find((c) => c.id === b.move)?.phrase || 'slow push-in';
+        return `${i + 1}. (${t0}–${t1}s) ${mv}${b.what.trim() ? ' — ' + b.what.trim() : ''}`;
+      })
+      .join('\n');
+    return `Shot sequence — ONE continuous video with these camera beats in this exact order, flowing smoothly from one into the next (no hard cuts):\n${seq}`;
+  }
+
   /** The product-ad brief — a commercial hero-shot plan built from the product's own photo. */
   function productBrief(img: { productPath?: string }): string {
     const bd = BACKDROPS.find((b) => b.id === backdrop)!;
     const cam = CAMERAS.find((c) => c.id === camera)?.phrase || 'slow orbit around the product';
     const lit = LIGHTS.find((l) => l.id === light)?.phrase || 'clean studio softbox lighting, even and flattering';
+    const seq = beatsBlock();
     const lines: string[] = [
       `Generate a ${duration}s ${RATIOS.find((r) => r.id === ratio)?.label.toLowerCase()} (${ratio}) PRODUCT video ad for "${productName.trim()}".`,
       scene.trim() ? `About the product: ${scene.trim()}` : '',
-      `Shot plan: a premium commercial product hero — the product is the star, perfectly centered and in crisp focus; ${bd.phrase}; ${cam} (one steady move); ${lit}. No text overlays baked into the video. End beat: the product settles center-frame in its hero pose.`,
+      `Shot plan: a premium commercial product hero — the product is the star, perfectly centered and in crisp focus; ${bd.phrase}; ${seq ? 'camera per the shot sequence below' : `${cam} (one steady move)`}; ${lit}. No text overlays baked into the video. End beat: the product settles center-frame in its hero pose.`,
+      seq,
       img.productPath
         ? `Use the product's ACTUAL photo — pass it as first_frame_image (the video starts on the photo itself, so the product is exactly ours): ${img.productPath}`
         : '',
@@ -166,8 +190,14 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       `Scene: ${scene.trim()}`,
     ];
     if (styleObj.brief) lines.push(`Look: ${styleObj.brief}.`);
-    const cam = CAMERAS.find((c) => c.id === camera)?.phrase;
-    if (cam) lines.push(`Camera: ${cam} (one steady move).`);
+    const seq = beatsBlock();
+    if (seq) {
+      lines.push(seq);
+      if (model === 'auto' && !character) lines.push('Multi-beat sequences render best on Video 2.0 — use it.');
+    } else {
+      const cam = CAMERAS.find((c) => c.id === camera)?.phrase;
+      if (cam) lines.push(`Camera: ${cam} (one steady move).`);
+    }
     const lit = LIGHTS.find((l) => l.id === light)?.phrase;
     if (lit) lines.push(`Lighting: ${lit}.`);
     // Character: animate their ACTUAL photo (first_frame on Video 1.5) — true likeness because the
@@ -365,15 +395,27 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
         </div>
         )}
 
-        <div className="aw-field">
-          <span className="aw-label">Camera move <em>(one steady move — the pro rule)</em></span>
-          <div className="aw-chips">
-            {CAMERAS.map((c) => (
-              <button key={c.id} className={`aw-chip ${camera === c.id ? 'on' : ''}`} onClick={() => setCamera(c.id)} type="button">
-                <PresetIcon group="camera" id={c.id} /> {c.label}
-              </button>
-            ))}
+        {beats.length < 2 && (
+          <div className="aw-field">
+            <span className="aw-label">Camera move <em>(one steady move — or build a sequence below)</em></span>
+            <div className="aw-chips">
+              {CAMERAS.map((c) => (
+                <button key={c.id} className={`aw-chip ${camera === c.id ? 'on' : ''}`} onClick={() => setCamera(c.id)} type="button">
+                  <PresetIcon group="camera" id={c.id} /> {c.label}
+                </button>
+              ))}
+            </div>
           </div>
+        )}
+
+        <div className="aw-field">
+          <span className="aw-label">
+            Shot sequence <em>(optional — chain motions in one video: aerial → zoom in → pull out; drag to reorder)</em>
+          </span>
+          <BeatsEditor beats={beats} onChange={setBeats} duration={duration} />
+          {beats.length >= 2 && duration < Math.min(15, beats.length * 4) && (
+            <p className="aw-note">Tip: {beats.length} shots breathe better at {Math.min(15, beats.length * 5)}s — bump the duration below.</p>
+          )}
         </div>
 
         <div className="aw-field">
@@ -449,6 +491,76 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
 
         <VideoLibrary sessions={sessions.map((s) => s.id)} onOpen={(id) => { setActive(id); onClose(); }} />
       </div>
+    </div>
+  );
+}
+
+let beatSeq = 1;
+
+/**
+ * The multi-shot sequence editor: ordered beat cards (camera move + what we see), draggable to
+ * reorder (HTML5 dnd), each showing its computed time slice of the clip. 2+ beats override the
+ * single camera move; Seedance 2.0 renders the chained motion as one continuous video.
+ */
+function BeatsEditor({ beats, onChange, duration }: { beats: Beat[]; onChange: (b: Beat[]) => void; duration: number }) {
+  const dragIdx = { current: -1 };
+  const per = beats.length ? duration / beats.length : 0;
+  const slice = (i: number) =>
+    `${Math.round(i * per)}–${i === beats.length - 1 ? duration : Math.round((i + 1) * per)}s`;
+
+  const update = (id: number, patch: Partial<Beat>) => onChange(beats.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+  const remove = (id: number) => onChange(beats.filter((b) => b.id !== id));
+  const add = () => onChange([...beats, { id: beatSeq++, move: beats.length === 0 ? 'aerial' : 'push', what: '' }]);
+  const reorder = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0) return;
+    const next = [...beats];
+    const [m] = next.splice(from, 1);
+    next.splice(to, 0, m);
+    onChange(next);
+  };
+
+  return (
+    <div className="vs-beats">
+      {beats.map((b, i) => (
+        <div
+          key={b.id}
+          className="vs-beat"
+          draggable
+          onDragStart={(e) => {
+            dragIdx.current = i;
+            e.dataTransfer.effectAllowed = 'move';
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            reorder(dragIdx.current, i);
+            dragIdx.current = -1;
+          }}
+        >
+          <span className="vs-beat-grip" title="Drag to reorder">⠿</span>
+          <span className="vs-beat-n">{i + 1}</span>
+          <select className="vs-beat-move" value={b.move} onChange={(e) => update(b.id, { move: e.target.value })}>
+            {CAMERAS.filter((c) => c.id !== 'auto').map((c) => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </select>
+          <input
+            className="vs-beat-what"
+            value={b.what}
+            onChange={(e) => update(b.id, { what: e.target.value })}
+            placeholder={i === 0 ? 'e.g. over the coastline highway' : i === 1 ? 'e.g. onto the red car' : 'what we see'}
+            maxLength={90}
+          />
+          {beats.length >= 2 && <span className="vs-beat-time">{slice(i)}</span>}
+          <button className="vs-beat-x" type="button" onClick={() => remove(b.id)} aria-label="Remove shot">×</button>
+        </div>
+      ))}
+      <button className="vs-beat-add" type="button" onClick={add}>
+        + Add shot{beats.length === 1 ? ' (2+ shots become a sequence)' : ''}
+      </button>
     </div>
   );
 }
