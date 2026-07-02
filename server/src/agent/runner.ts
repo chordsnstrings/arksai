@@ -25,6 +25,7 @@ import { makeThinkFilter } from './thinkFilter';
 import { Usage } from './usage';
 import { checkLabel, detectStartCommand, needsExternalDb, verifyProject } from './verify';
 import { probeApp } from './runtimeCheck';
+import { isBlockingDefect } from './uiCheck';
 import { checkDeliverable, deterministicDeliverableDefects, type DeliverableKind } from './deliverableCheck';
 import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
@@ -2055,11 +2056,17 @@ export class AgentRun {
     // Gating DESIGN critique (visual tasks): the agent must fix concrete defects
     // and re-render, bounded — so the user gets a polished result without
     // iterating. Then PASS-with-warnings (never block on subjective taste).
+    // TIERED (operator doctrine 2026-07-02 — "never stuck fixing what doesn't need fixing"):
+    // only BLOCKING defects (functional/accessibility) open a fix round; cosmetic/taste items
+    // are delivered as notes. A run can no longer loop on fonts, palette or "more distinctive".
+    const allDefects = probe.ui?.designDefects ?? [];
+    const blockingDefects = allDefects.filter((d) => isBlockingDefect(d));
+    const cosmeticDefects = allDefects.filter((d) => !isBlockingDefect(d));
     if (
       config.designGate &&
       this.taskProfile?.isVisual &&
       probe.ui?.designVerdict === 'revise' &&
-      probe.ui.designDefects?.length
+      blockingDefects.length
     ) {
       // Wrap-up teeth: past the budget notice, NEVER open a new design round — deliver with the
       // notes (the $6 runs died in exactly this loop after the soft notice was ignored).
@@ -2072,18 +2079,23 @@ export class AgentRun {
         context.push({
           role: 'user',
           content:
-            `A design review of the rendered UI flagged these concrete, fixable issues. The result must look ` +
-            `genuinely polished, so fix them and the page will be re-reviewed:\n- ${probe.ui.designDefects.join('\n- ')}\n\n` +
+            `A design review of the rendered UI flagged these BLOCKING issues (functional/accessibility). Fix ` +
+            `EXACTLY these and nothing else — cosmetic notes are already accepted and must NOT be worked on:\n- ${blockingDefects.join('\n- ')}\n\n` +
+            (cosmeticDefects.length ? `(Accepted as notes, DO NOT fix: ${cosmeticDefects.join(' · ').slice(0, 400)})\n\n` : '') +
             `HOW TO FIX (targeted edits ONLY — never regenerate a whole file for these):\n` +
-            `- Palette/identity/"generic" complaints → change the design tokens (tokens.css --accent/--bg/--ink ramp, or pick a different direction via design_direction) — the components inherit it.\n` +
-            `- Type complaints → swap the font pairing + scale in the tokens/font links, not per-element.\n` +
-            `- A specific component (nav, card, gauge, table) → edit THAT component's block; the UI kit's craft.css primitives are the reference implementation.\n` +
             `- Contrast flags → run validate_palette and adjust the flagged token, not individual elements.\n` +
-            `- Layout/overflow flags → fix the container (max-width, flex-wrap, grid minmax), not with page-level scroll hacks.`,
+            `- Layout/overflow flags → fix the container (max-width, flex-wrap, grid minmax), not with page-level scroll hacks.\n` +
+            `- A dead control → fix THAT handler; a failed request → fix THAT endpoint/path.`,
         });
         return 'retry';
       }
-      sys('info', `✓ Verified — ${probe.detail}\n(design review noted minor items; delivering.)`);
+      sys('info', `✓ Verified — ${probe.detail}\n(design review noted items; delivering.)`);
+      this.autoCheckpoint(dir);
+      return 'ok';
+    }
+    if (cosmeticDefects.length) {
+      // Cosmetic-only review → deliver with notes, NEVER a fix loop (the "stuck polishing" cure).
+      sys('info', `✓ Verified — ${probe.detail}\n(design notes accepted, not blockers: ${cosmeticDefects.slice(0, 4).join(' · ').slice(0, 300)})`);
       this.autoCheckpoint(dir);
       return 'ok';
     }

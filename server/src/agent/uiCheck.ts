@@ -28,6 +28,15 @@ export interface UiCheckResult {
  * variable, an unlabelled chart series, a bad computation shown to the user). Pure +
  * unit-tested; returns one actionable line per kind found.
  */
+/** Tier a design-review defect: BLOCKING (functional/accessibility — broken, unreadable,
+ *  overflowing, dead, crashing) forces a fix round; everything else is COSMETIC taste and is
+ *  delivered as a note, never a loop. Operator doctrine 2026-07-02: a build must never get
+ *  stuck fixing things that don't need fixing — when uncertain, a defect is cosmetic. Pure. */
+export function isBlockingDefect(line: string): boolean {
+  const t = String(line || '');
+  return /overflow|scrolls? side|horizontal scroll|unreadable|illegible|invisible|contrast|WCAG|AA\b|broken|dead|does(n't| not) (work|open|respond)|no effect|blank|empty page|crash|exception|uncaught|error\b|cut[- ]?off|clipped|overlap|collid|failed request|404|500|missing (nav|menu|button|content)|cannot|can't (click|open|read|see)/i.test(t);
+}
+
 /** A 4xx from an auth endpoint during the interaction pass is the app REJECTING our seeded
  *  garbage credentials — correct behavior, never a defect. 5xx (a crash) still counts. Pure. */
 export function isExpectedAuthRejection(path: string, status: number): boolean {

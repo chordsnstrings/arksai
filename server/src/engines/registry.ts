@@ -1,4 +1,5 @@
 import { config } from '../config';
+import { byteplusConfigured } from '../agent/byteplusRuntime';
 
 /**
  * The orchestration spine. Each engine declares what it's good at; the
@@ -29,6 +30,13 @@ export function listEngines(): EngineInfo[] {
       label: 'Suno',
       provider: 'sunoapi.org',
       available: !!config.sunoApiKey,
+    },
+    {
+      id: 'arksai-video',
+      capability: 'video generation with native synchronized audio — draft → final ladder (ArksAI Video 1.5 + 2.0)',
+      label: 'ArksAI Video',
+      provider: 'byteplus',
+      available: byteplusConfigured(),
     },
   ];
 }

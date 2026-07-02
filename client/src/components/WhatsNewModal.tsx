@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.5';
+export const WHATS_NEW_VERSION = '2026-07-02.6';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Builds that never give up',
-    body: 'Big builds now save a checkpoint at every verified milestone automatically — and when a long build runs out of room, it compacts its own memory and keeps going from the last checkpoint. No more asking you to type "continue"; it finishes the job.',
+    title: 'Reviews that know what matters',
+    body: 'The automated quality review now separates real problems (broken buttons, unreadable text, mobile overflow) from taste. Real problems get fixed before you see anything; style suggestions arrive as notes — so builds finish faster and never get stuck polishing.',
   },
   {
-    title: 'Published apps: a whole class of bugs gone',
-    body: 'The publishing layer now guarantees your app\'s data calls work at its live address in every case — fixing the most common reason a freshly published app looked broken.',
+    title: 'Video generation is here',
+    body: 'Ask for a video in chat: you get a quick, inexpensive draft with synchronized sound — dialogue, effects, ambience — approve it, and receive the full-quality render. Powered by ArksAI Video 1.5, with Video 2.0 for editing and extending clips coming next.',
   },
 ];
 

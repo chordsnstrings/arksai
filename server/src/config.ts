@@ -97,6 +97,11 @@ export const config = {
   // ARK_API_KEY is set: with no key, simple builds stay on MiniMax (no behaviour change).
   byteplusApiKey: process.env.ARK_API_KEY || '',
   byteplusBaseUrl: process.env.BYTEPLUS_BASE_URL || 'https://ark.ap-southeast.bytepluses.com/api/coding/v3',
+  // Video (Seedance via ModelArk) runs on the GENERAL endpoint, not the coding plan.
+  byteplusVideoBaseUrl: process.env.BYTEPLUS_VIDEO_BASE_URL || 'https://ark.ap-southeast.bytepluses.com/api/v3',
+  // Nominal cost estimates for the session cost bar (tune against real billing).
+  seedanceDraftCost: Number(process.env.SEEDANCE_DRAFT_COST || '0.05') || 0.05,
+  seedanceFinalCostPerSec: Number(process.env.SEEDANCE_FINAL_COST_PER_SEC || '0.08') || 0.08,
   byteplusModel: process.env.BYTEPLUS_MODEL || 'seed-2-0-pro',
   // Heavy-tier BytePlus coders under evaluation for the heavy build lane (branded id → concrete
   // model, with an optional per-model base URL override; env-overridable). All run on the coding

@@ -1,6 +1,9 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { config } from '../../config';
 import { analyzeImage, fileToDataUrl, generateImage, generateVideo, textToSpeech } from '../../engines/minimax';
+import { createVideoTask, pollVideoTask, downloadVideo, seedanceOn } from '../../engines/seedance';
+import { compileVideoPrompt } from '../videoBrief';
 import { resolveInWorkspace, type ToolDef } from './common';
 
 const minimaxOn = () => !!config.minimaxApiKey;
@@ -169,33 +172,80 @@ export const textToSpeechTool: ToolDef = {
 export const generateVideoTool: ToolDef = {
   name: 'generate_video',
   description:
-    'Generate a short video from a text prompt with the MiniMax Hailuo engine (slow, ~minutes, ' +
-    'costs money). Optionally animate from a starting image. Saved as an MP4 in the workspace ' +
-    'video/ folder and offered as a download. Confirm with the user before generating (it is the ' +
-    'most expensive operation).\n' +
-    'WRITE THE PROMPT LIKE A DIRECTOR (Hailuo wants a SCRIPT, not tags): ONE flowing continuous shot ' +
-    '(no cuts/scenes), present tense, in this order — [camera framing + movement] → [action] → ' +
-    '[scene with NAMED, specific places/props] → [light + mood] → [how it ends]. For a FIRST-PERSON/POV ' +
-    'shot you MUST open with "First-person POV, head-mounted camera" and NEVER describe the camera-' +
-    "holder's own clothes/body (that spawns a third-person subject). Default to BRIGHT, well-lit scenes " +
-    '(cold/overcast/winter wording comes out dim). Pick ONE coherent location.\n' +
-    'PARAMS: duration is 6 or 10 seconds; resolution is 768P or 1080P, but 1080P is 6s-only (a 10s clip ' +
-    'is served at 768P). For phone/social use aspect_ratio "9:16"; wide is "16:9".',
+    'Generate a short video WITH SYNCHRONIZED AUDIO (dialogue/SFX/ambience generated together with ' +
+    'the picture). Models: "ArksAI Video 1.5" (default — 4–12 s, up to 4K, has a cheap fast DRAFT ' +
+    'mode) and "ArksAI Video 2.0" (4–15 s, for reference/edit/extend work — no draft mode). ' +
+    'DRAFT-FIRST LADDER (the required flow): generate a DRAFT (default — cheap 480p, ~2 min), show ' +
+    'it to the user, and only after they approve call again with final:true for the 1080p render ' +
+    '(4K only on explicit ask). Never render a final the user has not seen a draft of.\n' +
+    'PROMPT LIKE A DIRECTOR: one continuous shot — subject + action + camera movement (push-in / ' +
+    'orbit / handheld / static) + style/light (bright, premium) + what we HEAR. SUBJECT FIDELITY: ' +
+    'describe people explicitly to match the audience/market, name places precisely — a vague noun ' +
+    'gives the wrong face or building. If dialogue is wanted, pass it in `dialogue` (spoken verbatim).\n' +
+    'PARAMS: aspect_ratio 9:16 (phone/social) · 16:9 (wide) · 1:1; duration 4–12 s (default 8); ' +
+    'model "auto" (default) | "video-1.5" | "video-2.0". Saved to videos/ and offered as a download.',
   parameters: {
     type: 'object',
     properties: {
-      prompt: { type: 'string', description: 'Director-style description of ONE continuous shot.' },
-      duration: { type: 'number', description: 'Clip length in seconds: 6 or 10 (default 6).' },
-      resolution: { type: 'string', description: '"768P" or "1080P" (default 1080P; a 10s clip is forced to 768P).' },
-      aspect_ratio: { type: 'string', description: 'e.g. "16:9" (wide), "9:16" (phone/social), "1:1".' },
-      first_frame_image: { type: 'string', description: 'Optional workspace image path to animate from.' },
+      prompt: { type: 'string', description: 'Director-style description of ONE continuous shot (subject + action + camera + style + sound).' },
+      aspect_ratio: { type: 'string', description: '"9:16" (phone/social), "16:9" (wide), "1:1" (default 16:9).' },
+      duration: { type: 'number', description: 'Seconds, 4–12 (default 8). Video 2.0 allows up to 15.' },
+      final: { type: 'boolean', description: 'false/omitted = cheap 480p DRAFT (the default first step); true = the full-quality final render (only after the user approved a draft).' },
+      resolution: { type: 'string', description: 'Final renders only: "720p" | "1080p" (default) | "4k" (explicit ask only).' },
+      audio: { type: 'boolean', description: 'Native synchronized audio (default true).' },
+      dialogue: { type: 'string', description: 'Optional line to be SPOKEN in the video, verbatim.' },
+      model: { type: 'string', description: '"auto" (default), "video-1.5", or "video-2.0".' },
+      first_frame_image: { type: 'string', description: 'Optional workspace image path to animate from (image-to-video).' },
     },
     required: ['prompt'],
   },
   modes: ['chat', 'code'],
-  available: minimaxOn,
-  summarize: (a) => String(a.prompt ?? '').slice(0, 80),
+  available: () => seedanceOn() || minimaxOn(),
+  summarize: (a) => `${a.final ? 'final' : 'draft'}: ${String(a.prompt ?? '').slice(0, 70)}`,
   async run(args, ctx) {
+    const prompt = String(args.prompt ?? '').trim();
+    if (!prompt) return 'Error: describe the shot (subject + action + camera + style + sound).';
+
+    // ---- Seedance path (ArksAI Video 1.5 / 2.0) — preferred when the key is configured ----
+    if (seedanceOn()) {
+      try {
+        const modelArg = String(args.model || 'auto');
+        const branded = modelArg === 'video-2.0' ? 'arksai-video-20' : 'arksai-video-15';
+        let imageUrl: string | undefined;
+        if (args.first_frame_image) {
+          imageUrl = fileToDataUrl(resolveInWorkspace(ctx.repoDir, String(args.first_frame_image)));
+        }
+        const compiled = compileVideoPrompt({ brief: prompt, dialogue: args.dialogue ? String(args.dialogue) : undefined });
+        const draft = args.final !== true;
+        const { id, built } = await createVideoTask(
+          {
+            prompt: compiled,
+            model: branded,
+            aspect: args.aspect_ratio ? String(args.aspect_ratio) : undefined,
+            duration: Number(args.duration) || undefined,
+            resolution: args.resolution ? String(args.resolution) : undefined,
+            draft,
+            audio: args.audio !== false,
+            imageUrl,
+          },
+          ctx.signal,
+        );
+        const done = await pollVideoTask(id, ctx.signal);
+        if (!done.ok) return `Error: video generation failed — ${done.error}`;
+        const name = `video-${Date.now()}${built.draft ? '-draft' : ''}.mp4`;
+        const destAbs = path.join(ctx.repoDir, 'videos', name);
+        const bytes = await downloadVideo(done.videoUrl, destAbs, ctx.signal);
+        const cost = built.draft ? config.seedanceDraftCost : config.seedanceFinalCostPerSec * built.duration;
+        ctx.addCost(cost);
+        return built.draft
+          ? `Draft video ready: videos/${name} (${built.label}, ${built.duration}s ${built.resolution}, audio ${built.body.generate_audio ? 'on' : 'off'}, ${Math.round(bytes / 1024)} KB). Show it to the user; when they approve, call generate_video again with final:true (same prompt) for the 1080p render. If they want a change, adjust the prompt and make ONE new draft.`
+          : `Final video ready: videos/${name} (${built.label}, ${built.duration}s ${built.resolution}, ${Math.round(bytes / 1024)} KB). Offer it as the download.`;
+      } catch (e: any) {
+        return `Error: video generation failed — ${e?.message ?? e}`;
+      }
+    }
+
+    // ---- Legacy Hailuo path (no BytePlus key) — behavior unchanged ----
     let firstFrame: string | undefined;
     if (args.first_frame_image) {
       try {
@@ -205,7 +255,7 @@ export const generateVideoTool: ToolDef = {
       }
     }
     const r = await generateVideo(
-      String(args.prompt ?? ''),
+      prompt,
       {
         firstFrameImage: firstFrame,
         duration: Number(args.duration) || undefined,

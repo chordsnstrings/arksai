@@ -105,7 +105,7 @@ test('audit#8: native design core exists inside the mobile pack', () => {
 test('audit#9: web design revise + publish failure are fix-explaining', () => {
   const runner = SRC('agent/runner.ts');
   assert.match(runner, /HOW TO FIX \(targeted edits ONLY/);
-  assert.match(runner, /design_direction/);
+  assert.match(runner, /validate_palette/); // fix-pointers now target the BLOCKING tier only
   const pub = SRC('agent/tools/publish.ts');
   assert.match(pub, /diagnose in this order/);
   assert.match(pub, /process\.env\.PORT/);
@@ -213,4 +213,32 @@ test('exposed#8: input seeding uses the native value setter (React-controlled-in
   assert.match(src, /getOwnPropertyDescriptor\(proto, 'value'\)/);
   assert.match(src, /setter\.call\(el, value\)/);
   assert.match(src, /HTMLTextAreaElement\.prototype/);
+});
+
+// Tiered design gate (operator 2026-07-02: "never stuck fixing what doesn't need fixing"):
+// only functional/accessibility defects block; taste is a note.
+import { isBlockingDefect } from '../src/agent/uiCheck';
+
+test('tiered gate: functional/accessibility defects block; taste does not', () => {
+  for (const b of [
+    'Horizontal overflow at 320px — content 71px wider than the screen',
+    'The demo-hint text fails WCAG AA contrast on the light background',
+    'The theme toggle does not respond when clicked',
+    'Text is cut off / clipped inside the card',
+    'Failed request: 500 /api/tasks',
+    'The page is blank on load',
+  ]) assert.equal(isBlockingDefect(b), true, b);
+  for (const c of [
+    'The palette reads generic — consider a more distinctive accent',
+    'Typography could use a display face for the hero',
+    'Spacing between the cards feels tight; add whitespace',
+    'The auth page would benefit from the forge/blueprint styling',
+  ]) assert.equal(isBlockingDefect(c), false, c);
+});
+
+test('tiered gate: the runner retries ONLY on blocking defects', () => {
+  const runner = fs.readFileSync(path.join(__dirname, '..', 'src', 'agent', 'runner.ts'), 'utf8');
+  assert.match(runner, /blockingDefects\.length/);
+  assert.match(runner, /cosmeticDefects/);
+  assert.match(runner, /DO NOT fix/);
 });
