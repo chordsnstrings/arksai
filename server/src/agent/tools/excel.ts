@@ -9,15 +9,27 @@ interface ColSpec {
   key?: string;
   width?: number;
   type?: ColType;
+  /** Explicit Excel number-format override for this column (beats `type`). */
+  numFmt?: string;
 }
 
 const NUM_FMT: Record<ColType, string | undefined> = {
   text: undefined,
   number: '#,##0.###',
-  currency: '$#,##0.00',
+  currency: '$#,##0.00', // default only — overridden by the workbook `currency` option
   percent: '0.0%',
   date: 'yyyy-mm-dd',
 };
+
+/** Build the currency numFmt from the brief's currency — a symbol prefixes directly
+ *  ("$#,##0.00"), a 2–4 letter ISO code is quoted with a space ('"AED" #,##0.00').
+ *  This is what stops every workbook defaulting to US dollars. */
+export function currencyNumFmt(currency: string | undefined): string {
+  const c = String(currency || '').trim();
+  if (!c) return NUM_FMT.currency!;
+  if (/^[A-Za-z]{2,4}$/.test(c)) return `"${c.toUpperCase()}" #,##0.00`;
+  return `${c}#,##0.00`; // a symbol like $, €, £, ৳, ¥
+}
 
 /** Normalise a hex like "#4f46e5" / "4f46e5" to an ARGB string exceljs wants. */
 function toArgb(hex: string | undefined, fallback: string): string {
@@ -168,7 +180,7 @@ export function financialModelScaffold(): Array<{ name: string; columns: ColSpec
  * (append) path share identical styling, and so a large model assembled sheet-by-sheet still
  * looks designed, not like a raw script dump.
  */
-function buildSheet(wb: any, s: any, accentArgb: string): { name: string; rows: number } {
+function buildSheet(wb: any, s: any, accentArgb: string, currencyFmt?: string): { name: string; rows: number } {
   const name = String(s.name || 'Sheet').slice(0, 31);
   const cols: ColSpec[] = Array.isArray(s.columns) ? s.columns : [];
   const rows: any[] = Array.isArray(s.rows) ? s.rows : [];
@@ -193,9 +205,10 @@ function buildSheet(wb: any, s: any, accentArgb: string): { name: string; rows: 
   // Data rows (cells may be literal values OR formulas — see toCell/toRow).
   for (const r of rows) ws.addRow(toRow(r));
 
-  // Number/date formats + right-align numerics.
+  // Number/date formats + right-align numerics. Per-column numFmt beats type; the
+  // workbook's currency option beats the $-default for currency columns.
   cols.forEach((c, i) => {
-    const fmt = c.type ? NUM_FMT[c.type] : undefined;
+    const fmt = c.numFmt || (c.type === 'currency' && currencyFmt ? currencyFmt : c.type ? NUM_FMT[c.type] : undefined);
     const col = ws.getColumn(i + 1);
     if (fmt) col.numFmt = fmt;
     if (c.type && c.type !== 'text' && c.type !== 'date') col.alignment = { horizontal: 'right' };
@@ -295,6 +308,7 @@ export const generateSpreadsheetTool: ToolDef = {
       template: { type: 'string', enum: ['financial-model'], description: 'Seed a correct, fully-wired skeleton instead of building from scratch. "financial-model" → a 3-statement model (Assumptions → Income → CashFlow) with live cross-sheet formulas and a POPULATED cash-flow statement (never an empty tab). Call this FIRST for any multi-sheet/3-statement model, then customise: re-call generate_spreadsheet with append:true (or overwrite) to rename line items, tune the Assumptions, or add detail. Omit `sheets` when using a template.' },
       append: { type: 'boolean', description: 'When true, ADD these sheets to the existing file (same output name) instead of overwriting — for building a large multi-sheet model a few (2-3) sheets per call. A sheet whose name already exists is replaced. Default false (fresh file).' },
       accent: { type: 'string', description: 'Header accent colour as hex (e.g. "#4f46e5"). Use the brand accent if known.' },
+      currency: { type: 'string', description: 'The workbook\'s currency for ALL currency-typed columns — an ISO code ("AED", "USD", "BDT") or a symbol ("$", "€", "£"). ALWAYS set this from the brief\'s market (an AED brief must NOT show $ — the default is $ only when nothing is specified).' },
       sheets: {
         type: 'array',
         description: 'One or more worksheets.',
@@ -312,6 +326,7 @@ export const generateSpreadsheetTool: ToolDef = {
                   key: { type: 'string', description: 'Key matching row-object fields (optional if rows are arrays).' },
                   width: { type: 'number', description: 'Column width (chars). Auto-sized if omitted.' },
                   type: { type: 'string', enum: ['text', 'number', 'currency', 'percent', 'date'] },
+                  numFmt: { type: 'string', description: 'Explicit Excel number format for this column (beats `type`), e.g. "#,##0", "0.0%", "\\"AED\\" #,##0". Use for special cases like 0-decimal currency or negatives-in-parens: "#,##0;(#,##0)".' },
                 },
                 required: ['header'],
               },
@@ -359,6 +374,7 @@ export const generateSpreadsheetTool: ToolDef = {
 
     const accentArgb = toArgb(args.accent, 'FF4F46E5');
     const append = args.append === true;
+    const currencyFmt = args.currency ? currencyNumFmt(String(args.currency)) : undefined;
     const expected: { name: string; rows: number }[] = [];
     let totalSheets = 0;
     try {
@@ -381,7 +397,7 @@ export const generateSpreadsheetTool: ToolDef = {
         // Re-sending a sheet name replaces it (so a corrected stage overwrites cleanly).
         const prior = wb.getWorksheet(name);
         if (prior) wb.removeWorksheet(prior.id);
-        expected.push(buildSheet(wb, s, accentArgb));
+        expected.push(buildSheet(wb, s, accentArgb, currencyFmt));
       }
       // AUTHORITATIVE pass: compute + cache every formula cell's result on the BUILT
       // workbook (real coordinates), so the in-app preview never shows blank formula

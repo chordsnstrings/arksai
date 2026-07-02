@@ -28,9 +28,12 @@ export function intakeContext(profile?: TaskProfile): string {
   const type = profile?.type ?? 'generic';
   const ask = INTAKE_QUESTIONS[type];
   const head = `## Intake (do this FIRST, once)
-If the user's request already answers these, skip straight to building. Otherwise
-ask a SHORT brief — a few targeted questions in ONE message, then proceed fully
-autonomously (never interrogate, never drip questions across turns):`;
+THE ONE INTAKE RULE (all other intake guidance defers to this): ONE round, sized to
+what's genuinely missing. If the request already answers these, ask NOTHING — build.
+Otherwise ask a SHORT brief in ONE message — the FEWEST questions that unblock you
+(usually one, never more than four) — then proceed fully autonomously (never
+interrogate, never drip questions across turns). On an unattended scheduled run,
+never ask at all:`;
   if (!ask) {
     return `${head}
 - Confirm only what you genuinely need to start: the core goal and any hard
@@ -227,7 +230,19 @@ export function buildSystemPrompt(
   profile?: TaskProfile,
   userText = '',
 ): string {
-  const mem = memoryBlock ? `\n\n${memoryBlock}` : '';
+  // Unattended scheduled runs: a fresh session the scheduler spawned — nobody is watching the
+  // chat, so any "ask a clarifying question first" guidance elsewhere would stall the run forever.
+  // This block OVERRIDES intake/plan-gate behavior for task:'scheduled' sessions only.
+  const sched =
+    session.task === 'scheduled'
+      ? `\n\n## Unattended scheduled run — no user is present
+This session was started automatically by a schedule. NOBODY is watching the chat and no reply will ever come, so:
+- NEVER ask a clarifying question, offer options, or wait for approval — any "ask first" or plan-approval guidance elsewhere is OVERRIDDEN here. Choose sensible defaults and proceed.
+- Open the result by briefly STATING the assumptions you made (one or two lines), then the deliverable itself.
+- Finish the deliverable COMPLETELY in this run so it's ready when a human opens the session later; if the task names a delivery channel (webhook/email), send it there.
+- If the task is genuinely impossible right now (a source is down, credentials missing), do not loop or wait — end with a short plain-language note saying exactly what's needed to fix it.`
+      : '';
+  const mem = (memoryBlock ? `\n\n${memoryBlock}` : '') + sched;
   // Domain-rigor layer: when started from a department task, inject the expert
   // standards that make THAT deliverable genuinely good.
   const expertise = expertiseFor(session.task);
@@ -427,7 +442,8 @@ GET THE FIRST RENDER RIGHT (this is the whole game — a clean first render mean
 automated design review passes immediately instead of churning expensive revise rounds;
 the four defects below are EXACTLY what the gate catches, so eliminate them BEFORE you
 render, every time):
-  1. NATURAL FLOW — FILL EVERY PAGE ≥60%, NEVER STRAND A HEADING OR A LINE. Content flows
+  1. NATURAL FLOW — PAGE FILL: ≥60% is the hard FLOOR, ~85–100% is the TARGET you design to.
+     NEVER STRAND A HEADING OR A LINE. Content flows
      continuously like a well-made human document; do NOT force each section onto its own page
      (forcing breaks is what strands a 2-line remainder or a lone disclaimer on a near-blank
      page — a real defect). A new section heading simply continues after the previous section's
@@ -483,7 +499,8 @@ render, every time):
     TOGETHER (a chart and its insight callout must not split across a page — wrap
     them). KPI tiles go in an EVEN grid (4-across, or 2×2) — never orphan a single
     tile on its own row. For text-dense pages use a 2-column grid (keeps measure
-    ~60–65ch and the rhythm tight). Aim to fill each page ~85–100%.
+    ~60–65ch and the rhythm tight). Fill to the TARGET (~85–100%) — the ≥60% NATURAL-FLOW
+    floor is a minimum for the worst page, never the goal.
   • CHARTS (use the render_chart TOOL — do NOT hand-roll CSS bar-lists for real
     data): call render_chart for every non-trivial chart and INLINE the SVG it
     returns into a <figure class="fig">. Pass the report ACCENT so it's on-brand.
@@ -633,10 +650,11 @@ render, every time):
   leaves a WHITE FRAME (a tinted box inside a white border); the field must come from .bleed.
   (Contained blocks — callouts, KPI tiles, zebra rows — keep their own subtle light tint;
   those are intentional content elements, not page backgrounds.)
-- NATURAL FLOW, EVERY PAGE ≥60% FULL (like a human-made document — NO forced section breaks):
-  content flows continuously; a new section heading follows the previous section's last
-  paragraph on the SAME page when there's room. Do NOT force each section onto its own page —
-  that is exactly what strands a 2-line remainder or a lone disclaimer on a near-blank page.
+- NATURAL FLOW — PAGE FILL: ≥60% is the hard FLOOR, ~85–100% the TARGET (like a human-made
+  document — NO forced section breaks): content flows continuously; a new section heading
+  follows the previous section's last paragraph on the SAME page when there's room. Do NOT
+  force each section onto its own page — that is exactly what strands a 2-line remainder
+  or a lone disclaimer on a near-blank page.
   THREE rules:
   (a) NO STRANDED HEADING: wrap each heading + kicker + opening paragraph in one
   <div class="lede"> (break-inside:avoid) so a heading can NEVER sit alone at a page bottom —
@@ -697,8 +715,20 @@ render, every time):
   to html/body or a .bleed page so it fills completely), the COVER (or any .bleed
   page) SPILLING onto a second, half-empty page (it must be exactly one page), and
   unreadable charts. Iterate at least once; "it rendered" is NOT "well designed".
-- DOCX (only when asked): generate from the same content with the docx library —
-  clean and editable, but say up front it won't be as richly designed as the PDF.
+- DOCX (when asked, or when the user needs an EDITABLE document): a Word file is a
+  first-class deliverable held to the same editorial bar as the PDF — never apologize
+  for the format. Its protocol:
+  • ANATOMY: a real title block (kicker/eyebrow line, title, one-line subtitle or date
+    line) — add a simple cover section only for formal/long documents; then a strict
+    heading hierarchy (Heading 1 → 2 → 3, never skipping levels), short paragraphs
+    (3–5 sentences), and bulleted/numbered lists where they genuinely help scanning.
+  • TYPE & SPACE: one heading face + one body face, consistent sizes per level,
+    spacing set via paragraph spacing (before/after) — never blank-paragraph padding.
+  • TABLES: compact and readable — a header row (repeat on page break), zebra or
+    hairline rules, numbers right-aligned, units in the header not every cell.
+  • SUBSTANCE: the same analysis rigor as the PDF (real numbers, sourced claims,
+    a recommendation section when the brief calls for one) — the FORMAT is lighter,
+    the thinking is not.
 
 Finish with the download(s) and a one-line summary of what you produced.`;
 

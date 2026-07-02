@@ -39,10 +39,20 @@ export const publishAppTool: ToolDef = {
       const dep = await publishSession(ctx.session.id, args.name ? String(args.name) : undefined);
       const url = liveUrl(dep.url);
       if (dep.status === 'error') {
-        const why = dep.verifyDetail ? `\n\n${dep.verifyDetail}` : '';
+        // Fix-explaining failure text (modelled on build_apk's): even with no verify detail the
+        // model gets a concrete diagnosis path instead of a bare "diagnose and fix".
+        const why = dep.verifyDetail
+          ? `\n\nWhat the live check saw:\n${dep.verifyDetail}`
+          : `\n\nNo verify detail was captured, so diagnose in this order (most common causes first): ` +
+            `(1) fetch the live URL yourself and read the response — a 404 usually means the entry point is missing ` +
+            `(a static site MUST have a root index.html; a server app MUST serve "/") ; (2) a server app that works ` +
+            `locally but 502s live usually isn't listening on process.env.PORT, or its start script is missing/wrong ` +
+            `in package.json; (3) blank page but 200 → open the browser console via the verify gate — a root-absolute ` +
+            `asset path ("/app.js") breaks under /apps/<slug>/ (use relative paths); (4) an API app returning HTML → ` +
+            `route order (API routes must register before the SPA fallback).`;
         return (
           `Published to ${url}, but the LIVE app FAILED verification — do NOT give this URL to the user yet. ` +
-          `Diagnose and fix the issue, then call publish_app again to republish.${why}`
+          `Fix the issue with a targeted edit, then call publish_app again to republish.${why}`
         );
       }
       const verified = dep.verifyDetail ? ` ${dep.verifyDetail}` : '';

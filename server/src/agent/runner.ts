@@ -2025,7 +2025,13 @@ export class AgentRun {
           role: 'user',
           content:
             `A design review of the rendered UI flagged these concrete, fixable issues. The result must look ` +
-            `genuinely polished, so fix them and the page will be re-reviewed:\n- ${probe.ui.designDefects.join('\n- ')}`,
+            `genuinely polished, so fix them and the page will be re-reviewed:\n- ${probe.ui.designDefects.join('\n- ')}\n\n` +
+            `HOW TO FIX (targeted edits ONLY — never regenerate a whole file for these):\n` +
+            `- Palette/identity/"generic" complaints → change the design tokens (tokens.css --accent/--bg/--ink ramp, or pick a different direction via design_direction) — the components inherit it.\n` +
+            `- Type complaints → swap the font pairing + scale in the tokens/font links, not per-element.\n` +
+            `- A specific component (nav, card, gauge, table) → edit THAT component's block; the UI kit's craft.css primitives are the reference implementation.\n` +
+            `- Contrast flags → run validate_palette and adjust the flagged token, not individual elements.\n` +
+            `- Layout/overflow flags → fix the container (max-width, flex-wrap, grid minmax), not with page-level scroll hacks.`,
         });
         return 'retry';
       }

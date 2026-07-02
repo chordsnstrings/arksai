@@ -23,9 +23,11 @@ import type { TaskProfile } from './taskProfile';
 const COMPILER_SYSTEM =
   'You are a senior design director and prompt engineer. You convert a casual user request into a ' +
   'tight, concrete BUILD BRIEF that a builder model will follow to produce a result on par with the ' +
-  "best AI design tools — minimal, modern, muted, and genuinely polished (\"expensive minimalism\"). " +
-  'Think like an expert about what THIS specific thing needs, then SPECIFY it with real choices — ' +
-  'never restate generic principles. Output ONLY the brief (no preamble, no sign-off).';
+  'best AI design tools — DISTINCTIVE, art-directed for its subject, and genuinely polished. ' +
+  'The result is graded by a design review that FAILS "competent-but-generic": restraint must be a ' +
+  'deliberate choice, never the default. Commit the brief to one recognizable modern direction that ' +
+  'fits THIS subject, then SPECIFY it with real choices — never restate generic principles. ' +
+  'Output ONLY the brief (no preamble, no sign-off).';
 
 function compilerPrompt(userText: string, profile: TaskProfile): string {
   return `USER REQUEST: "${userText.slice(0, 800)}"
@@ -33,13 +35,14 @@ function compilerPrompt(userText: string, profile: TaskProfile): string {
 This is a VISUAL build (type: ${profile.type}). Write a BUILD BRIEF specific to THIS request — name real, decisive choices. Keep it under ~200 words, as terse labeled lines. Skip a line only if it truly doesn't apply.
 
 - CONCEPT: one line — the art-direction idea grounded in the subject, so it feels bespoke not template.
+- DIRECTION: name the ONE modern archetype the page commits to, chosen for THIS subject (product dashboard with a focal metric, bento grid, command-bar app, split-screen, editorial magazine, glass stack, data-poster…). The structure must BE that archetype — that commitment is what design review rewards.
 - PALETTE: pick ONE palette by NAME from the menu below that fits the subject's mood; note the accent is used sparingly (~5-10%) on one focal thing.
 - TYPE: which role each face plays — a display face for headings/hero, a clean sans for body, and where the MONO/data face carries figures (numbers, labels, codes, time).
-- LAYOUT: the concrete structure — the sections in order, the grid, what floats; a single card/widget FLOATS centered with breathing room (never edge-to-edge), capped width.
-- SIGNATURE: the ONE memorable, art-directed moment (a hero number, a ring/gauge, a focal data viz) — everything else stays quiet around it.
+- LAYOUT: the concrete structure — the sections in order, the grid, what floats. Only a genuinely single-widget build floats one centered card; anything richer must fill its archetype's structure, capped width, never edge-to-edge.
+- SIGNATURE: the ONE memorable, art-directed moment keyed to real content (a hero number, a ring/gauge, a focal data viz) — everything else stays quiet around it.
 - DATA: concrete, real-looking sample content to populate it (specific names/numbers/labels) — never lorem or "placeholder".
 - DETAILS: hairline dividers over heavy borders, soft tinted elevation, tabular-nums on any changing number, real hover/focus/empty/loading states.
-- AVOID: emoji as icons (use inline line-SVG, stroke=currentColor, one consistent stroke/size); dead flat grey; the generic centered-hero-with-a-glowing-box look; low-contrast washed-out text; content bleeding to the screen edges.
+- AVOID (these are the named FAIL patterns in design review): the generic minimal-muted AI look (grey/blue desaturated accent on white + a big centered hero + a glowing card + Inter everywhere); cream + serif + terracotta pastiche; black + acid-neon-green; emoji as icons (use inline line-SVG, stroke=currentColor, one consistent stroke/size); dead flat grey; low-contrast washed-out text; content bleeding to the screen edges.
 
 PALETTE MENU (choose one name):
 ${paletteMenu()}`;

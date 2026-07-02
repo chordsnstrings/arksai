@@ -436,8 +436,16 @@ export const renderChartTool: ToolDef = {
     'returned <svg> into your report HTML inside a FULL-MEASURE <figure class="fig"> (its OWN row, the full ' +
     'text width — NEVER a narrow column or a small card, or the axis labels collide and it looks cornered). ' +
     'The returned SVG is already fluid (width:100%; height:auto) so it fills the figure; you do NOT need to ' +
-    'resize it. Types: line, multi_line, dual_axis (bars + a trend line on a 2nd axis — great for time-series), ' +
-    'bar, bar_h, stacked_bar, area, donut, heatmap (e.g. month×year). Pass the report ACCENT so it matches.',
+    'resize it (defaults ~600×340). ' +
+    'CHART CHOICE (pick the smartest, not just bars): a TIME-SERIES with two metrics → dual_axis (volume bars ' +
+    '+ a rate/trend line); a value over two dimensions (month×year, cohort×stage) → heatmap; part-of-whole ' +
+    'with ≤5 slices → donut (never more); ranked categories → bar_h. ' +
+    'NUMBER FORMAT (the #1 recurring chart defect is colliding value labels): pass values as plain numbers and ' +
+    'keep LABELS short — abbreviate thousands/millions ("155K", "2.4M", never "155,000 AED"); state the unit/' +
+    'currency ONCE in the axis title or figure caption, not on every value; use the currency the BRIEF uses ' +
+    '(AED for a UAE brief — never default to $); round to what the story needs (usually 0–1 decimals). If ' +
+    'labels would still crowd, plot fewer points (top 8, or aggregate) rather than shrinking the font. ' +
+    'Types: line, multi_line, dual_axis, bar, bar_h, stacked_bar, area, donut, heatmap. Pass the report ACCENT so it matches.',
   parameters: {
     type: 'object',
     properties: {

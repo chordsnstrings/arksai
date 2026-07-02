@@ -77,7 +77,7 @@ export function briefFamily(
 const HEADER = '## Operating procedure for this request — follow it precisely';
 
 // Phases 2–3 (invisible, auto-proceed): compile the request into an expert brief first.
-const BRIEF_FIRST = `BEFORE YOU ACT — compile the request into an expert brief (briefly, at the top): (1) restate the goal in one line; (2) state any ASSUMPTIONS you are making for details the user did not specify — assume sensibly and flag them, never invent specifics; (3) ONLY if a single input is genuinely critical and you cannot proceed sensibly without it, ask that ONE question and stop — otherwise proceed on your stated assumptions. Then do the work.`;
+const BRIEF_FIRST = `BEFORE YOU ACT — compile the request into an expert brief (briefly, at the top): (1) restate the goal in one line; (2) state any ASSUMPTIONS you are making for details the user did not specify — assume sensibly and flag them, never invent specifics; (3) ONLY if a single input is genuinely critical and you cannot proceed sensibly without it, ask that ONE question and stop (the same one-round intake rule as everywhere else — the fewest questions that unblock you, in one message; on an unattended scheduled run, never ask) — otherwise proceed on your stated assumptions. Then do the work.`;
 
 // Phase 4: make the self-audit a hard gate, not a suggestion.
 const SELF_AUDIT_GATE = `BEFORE YOU DELIVER — run the self-audit above and fix anything that fails; do NOT hand over output that fails its own audit. Label every factual figure as verified (with a dated source) or unverified.`;

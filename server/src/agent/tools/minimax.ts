@@ -55,6 +55,10 @@ export const generateImageTool: ToolDef = {
     'dark scrim/gradient so overlaid text stays legible. Only set text_free:false for the rare case ' +
     'you explicitly want lettering rendered into the image. (For a finished social post/ad WITH ' +
     'composited copy, use generate_creative instead — never as a website background.) ' +
+    'SUBJECT FIDELITY: the model drifts on vague nouns — describe people explicitly to match the ' +
+    'audience/market (appearance, age range, setting), name landmarks/places precisely with one ' +
+    'distinguishing detail, and specify the product exactly. One vague noun = the wrong face or ' +
+    'building in the output. ' +
     'Saved into the workspace images/ folder; reference them from your code by path.',
   parameters: {
     type: 'object',

@@ -606,3 +606,13 @@ test('financialModelScaffold: the 3-statement template passes every xlsx gate by
   const hasEndingCash = Object.keys(cf).some((a) => a[0] !== '!' && typeof cf[a].v === 'number' && cf[a].v > 0);
   assert.ok(hasEndingCash, 'CashFlow has populated numeric cells');
 });
+
+// Item 7 (prompt audit): the workbook currency must follow the brief, never default to $.
+import { currencyNumFmt } from '../src/agent/tools/excel';
+test('currencyNumFmt: ISO codes are quoted, symbols prefix, empty falls back to $', () => {
+  assert.equal(currencyNumFmt('AED'), '"AED" #,##0.00');
+  assert.equal(currencyNumFmt('bdt'), '"BDT" #,##0.00');
+  assert.equal(currencyNumFmt('€'), '€#,##0.00');
+  assert.equal(currencyNumFmt(''), '$#,##0.00');
+  assert.equal(currencyNumFmt(undefined), '$#,##0.00');
+});

@@ -300,18 +300,39 @@ export async function composeCreative(
     const bgDataUrl = `data:${sniffMime(buf)};base64,${buf.toString('base64')}`;
     await renderToImage(buildCreativeHtml({ bgDataUrl, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder, logoIsSvg }), size.w, size.h, absOut, opts.format);
 
-    // 3) vision QC; one corrective pass on a contrast/legibility complaint (flip the text colour)
+    // 3) vision QC — broader than legibility (the known failure modes are wrong-subject imagery
+    //    and text baked into the background, which the old legibility-only question let ship).
+    //    The verdict is a machine token so EVERY revise class is actionable; ONE corrective pass max.
     const finalBuf = fs.readFileSync(absOut);
     const qc = await analyzeImage(
       `data:image/${ext === 'jpg' ? 'jpeg' : 'png'};base64,${finalBuf.toString('base64')}`,
-      'Is the headline text crisp and perfectly legible, and is it sitting in clear space (not fighting the imagery)? Answer with one short sentence then a verdict on its own: SHIP or REVISE.',
+      `The imagery brief was: "${imagery.slice(0, 240)}". Review this finished ad creative like a demanding creative director. Check in order: ` +
+        '(1) SUBJECT — the imagery matches the brief: right people and their described appearance, the NAMED place/landmark (not a lookalike), the right product; nothing garbled, warped or anatomically wrong. ' +
+        '(2) TEXT_IN_IMAGE — no words/letters are baked into the background imagery itself (the crisp overlaid headline/CTA is intentional and fine). ' +
+        '(3) LEGIBILITY — the overlaid headline is crisp and readable, sitting in clear space, not fighting the imagery. ' +
+        'Reply with one short sentence of judgement, then the verdict ALONE on the last line: SHIP, or REVISE:SUBJECT, or REVISE:TEXT_IN_IMAGE, or REVISE:LEGIBILITY.',
       signal,
     );
     cost += config.minimaxVisionCost;
-    if (qc.ok && /\bREVISE\b/i.test(qc.text ?? '') && /legib|contrast|hard to read|washed|blends|low.?contrast/i.test(qc.text ?? '') && opts.textColor === 'auto') {
+    const verdict = (qc.ok && (qc.text ?? '').match(/REVISE:(SUBJECT|TEXT_IN_IMAGE|LEGIBILITY)/i)?.[1] || '').toUpperCase();
+    if (verdict === 'LEGIBILITY' && opts.textColor === 'auto') {
       textColor = textColor === 'light' ? 'dark' : 'light';
       log.push(`flipped text to ${textColor} for legibility`);
       await renderToImage(buildCreativeHtml({ bgDataUrl, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder, logoIsSvg }), size.w, size.h, absOut, opts.format);
+    } else if (verdict === 'SUBJECT' || verdict === 'TEXT_IN_IMAGE') {
+      // Regenerate the background once (hard no-text lead on a text leak), re-plan, re-composite.
+      log.push(`QC flagged ${verdict.toLowerCase()} — regenerated the background once`);
+      buf = await genBackground(imagery, size.gen, signal, verdict === 'TEXT_IN_IMAGE');
+      cost += config.minimaxImageCost;
+      const replan = await visionPlan(buf, signal);
+      cost += config.minimaxVisionCost;
+      if (opts.zone === 'auto') {
+        zone = replan.zone;
+        if (hasBrand && zone === 'top') zone = 'bottom'; // same brand-corner avoidance as the first pass
+      }
+      if (opts.textColor === 'auto') textColor = replan.textColor;
+      const bg2 = `data:${sniffMime(buf)};base64,${buf.toString('base64')}`;
+      await renderToImage(buildCreativeHtml({ bgDataUrl: bg2, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder, logoIsSvg }), size.w, size.h, absOut, opts.format);
     }
 
     const notes = `zone=${zone}, text=${textColor}, ${opts.aspect} ${size.w}×${size.h}${log.length ? ' · ' + log.join('; ') : ''}`;

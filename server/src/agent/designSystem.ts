@@ -268,6 +268,19 @@ or blank; with one series, turn the legend off.`,
   droplet — Gradle/expo prebuild, NEVER EAS/expo build; EAS is APPLE-only) and share the download
   link; if build_apk is NOT available, the PWA/web build is the delivered app. See ANDROID_PLAN.md.
   Range: QR scanner (small) → Tinder-style (large).
+  NATIVE DESIGN CORE (React Native — this REPLACES the web CSS design system for a native build:
+  tokens.css / add_ui_kit / craft.css / hamburger-nav / Google-Fonts-<link> rules do NOT apply in RN):
+  • TYPE: the kit's AppText scale is the hierarchy — display/title/body/caption, ~1.4–1.5 line-height,
+    weights 400/600/700; tabular numbers on anything that counts or updates.
+  • COLOUR: one accent through brandTheme(accent) at ~5–10%, neutral surfaces from the kit theme,
+    text contrast ≥ WCAG AA in BOTH light and dark (test dark — half of phones run it).
+  • ICONS: @expo/vector-icons (one family, one size grid) — NEVER emoji as icons.
+  • LAYOUT: 8pt spacing grid, safe-area insets on every screen, thumb-reachable primary actions
+    (bottom half), 44pt minimum touch targets, a real tab bar or stack header — never a web hamburger.
+  • MOTION: use the kit/Reanimated for small purposeful transitions (press feedback, screen push,
+    list item entrance); respect reduced-motion.
+  • STATES: every screen ships loading + empty + error states from the kit (Loading/EmptyState) —
+    an empty first screen with no guidance is a review FAIL.
 If unsure, ASK one quick question (just-an-installable-app → PWA; needs the Play/App Store or native
 device power → native) or default to PWA.`,
   report: '', // report mode has its own bespoke protocol

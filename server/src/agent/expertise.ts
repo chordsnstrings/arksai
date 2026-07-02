@@ -126,7 +126,7 @@ const TASK: Record<string, string> = {
   'finance.boarddeck': `${DECK} Board-deck specifics: performance vs plan, the KPIs, financials, risks, and asks — restrained and serious; every number ties out; never fabricate.`,
   'finance.investorupdate': `${REPORT} Investor update: highlights, the key metrics (with vs-plan), lowlights (honest), asks, and runway — concise and candid.`,
   'finance.strategymemo': `${REPORT} ${RESEARCH} Strategy memo: the question, the analysis, cited benchmarks, the options, and a CLEAR recommendation with the reasoning.`,
-  'finance.kpidashboard': DASHBOARD,
+  'finance.kpidashboard': `${DASHBOARD} Finance KPI dashboard specifics: lead with cash runway + burn (the numbers a founder/CFO checks first), then revenue vs plan, gross margin, and AR/AP aging; every metric shows the period delta AND vs-target; money formatted in the org's currency with K/M abbreviation. METHOD: derive each KPI from the underlying data with the calculation visible on hover/click (auditability beats decoration). BAR: a CFO can answer "are we on plan and how long is the runway?" in 10 seconds. COMMON FAILURE: a wall of equal-weight tiles — rank by decision value, biggest number = most important.`,
   'finance.variance': `${REPORT} Variance report: budget vs actual by line, the variances (absolute + %), charts, and a short narrative on what moved and why; flag gaps, never plug.`,
   'finance.model': `${FIN_SHEET} Model structure: a clear assumptions block driving the projection with monthly columns and totals; built so a single assumption flows through; scenario-ready.`,
   'finance.cashflow': `${FIN_SHEET} Cash-flow forecast: opening cash → inflows → outflows → net → closing cash by month, with runway highlighted; formula-driven.`,
@@ -142,11 +142,11 @@ const TASK: Record<string, string> = {
   'people.training': `${REPORT} Training guide / SOP: purpose, prerequisites, the steps in order (numbered), tips/pitfalls, and a quick-reference summary; anyone should be able to follow it.`,
   'people.survey':
     'Engagement survey: SHORT, neutral, unbiased questions (no leading wording); a consistent scale (e.g. 1–5); an anonymity note; capture responses cleanly into a results view; verify the form works before publishing.',
-  'people.peopledash': DASHBOARD,
+  'people.peopledash': `${DASHBOARD} People dashboard specifics: headcount (total, by team, trend), attrition/retention rate with a 12-month trend, open roles vs plan, time-to-hire, and tenure mix; slice by department and seniority. METHOD: define attrition precisely (voluntary vs total, annualized) and label it; never mix definitions across tiles. BAR: an HR lead can spot the team with a retention problem in one glance. COMMON FAILURE: vanity totals with no trend or benchmark — every number needs a comparison (vs last quarter, vs target, vs company average).`,
   'people.onboardingportal':
     'Onboarding portal: a first-week checklist, the key links, team intros, and the schedule — friendly, clear, welcoming; verify and publish it.',
   'people.onboardingchecklist': `${TRACKER} Onboarding checklist: task, owner, due day, and status across pre-start and the first week.`,
-  'people.teamtracker': `${TRACKER} Team tracker: people, roles, status, and key dates.`,
+  'people.teamtracker': `${TRACKER} Team tracker: one row per person — name, role, team, manager, location, start date, employment type, status; add key dates that drive action (probation end, visa/contract renewal, next review) with conditional highlighting when a date is within 30 days. METHOD: one source-of-truth sheet + a small summary block (headcount by team/type) driven by formulas. BAR: the ops lead can answer "who needs a renewal action this month?" from the highlighting alone. COMMON FAILURE: stale free-text status — use a constrained status set (active/notice/leave/left) so filters work.`,
   'people.runbook': `${REPORT} Runbook: purpose, the steps in order, the owners, and the escalation path — clear enough to follow under pressure.`,
 
   // Engineering
@@ -159,10 +159,10 @@ const TASK: Record<string, string> = {
   'engineering.docssite':
     'Docs/landing site: a clear hero, the key sections, and obvious navigation; clean, fast, and easy to scan.',
   'engineering.engmetrics': `${DASHBOARD} Engineering metrics: throughput, cycle time, deploys, and incidents — trend them and surface the bottleneck.`,
-  'engineering.datadash': DASHBOARD,
+  'engineering.datadash': `${DASHBOARD} Data/ops dashboard specifics: pick the 5-7 metrics that drive the operational decision (throughput, error rate, latency percentiles p50/p95, queue depth, uptime) — never raw counts alone; pair each with its threshold/SLO so state (healthy/warning/breach) is instant. METHOD: real time-series charts for anything that trends; single stats only for current-state numbers. BAR: an on-call engineer can answer "is something wrong right now, and where?" in 5 seconds. COMMON FAILURE: averages hiding tails — latency and errors always show p95/p99, not the mean.`,
   'engineering.api':
     'API/automation: clear endpoints/inputs/outputs, sensible errors; EXERCISE it with real requests and show the request/response; hand back something runnable.',
-  'engineering.techdoc': TECH_DOC,
+  'engineering.techdoc': `${TECH_DOC} Structure it as: overview (what + why in 5 lines), quickstart (the shortest working path, copy-pasteable), core concepts, then reference (every endpoint/function: signature, params table, a REAL request+response example, error cases). METHOD: write the quickstart first and test it verbatim — if the reader can't succeed in 5 minutes the doc failed. BAR: a new engineer integrates without asking a question. COMMON FAILURE: reference-only docs with no working example per endpoint — every one needs a real, runnable example.`,
   'engineering.runbook': `${REPORT} Ops runbook: purpose, preconditions, numbered unambiguous steps, verification after each major step, rollback, and owners/escalation.`,
   'engineering.designdoc': `${TECH_DOC} Design doc / PRD: open with the user problem + business outcome; then goals AND non-goals, the approach, alternatives, risks, and a rollout plan — not UI/DB details first.`,
   'engineering.statusreport': `${REPORT} Status report: what shipped, what’s in progress, risks/blockers, and what’s next — with a chart or two; honest, not rosy.`,
