@@ -23,7 +23,9 @@ export interface VideoSpec {
   resolution?: string; // 480p | 720p | 1080p | 4k  (finals; a draft is always 480p)
   draft?: boolean; // 1.5 only — cheap/fast 480p preview
   audio?: boolean; // native synchronized audio; DEFAULT TRUE (the headline capability)
-  imageUrl?: string; // i2v: first-frame image (https or data URL)
+  imageUrl?: string; // i2v: first-frame / start image (https or data URL)
+  lastFrameUrl?: string; // end-frame image — the clip animates from first_frame → last_frame
+  referenceUrls?: string[]; // subject/style reference images (Seedance 2.0 keeps their look/identity)
 }
 
 export const VIDEO_MODELS: Record<string, { api: string; label: string; min: number; max: number; draft: boolean }> = {
@@ -54,7 +56,13 @@ export function buildVideoTask(spec: VideoSpec): {
   const aspect = VALID_ASPECT.has(String(spec.aspect)) ? String(spec.aspect) : '16:9';
   const text = `${spec.prompt.trim()} --ratio ${aspect} --resolution ${resolution} --duration ${duration}`;
   const content: any[] = [{ type: 'text', text }];
+  // Image roles the ModelArk Seedance API accepts: first_frame (start / i2v), last_frame (end —
+  // the clip interpolates start→end), reference_image (subject/style the model keeps consistent).
   if (spec.imageUrl) content.push({ type: 'image_url', image_url: { url: spec.imageUrl }, role: 'first_frame' });
+  if (spec.lastFrameUrl) content.push({ type: 'image_url', image_url: { url: spec.lastFrameUrl }, role: 'last_frame' });
+  for (const ref of spec.referenceUrls ?? []) {
+    if (ref) content.push({ type: 'image_url', image_url: { url: ref }, role: 'reference_image' });
+  }
   const body: Record<string, unknown> = {
     model: m.api,
     content,

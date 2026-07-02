@@ -42,6 +42,21 @@ test('video: native audio defaults ON; params ride the prompt text; i2v adds fir
   assert.equal(buildVideoTask({ prompt: 'x', audio: false }).body.generate_audio, false);
 });
 
+test('video: start+end frames and reference images map to the right ModelArk roles', () => {
+  const t = buildVideoTask({
+    prompt: 'a product spins',
+    imageUrl: 'data:image/png;base64,START',
+    lastFrameUrl: 'data:image/png;base64,END',
+    referenceUrls: ['data:image/png;base64,R1', 'data:image/png;base64,R2'],
+  });
+  const content = (t.body as any).content as any[];
+  const roles = content.filter((c) => c.type === 'image_url').map((c) => c.role);
+  assert.deepEqual(roles, ['first_frame', 'last_frame', 'reference_image', 'reference_image']);
+  // No image inputs → only the text part, no image content.
+  const bare = buildVideoTask({ prompt: 'x' });
+  assert.equal((bare.body as any).content.length, 1);
+});
+
 test('video: invalid resolution/aspect fall back to safe defaults', () => {
   const t = buildVideoTask({ prompt: 'x', resolution: '9999p', aspect: '3:7' });
   assert.equal(t.resolution, '1080p');

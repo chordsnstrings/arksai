@@ -195,7 +195,9 @@ export const generateVideoTool: ToolDef = {
       audio: { type: 'boolean', description: 'Native synchronized audio (default true).' },
       dialogue: { type: 'string', description: 'Optional line to be SPOKEN in the video, verbatim.' },
       model: { type: 'string', description: '"auto" (default), "video-1.5", or "video-2.0".' },
-      first_frame_image: { type: 'string', description: 'Optional workspace image path to animate from (image-to-video).' },
+      first_frame_image: { type: 'string', description: 'Optional workspace image path — the clip STARTS on this exact frame (image-to-video).' },
+      last_frame_image: { type: 'string', description: 'Optional workspace image path — the clip ENDS on this exact frame; with first_frame_image it animates start→end.' },
+      reference_images: { type: 'array', items: { type: 'string' }, description: 'Optional workspace image paths — subject/product/style references the video keeps consistent (best on Video 2.0). Up to 4.' },
     },
     required: ['prompt'],
   },
@@ -215,6 +217,13 @@ export const generateVideoTool: ToolDef = {
         if (args.first_frame_image) {
           imageUrl = fileToDataUrl(resolveInWorkspace(ctx.repoDir, String(args.first_frame_image)));
         }
+        let lastFrameUrl: string | undefined;
+        if (args.last_frame_image) {
+          lastFrameUrl = fileToDataUrl(resolveInWorkspace(ctx.repoDir, String(args.last_frame_image)));
+        }
+        const referenceUrls: string[] = Array.isArray(args.reference_images)
+          ? args.reference_images.slice(0, 4).map((p: unknown) => fileToDataUrl(resolveInWorkspace(ctx.repoDir, String(p))))
+          : [];
         const compiled = compileVideoPrompt({
           brief: prompt,
           dialogue: args.dialogue ? String(args.dialogue) : undefined,
@@ -231,6 +240,8 @@ export const generateVideoTool: ToolDef = {
             draft,
             audio: args.audio !== false,
             imageUrl,
+            lastFrameUrl,
+            referenceUrls,
           },
           ctx.signal,
         );

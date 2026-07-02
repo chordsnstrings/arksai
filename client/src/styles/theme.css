@@ -2622,14 +2622,20 @@ button { font-family: inherit; cursor: pointer; }
 
 .aw-chips, .aw-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
 .aw-chip {
+  display: inline-flex; align-items: center; gap: 6px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg-elev);
-  padding: 7px 14px;
+  padding: 7px 13px 7px 11px;
   font-size: 13px;
   cursor: pointer;
   color: var(--text);
 }
+.aw-chip svg { color: var(--text-muted); }
+.aw-chip.on svg { color: var(--accent); }
+.aw-card-head { display: flex; align-items: center; gap: 7px; }
+.aw-card-head svg { color: var(--text-muted); }
+.aw-card.on .aw-card-head svg { color: var(--accent); }
 .aw-chip:hover { border-color: var(--text-faint); }
 .aw-chip.on { border-color: var(--accent); background: var(--accent-dim); color: var(--text); }
 .aw-swatch { width: 30px; height: 30px; border-radius: 9px; border: 2px solid transparent; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); }
@@ -2671,6 +2677,29 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- Video studio (reuses the .android-* / .aw-* shell) ---------- */
 .aw-toggle { display: flex; align-items: center; gap: 9px; font-size: 13.5px; color: var(--text); cursor: pointer; }
+/* Frames & references — start/end frame tiles + a reference strip */
+.vs-frames { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+.vs-frame { display: flex; flex-direction: column; gap: 6px; }
+.vs-frame-label { font-size: 11.5px; font-weight: 600; color: var(--text-muted); }
+.vs-frame-label em { font-weight: 400; font-style: normal; color: var(--text-faint); }
+.vs-frame-box {
+  position: relative; width: 92px; height: 92px; border-radius: 12px;
+  border: 1px dashed var(--border); background: var(--bg-elev);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  cursor: pointer; overflow: hidden; transition: border-color 0.12s;
+}
+.vs-frame-box.sm { width: 60px; height: 60px; }
+.vs-frame-box:hover { border-color: var(--accent); }
+.vs-frame-box.has { border-style: solid; cursor: default; }
+.vs-frame-box img { width: 100%; height: 100%; object-fit: cover; }
+.vs-frame-plus { font-size: 22px; color: var(--text-faint); line-height: 1; }
+.vs-frame-hint { font-size: 10px; color: var(--text-faint); text-align: center; padding: 0 4px; }
+.vs-frame-x {
+  position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%;
+  border: none; background: rgba(20,20,18,.7); color: #fff; font-size: 13px; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.vs-refs-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .aw-toggle input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
 .vs-library { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--border); }
 .vs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 12px; }

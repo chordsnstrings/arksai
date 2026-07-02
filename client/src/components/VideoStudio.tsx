@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { VideoCard } from './VideoCard';
+import { PresetIcon } from './VideoPresetIcon';
 
 /**
  * "Video" — the dedicated full-page studio surface (Sidebar 🎬 / /video), mirroring Android/Robots.
@@ -15,6 +16,8 @@ import { VideoCard } from './VideoCard';
  */
 
 type ModelChoice = 'auto' | 'arksai-video-15' | 'arksai-video-20';
+/** A staged image: the File + a preview object-URL. */
+type Pick2 = { file: File; url: string };
 
 const MODELS: { id: ModelChoice; label: string; hint: string }[] = [
   { id: 'auto', label: 'Auto', hint: 'we pick the right one' },
@@ -42,6 +45,12 @@ const STYLES: { id: string; label: string; brief: string }[] = [
   { id: 'product', label: 'Product', brief: 'clean product shot, soft studio light, slow rotating/tracking camera' },
   { id: 'ugc', label: 'UGC / handheld', brief: 'authentic handheld UGC look, natural light, casual energy' },
   { id: 'anime', label: 'Animated', brief: 'stylised animation, bold color, expressive motion' },
+  { id: 'documentary', label: 'Documentary', brief: 'observational documentary realism, natural light, unstaged' },
+  { id: 'vintage', label: 'Vintage film', brief: 'vintage 16mm film, warm faded tones, visible grain' },
+  { id: 'noir', label: 'Noir B&W', brief: 'high-contrast black-and-white film noir, hard shadows' },
+  { id: 'dreamy', label: 'Dreamy', brief: 'dreamy soft-focus, ethereal glow, gentle bloom' },
+  { id: 'vibrant', label: 'Vibrant', brief: 'vibrant saturated bold color, high energy' },
+  { id: 'luxury', label: 'Luxury', brief: 'luxury editorial, glossy premium finish, elegant' },
   { id: 'none', label: 'No preset', brief: '' },
 ];
 
@@ -56,6 +65,12 @@ const CAMERAS: { id: string; label: string; phrase: string }[] = [
   { id: 'track', label: 'Tracking', phrase: 'tracking shot that follows the subject' },
   { id: 'orbit', label: 'Orbit', phrase: 'slow orbit around the subject' },
   { id: 'aerial', label: 'Aerial', phrase: 'aerial drone shot descending over the scene' },
+  { id: 'craneup', label: 'Crane up', phrase: 'slow crane / boom up rising above the subject' },
+  { id: 'cranedown', label: 'Crane down', phrase: 'slow crane / boom down toward the subject' },
+  { id: 'zoom', label: 'Zoom in', phrase: 'slow lens zoom in' },
+  { id: 'dollyzoom', label: 'Dolly zoom', phrase: 'dolly zoom (vertigo effect), background warps while the subject stays fixed' },
+  { id: 'whip', label: 'Whip pan', phrase: 'fast whip pan with motion blur' },
+  { id: 'fpv', label: 'FPV fly-through', phrase: 'dynamic FPV drone fly-through' },
   { id: 'handheld', label: 'Handheld', phrase: 'handheld with subtle natural shake' },
   { id: 'fixed', label: 'Fixed', phrase: 'fixed locked-off shot, no camera movement' },
 ];
@@ -64,10 +79,15 @@ const CAMERAS: { id: string; label: string; phrase: string }[] = [
 const LIGHTS: { id: string; label: string; phrase: string }[] = [
   { id: 'auto', label: 'Auto', phrase: '' },
   { id: 'golden', label: 'Golden hour', phrase: 'golden hour, warm directional light' },
+  { id: 'bluehour', label: 'Blue hour', phrase: 'blue-hour twilight, cool ambient tones' },
   { id: 'daylight', label: 'Soft daylight', phrase: 'soft natural daylight, bright and even' },
+  { id: 'hardsun', label: 'Hard sun', phrase: 'hard direct sunlight, crisp defined shadows' },
+  { id: 'studio', label: 'Studio', phrase: 'clean studio softbox lighting, even and flattering' },
   { id: 'rim', label: 'Rim light', phrase: 'dramatic rim light on a dark background' },
+  { id: 'spotlight', label: 'Spotlight', phrase: 'a single dramatic spotlight on the subject' },
   { id: 'neon', label: 'Neon', phrase: 'neon-lit with a colourful glow' },
   { id: 'backlit', label: 'Backlit', phrase: 'backlit with a soft glow halo' },
+  { id: 'candle', label: 'Candlelight', phrase: 'warm flickering candlelight glow' },
   { id: 'overcast', label: 'Overcast', phrase: 'soft overcast diffused light' },
   { id: 'moody', label: 'Moody', phrase: 'moody low-key light with deep shadows' },
 ];
@@ -87,12 +107,17 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [camera, setCamera] = useState('auto');
   const [light, setLight] = useState('auto');
   const [audio, setAudio] = useState(true);
+  // Image inputs (all optional): a start frame the clip opens on, an end frame it lands on
+  // (start+end = a controlled transition), and reference images whose subject/style are kept.
+  const [startFrame, setStartFrame] = useState<Pick2 | null>(null);
+  const [endFrame, setEndFrame] = useState<Pick2 | null>(null);
+  const [refs, setRefs] = useState<Pick2[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   const canBuild = scene.trim().length > 5 && !busy;
 
-  function brief(): string {
+  function brief(img: { startPath?: string; endPath?: string; refPaths: string[] }): string {
     const styleObj = STYLES.find((s) => s.id === style)!;
     const lines: string[] = [
       `Generate a ${duration}s ${RATIOS.find((r) => r.id === ratio)?.label.toLowerCase()} (${ratio}) video.`,
@@ -105,6 +130,13 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
     if (lit) lines.push(`Lighting: ${lit}.`);
     if (dialogue.trim()) lines.push(`Spoken dialogue (say it verbatim, lip-synced): "${dialogue.trim()}"`);
     lines.push(audio ? 'Include native audio (ambience + any dialogue).' : 'No audio — silent clip.');
+    // Image inputs → explicit generate_video params.
+    if (img.startPath) lines.push(`Start the video on this exact image — pass it as first_frame_image: ${img.startPath}`);
+    if (img.endPath) lines.push(`End the video on this exact image — pass it as last_frame_image: ${img.endPath}${img.startPath ? ' (so it animates the start frame INTO the end frame).' : '.'}`);
+    if (img.refPaths.length) {
+      lines.push(`Keep the subject/style from these reference images consistent — pass them as reference_images: ${img.refPaths.join(', ')}`);
+      if (model === 'auto') lines.push('Reference images work best on Video 2.0 — use it.');
+    }
     if (model !== 'auto') lines.push(`Use ${MODELS.find((m) => m.id === model)?.label}.`);
     lines.push(
       '',
@@ -119,7 +151,17 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
     setErr('');
     try {
       const session = await api.createSession({ mode: 'chat', task: 'marketing' });
-      const msg = brief();
+      // Upload any staged frames/references first so the runner + tool can resolve their paths.
+      const up = async (p: Pick2 | null | Pick2[]): Promise<string[]> => {
+        const list = Array.isArray(p) ? p : p ? [p] : [];
+        if (!list.length) return [];
+        const r = await api.uploadSessionFiles(session.id, list.map((x) => x.file));
+        return r.files.map((f) => `uploads/${f.name}`);
+      };
+      const startPath = (await up(startFrame))[0];
+      const endPath = (await up(endFrame))[0];
+      const refPaths = await up(refs);
+      const msg = brief({ startPath, endPath, refPaths });
       addUserMessage(session.id, msg);
       beginRun(session.id);
       await api.sendMessage(session.id, msg);
@@ -166,13 +208,27 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           />
         </label>
 
+        <div className="aw-field">
+          <span className="aw-label">Frames &amp; references <em>(optional — start on / end on a photo, or keep a subject consistent)</em></span>
+          <div className="vs-frames">
+            <FrameTile label="Start frame" hint="clip opens on this" pick={startFrame} onPick={(p) => setStartFrame(p)} />
+            <FrameTile label="End frame" hint="clip lands on this" pick={endFrame} onPick={(p) => setEndFrame(p)} />
+            <RefTile picks={refs} onChange={setRefs} />
+          </div>
+          {(startFrame || endFrame) && (
+            <p className="aw-note">
+              {startFrame && endFrame ? 'The video will animate from your start frame into your end frame.' : startFrame ? 'The video starts on your image and moves from there.' : 'The video builds toward your end frame.'}
+            </p>
+          )}
+        </div>
+
         <div className="aw-step">2 · Direction <em style={{ fontWeight: 400, fontStyle: 'normal', color: 'var(--text-faint)' }}>· Auto is smart — override only if you want</em></div>
         <div className="aw-field">
           <span className="aw-label">Look</span>
           <div className="aw-grid">
             {STYLES.map((s) => (
               <button key={s.id} className={`aw-card ${style === s.id ? 'on' : ''}`} onClick={() => setStyle(s.id)} type="button">
-                <strong>{s.label}</strong>
+                <span className="aw-card-head"><PresetIcon group="look" id={s.id} size={16} /><strong>{s.label}</strong></span>
               </button>
             ))}
           </div>
@@ -183,7 +239,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           <div className="aw-chips">
             {CAMERAS.map((c) => (
               <button key={c.id} className={`aw-chip ${camera === c.id ? 'on' : ''}`} onClick={() => setCamera(c.id)} type="button">
-                {c.label}
+                <PresetIcon group="camera" id={c.id} /> {c.label}
               </button>
             ))}
           </div>
@@ -194,7 +250,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           <div className="aw-chips">
             {LIGHTS.map((l) => (
               <button key={l.id} className={`aw-chip ${light === l.id ? 'on' : ''}`} onClick={() => setLight(l.id)} type="button">
-                {l.label}
+                <PresetIcon group="light" id={l.id} /> {l.label}
               </button>
             ))}
           </div>
@@ -261,6 +317,65 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
         </div>
 
         <VideoLibrary sessions={sessions.map((s) => s.id)} onOpen={(id) => { setActive(id); onClose(); }} />
+      </div>
+    </div>
+  );
+}
+
+/** A single-image drop tile (Start / End frame). Shows a thumbnail once picked, with a remove ×. */
+function FrameTile({ label, hint, pick, onPick }: { label: string; hint: string; pick: Pick2 | null; onPick: (p: Pick2 | null) => void }) {
+  const onFile = (f: File | undefined) => {
+    if (!f) return;
+    if (pick) URL.revokeObjectURL(pick.url);
+    onPick({ file: f, url: URL.createObjectURL(f) });
+  };
+  return (
+    <div className="vs-frame">
+      <span className="vs-frame-label">{label}</span>
+      {pick ? (
+        <div className="vs-frame-box has">
+          <img src={pick.url} alt={label} />
+          <button className="vs-frame-x" type="button" onClick={() => { URL.revokeObjectURL(pick.url); onPick(null); }} aria-label="Remove">×</button>
+        </div>
+      ) : (
+        <label className="vs-frame-box">
+          <input type="file" accept="image/*" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+          <span className="vs-frame-plus">+</span>
+          <span className="vs-frame-hint">{hint}</span>
+        </label>
+      )}
+    </div>
+  );
+}
+
+/** Multi-image reference tile — up to 4 subject/style references. */
+function RefTile({ picks, onChange }: { picks: Pick2[]; onChange: (p: Pick2[]) => void }) {
+  const add = (files: FileList | null) => {
+    if (!files) return;
+    const room = 4 - picks.length;
+    const next = Array.from(files).slice(0, room).map((f) => ({ file: f, url: URL.createObjectURL(f) }));
+    onChange([...picks, ...next]);
+  };
+  const remove = (i: number) => {
+    URL.revokeObjectURL(picks[i].url);
+    onChange(picks.filter((_, j) => j !== i));
+  };
+  return (
+    <div className="vs-frame vs-frame-refs">
+      <span className="vs-frame-label">References <em>(up to 4)</em></span>
+      <div className="vs-refs-row">
+        {picks.map((p, i) => (
+          <div key={i} className="vs-frame-box has sm">
+            <img src={p.url} alt={`Reference ${i + 1}`} />
+            <button className="vs-frame-x" type="button" onClick={() => remove(i)} aria-label="Remove">×</button>
+          </div>
+        ))}
+        {picks.length < 4 && (
+          <label className="vs-frame-box sm">
+            <input type="file" accept="image/*" multiple hidden onChange={(e) => add(e.target.files)} />
+            <span className="vs-frame-plus">+</span>
+          </label>
+        )}
       </div>
     </div>
   );
