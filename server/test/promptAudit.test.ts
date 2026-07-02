@@ -193,3 +193,24 @@ test('exposed#6: checkpoint steps are the default for standard builds too (not o
   const runner = fs.readFileSync(path.join(__dirname, '..', 'src', 'agent', 'runner.ts'), 'utf8');
   assert.match(runner, /tier !== 'light' && !this\.simpleBuild/);
 });
+
+// uiCheck flaws exposed by the TaskForge finale: React-controlled inputs ignored the old
+// value-assignment seeding, and a login form's 4xx on garbage creds was counted as a failure.
+import { isExpectedAuthRejection } from '../src/agent/uiCheck';
+
+test('exposed#7: auth 4xx during interaction is expected app behavior, 5xx is not', () => {
+  assert.equal(isExpectedAuthRejection('/api/auth/login', 400), true);
+  assert.equal(isExpectedAuthRejection('/api/auth/login', 401), true);
+  assert.equal(isExpectedAuthRejection('/api/signup', 422), true);
+  assert.equal(isExpectedAuthRejection('/api/session', 403), true);
+  assert.equal(isExpectedAuthRejection('/api/auth/login', 500), false); // a crash still counts
+  assert.equal(isExpectedAuthRejection('/api/tasks', 400), false); // non-auth 4xx still counts
+  assert.equal(isExpectedAuthRejection('/api/tasks', 404), false);
+});
+
+test('exposed#8: input seeding uses the native value setter (React-controlled-input safe)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'agent', 'uiCheck.ts'), 'utf8');
+  assert.match(src, /getOwnPropertyDescriptor\(proto, 'value'\)/);
+  assert.match(src, /setter\.call\(el, value\)/);
+  assert.match(src, /HTMLTextAreaElement\.prototype/);
+});

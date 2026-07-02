@@ -28,6 +28,13 @@ export interface UiCheckResult {
  * variable, an unlabelled chart series, a bad computation shown to the user). Pure +
  * unit-tested; returns one actionable line per kind found.
  */
+/** A 4xx from an auth endpoint during the interaction pass is the app REJECTING our seeded
+ *  garbage credentials — correct behavior, never a defect. 5xx (a crash) still counts. Pure. */
+export function isExpectedAuthRejection(path: string, status: number): boolean {
+  if (status < 400 || status >= 500) return false;
+  return /log[-_]?in|sign[-_]?in|sign[-_]?up|register|auth|session|password|token|otp|verify/i.test(path);
+}
+
 export function detectLeakedValues(visibleText: string): string[] {
   const out: string[] = [];
   const t = String(visibleText || '');
@@ -180,7 +187,12 @@ export async function browserSmokeTest(
       try {
         const u = r.url();
         if (u.startsWith(origin) && r.status() >= 400) {
-          failedRequests.push(`${r.status()} ${u.slice(origin.length) || '/'}`);
+          const p = u.slice(origin.length) || '/';
+          // Our interaction pass submits GARBAGE credentials into auth forms — a 4xx from an
+          // auth endpoint is the app's validation WORKING, not a broken app. Counting it as a
+          // failure sent a healthy build into a publish-reject loop (a real live incident).
+          if (isExpectedAuthRejection(p, r.status())) return;
+          failedRequests.push(`${r.status()} ${p}`);
         }
       } catch {}
     });
@@ -215,13 +227,28 @@ export async function browserSmokeTest(
           const d: any = (globalThis as any).document;
           const vis = (el: any) => el && !el.disabled && el.offsetParent !== null;
           let did = false;
+          // React-safe seeding: React controlled inputs IGNORE a plain `el.value = x` (React
+          // patches the value property, so its onChange never fires and the submit carries empty
+          // state — a healthy app then 400s and the gate wrongly failed it, a real live incident).
+          // Setting via the NATIVE prototype setter + dispatching `input` is what React listens to.
+          const w: any = (globalThis as any).window;
+          const setNative = (el: any, value: string) => {
+            try {
+              const proto = el.tagName === 'TEXTAREA' ? w.HTMLTextAreaElement.prototype : w.HTMLInputElement.prototype;
+              const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+              if (setter) setter.call(el, value);
+              else el.value = value;
+            } catch {
+              el.value = value;
+            }
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          };
           for (const el of Array.from(d.querySelectorAll('input,textarea')) as any[]) {
             const t = (el.type || 'text').toLowerCase();
             if (!vis(el) || ['hidden', 'submit', 'button', 'file', 'checkbox', 'radio', 'range', 'color'].includes(t))
               continue;
-            el.value = t === 'email' ? 'verify@arksai.test' : t === 'number' ? '1' : 'ArksAIVerify';
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
+            setNative(el, t === 'email' ? 'verify@arksai.test' : t === 'number' ? '1' : t === 'password' ? 'ArksAIverify1!' : 'ArksAIVerify');
             did = true;
           }
           const form = (Array.from(d.querySelectorAll('form')) as any[]).find(vis);
