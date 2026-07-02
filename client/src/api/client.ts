@@ -490,6 +490,17 @@ export const api = {
   dismissDraft: (orgId: string, did: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}/dismiss`, { method: 'POST' }),
   adminListOrgs: () => request<{ orgs: Org[] }>('/api/admin/orgs').then((r) => r.orgs),
+  // Platform provider keys (superadmin) — status has NO secret values; setters rotate the key.
+  adminGetProviders: () =>
+    request<{
+      byteplus: { label: string; configured: boolean };
+      digitalocean: { label: string; configured: boolean };
+      protected: { masterDropletId: string; masterDropletName: string };
+    }>('/api/admin/providers'),
+  adminSetByteplusKey: (key: string) =>
+    request<{ ok: true; configured: boolean }>('/api/admin/providers/byteplus', { method: 'POST', body: JSON.stringify({ key }) }),
+  adminSetDoToken: (token: string) =>
+    request<{ ok: true; configured: boolean }>('/api/admin/providers/do', { method: 'POST', body: JSON.stringify({ token }) }),
   adminCreateOrg: (name: string, adminEmail?: string) =>
     request<{ org: Org; adminInviteLink: string | null }>('/api/admin/orgs', {
       method: 'POST',

@@ -7,6 +7,7 @@ import { confirmDialog } from '../state/confirmStore';
 import { OrgAnalytics } from './OrgAnalytics';
 import { EmailSettings } from './EmailSettings';
 import { ConnectionsPanel } from './ConnectionsPanel';
+import { KeysPanel } from './KeysPanel';
 import { WalletCard } from './WalletCard';
 
 /**
@@ -29,7 +30,7 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
   const [role, setRole] = useState<'member' | 'admin'>('member');
   const [orgName, setOrgName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
-  const [tab, setTab] = useState<'members' | 'usage' | 'email' | 'connections'>('members');
+  const [tab, setTab] = useState<'members' | 'usage' | 'email' | 'connections' | 'keys'>('members');
 
   // The inviting admin's own domain — used to flag invites to someone OUTSIDE the
   // org. Skipped for the super-admin (who onboards many orgs) and if their own
@@ -178,6 +179,11 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
           <button className={`an-tab ${tab === 'connections' ? 'active' : ''}`} onClick={() => setTab('connections')}>
             Connections
           </button>
+          {isSuper && (
+            <button className={`an-tab ${tab === 'keys' ? 'active' : ''}`} onClick={() => setTab('keys')}>
+              Keys
+            </button>
+          )}
         </div>
 
         <label>Organization</label>
@@ -225,6 +231,8 @@ export function AdminDialog({ onClose }: { onClose: () => void }) {
           orgId ? <EmailSettings orgId={orgId} /> : <div className="an-empty">Select an organization.</div>
         ) : tab === 'connections' ? (
           <ConnectionsPanel />
+        ) : tab === 'keys' && isSuper ? (
+          <KeysPanel />
         ) : (
         <>
 

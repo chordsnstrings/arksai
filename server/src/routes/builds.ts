@@ -19,6 +19,7 @@ import {
 import { setBuildToken, setSnapshotId, doToken, snapshotId } from '../build/runtime';
 import { setByteplusKey, byteplusConfigured } from '../agent/byteplusRuntime';
 import { startBake } from '../build/bake';
+import { config } from '../config';
 
 function tokenOk(want: string, got: unknown): boolean {
   if (typeof got !== 'string' || !got) return false;
@@ -66,6 +67,27 @@ export function registerBuildRoutes(app: FastifyInstance) {
     if (!key.startsWith('ark-')) return reply.code(400).send({ error: 'Provide a BytePlus ark key (ark-…).' });
     await setByteplusKey(key);
     return { ok: true, configured: byteplusConfigured() };
+  });
+
+  // Operator only: rotate the DigitalOcean API token (encrypted at rest, no SSH/redeploy). Used by
+  // the build orchestrator; the master ArksAI droplet is hard-protected from any destructive op.
+  app.post('/api/admin/providers/do', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    const t = String((req.body as any)?.token || '').trim();
+    if (!t.startsWith('dop_v1_')) return reply.code(400).send({ error: 'Provide a DigitalOcean API token (dop_v1_…).' });
+    await setBuildToken(t);
+    return { ok: true, configured: !!doToken() };
+  });
+
+  // Operator only: read the configured-status of platform provider keys (NO secret values) +
+  // the protected master droplet, so the admin UI can show what's set and what's locked.
+  app.get('/api/admin/providers', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    return {
+      byteplus: { label: 'ArksAI Swift (BytePlus/Dola)', configured: byteplusConfigured() },
+      digitalocean: { label: 'DigitalOcean API', configured: !!doToken() },
+      protected: { masterDropletId: config.masterDropletId, masterDropletName: config.masterDropletName },
+    };
   });
 
   app.post('/api/admin/build/bake', async (req, reply) => {

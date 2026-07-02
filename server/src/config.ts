@@ -234,6 +234,13 @@ export const config = {
   // The whole feature stays DORMANT (build_apk reports "not configured", no reaper)
   // until BOTH a DO API token and a baked Android-SDK snapshot id are provided.
   doApiToken: process.env.DO_API_TOKEN || process.env.DIGITALOCEAN_TOKEN || '',
+  // PROTECTED PRODUCTION INFRA — the automated DO client must NEVER destroy/modify these.
+  // The MASTER ArksAI droplet (this production app; id 577088981 / name "arksai" / IP
+  // 159.89.172.210) and the baked Android-SDK snapshot. The DO client hard-refuses a destroy
+  // targeting any of these by id OR name, so no code path (or AI-driven tool) can take the app
+  // down. Overridable via env, but the live defaults make the guard correct out of the box.
+  masterDropletId: process.env.MASTER_DROPLET_ID || '577088981',
+  masterDropletName: process.env.MASTER_DROPLET_NAME || 'arksai',
   androidSnapshotId: process.env.ANDROID_SNAPSHOT_ID || '', // id of the pre-baked Android-SDK snapshot (see BUILD_BAKE.md)
   androidBuildRegion: process.env.ANDROID_BUILD_REGION || 'blr1',
   androidBuildSize: process.env.ANDROID_BUILD_SIZE || 's-8vcpu-16gb', // headroom for the Kotlin daemon on large RN apps

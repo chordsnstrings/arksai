@@ -7,8 +7,28 @@
  * if the token is missing so the orchestrator can degrade gracefully.
  */
 import { doToken } from './runtime';
+import { config } from '../config';
 
 const API = 'https://api.digitalocean.com/v2';
+
+/**
+ * MASTER-INFRA PROTECTION. The automated DO client must NEVER destroy or modify the production
+ * ArksAI droplet or the baked snapshot — a bug or a future AI-driven tool passing the wrong id
+ * could otherwise take the whole app down. This guard hard-refuses by id AND by name, so it's
+ * belt-and-suspenders even if the id ever changes. THIS is "what the AI must not touch."
+ */
+export function isProtectedResource(id: number | string): boolean {
+  const s = String(id);
+  return s === String(config.masterDropletId) || (!!config.androidSnapshotId && s === String(config.androidSnapshotId));
+}
+function assertDestroyable(id: number | string): void {
+  if (isProtectedResource(id)) {
+    throw new Error(
+      `REFUSED: ${id} is a PROTECTED production resource (the master ArksAI droplet/snapshot). ` +
+        `Automated operations must never destroy or modify it — only build droplets (a distinct tag) are disposable.`,
+    );
+  }
+}
 
 function token(): string {
   const t = doToken();
@@ -89,6 +109,24 @@ export function publicIp(d: DoDroplet | null): string | null {
 }
 
 export async function destroyDroplet(id: number | string): Promise<void> {
+  // Layer 1: refuse a known-protected id outright (fast, primary).
+  assertDestroyable(id);
+  // Layer 2 (defense-in-depth): confirm this isn't the master by NAME/tag before deleting —
+  // catches the case where the master id ever changes but its name/tag stay stable. A fetch
+  // failure doesn't block a legit build-droplet cleanup (layer 1 already cleared the master id).
+  try {
+    const d = await getDroplet(id);
+    if (d) {
+      const tags = (d as any).tags as string[] | undefined;
+      const isMaster = d.name === config.masterDropletName || (Array.isArray(tags) && tags.includes(config.masterDropletName) && !tags.includes('arksai-build'));
+      if (isMaster) {
+        throw new Error(`REFUSED: droplet ${id} ("${d.name}") is the master ArksAI production droplet — never destroyed by automation.`);
+      }
+    }
+  } catch (e: any) {
+    if (/REFUSED:/.test(String(e?.message))) throw e; // a real refusal must propagate
+    /* a transient lookup failure is non-fatal: the id guard above already protects the master */
+  }
   try {
     await doFetch(`/droplets/${id}`, { method: 'DELETE' });
   } catch (e: any) {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-06-30.2';
+export const WHATS_NEW_VERSION = '2026-07-02.1';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A bigger, bolder design range — 40 fresh looks',
-    body: 'Your builds now draw from 40 hand-tested modern design directions — clean product dashboards, Apple-style bento, glassmorphism (including Apple’s new Liquid Glass), calendar-heatmaps, editorial luxury, even cyberpunk and synthwave. The agent picks the one that fits your subject, so every app and website looks distinct and current instead of like the same template.',
+    title: 'A faster lane for quick builds',
+    body: 'Simple asks now run on a dedicated fast lane, so a quick tool, page, or utility comes back sooner — without losing any of the polish. Bigger, more involved builds still get the full treatment.',
   },
   {
-    title: 'Simple things build fast — and stay simple',
-    body: 'When you ask for something small, it now builds a small thing — quickly. No more watching a quick tool balloon into extra pages and settings you didn’t ask for: the agent keeps a simple request focused, gets the core working, and finishes.',
+    title: 'A more resilient platform',
+    body: 'Behind the scenes we hardened the platform so automated jobs can never disrupt the live service — your workspace stays up, always.',
   },
 ];
 
