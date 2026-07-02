@@ -131,12 +131,20 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
     if (cam) lines.push(`Camera: ${cam} (one steady move).`);
     const lit = LIGHTS.find((l) => l.id === light)?.phrase;
     if (lit) lines.push(`Lighting: ${lit}.`);
-    // Character: a reference image whose identity is locked; with a line it lip-syncs.
+    // Character: animate their ACTUAL photo (first_frame on Video 1.5) — true likeness because the
+    // clip literally starts from their pixels, and it's the path the provider permits for real
+    // people (Video 2.0's identity-reference declines real-person photos, provider policy).
     if (img.characterPath) {
-      lines.push(
-        `Character: this is the person/character for the video — pass it as a reference_image and keep their EXACT face, hair and identity consistent throughout, do not change their appearance: ${img.characterPath}`,
-      );
-      if (dialogue.trim()) lines.push('The character SPEAKS the line above out loud with accurate lip-sync, matching mouth movements.');
+      if (!img.startPath) {
+        lines.push(
+          `Character: animate this person's ACTUAL photo — pass it as first_frame_image (the video starts on the photo itself, preserving their exact appearance) and use Video 1.5: ${img.characterPath}`,
+        );
+      } else {
+        lines.push(
+          `Character reference (a start frame is already set): pass as reference_images: ${img.characterPath} — note the provider declines real-person photos as references; if rejected, tell me plainly.`,
+        );
+      }
+      if (dialogue.trim()) lines.push('The character SPEAKS the line above out loud with accurate lip-sync, matching mouth movements, natural head motion.');
     }
     if (dialogue.trim()) lines.push(`Spoken dialogue (say it verbatim, lip-synced): "${dialogue.trim()}"`);
     lines.push(audio ? 'Include native audio (ambience + any dialogue).' : 'No audio — silent clip.');
@@ -146,8 +154,11 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
     if (img.refPaths.length) {
       lines.push(`Keep the subject/style from these reference images consistent — pass them as reference_images: ${img.refPaths.join(', ')}`);
     }
-    // Character + references both live best on Video 2.0 (its Character Library).
-    if (model === 'auto' && (img.characterPath || img.refPaths.length)) lines.push('Use Video 2.0 — its character/reference consistency is strongest.');
+    // References (products/mascots/style) live best on Video 2.0; a character photo already
+    // carries its own routing above (animate-the-photo on 1.5 — the real-person-safe path).
+    if (model === 'auto' && img.refPaths.length && !img.characterPath) {
+      lines.push('Use Video 2.0 — its reference consistency is strongest (note: it declines real-person photos as references).');
+    }
     if (model !== 'auto') lines.push(`Use ${MODELS.find((m) => m.id === model)?.label}.`);
     lines.push(
       '',
@@ -167,7 +178,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
         const list = Array.isArray(p) ? p : p ? [p] : [];
         if (!list.length) return [];
         const r = await api.uploadSessionFiles(session.id, list.map((x) => x.file));
-        return r.files.map((f) => `uploads/${f.name}`);
+        return r.files.map((f) => f.name); // already repo-relative ("uploads/<file>")
       };
       const startPath = (await up(startFrame))[0];
       const endPath = (await up(endFrame))[0];
@@ -225,8 +236,8 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           <div className="vs-character">
             <FrameTile label="" hint="add a face" pick={character} onPick={(p) => setCharacter(p)} />
             <div className="vs-char-copy">
-              <p>Upload a photo of a person (or mascot) and they become the star of your video — the same face and look held across the whole clip. Add a spoken line above and they’ll say it with lip-sync.</p>
-              <p className="aw-note">Works best on ArksAI Video 2.0 — we’ll pick it automatically.</p>
+              <p>Upload a photo of a person (or mascot) and they become the star of your video — we animate their actual photo, so the face and look are exactly theirs. Add a spoken line above and they’ll say it with lip-sync.</p>
+              <p className="aw-note">Use photos you have the rights to. We pick the right engine automatically.</p>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../../config';
 import { analyzeImage, fileToDataUrl, generateImage, generateVideo, textToSpeech } from '../../engines/minimax';
-import { createVideoTask, pollVideoTask, downloadVideo, seedanceOn } from '../../engines/seedance';
+import { createVideoTask, pollVideoTask, downloadVideo, seedanceOn, isRealPersonRejection, realPersonFallbackSpec } from '../../engines/seedance';
 import { compileVideoPrompt } from '../videoBrief';
 import { resolveInWorkspace, type ToolDef } from './common';
 
@@ -182,9 +182,14 @@ export const generateVideoTool: ToolDef = {
     'orbit / handheld / static) + style/light (bright, premium) + what we HEAR. SUBJECT FIDELITY: ' +
     'describe people explicitly to match the audience/market, name places precisely — a vague noun ' +
     'gives the wrong face or building. If dialogue is wanted, pass it in `dialogue` (spoken verbatim).\n' +
-    'CHARACTER: to keep a specific person consistent, pass their photo(s) in `reference_images` and ' +
-    'state "keep their exact face/identity" in the prompt (Video 2.0 is strongest here); with a `dialogue` ' +
-    'line the character lip-syncs it. To animate a still, pass it as `first_frame_image`; a start→end ' +
+    'REAL PEOPLE (verified provider policy): a photo of a REAL person is fully supported by ANIMATING ' +
+    'THEIR ACTUAL PHOTO — pass it as `first_frame_image` (the clip starts on the photo, exact likeness ' +
+    'preserved); with `dialogue` they speak it lip-synced. Do NOT pass real-person photos as ' +
+    '`reference_images` — the provider declines identity-reference for real people (the tool auto-routes ' +
+    'to the photo-animation path if that happens). NEVER suggest obscuring/cropping a face or otherwise ' +
+    'evading the check — if the provider declines an image outright, say so plainly and offer the ' +
+    'photo-animation or described-look paths. ILLUSTRATED characters/mascots/products CAN use ' +
+    '`reference_images` for identity/style consistency (Video 2.0 is strongest). A start→end ' +
     'transition uses `first_frame_image` + `last_frame_image`.\n' +
     'PARAMS: aspect_ratio 9:16 (phone/social) · 16:9 (wide) · 1:1; duration 4–12 s (default 8); ' +
     'model "auto" (default) | "video-1.5" | "video-2.0". Saved to videos/ and offered as a download.',
@@ -234,21 +239,32 @@ export const generateVideoTool: ToolDef = {
           durationSec: Number(args.duration) || undefined,
         });
         const draft = args.final !== true;
-        const { id, built } = await createVideoTask(
-          {
-            prompt: compiled,
-            model: branded,
-            aspect: args.aspect_ratio ? String(args.aspect_ratio) : undefined,
-            duration: Number(args.duration) || undefined,
-            resolution: args.resolution ? String(args.resolution) : undefined,
-            draft,
-            audio: args.audio !== false,
-            imageUrl,
-            lastFrameUrl,
-            referenceUrls,
-          },
-          ctx.signal,
-        );
+        const spec = {
+          prompt: compiled,
+          model: branded,
+          aspect: args.aspect_ratio ? String(args.aspect_ratio) : undefined,
+          duration: Number(args.duration) || undefined,
+          resolution: args.resolution ? String(args.resolution) : undefined,
+          draft,
+          audio: args.audio !== false,
+          imageUrl,
+          lastFrameUrl,
+          referenceUrls,
+        };
+        let usedRealPersonPath = false;
+        let created: Awaited<ReturnType<typeof createVideoTask>>;
+        try {
+          created = await createVideoTask(spec, ctx.signal);
+        } catch (e: any) {
+          // Provider policy: 2.0 declines real-person photos on every image role, but 1.5
+          // officially supports a real person as the FIRST FRAME (animate their actual photo —
+          // which also preserves likeness best). Route to that supported path automatically.
+          const fb = isRealPersonRejection(e?.message ?? '') ? realPersonFallbackSpec(spec) : null;
+          if (!fb) throw e;
+          created = await createVideoTask(fb, ctx.signal);
+          usedRealPersonPath = true;
+        }
+        const { id, built } = created;
         const done = await pollVideoTask(id, ctx.signal);
         if (!done.ok) return `Error: video generation failed — ${done.error}`;
         const name = `video-${Date.now()}${built.draft ? '-draft' : ''}.mp4`;
@@ -256,9 +272,12 @@ export const generateVideoTool: ToolDef = {
         const bytes = await downloadVideo(done.videoUrl, destAbs, ctx.signal);
         const cost = built.draft ? config.seedanceDraftCost : config.seedanceFinalCostPerSec * built.duration;
         ctx.addCost(cost);
+        const realPersonNote = usedRealPersonPath
+          ? ' NOTE: the photo contains a real person, so it was rendered by animating their ACTUAL photo (Video 1.5, first frame = the photo itself — exact likeness preserved); identity-reference mode declines real people (provider policy). Tell the user this plainly if relevant.'
+          : '';
         return built.draft
-          ? `Draft video ready: videos/${name} (${built.label}, ${built.duration}s ${built.resolution}, audio ${built.body.generate_audio ? 'on' : 'off'}, ${Math.round(bytes / 1024)} KB). Show it to the user; when they approve, call generate_video again with final:true (same prompt) for the 1080p render. If they want a change, adjust the prompt and make ONE new draft.`
-          : `Final video ready: videos/${name} (${built.label}, ${built.duration}s ${built.resolution}, ${Math.round(bytes / 1024)} KB). Offer it as the download.`;
+          ? `Draft video ready: videos/${name} (${built.label}, ${built.duration}s ${built.resolution}, audio ${built.body.generate_audio ? 'on' : 'off'}, ${Math.round(bytes / 1024)} KB).${realPersonNote} Show it to the user; when they approve, call generate_video again with final:true (same prompt) for the 1080p render. If they want a change, adjust the prompt and make ONE new draft.`
+          : `Final video ready: videos/${name} (${built.label}, ${built.duration}s ${built.resolution}, ${Math.round(bytes / 1024)} KB).${realPersonNote} Offer it as the download.`;
       } catch (e: any) {
         return `Error: video generation failed — ${e?.message ?? e}`;
       }

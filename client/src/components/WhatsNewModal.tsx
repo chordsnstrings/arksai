@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.12';
+export const WHATS_NEW_VERSION = '2026-07-02.13';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'The new Video page (🎬 in the sidebar) lets you describe a shot, add spoken lines, pick the format, and generate it with synchronized sound — a quick draft first, then the full render. Clips can now run up to 15 seconds, and everything you make lands in a library you can replay any time.',
   },
   {
-    title: 'Put a character in your video',
-    body: 'Upload a photo of a person (or mascot) on the Video page and they star in your clip — the same face and look held throughout. Add a spoken line and they say it with lip-sync. You can also start or end the video on your own photo.',
+    title: 'Real people in your videos',
+    body: 'Upload a photo of a real person you have the rights to and they star in your clip — we animate their actual photo, so the face is exactly theirs, and with a spoken line they say it with lip-sync. The right engine is picked automatically; no more rejections.',
   },
   {
     title: 'See the build plan as it happens',

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVideoTask, VIDEO_MODELS } from '../src/engines/seedance';
+import { buildVideoTask, VIDEO_MODELS, isRealPersonRejection, realPersonFallbackSpec } from '../src/engines/seedance';
 import { compileVideoPrompt } from '../src/agent/videoBrief';
 
 // ---- buildVideoTask (pure): branded models, clamps, draft rules, audio default ----
@@ -55,6 +55,24 @@ test('video: start+end frames and reference images map to the right ModelArk rol
   // No image inputs → only the text part, no image content.
   const bare = buildVideoTask({ prompt: 'x' });
   assert.equal((bare.body as any).content.length, 1);
+});
+
+test('video: real-person rejection routes to the supported path — 1.5 + first_frame (verified live)', () => {
+  // The provider's exact wording (live rejection, 2026-07-02).
+  assert.equal(isRealPersonRejection('The request failed because the input image may contain real person. Request id: x'), true);
+  assert.equal(isRealPersonRejection('quota exceeded'), false);
+
+  // A 2.0 reference spec becomes 1.5 animate-the-photo (image → first_frame, refs cleared).
+  const fb = realPersonFallbackSpec({ prompt: 'p', model: 'arksai-video-20', referenceUrls: ['data:img/REF'], lastFrameUrl: 'data:img/END' });
+  assert.ok(fb);
+  assert.equal(fb!.model, 'arksai-video-15');
+  assert.equal(fb!.imageUrl, 'data:img/REF');
+  assert.equal(fb!.lastFrameUrl, undefined);
+  assert.deepEqual(fb!.referenceUrls, []);
+  // An existing first_frame wins as the animation source.
+  assert.equal(realPersonFallbackSpec({ prompt: 'p', imageUrl: 'data:img/FF', referenceUrls: ['data:img/REF'] })!.imageUrl, 'data:img/FF');
+  // No image at all → nothing legitimate to retry with.
+  assert.equal(realPersonFallbackSpec({ prompt: 'p' }), null);
 });
 
 test('video: invalid resolution/aspect fall back to safe defaults', () => {

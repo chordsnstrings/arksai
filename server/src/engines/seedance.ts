@@ -72,6 +72,29 @@ export function buildVideoTask(spec: VideoSpec): {
   return { apiModel: m.api, label: m.label, body, duration, resolution, draft };
 }
 
+/** True when the provider declined the request because an input image contains a real person. */
+export const isRealPersonRejection = (msg: string): boolean => /input image may contain (a )?real person/i.test(msg || '');
+
+/**
+ * The legitimate real-person path (verified live 2026-07-02): Video 2.0 declines real-person
+ * photos on EVERY image role (provider anti-deepfake policy), but Video 1.5 officially supports
+ * a real person as the FIRST FRAME — image-to-video of the user's own photo, which also preserves
+ * true likeness best (the clip starts from their actual pixels). This maps a rejected spec onto
+ * that supported path: 1.5 + the person's image as first_frame. Returns null when there's no
+ * image to animate from (nothing legitimate to retry with).
+ */
+export function realPersonFallbackSpec(spec: VideoSpec): VideoSpec | null {
+  const image = spec.imageUrl || spec.referenceUrls?.[0] || spec.lastFrameUrl;
+  if (!image) return null;
+  return {
+    ...spec,
+    model: 'arksai-video-15',
+    imageUrl: image,
+    lastFrameUrl: undefined,
+    referenceUrls: [],
+  };
+}
+
 const base = (): string => config.byteplusVideoBaseUrl.replace(/\/$/, '');
 const headers = (): Record<string, string> => ({ Authorization: `Bearer ${byteplusKey()}`, 'Content-Type': 'application/json' });
 
