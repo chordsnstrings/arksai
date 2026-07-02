@@ -12,7 +12,7 @@ import {
   generateVerifyManifest,
   scaffoldAppTool,
 } from '../src/agent/tools/scaffold';
-import { auditCssCascade } from '../src/agent/webHygiene';
+import { auditCssCascade, auditProductionSeams } from '../src/agent/webHygiene';
 
 const ctx = (dir: string) => ({ repoDir: dir, addCost: () => {}, signal: new AbortController().signal }) as any;
 
@@ -89,4 +89,44 @@ test('scaffold: verify manifest replaces the demo-org placeholder', () => {
   const orgs = readModule('orgs')!;
   const m: any = generateVerifyManifest('acme', [orgs]);
   assert.equal(m.isolation.orgRoute, '/api/orgs/demo/members');
+});
+
+test('scaffold: production bar — a fresh scaffold is flagged as demo-grade until the domain work is done', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scaf-prod-'));
+  try {
+    const out = await scaffoldAppTool.run({ name: 'LedgerPro', modules: ['crud'] }, ctx(dir));
+    assert.match(String(out), /PRODUCTION-COMPLETE/i);
+
+    // The base ships production hardening: rate-limited auth, account routes, security headers.
+    const auth = fs.readFileSync(path.join(dir, 'server', 'routes', 'auth.js'), 'utf8');
+    assert.match(auth, /rateLimit\(/);
+    assert.match(auth, /r\.post\('\/password'/);
+    assert.match(auth, /r\.patch\('\/me'/);
+    assert.ok(fs.existsSync(path.join(dir, 'server', 'lib', 'rateLimit.js')));
+    assert.match(fs.readFileSync(path.join(dir, 'server.js'), 'utf8'), /X-Content-Type-Options/);
+    // …and a working Account page wired into the nav.
+    assert.ok(fs.existsSync(path.join(dir, 'client', 'src', 'pages', 'Account.jsx')));
+    assert.match(fs.readFileSync(path.join(dir, 'client', 'src', 'modules.gen.js'), 'utf8'), /key: 'account'/);
+    // The manifest asserts the authed identity route (login provably works end-to-end).
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.arksai', 'verify.json'), 'utf8'));
+    assert.ok(manifest.routes.some((r: any) => r.path === '/api/auth/me' && r.auth === true));
+    // The contract states the bar.
+    assert.match(fs.readFileSync(path.join(dir, '.arksai', 'CONTRACT.md'), 'utf8'), /PRODUCTION-COMPLETE, NOT A DEMO/);
+
+    // Untouched scaffold → the seam audit flags BOTH fingerprints (home stub + Items exemplar).
+    const before = auditProductionSeams(dir);
+    assert.ok(before.some((d) => /scaffold home-page placeholder/.test(d)), before.join(' | '));
+    assert.ok(before.some((d) => /untouched generic "Items"/.test(d)), before.join(' | '));
+
+    // Simulate the model doing the domain work: real home + the exemplar cloned into Invoices.
+    fs.writeFileSync(
+      path.join(dir, 'client', 'src', 'pages', 'Home.jsx'),
+      "export default function Home(){return <div className=\"page\"><h1>Overview</h1><p>Open invoices and this month's totals.</p></div>;}",
+    );
+    const items = path.join(dir, 'client', 'src', 'pages', 'Items.jsx');
+    fs.writeFileSync(items, fs.readFileSync(items, 'utf8').replace('EXEMPLAR list/create/toggle/delete page — clone + rename per real entity.', 'Invoices').replaceAll('<h1>Items</h1>', '<h1>Invoices</h1>'));
+    assert.deepEqual(auditProductionSeams(dir), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

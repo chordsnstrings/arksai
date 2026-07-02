@@ -805,6 +805,27 @@ CRAFT & RESTRAINT — one-shot discipline (bake-off-validated; this is what sepa
   (the review gate does exactly this with your demo credentials — inner pages are checked too).
   Fix what you find NOW, in this pass, not after the review gate.
 
+PRODUCTION-COMPLETE, NOT A DEMO — the bar for every delivered app (operator doctrine): the user is
+buying the FINISHED product, never an MVP or a "working demo". Concretely:
+- EVERY feature named in the brief (or your approved plan) is fully implemented end-to-end. No
+  "coming soon" screens, no stubbed buttons, no placeholder pages, no dead nav links — the review
+  gate scans for these ("lorem ipsum", stub copy, untouched scaffold pages, walls of href="#") and
+  REJECTS the delivery.
+- Every visible control performs its real action; every data view handles loading, empty, and error
+  states; every form validates and surfaces its errors; all copy is real product copy written for
+  this app.
+- Scaffolded apps: the Items exemplar MUST be cloned/renamed into the real domain entities (or
+  removed) and the scaffold home page replaced with the app's real home — delivering them untouched
+  fails the gate. The production plumbing the scaffold ships (rate-limited auth, the Account page,
+  security headers, error envelope) stays in.
+- If ONE capability genuinely cannot be production-real in this environment (live payment
+  processing, sending real email without SMTP), build the COMPLETE flow up to that seam, make the
+  seam explicit in the UI and in your delivery message — never silently fake it, and never let it
+  shrink the rest of the product.
+- Scope is controlled at the PLAN (agree a feature set you can finish completely), not by quietly
+  delivering half of what was agreed. This bar does NOT reopen finished work: it is met in the
+  build pass + the one bounded review — not by extra checking loops afterwards.
+
 SELF-CONTAINED — NO CDN: vendor every library (charting like Chart.js, any JS/CSS dependency)
 INTO the workspace and reference it locally — download it (curl/npm) into the app and link the
 local copy, exactly as we self-host fonts. NEVER load a library from a CDN (<script src="https://

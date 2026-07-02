@@ -22,6 +22,7 @@ export function AuthProvider({ children }) {
     setToken(d.token); setUser(d.user);
   }
   function logout() { setToken(null); setUser(null); }
+  const updateUser = (u) => setUser((prev) => ({ ...prev, ...u }));
 
-  return <Ctx.Provider value={{ user, ready, login, signup, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, ready, login, signup, logout, updateUser }}>{children}</Ctx.Provider>;
 }

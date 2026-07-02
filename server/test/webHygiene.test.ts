@@ -11,6 +11,8 @@ import {
   auditWebHygiene,
   auditCssCascade,
   findMissingLocalAssets,
+  findProductionSeams,
+  auditProductionSeams,
 } from '../src/agent/webHygiene';
 import { isBlockingDefect } from '../src/agent/uiCheck';
 
@@ -161,4 +163,74 @@ test('auditCssCascade: a media rule declared above its base rule is flagged (the
 test('isBlockingDefect: truncation and signed-in page-audit lines block', () => {
   assert.equal(isBlockingDefect('Signed-in page "Members" at 390px: 6 text fields are truncated to a fraction of their content'), true);
   assert.equal(isBlockingDefect('the heading "Members" is overlapped/covered by another element'), true);
+});
+
+// ───────────────────────── Production-seam audit ─────────────────────────
+// The operator's bar: "we don't want a working demo or MVP — we want the actual complete
+// production-level app." These lock the deterministic seams the gate now rejects.
+
+test('findProductionSeams: placeholder copy and stub screens are flagged', () => {
+  assert.ok(findProductionSeams('<p>Lorem ipsum dolor sit amet</p>', 'html').some((d) => /lorem ipsum/i.test(d)));
+  assert.ok(findProductionSeams('<h2>Reports</h2><p>Coming soon</p>', 'html').some((d) => /production-COMPLETE/.test(d)));
+  assert.ok(findProductionSeams("const msg = 'This feature is not implemented';", 'js').length === 1);
+  assert.ok(findProductionSeams('<div>Page under construction</div>', 'jsx').length === 1);
+  assert.ok(findProductionSeams('<title>__APP_NAME__</title>', 'html').some((d) => /__APP_/.test(d)));
+});
+
+test('findProductionSeams: untouched scaffold fingerprints are flagged', () => {
+  const home = `/** The landing page after sign-in — replace with the app's real home. */\n<p className="muted">This is the scaffolded home page — build the app's real content here.</p>`;
+  assert.ok(findProductionSeams(home, 'jsx').some((d) => /scaffold home-page placeholder/.test(d)));
+  const items = `/** EXEMPLAR list/create/toggle/delete page — clone + rename per real entity. */\nreturn <div><h1>Items</h1></div>;`;
+  assert.ok(findProductionSeams(items, 'jsx').some((d) => /untouched generic "Items"/.test(d)));
+  // A CLONED exemplar (renamed h1 + comment gone) is clean — the domain work was done.
+  const cloned = `return <div><h1>Invoices</h1></div>;`;
+  assert.equal(findProductionSeams(cloned, 'jsx').length, 0);
+});
+
+test('findProductionSeams: no false positives on real production copy', () => {
+  // placeholder= attribute is legit; "soon" alone, comments, and normal copy never trip it.
+  assert.equal(findProductionSeams('<input placeholder="Search invoices…">', 'html').length, 0);
+  assert.equal(findProductionSeams('<p>Your order ships soon after checkout.</p>', 'html').length, 0);
+  assert.equal(findProductionSeams('// not implemented in v1 — see notes\nconst x = 1;', 'js').length, 0);
+  assert.equal(findProductionSeams('<a href="#pricing">Pricing</a><a href="#faq">FAQ</a>', 'html').length, 0);
+});
+
+test('findProductionSeams: a wall of dead href="#" links is flagged in HTML only', () => {
+  const dead = '<a href="#">About</a><a href="#">Careers</a><a href="#">Blog</a><a href="#">Contact</a>';
+  assert.ok(findProductionSeams(dead, 'html').some((d) => /dead links/.test(d)));
+  assert.equal(findProductionSeams('<a href="#">One</a><a href="#">Two</a>', 'html').length, 0); // <3 → tolerated
+  // JSX href="#" usually carries an onClick (the skeleton's auth mode switch) — never counted.
+  assert.equal(findProductionSeams(dead, 'jsx').length, 0);
+});
+
+test('auditProductionSeams: walks the workspace, skips vendored/minified bundles', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'seams-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'client', 'src', 'pages'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'node_modules', 'lib'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'client', 'src', 'pages', 'Roadmap.jsx'), 'export default () => <p>Coming soon</p>;');
+    // A minified vendor bundle containing "not implemented" must NOT flag (avg line length).
+    fs.writeFileSync(path.join(dir, 'vendor.js'), 'var a="not implemented";' + 'x'.repeat(20000));
+    fs.writeFileSync(path.join(dir, 'node_modules', 'lib', 'x.js'), 'throw new Error("not implemented")');
+    const defects = auditProductionSeams(dir);
+    assert.equal(defects.length, 1);
+    assert.match(defects[0], /Roadmap\.jsx/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('auditWebHygiene: production seams gate through the same audit', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'seams-hyg-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'index.html'),
+      '<!doctype html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><p>Lorem ipsum placeholder</p></body>',
+    );
+    const r = auditWebHygiene(dir);
+    assert.equal(r.ran, true);
+    assert.ok(r.defects.some((d) => /lorem ipsum/i.test(d)));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

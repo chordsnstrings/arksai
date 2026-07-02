@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.18';
+export const WHATS_NEW_VERSION = '2026-07-02.19';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A studio just for video',
-    body: 'The new Video page (🎬 in the sidebar) lets you describe a shot, add spoken lines, pick the format, and generate it with synchronized sound — a quick draft first, then the full render. Clips can now run up to 15 seconds, and everything you make lands in a library you can replay any time.',
+    title: 'Finished products, not demos',
+    body: 'The bar for every delivered app is now production-complete: every feature in your brief fully built, every button doing its real job, real copy everywhere. Before delivery, ArksAI scans the app for demo-grade leftovers — placeholder text, "coming soon" screens, dead links — and finishes them instead of shipping them.',
   },
   {
-    title: 'Apps are built on a proven foundation',
-    body: 'Every app with accounts or a database now starts from a pre-verified foundation — login, workspaces, invites, data isolation, file uploads, live updates — so the parts that must never break are the same battle-tested parts every time. Your app is the content, the look, and the ideas on top.',
-  },
-  {
-    title: 'The quality check now uses your app like a person',
-    body: 'Before anything is delivered, ArksAI now signs into the app it built (with the demo account), opens every page on both phone and desktop, and catches what a human would: overlapping titles, names squeezed into initials, content cut off the screen edge. Once it passes, it ships — no endless re-checking.',
+    title: 'Every app ships production-hardened',
+    body: 'Apps with accounts now come with the safety rails real products have: brute-force protection on sign-in, secure headers, clean error messages, and a working Account page where users can update their profile and change their password — included and verified automatically.',
   },
 ];
 

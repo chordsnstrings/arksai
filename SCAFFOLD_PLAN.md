@@ -146,6 +146,14 @@ Scaffolds only stay "correct by construction" if the construction is tested:
 forms/uploads/realtime/jobs, scaffold_app + brownfield guard, CONTRACT.md + verify.json
 generation, gate reads the manifest (walker creds + route assertions + SSE), prompt steering,
 5-test conformance suite; the all-modules golden app booted and passed the full gate clean.
+**SHIPPED: the production bar (2026-07-02, "not a demo/MVP — the complete production-level app")** —
+base hardened (security headers, JSON error terminal, dep-free rate limiter on auth, email
+validation, PATCH /me + password change with the demo account's password fixed, an Account page
+in every scaffolded app, manifest asserts authed /api/auth/me); `auditProductionSeams` in the
+gate (lorem ipsum / coming-soon / not-implemented copy, __APP_ residue, dead-# link walls,
+untouched Home/Items scaffold fingerprints — vendored/minified files skipped); PRODUCTION-COMPLETE
+doctrine in the code prompt + Definition-of-Done + CONTRACT.md. All inside the existing single
+bounded review — no new loops. Live-validated on a fresh all-modules scaffold.
 **REMAINING**: catalog/booking/cms-lite modules; `data/` preservation across republish;
 `api-only` + `service-py` + Vue/Svelte variants; archetype auto-routing at the plan gate;
 nightly canary; brownfield guided-diff modules; WS upgrade-forwarding test.

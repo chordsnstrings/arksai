@@ -416,6 +416,20 @@ ul { list-style: none; padding: 0; margin: 0; }
 .org-menu-foot { padding: 6px; display: flex; flex-direction: column; gap: 4px; }
 .org-menu-foot .btn { width: 100%; justify-content: flex-start; }
 
+/* Demo credentials card (the quality gate reads these to sign in) */
+.demo-box { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-2); font-size: 13px; }
+.demo-box .demo-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); margin-bottom: 6px; font-weight: 600; }
+.demo-box code { font-family: var(--font-mono); background: var(--surface-3); padding: 2px 7px; border-radius: 5px; }
+
+/* Forms (any page) */
+.fields { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+.fields .field { width: 100%; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 600; }
+.field input, .field textarea, .field select { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r-md); color: var(--ink); padding: 10px 12px; font-size: 14px; }
+.field input:focus-visible, .field textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.muted { color: var(--ink-3); font-size: 13px; line-height: 1.5; }
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -507,13 +521,3 @@ ul { list-style: none; padding: 0; margin: 0; }
   }
   .board-cols > * { scroll-snap-align: start; }
 }
-
-/* Demo credentials card (the quality gate reads these to sign in) */
-.demo-box { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-2); font-size: 13px; }
-.demo-box .demo-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); margin-bottom: 6px; font-weight: 600; }
-.demo-box code { font-family: var(--font-mono); background: var(--surface-3); padding: 2px 7px; border-radius: 5px; }
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field > span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 600; }
-.field input, .field textarea, .field select { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r-md); color: var(--ink); padding: 10px 12px; font-size: 14px; }
-.field input:focus-visible, .field textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.muted { color: var(--ink-3); font-size: 13px; line-height: 1.5; }

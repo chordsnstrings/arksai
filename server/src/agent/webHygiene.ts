@@ -202,6 +202,87 @@ export function auditCssCascade(css: string): string[] {
   return [...new Set(defects)].slice(0, 4);
 }
 
+/**
+ * Production-seam audit (pure): demo-grade markers that must never ship in a DELIVERED app —
+ * "we don't want a working demo or MVP; we want the actual complete production-level app."
+ * Conservative, high-confidence only: placeholder latin, stub copy ("coming soon" as visible
+ * text / a string literal, never a code comment), untouched scaffold fingerprints, unpatched
+ * __APP_*__ tokens, and dead href="#" nav clusters. `kind` selects which patterns make sense
+ * for the file (jsx applies both — JSX text nodes read like HTML, compiled strings like JS).
+ */
+export function findProductionSeams(content: string, kind: 'html' | 'js' | 'jsx'): string[] {
+  const out: string[] = [];
+  const STUB = /\b(coming soon|under construction|not (?:yet )?implemented)\b/i;
+
+  if (/lorem ipsum/i.test(content))
+    out.push('"lorem ipsum" placeholder text — the delivered product carries REAL copy everywhere; write the actual content.');
+  if (/__APP_[A-Z_]+__/.test(content))
+    out.push('an unreplaced __APP_*__ scaffold token is still in the shipped code — patch in the real app name/copy.');
+  if (/build the app(?:'|’)s real content here|scaffolded home page/i.test(content))
+    out.push('the scaffold home-page placeholder is still in place — build the app\'s REAL home content (the product\'s actual landing surface after sign-in), don\'t deliver the scaffold stub.');
+  if (content.includes('EXEMPLAR list/create/toggle/delete page') && /<h1>\s*Items\s*<\/h1>/.test(content))
+    out.push('the CRUD exemplar is still the untouched generic "Items" page — clone/rename it into the REAL domain entities (or remove it); a generic Items page is demo-grade, not the product.');
+
+  const visibleStub =
+    (kind !== 'js' && new RegExp(`>[^<>{}]{0,80}${STUB.source}`, 'i').test(content)) ||
+    (kind !== 'html' && new RegExp(`["'\`][^"'\`\\n]{0,80}${STUB.source}`, 'i').test(content));
+  if (visibleStub)
+    out.push('stub copy ("coming soon" / "under construction" / "not implemented") in the UI — the delivered app must be production-COMPLETE: fully implement the feature or remove the screen/control; never ship a stub. (If a capability truly can\'t run here — e.g. live payments — build the complete flow up to that seam and state it plainly in the delivery message instead.)');
+
+  if (kind === 'html') {
+    const dead = (content.match(/href\s*=\s*["']#["']/gi) || []).length;
+    if (dead >= 3)
+      out.push(`${dead} dead links (href="#") — nav/footer links must lead somewhere real (a page, a section id, an action) or be removed; a wall of dead links is a demo, not a product.`);
+  }
+  return out;
+}
+
+const SEAM_EXT: Record<string, 'html' | 'js' | 'jsx'> = {
+  '.html': 'html', '.htm': 'html', '.js': 'js', '.mjs': 'js', '.jsx': 'jsx', '.tsx': 'jsx', '.ts': 'js', '.vue': 'jsx', '.svelte': 'jsx',
+};
+const SEAM_SKIP_DIRS = new Set(['node_modules', '.git', '.arksai', 'data', 'uploads', 'knowledge', 'coverage']);
+
+/** Walk the workspace (bounded) and collect production seams. Skips vendored/minified files. */
+export function auditProductionSeams(dir: string): string[] {
+  const defects: string[] = [];
+  let visited = 0;
+  const walk = (d: string, depth: number) => {
+    if (depth > 6 || visited > 400 || defects.length > 24) return;
+    let ents: fs.Dirent[];
+    try {
+      ents = fs.readdirSync(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of ents) {
+      if (visited > 400 || defects.length > 24) return;
+      const p = path.join(d, ent.name);
+      if (ent.isDirectory()) {
+        if (!ent.name.startsWith('.') && !SEAM_SKIP_DIRS.has(ent.name)) walk(p, depth + 1);
+        continue;
+      }
+      const kind = SEAM_EXT[path.extname(ent.name).toLowerCase()];
+      if (!kind) continue;
+      visited++;
+      let s = '';
+      try {
+        if (fs.statSync(p).size > 300_000) continue; // vendored bundles — not authored copy
+        s = fs.readFileSync(p, 'utf8');
+      } catch {
+        continue;
+      }
+      // Minified vendor code (very long average lines) is never authored UI copy — skip it so a
+      // library's internal "not implemented" error string can't fail a build.
+      const lines = s.split('\n').length;
+      if (s.length > 10_000 && s.length / lines > 400) continue;
+      const rel = path.relative(dir, p) || ent.name;
+      for (const seam of findProductionSeams(s, kind)) defects.push(`${rel}: ${seam}`);
+    }
+  };
+  walk(dir, 0);
+  return [...new Set(defects)].slice(0, 6);
+}
+
 /** Audit a built/served static site's source for structural mobile defects. Never throws. */
 export function auditWebHygiene(dir: string): WebHygieneResult {
   let files: string[];
@@ -243,5 +324,13 @@ export function auditWebHygiene(dir: string): WebHygieneResult {
         `${rel}: links local file(s) that don't exist — ${missing.join(', ')}. A <link>/<script>/<img> points at a file you never created (it 404s), so its CSS/JS/image is missing and the page renders broken (e.g. unstyled signature elements or lists falling back to default bullets). Either CREATE the missing file(s) with the intended styles/script, or fix the reference to the file that actually exists (e.g. site.css). Do NOT ship a page with a broken local reference.`,
       );
   }
-  return { ran: true, defects: [...new Set(defects)].slice(0, 8) };
+  // Production-completeness: demo-grade seams (placeholder copy, untouched scaffold pages,
+  // dead-stub links) gate a delivery exactly like a structural defect — the bar is the
+  // complete production app, not a working demo.
+  try {
+    defects.push(...auditProductionSeams(dir));
+  } catch {
+    /* never let the seam walk break the audit */
+  }
+  return { ran: true, defects: [...new Set(defects)].slice(0, 10) };
 }

@@ -24,7 +24,8 @@ const WEB_DOD = `## Definition of Done — your FIRST build must already pass th
 - No horizontal overflow at 390px (also 320/768): fluid widths, no fixed min-width >420px.
 - The mobile menu / hamburger is WIRED to open (real toggle), not decorative.
 - WCAG AA text contrast (≥4.5:1 body, 3:1 large) at REST, on HOVER, and in DARK mode — never colour text near its own background; if the design is dark, flip the ink tokens light (or pin color-scheme:light).
-- For a progress ring/gauge, a KPI tile, or a data table, COMPOSE craft.css .gauge / .stat / .table-wrap — do not hand-build a fragile animated SVG ring or a custom responsive table.`;
+- For a progress ring/gauge, a KPI tile, or a data table, COMPOSE craft.css .gauge / .stat / .table-wrap — do not hand-build a fragile animated SVG ring or a custom responsive table.
+- PRODUCTION-COMPLETE: no demo-grade seams anywhere in the delivered app — no "lorem ipsum", no "coming soon"/"under construction"/"not implemented" copy, no untouched scaffold pages (the generic Items exemplar / scaffold home stub), no wall of dead href="#" links. The gate scans the shipped source for exactly these and rejects the delivery.`;
 
 const REPORT_DOD = `## Definition of Done — your FIRST render must already pass these (the exact gate checks):
 - Every interior page is ≥60% full — no lonely near-empty page, no big blank lower band. Let content FLOW; do not force a page-break per section.
