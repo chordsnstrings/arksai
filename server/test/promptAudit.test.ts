@@ -148,3 +148,48 @@ test('doctrine: finish-before-stop budget notice exists in the runner', () => {
   assert.match(runner, /BUDGET NOTICE — WRAP UP NOW/);
   assert.match(runner, /maxRunTokens \* 0\.6/);
 });
+
+// ---------------------------------------------------------------------------
+// "Fix the things exposed" (operator, 2026-07-02, from the live method bake-off):
+// auto-continue instead of death, wrap-up teeth, harness auto-checkpoints,
+// idempotent publish-proxy rewrite, and the no-hand-rolled-server/prefix rule.
+// ---------------------------------------------------------------------------
+import { rewriteHtml } from '../src/routes/deployments';
+
+test('exposed#1: auto-continue — a checkpointed build compacts and continues, never asks for "continue"', () => {
+  const runner = fs.readFileSync(path.join(__dirname, '..', 'src', 'agent', 'runner.ts'), 'utf8');
+  assert.match(runner, /AUTO-CONTINUE/);
+  assert.match(runner, /MAX_AUTO_WINDOWS/);
+  assert.match(runner, /Auto-continuing from checkpoint/);
+  assert.match(runner, /context\.length = 0/); // real compaction, not another append
+});
+
+test('exposed#2: wrap-up has teeth — no new design rounds after the budget notice', () => {
+  const runner = fs.readFileSync(path.join(__dirname, '..', 'src', 'agent', 'runner.ts'), 'utf8');
+  assert.match(runner, /!this\.wrapUp && this\.designRounds </);
+});
+
+test('exposed#3: harness auto-checkpoint on every verified gate pass', () => {
+  const runner = fs.readFileSync(path.join(__dirname, '..', 'src', 'agent', 'runner.ts'), 'utf8');
+  assert.match(runner, /autoCheckpoint\(dir\)/);
+  assert.match(runner, /auto: verified build state/);
+});
+
+test('exposed#4: publish-proxy rewrite is idempotent (kills the double-prefix bug)', () => {
+  const html = '<html><head></head><body></body></html>';
+  const out = rewriteHtml(html, '/apps/taskforge/');
+  // the injected fx() must skip URLs that ALREADY carry the prefix
+  assert.match(out, /u\.indexOf\(B\)!==0/);
+});
+
+test('exposed#5: the CODE prompt forbids client prefix-detection + hand-rolled servers', () => {
+  const p = buildSystemPrompt(codeSession, '/tmp', '');
+  assert.match(p, /PUBLISH PREFIX/);
+  assert.match(p, /NEVER add your own prefix-detection/);
+  assert.match(p, /DOUBLE-PREFIXES/);
+});
+
+test('exposed#6: checkpoint steps are the default for standard builds too (not only heavy)', () => {
+  const runner = fs.readFileSync(path.join(__dirname, '..', 'src', 'agent', 'runner.ts'), 'utf8');
+  assert.match(runner, /tier !== 'light' && !this\.simpleBuild/);
+});

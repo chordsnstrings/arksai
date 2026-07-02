@@ -40,7 +40,7 @@ export function rewriteHtml(html: string, prefix: string): string {
   const shim =
     `<base href="${prefix}">` +
     `<script>(function(){var B=${JSON.stringify(prefix)};` +
-    `function fx(u){try{return (typeof u==="string"&&u.charAt(0)==="/"&&u.charAt(1)!=="/")?B+u.slice(1):u;}catch(e){return u;}}` +
+    `function fx(u){try{return (typeof u==="string"&&u.charAt(0)==="/"&&u.charAt(1)!=="/"&&u.indexOf(B)!==0)?B+u.slice(1):u;}catch(e){return u;}}` +
     `var f=window.fetch;if(f)window.fetch=function(i,o){if(typeof i==="string")i=fx(i);else if(i&&i.url){try{i=new Request(fx(i.url),i);}catch(e){}}return f.call(this,i,o);};` +
     `var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){var a=[m,fx(u)].concat([].slice.call(arguments,2));return x.apply(this,a);};` +
     `var W=window.WebSocket;if(W){window.WebSocket=function(u,p){try{if(typeof u==="string"&&/^wss?:\\/\\/[^/]+\\//.test(u)){u=u.replace(/^(wss?:\\/\\/[^/]+)\\//,function(_,h){return h+B;});}}catch(e){}return p===undefined?new W(u):new W(u,p);};window.WebSocket.prototype=W.prototype;}` +

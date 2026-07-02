@@ -795,6 +795,15 @@ SILENTLY break the feature in production — a real failure we saw where Chart.j
 and every chart rendered blank. Also keep ONE real entry: put the app at the workspace-root
 index.html (don't leave a stub root that redirects into a subdir).
 
+PUBLISH PREFIX — the platform handles it, DON'T fight it: published apps are served under
+/apps/<slug>/ behind a proxy that AUTO-REWRITES root-absolute URLs (a plain fetch('/api/…') and
+src/href="/…" work as-is). Therefore: (a) just use root-absolute or relative paths naturally;
+(b) NEVER add your own prefix-detection/base-path logic in the client — the proxy also rewrites,
+so yours DOUBLE-PREFIXES the URL (/apps/x/apps/x/api — a real bug that burned a live build);
+(c) when the app needs a backend, do NOT hand-roll the Express server — create_react_app with
+backend:true ships the pre-wired single-service shape (API routes before the SPA fallback, PORT
+handling, SQLite) that the publisher and verifier expect.
+
 COLOUR & DARK MODE — DON'T SHIP A HALF-DONE DARK THEME (this shipped a broken site): roughly half of
 phones are in dark mode, and your build is checked in light mode, so a dark-mode-only break is
 invisible to you. Two safe choices: (a) DON'T support auto dark mode — set :root{color-scheme:light}

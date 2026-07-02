@@ -34,7 +34,7 @@ import { classifyTask, type TaskProfile } from './taskProfile';
 import { compileDesignBrief, designBriefBlock } from './designBrief';
 import { isSimpleBuild, simpleBuildGuidance, simpleBuildNudge, SIMPLE_BUILD_NUDGE_AT } from './simpleBuild';
 import { byteplusKey } from './byteplusRuntime';
-import { checkpointResumeNote, checkpointPlanGuidance } from './checkpoint';
+import { checkpointResumeNote, checkpointPlanGuidance, readCheckpoints, recordCheckpoint } from './checkpoint';
 import { routeExpertise } from './expertiseRouter';
 import { isAutoModel, MAX_MODEL, FAST_MODEL, HEAVY_GLM51_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
 import { calibratedTypical, recordRunDurations } from './etaCalibration';
@@ -431,6 +431,11 @@ export class AgentRun {
   private activePricingId = '';
   private activeProvider: Provider = 'minimax';
   private activeByteplusBase = '';
+  // One-pass doctrine machinery: wrapUp = the 60% budget notice fired (gates deliver-with-warnings
+  // instead of opening new revision rounds); compactions = Claude-style auto-continue windows used
+  // (a checkpointed build never dies asking the user for "continue" — it compacts and keeps going).
+  private wrapUp = false;
+  private compactions = 0;
 
   constructor(private session: SessionMeta) {}
 
@@ -692,7 +697,9 @@ export class AgentRun {
     if (config.checkpointBuilds && this.session.mode === 'code') {
       const resume = checkpointResumeNote(dir);
       if (resume) systemContent += resume;
-      else if (this.taskProfile?.tier === 'heavy') systemContent += `\n\n${checkpointPlanGuidance()}`;
+      // Standard AND heavy builds get durable steps by default (the $6 Kanban run was heavy but
+      // never checkpointed and died with no durable state; only trivial/light builds skip this).
+      else if (this.taskProfile?.tier !== 'light' && !this.simpleBuild) systemContent += `\n\n${checkpointPlanGuidance()}`;
     }
 
     // Design-brief compiler: for a VISUAL build, rewrite the user's casual request into an expert
@@ -756,7 +763,10 @@ export class AgentRun {
       let emptyRetries = 0;
       let streamRetries = 0;
       let iteration = 0;
-      let wrapUpInjected = false;
+      // Claude-style auto-continue: a checkpointed build gets fresh budget WINDOWS instead of a
+      // death sentence — on window exhaustion the context is COMPACTED to the checkpoint ledger +
+      // remaining work, and the run continues by itself. The user never types "continue".
+      const MAX_AUTO_WINDOWS = Number(process.env.AUTO_CONTINUE_WINDOWS || '2') || 2;
       let stopReason: 'natural' | 'ceiling' | 'stall' | 'budget' | null = null;
       while (!this.abort.signal.aborted) {
         iteration++;
@@ -764,12 +774,12 @@ export class AgentRun {
           stopReason = 'ceiling';
           break;
         }
-        // FINISH-BEFORE-STOP: at 60% of the budget, tell the model ONCE to land the plane —
-        // finish the current fix, check once, deliver. The hard cutoff below used to kill runs
-        // MID-FIX (a $6 run died between a fix and its re-verify, shipping a known defect the
-        // model was about to catch). The soft notice makes the hard stop a rare last resort.
-        if (!wrapUpInjected && this.usage.totalTokens > maxRunTokens * 0.6) {
-          wrapUpInjected = true;
+        const windowBase = this.compactions * maxRunTokens;
+        // FINISH-BEFORE-STOP: at 60% of the current window, tell the model ONCE to land the plane —
+        // finish the current fix, check once, deliver. Gates also honor this.wrapUp by delivering
+        // with warnings instead of opening NEW revision rounds (the notice alone proved toothless).
+        if (!this.wrapUp && this.usage.totalTokens > windowBase + maxRunTokens * 0.6) {
+          this.wrapUp = true;
           sysInfo('⏳ Long run — wrapping up to deliver.');
           context.push({
             role: 'user',
@@ -779,7 +789,24 @@ export class AgentRun {
               'improvement, inspection, or polish. If a known minor issue remains, state it in one line instead of fixing it.',
           });
         }
-        if (this.usage.totalTokens > maxRunTokens) {
+        if (this.usage.totalTokens > windowBase + maxRunTokens) {
+          // AUTO-CONTINUE: with durable checkpoints, exhaustion means "compact and keep going",
+          // not "die mid-fix and wait for a human to type continue".
+          const cps = this.session.mode === 'code' && config.checkpointBuilds ? readCheckpoints(dir) : [];
+          if (cps.length && this.compactions < MAX_AUTO_WINDOWS) {
+            this.compactions++;
+            this.wrapUp = false;
+            sysInfo(`♻ Auto-continuing from checkpoint ${cps.length} — compacted the context to keep going (window ${this.compactions + 1}/${MAX_AUTO_WINDOWS + 1}).`);
+            const resume = checkpointResumeNote(dir);
+            context.length = 0;
+            context.push({
+              role: 'user',
+              content:
+                `${userText}\n\n(You are CONTINUING this build after an automatic context compaction — the earlier conversation was dropped to free budget; the workspace and its git checkpoints are fully intact.)${resume}\n\n` +
+                `Finish the REMAINING work only: inspect the workspace to see its current state, complete what's missing, verify ONCE, and deliver. Do NOT rebuild anything already checkpointed.`,
+            });
+            continue;
+          }
           stopReason = 'budget';
           break;
         }
@@ -2034,7 +2061,9 @@ export class AgentRun {
       probe.ui?.designVerdict === 'revise' &&
       probe.ui.designDefects?.length
     ) {
-      if (this.designRounds < (this.simpleBuild ? 1 : MAX_DESIGN_ROUNDS)) {
+      // Wrap-up teeth: past the budget notice, NEVER open a new design round — deliver with the
+      // notes (the $6 runs died in exactly this loop after the soft notice was ignored).
+      if (!this.wrapUp && this.designRounds < (this.simpleBuild ? 1 : MAX_DESIGN_ROUNDS)) {
         this.designRounds++;
         const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
         if (next !== this.activeModel) this.setActiveModel(next);
@@ -2055,10 +2084,19 @@ export class AgentRun {
         return 'retry';
       }
       sys('info', `✓ Verified — ${probe.detail}\n(design review noted minor items; delivering.)`);
+      this.autoCheckpoint(dir);
       return 'ok';
     }
     sys('info', `✓ Verified — ${probe.detail}`);
+    this.autoCheckpoint(dir);
     return 'ok';
+  }
+
+  /** Harness-driven checkpoint (Replit-parity): every verified-green state is committed
+   *  automatically, so durability never depends on the model remembering to call the tool. */
+  private autoCheckpoint(dir: string): void {
+    if (!config.checkpointBuilds || this.session.mode !== 'code' || !this.mutated) return;
+    void recordCheckpoint(dir, 'auto: verified build state').catch(() => {});
   }
 
   /**
