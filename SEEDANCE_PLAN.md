@@ -74,10 +74,19 @@ An uploaded VIDEO + "continue it / change X / make one like this" → route to 2
 (`reference_video` / editing / extension roles); voiceover file → `reference_audio`.
 No draft mode on 2.0 → confirm cost in the intake round instead, use `-fast`/`-mini` tiers.
 
-### Model routing (invisible to the user)
-- Default **1.5-pro** (draft + native audio + cheap).
-- **2.0** only when the request needs reference/editing/extension.
-- `1.0-pro-fast` as the degraded fallback if 1.5 errors.
+### Model naming + selection (operator, 2026-07-02)
+Branded, selectable video models — the provider name never appears in the UI:
+- **`arksai-video-15` → label "ArksAI Video 1.5"** → `seedance-1-5-pro-251215` (drafts, native
+  audio, 4–12 s — the default engine).
+- **`arksai-video-20` → label "ArksAI Video 2.0"** → `dreamina-seedance-2-0-260128` (reference
+  video/audio, editing, extension, 4–15 s; `-fast`/`-mini` used internally as cost tiers).
+The **Video studio has a model selector** (chips: Auto · Video 1.5 · Video 2.0; Auto default), and
+chat accepts "use video 2.0". Registry entries + per-model cost lines use the branded labels only.
+
+### Model routing (when "Auto", invisible to the user)
+- Default **ArksAI Video 1.5** (draft + native audio + cheap).
+- **ArksAI Video 2.0** only when the request needs reference/editing/extension.
+- `seedance-1-0-pro-fast` as the degraded fallback if 1.5 errors (internal only, never shown).
 
 ---
 
