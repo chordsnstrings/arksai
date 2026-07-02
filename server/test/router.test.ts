@@ -72,10 +72,11 @@ test('resolveProvider maps Swift to the byteplus provider + coding model; escala
 });
 
 test('resolveProvider maps heavy-tier BytePlus coders to the concrete coding-plan model', () => {
-  for (const [branded, apiModel] of Object.entries(config.byteplusHeavyModels)) {
+  for (const [branded, spec] of Object.entries(config.byteplusHeavyModels)) {
     const r = resolveProvider(branded);
     assert.equal(r.provider, 'byteplus', `${branded} → byteplus`);
-    assert.equal(r.apiModel, apiModel, `${branded} → ${apiModel}`);
+    assert.equal(r.apiModel, spec.model, `${branded} → ${spec.model}`);
     assert.equal(r.pricingId, branded); // priced/labelled under the branded id
+    assert.equal(r.baseUrl, spec.base); // per-model endpoint override (undefined = provider default)
   }
 });

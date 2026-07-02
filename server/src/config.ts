@@ -94,13 +94,17 @@ export const config = {
   byteplusBaseUrl: process.env.BYTEPLUS_BASE_URL || 'https://ark.ap-southeast.bytepluses.com/api/coding/v3',
   byteplusModel: process.env.BYTEPLUS_MODEL || 'seed-2-0-pro',
   // Heavy-tier BytePlus coders under evaluation for the heavy build lane (branded id → concrete
-  // coding-plan model id; env-overridable). All confirmed doing streaming tool-calls on the coding
-  // endpoint. glm-5-2 is NOT here — it's not activated on the account (ModelNotOpen).
+  // model, with an optional per-model base URL override; env-overridable). All run on the coding
+  // plan endpoint (config.byteplusBaseUrl) and are confirmed doing streaming tool-calls. A `base`
+  // override can target the general endpoint for a model the coding plan doesn't serve (unused now
+  // — GLM-5.2 is NOT on this account's coding plan; GLM-5.1 is the Z.AI flagship offered here).
   byteplusHeavyModels: {
-    'arksai-heavy-glm': process.env.BYTEPLUS_GLM_MODEL || 'glm-4-7-251222',
-    'arksai-heavy-ds4': process.env.BYTEPLUS_DS4_MODEL || 'deepseek-v4-pro-260425',
-    'arksai-heavy-code': process.env.BYTEPLUS_CODE_MODEL || 'seed-2-0-code-preview-260328',
-  } as Record<string, string>,
+    'arksai-heavy-glm': { model: process.env.BYTEPLUS_GLM_MODEL || 'glm-4-7-251222' }, // GLM-4.7
+    'arksai-heavy-glm51': { model: process.env.BYTEPLUS_GLM51_MODEL || 'glm-5-1' }, // GLM-5.1 (Z.AI flagship, long-horizon)
+    'arksai-heavy-kimi': { model: process.env.BYTEPLUS_KIMI_MODEL || 'kimi-k2-5' }, // Kimi-K2.5 (agentic stability)
+    'arksai-heavy-ds4': { model: process.env.BYTEPLUS_DS4_MODEL || 'deepseek-v4-pro-260425' }, // DeepSeek-V4-Pro
+    'arksai-heavy-code': { model: process.env.BYTEPLUS_CODE_MODEL || 'seed-2-0-code-preview-260328' }, // Dola-Seed-2.0-Code
+  } as Record<string, { model: string; base?: string }>,
   // Non-thinking DeepSeek alias used for one-shot robot reply drafting (fast, decisive;
   // the thinking v4-pro is slow for short outputs). Env-overridable.
   deepseekReplyModel: process.env.DEEPSEEK_REPLY_MODEL || 'deepseek-chat',

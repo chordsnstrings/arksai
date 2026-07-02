@@ -84,6 +84,7 @@ export interface Resolved {
   provider: Provider;
   apiModel: string; // the id actually sent to the provider's API
   pricingId: string; // id used for cost lookup (branded, stable)
+  baseUrl?: string; // optional per-model endpoint override (else the provider default)
 }
 
 /** Map a branded/selectable model id to the provider + API model + a stable pricing id.
@@ -92,10 +93,11 @@ export function resolveProvider(modelId: string): Resolved {
   if (modelId === SWIFT_MODEL) {
     return { provider: 'byteplus', apiModel: config.byteplusModel, pricingId: SWIFT_MODEL };
   }
-  // Heavy-tier BytePlus coders (bake-off): branded id → concrete coding-plan model, same adapter.
+  // Heavy-tier BytePlus coders (bake-off): branded id → concrete model, same adapter. Most run on
+  // the coding endpoint; some carry a per-model base URL override (the general endpoint).
   const heavy = config.byteplusHeavyModels[modelId];
   if (heavy) {
-    return { provider: 'byteplus', apiModel: heavy, pricingId: modelId };
+    return { provider: 'byteplus', apiModel: heavy.model, pricingId: modelId, baseUrl: heavy.base };
   }
   if (modelId === FAST_MODEL) {
     return { provider: 'minimax', apiModel: config.minimaxFallbackModel, pricingId: FAST_MODEL };

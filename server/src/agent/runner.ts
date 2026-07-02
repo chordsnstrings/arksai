@@ -430,6 +430,7 @@ export class AgentRun {
   private activeApiModel = '';
   private activePricingId = '';
   private activeProvider: Provider = 'minimax';
+  private activeByteplusBase = '';
 
   constructor(private session: SessionMeta) {}
 
@@ -440,6 +441,7 @@ export class AgentRun {
     this.activeApiModel = r.apiModel;
     this.activePricingId = r.pricingId;
     this.activeProvider = r.provider;
+    this.activeByteplusBase = r.baseUrl || '';
   }
 
   /** When falling back M3 → DeepSeek mid-conversation, drop M3's reasoning_content from the
@@ -1322,7 +1324,7 @@ export class AgentRun {
     let resp: Response;
     try {
       resp = await Promise.race([
-        fetch(`${config.byteplusBaseUrl}/chat/completions`, {
+        fetch(`${this.activeByteplusBase || config.byteplusBaseUrl}/chat/completions`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${byteplusKey()}`, 'content-type': 'application/json' },
           body: JSON.stringify(body),
