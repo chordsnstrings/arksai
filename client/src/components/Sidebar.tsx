@@ -49,6 +49,7 @@ export function Sidebar({
   onHome,
   onRobots,
   onAndroid,
+  onVideo,
   onActivity,
   onDeployments,
   onAdmin,
@@ -61,6 +62,7 @@ export function Sidebar({
   onHome: () => void;
   onRobots: () => void;
   onAndroid: () => void;
+  onVideo: () => void;
   onActivity: () => void;
   onDeployments: () => void;
   onAdmin: () => void;
@@ -278,6 +280,7 @@ export function Sidebar({
           🌐 Live apps {failedCount > 0 && <NavBadge n={failedCount} tone="amber" />}
         </button>
         <button className="sb-tool" onClick={onAndroid}>📱 Android</button>
+        <button className="sb-tool" onClick={onVideo}>🎬 Video</button>
         <button className="sb-tool" onClick={onConnections}>
           <ConnectorIcon /> Connect
         </button>

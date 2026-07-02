@@ -2666,6 +2666,17 @@ button { font-family: inherit; cursor: pointer; }
 .aw-build:disabled { opacity: 0.5; cursor: default; }
 .aw-time { font-size: 12.5px; color: var(--text-muted); margin: 0; text-align: center; line-height: 1.45; }
 
+/* ---------- Video studio (reuses the .android-* / .aw-* shell) ---------- */
+.aw-toggle { display: flex; align-items: center; gap: 9px; font-size: 13.5px; color: var(--text); cursor: pointer; }
+.aw-toggle input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.vs-library { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--border); }
+.vs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 12px; }
+.vs-item { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.vs-open {
+  background: none; border: none; color: var(--text-muted); font-size: 12px; cursor: pointer; padding: 2px 0;
+}
+.vs-open:hover { color: var(--accent); }
+
 /* ---------- push-target (GitHub) bar under the chat ---------- */
 .repo-bar { padding: 5px 14px; border-top: 1px solid var(--border); background: var(--bg-sidebar); }
 /* Wrap on narrow screens + let the repo-name shrink — otherwise the row (name + status

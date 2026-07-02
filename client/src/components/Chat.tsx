@@ -6,6 +6,7 @@ import type { CompletionState, LiveState } from '../state/sessionStore';
 import { useStore } from '../state/sessionStore';
 import { api } from '../api/client';
 import { DeploymentsDialog } from './DeploymentsDialog';
+import { VideoCard, videoFromToolOutput } from './VideoCard';
 
 const TOOL_LABEL: Record<string, string> = {
   web_search: 'Searching',
@@ -76,7 +77,14 @@ function ToolRow({ call }: { call: ToolCallRecord }) {
   );
 }
 
-function ToolActivity({ calls, running }: { calls: ToolCallRecord[]; running: boolean }) {
+function ToolActivity({ calls, running, sessionId }: { calls: ToolCallRecord[]; running: boolean; sessionId?: string }) {
+  // A produced video → a playable card right under the tool group (draft→final ladder).
+  const videos = sessionId
+    ? calls
+        .filter((c) => c.tool === 'generate_video' && c.ok && c.outputPreview)
+        .map((c) => videoFromToolOutput(c.outputPreview!))
+        .filter((v): v is NonNullable<typeof v> => !!v)
+    : [];
   // Auto-expand while working so the "expert at work" is VISIBLE (visible competence
   // builds trust); collapse the finished record so the transcript stays tidy.
   const [open, setOpen] = useState(running);
@@ -112,6 +120,12 @@ function ToolActivity({ calls, running }: { calls: ToolCallRecord[]; running: bo
           ))}
         </div>
       )}
+      {sessionId &&
+        videos.map((v, i) => (
+          <div key={'vid' + i} style={{ marginTop: 8 }}>
+            <VideoCard sessionId={sessionId} relPath={v.relPath} draft={v.draft} />
+          </div>
+        ))}
     </div>
   );
 }
@@ -152,7 +166,7 @@ const TimelineRow = memo(function TimelineRow({ item, sessionId }: { item: Timel
         </div>
       );
     case 'tools':
-      return <ToolActivity calls={item.calls} running={false} />;
+      return <ToolActivity calls={item.calls} running={false} sessionId={sessionId} />;
     case 'system':
       return <div className={`system-line ${item.level}`}>{item.text}</div>;
     case 'file': {
@@ -423,7 +437,7 @@ export function Chat({ live, sessionId }: { live: LiveState; sessionId: string }
         {live.items.map((item) => (
           <TimelineRow key={item.id} item={item} sessionId={sessionId} />
         ))}
-        {live.pendingTools && <ToolActivity calls={live.pendingTools.calls} running />}
+        {live.pendingTools && <ToolActivity calls={live.pendingTools.calls} running sessionId={sessionId} />}
         {live.pendingAssistant && (
           // While STREAMING, render plain text (white-space:pre-wrap) — NOT ReactMarkdown.
           // Re-parsing markdown on every token is O(n) per token → O(n²) over the message and

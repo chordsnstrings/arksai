@@ -491,6 +491,13 @@ export const api = {
     request<{ ok: true }>(`/api/orgs/${orgId}/drafts/${did}/dismiss`, { method: 'POST' }),
   adminListOrgs: () => request<{ orgs: Org[] }>('/api/admin/orgs').then((r) => r.orgs),
   // Platform provider keys (superadmin) — status has NO secret values; setters rotate the key.
+  /** Inline URL for a workspace file (video/audio/image playback). */
+  fileUrl: (sessionId: string, relPath: string) =>
+    `/api/sessions/${sessionId}/files/${relPath.split('/').map(encodeURIComponent).join('/')}?inline=1`,
+  listVideos: (sessionId: string) =>
+    request<{ videos: Array<{ name: string; path: string; url: string; bytes: number; ts: number; draft: boolean }> }>(
+      `/api/sessions/${sessionId}/videos`,
+    ),
   adminGetProviders: () =>
     request<{
       byteplus: { label: string; configured: boolean };

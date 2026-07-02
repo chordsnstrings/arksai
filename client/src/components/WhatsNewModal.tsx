@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.6';
+export const WHATS_NEW_VERSION = '2026-07-02.7';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Reviews that know what matters',
-    body: 'The automated quality review now separates real problems (broken buttons, unreadable text, mobile overflow) from taste. Real problems get fixed before you see anything; style suggestions arrive as notes — so builds finish faster and never get stuck polishing.',
+    title: 'A studio just for video',
+    body: 'The new Video page (🎬 in the sidebar) lets you describe a shot, add spoken lines, pick the format, and generate it with synchronized sound — a quick draft first, then the full render. Everything you make lands in a library you can replay any time.',
   },
   {
-    title: 'Video generation is here',
-    body: 'Ask for a video in chat: you get a quick, inexpensive draft with synchronized sound — dialogue, effects, ambience — approve it, and receive the full-quality render. Powered by ArksAI Video 1.5, with Video 2.0 for editing and extending clips coming next.',
+    title: 'Videos play right in the chat',
+    body: 'When a video is ready it now appears inline as a real player — scrub, play, and see whether it’s a draft or the final. One tap renders the full-quality version, tweaks the direction, or downloads it.',
   },
 ];
 
