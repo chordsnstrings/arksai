@@ -47,14 +47,23 @@ const base: UiInspection = {
   detail: '',
 };
 
-/** Classify what a click did, from a before/after page fingerprint. Pure + unit-tested. */
+/** Classify what a click did, from a before/after page fingerprint. Pure + unit-tested.
+ *  `theme`/`bg`/`pressed` catch STATE flips with no structural delta (a theme toggle swapping
+ *  data-theme/class on <html>, an aria-pressed toggle) — previously reported as dead controls,
+ *  which sent the builder chasing false positives for many turns (a real $6 run). */
 export function judgeInteraction(
-  before: { url: string; nodes: number; visible: number; text: number; expanded: number; dialogs: number },
-  after: { url: string; nodes: number; visible: number; text: number; expanded: number; dialogs: number },
+  before: { url: string; nodes: number; visible: number; text: number; expanded: number; dialogs: number; theme?: string; bg?: string; pressed?: number },
+  after: { url: string; nodes: number; visible: number; text: number; expanded: number; dialogs: number; theme?: string; bg?: string; pressed?: number },
   errored: boolean,
 ): { effect: InteractionResult['effect']; detail: string } {
   if (errored) return { effect: 'error', detail: 'clicking it threw a JavaScript error (check the console output below)' };
   if (after.url !== before.url) return { effect: 'navigated', detail: `it navigated to ${after.url}` };
+  if ((after.theme ?? '') !== (before.theme ?? '') || (after.bg ?? '') !== (before.bg ?? '')) {
+    return { effect: 'changed', detail: 'the page state changed (theme/appearance flipped)' };
+  }
+  if ((after.pressed ?? 0) !== (before.pressed ?? 0)) {
+    return { effect: 'changed', detail: 'a toggle state changed (aria-pressed flipped)' };
+  }
   const changed =
     Math.abs(after.visible - before.visible) > 1 ||
     after.dialogs !== before.dialogs ||
@@ -64,7 +73,9 @@ export function judgeInteraction(
   if (changed) return { effect: 'changed', detail: 'the UI updated (a panel/menu/content opened or changed)' };
   return {
     effect: 'no-effect',
-    detail: 'NOTHING changed on screen — the control appears dead (no working click handler, form submit, or link). This is almost certainly the bug.',
+    detail:
+      'nothing observable changed on screen — likely a dead control (no click handler / submit / link). ' +
+      'If you have DIRECTLY verified this control works, treat this as a probe blind spot, note it once, and move on.',
   };
 }
 
@@ -89,7 +100,10 @@ const FINGERPRINT = `() => {
     visible,
     text: (d.body && d.body.innerText || '').length,
     expanded: d.querySelectorAll('[aria-expanded="true"]').length,
-    dialogs: d.querySelectorAll('[role="dialog"],dialog[open],.modal.open,.menu.open,.nav__menu.open,.open[role="menu"]').length,
+    dialogs: d.querySelectorAll('[role="dialog"],dialog[open],.modal.open,.modal-overlay.active,.menu.open,.nav__menu.open,.open[role="menu"]').length,
+    theme: (d.documentElement.getAttribute('data-theme')||'') + '|' + d.documentElement.className + '|' + (d.body ? d.body.className : ''),
+    bg: w.getComputedStyle(d.body||d.documentElement).backgroundColor + '|' + w.getComputedStyle(d.body||d.documentElement).color,
+    pressed: d.querySelectorAll('[aria-pressed="true"]').length,
   };
 }`;
 

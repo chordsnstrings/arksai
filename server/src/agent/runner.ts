@@ -753,12 +753,28 @@ export class AgentRun {
       let emptyRetries = 0;
       let streamRetries = 0;
       let iteration = 0;
+      let wrapUpInjected = false;
       let stopReason: 'natural' | 'ceiling' | 'stall' | 'budget' | null = null;
       while (!this.abort.signal.aborted) {
         iteration++;
         if (iteration > maxIterations) {
           stopReason = 'ceiling';
           break;
+        }
+        // FINISH-BEFORE-STOP: at 60% of the budget, tell the model ONCE to land the plane —
+        // finish the current fix, check once, deliver. The hard cutoff below used to kill runs
+        // MID-FIX (a $6 run died between a fix and its re-verify, shipping a known defect the
+        // model was about to catch). The soft notice makes the hard stop a rare last resort.
+        if (!wrapUpInjected && this.usage.totalTokens > maxRunTokens * 0.6) {
+          wrapUpInjected = true;
+          sysInfo('⏳ Long run — wrapping up to deliver.');
+          context.push({
+            role: 'user',
+            content:
+              'BUDGET NOTICE — WRAP UP NOW. This run has used most of its processing budget. Finish ONLY the fix you are ' +
+              'currently on, run your check ONCE, then DELIVER the working result immediately. Do not start any new ' +
+              'improvement, inspection, or polish. If a known minor issue remains, state it in one line instead of fixing it.',
+          });
         }
         if (this.usage.totalTokens > maxRunTokens) {
           stopReason = 'budget';

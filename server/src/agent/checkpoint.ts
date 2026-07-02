@@ -71,11 +71,14 @@ export function checkpointResumeNote(repoDir: string): string {
   return `\n\n## Resuming a checkpointed build\nThis build has ${cps.length} committed checkpoint(s) — completed, working code you must NOT rebuild:\n${done}\nThe last checkpoint was "${last.task}". CONTINUE from there: reuse the already-committed code in the workspace, pick up the next unfinished task, and call checkpoint(...) after each new milestone.`;
 }
 
-/** Steering injected for a LARGE build so it proceeds task-by-task with durable checkpoints. */
+/** Steering injected for a LARGE build so it proceeds task-by-task with durable checkpoints.
+ *  Doctrine (operator, 2026-07-02): ONE PASS IF IT WORKS — this does NOT ask for extra passes.
+ *  It bounds a build that is genuinely too large for one pass into a few one-pass STEPS. */
 export function checkpointPlanGuidance(): string {
-  return `## Large build — work in durable, resumable tasks
-This is a big/complex build. Do NOT try to produce everything in one pass:
-- First OUTLINE the build as an ordered list of discrete, independently-workable tasks (e.g. "1. data model + migrations, 2. auth API, 3. login screen, 4. …").
-- Build ONE task at a time to a working state, then call checkpoint("<the task you finished>") — it commits the workspace so the build survives an interruption and can resume without redoing work.
-- Keep each task small enough to complete + checkpoint; verify a task works before moving on. This trades a single fragile marathon for steady, recoverable progress.`;
+  return `## Large build — a few one-pass steps, each checkpointed
+This build is likely too large for a single pass. Same one-pass rule, applied per STEP:
+- FIRST post a SHORT ordered step plan (3–6 discrete, independently-workable steps, e.g. "1. shell + tokens, 2. core screens, 3. data layer, 4. polish+states").
+- Each step is ONE pass: build it complete → check it works ONCE → call checkpoint("<the step>") — the commit makes the build resumable so nothing finished is ever redone or re-paid for.
+- Then move to the NEXT step. Iterate on a step ONLY if its check found a concrete defect.
+- If the whole build genuinely fits one pass, treat it as ONE step: build → check → checkpoint → deliver. Never add steps (or extra passes) a working result doesn't need.`;
 }

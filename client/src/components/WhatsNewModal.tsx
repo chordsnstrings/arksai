@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.3';
+export const WHATS_NEW_VERSION = '2026-07-02.4';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Sharper results across every deliverable',
-    body: 'We tuned how the studio directs itself, end to end: designs commit to a distinctive look instead of playing it safe, Word documents get the same editorial care as PDFs, charts and spreadsheets use your currency and clean number formatting, and ad creatives are now checked for the right people, places and products — not just readable text.',
+    title: 'One pass if it works',
+    body: 'Builds now follow a simple senior rule: build it once, check it once, and if it works — deliver. The agent only iterates when a check finds a real, named issue, and big builds run as a few clean checkpointed steps. Faster results, lower cost, same quality bar.',
   },
   {
-    title: 'Scheduled tasks run truly hands-free',
-    body: 'Recurring runs now know nobody is watching: they proceed on sensible stated assumptions and deliver a finished result every time — no more stalling on a question with no one there to answer it.',
+    title: 'Smarter checks, no wild-goose chases',
+    body: 'The automated UI inspector now recognizes theme switches and toggle states, so it no longer flags working controls as broken — and long runs wrap up gracefully, delivering the finished result instead of stopping mid-fix.',
   },
 ];
 

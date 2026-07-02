@@ -51,8 +51,9 @@ test('readCheckpoints tolerates a missing/garbage ledger', () => {
   assert.deepEqual(readCheckpoints(ws), []);
 });
 
-test('checkpointPlanGuidance steers task-by-task building', () => {
+test('checkpointPlanGuidance: a few one-pass steps, each checkpointed (operator doctrine 2026-07-02)', () => {
   const g = checkpointPlanGuidance();
-  assert.match(g, /work in durable, resumable tasks/i);
+  assert.match(g, /a few one-pass steps, each checkpointed/i);
+  assert.match(g, /Same one-pass rule, applied per STEP/);
   assert.match(g, /checkpoint\(/);
 });

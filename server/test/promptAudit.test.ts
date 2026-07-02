@@ -121,3 +121,30 @@ test('audit#10: dashboard/techdoc/teamtracker standards carry real task rigor', 
   assert.match(expertiseFor('finance.kpidashboard')!, /runway/);
   assert.match(expertiseFor('engineering.techdoc')!, /quickstart/i);
 });
+
+// ---------------------------------------------------------------------------
+// One-pass doctrine (operator, 2026-07-02): "one pass if it works — iterate
+// only on a named issue." Locks the doctrine + the craft/checkpoint reconciliation
+// + the finish-before-stop budget notice.
+// ---------------------------------------------------------------------------
+import { checkpointPlanGuidance } from '../src/agent/checkpoint';
+
+test('doctrine: ONE PASS IF IT WORKS is the code-mode default', () => {
+  const p = buildSystemPrompt(codeSession, '/tmp', '');
+  assert.match(p, /ONE PASS IF IT WORKS/);
+  assert.match(p, /iterate ONLY on a NAMED, concrete defect/i);
+  assert.match(p, /TRUST DIRECT OBSERVATION OVER A NOISY INSTRUMENT/);
+});
+
+test('doctrine: checkpoint guidance is the SAME one-pass rule per step (no contradiction)', () => {
+  const g = checkpointPlanGuidance();
+  assert.match(g, /Same one-pass rule, applied per STEP/);
+  assert.match(g, /Never add steps \(or extra passes\) a working result doesn't need/);
+  assert.doesNotMatch(g, /Do NOT try to produce everything in one pass/); // the old contradicting line
+});
+
+test('doctrine: finish-before-stop budget notice exists in the runner', () => {
+  const runner = fs.readFileSync(path.join(__dirname, '..', 'src', 'agent', 'runner.ts'), 'utf8');
+  assert.match(runner, /BUDGET NOTICE — WRAP UP NOW/);
+  assert.match(runner, /maxRunTokens \* 0\.6/);
+});
