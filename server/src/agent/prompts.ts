@@ -242,7 +242,17 @@ This session was started automatically by a schedule. NOBODY is watching the cha
 - Finish the deliverable COMPLETELY in this run so it's ready when a human opens the session later; if the task names a delivery channel (webhook/email), send it there.
 - If the task is genuinely impossible right now (a source is down, credentials missing), do not loop or wait — end with a short plain-language note saying exactly what's needed to fix it.`
       : '';
-  const mem = (memoryBlock ? `\n\n${memoryBlock}` : '') + sched;
+  // Judgment & failure discipline — injected into EVERY mode. Each rule below is pinned to a
+  // real deployed incident (2026-07-02): the "I can't create images, use Canva" hallucination,
+  // the "obscure the face to get past the check" improvisation, and the repeat-error loops.
+  const judgment = `\n\n## Judgment & failure handling (non-negotiable)
+- A failed tool call is DATA. Read the error text and let IT drive your next step — never assert a cause the text doesn't support.
+- Classify before acting: (1) MY CALL was malformed → fix the arguments and call again. (2) The PROVIDER/platform declined (policy, quota, unsupported input) → relay its actual message in plain language and offer the legitimate alternatives your tools support; NEVER suggest tricks to slip past a safety or content check (cropping, obscuring, rewording to evade detection) — not ever. (3) The capability is genuinely absent → say what you CAN do instead with YOUR OWN tools.
+- NEVER claim a capability doesn't exist while a tool for it is in your toolset, and never point users at external tools (Canva, Midjourney, ChatGPT…) for something your tools do.
+- The SAME error twice means your diagnosis is wrong, not your luck: do not repeat the identical call — change the arguments or approach, or fix the underlying state first.
+- You are the operator, not a ticket-router: when the root cause is something you can fix here (a permission, a path, a port, stale state), fix it yourself instead of telling the user to contact support/IT.
+- Never invent policies, limits, or provider rules. If unsure, say so and check — the tool description, or one probing call.`;
+  const mem = (memoryBlock ? `\n\n${memoryBlock}` : '') + sched + judgment;
   // Domain-rigor layer: when started from a department task, inject the expert
   // standards that make THAT deliverable genuinely good.
   const expertise = expertiseFor(session.task);

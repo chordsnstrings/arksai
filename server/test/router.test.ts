@@ -74,8 +74,13 @@ test('Swift fast lane: light CODE build routes to Dola ONLY when BytePlus is con
     // heavy code → GLM-5.1 with the key (bake-off-validated); report stays on M3
     assert.equal(selectModel('architect a distributed microservice platform with a database schema', 'code', { minimaxAvailable: true }).model, HEAVY_GLM51_MODEL);
     assert.equal(selectModel('summarize this', 'report', { minimaxAvailable: true }).model, MAX_MODEL);
-    // a light CHAT turn is not a build → still Flash, never Swift
+    // CHAT light/standard → Swift (seed-2-0-pro): the 2026-07-02 judgment bake-off winner
+    // (the only model that didn't hallucinate "I can't create images"; best repeat-error
+    // diagnosis; fastest). Without the key it stays Flash.
+    assert.equal(selectModel('rename a file', 'chat', { minimaxAvailable: true }).model, SWIFT_MODEL);
+    __setByteplusKeyForTest('');
     assert.equal(selectModel('rename a file', 'chat', { minimaxAvailable: true }).model, FAST_MODEL);
+    __setByteplusKeyForTest('ark-test');
   } finally {
     __setByteplusKeyForTest('');
   }
@@ -100,4 +105,15 @@ test('resolveProvider maps heavy-tier BytePlus coders to the concrete coding-pla
     assert.equal(r.pricingId, branded); // priced/labelled under the branded id
     assert.equal(r.baseUrl, spec.base); // per-model endpoint override (undefined = provider default)
   }
+});
+
+test('complexityTier: a subsystem-stacked SaaS brief is HEAVY (the TaskForge mislabel)', () => {
+  // The real brief that scored 'standard' ("a moderate task") before subsystem detection.
+  const brief =
+    'Build a multi-tenant SaaS team task manager, end to end. Requirements: (1) BACKEND: user signup/login with JWT auth; ' +
+    'organizations (workspaces) — invite members by generating an invite code; STRICT per-org data isolation. ' +
+    '(2) DATA: SQLite; users, orgs, memberships, projects, tasks. (3) FRONTEND: React — auth screens, an org switcher, a task board. (4) Seed a demo org.';
+  assert.equal(complexityTier(brief, 'code'), 'heavy');
+  // A single subsystem mention in a short ask does not blow up the tier.
+  assert.equal(complexityTier('add a login page to my site', 'code'), 'standard');
 });

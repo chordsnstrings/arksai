@@ -426,6 +426,8 @@ export class AgentRun {
   private minimaxStalls = 0;
   // BytePlus (GLM/Kimi) mid-stream silences this run — drives the stall ladder in the run loop.
   private byteplusStalls = 0;
+  // "tool::error-prefix" of the most recent failed tool call — the repeat-error circuit-breaker.
+  private lastToolErrorSig = '';
   private forceFastThisTurn = false;
   // The concrete model the orchestrator is using right now (resolved from the
   // session model, which may be the virtual 'arksai-auto').
@@ -1010,7 +1012,20 @@ export class AgentRun {
         const groupRecords: ToolCallRecord[] = [];
         for (const call of calls) {
           if (this.abort.signal.aborted) break;
-          const result = await this.executeTool(call, map, dir, groupRecords);
+          let result = await this.executeTool(call, map, dir, groupRecords);
+          // Repeat-error circuit-breaker: the SAME tool failing with the SAME error means the
+          // diagnosis is wrong, not the luck — models (all of them, in the 2026-07-02 judgment
+          // bake-off) only reliably stop when the repetition is pointed out in the result itself.
+          if (/^Error[:\s]/i.test(result)) {
+            const sig = `${call.name}::${result.slice(0, 160)}`;
+            if (sig === this.lastToolErrorSig) {
+              result +=
+                '\n\n[SYSTEM] This is the SAME error as your previous attempt. Do NOT retry the identical call. Re-read the error text above, name the root cause, and either fix the underlying state yourself or change the approach.';
+            }
+            this.lastToolErrorSig = sig;
+          } else {
+            this.lastToolErrorSig = '';
+          }
           context.push({ role: 'tool', tool_call_id: call.id, content: result });
         }
         liveItems.push({ kind: 'tools', id: randomUUID(), calls: groupRecords, ts: Date.now() });

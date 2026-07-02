@@ -29,9 +29,24 @@ type Beat = { id: number; move: string; what: string };
 /** Product-ad backdrops — each is the exact set-dressing phrase for a commercial hero shot. */
 const BACKDROPS: { id: string; label: string; phrase: string }[] = [
   { id: 'studio', label: 'Studio white', phrase: 'seamless white studio sweep, soft natural shadows, commercial catalogue finish' },
+  { id: 'grey', label: 'Studio grey', phrase: 'neutral grey seamless studio, sculpted soft shadows, premium editorial finish' },
   { id: 'dark', label: 'Dark luxury', phrase: 'dark luxury backdrop, dramatic rim light, subtle reflective surface below the product' },
+  { id: 'colorpop', label: 'Colour pop', phrase: 'a bold saturated colour-block backdrop that complements the product, playful modern energy' },
+  { id: 'gradient', label: 'Gradient', phrase: 'smooth two-tone gradient backdrop, soft glow behind the product, contemporary and clean' },
+  { id: 'marble', label: 'Marble', phrase: 'white marble surface with soft veining, elegant spa-like staging' },
+  { id: 'silk', label: 'Silk & fabric', phrase: 'flowing silk fabric drapes rippling gently around the product, sensual premium softness' },
+  { id: 'water', label: 'Water splash', phrase: 'dynamic water splashes and droplets frozen mid-air around the product, fresh and crisp' },
+  { id: 'ice', label: 'Ice & frost', phrase: 'frosted ice staging with cool mist, condensation droplets on the product, chilled freshness' },
+  { id: 'smoke', label: 'Smoke & mist', phrase: 'slow-rolling atmospheric smoke and mist around the product, moody and cinematic' },
+  { id: 'stone', label: 'Stone & slate', phrase: 'dark slate and raw stone staging, earthy minimal texture, quiet strength' },
+  { id: 'wood', label: 'Warm wood', phrase: 'warm oiled wood surface, artisanal natural staging, cosy craft feel' },
+  { id: 'botanical', label: 'Botanical', phrase: 'lush green foliage and soft botanical shadows around the product, fresh organic staging' },
+  { id: 'sand', label: 'Desert sand', phrase: 'rippled desert sand and warm sun-baked tones, golden airy minimalism' },
+  { id: 'clouds', label: 'Floating', phrase: 'the product floating weightlessly among soft clouds and sky light, dreamlike levity' },
+  { id: 'concrete', label: 'Industrial', phrase: 'raw concrete and brushed metal staging, urban industrial edge' },
+  { id: 'neoncyber', label: 'Neon night', phrase: 'wet-look night surface with neon reflections, electric city-night mood' },
+  { id: 'festive', label: 'Festive', phrase: 'warm festive staging — bokeh lights, gift-wrap textures, celebratory sparkle' },
   { id: 'lifestyle', label: 'Lifestyle', phrase: 'a natural lifestyle setting where the product is used, softly blurred background' },
-  { id: 'nature', label: 'Organic', phrase: 'organic natural staging — stone, wood, water or foliage textures around the product' },
   { id: 'tech', label: 'Tech', phrase: 'sleek minimal tech environment, cool tones, soft gradient light' },
 ];
 

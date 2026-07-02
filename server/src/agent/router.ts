@@ -11,6 +11,11 @@ export type Tier = 'light' | 'standard' | 'heavy';
 
 const HARD =
   /\b(architect|design|refactor|migrat|optimi[sz]|concurren|distribut|debug|race condition|deadlock|security|vulnerab|scalab|algorithm|performance|end[- ]?to[- ]?end|full[- ]?stack|microservice|database schema|state machine|implement (an?|the) [\w-]+ (system|service|pipeline|engine|compiler|parser)|build (an?|the) [\w-]+ (app|api|backend|platform))\b/;
+// Product-scale signals — each is a whole SUBSYSTEM (auth, tenancy, billing, realtime…), and a
+// brief that stacks several is a big build even when the prose is short. The TaskForge brief
+// ("multi-tenant SaaS…JWT auth…orgs…invite…isolation") scored 'standard' under the old regexes.
+const SUBSYSTEM =
+  /\b(multi[- ]?tenant|multi[- ]?org|saas|jwt|oauth|signup\/login|login\/signup|authenticat|authoriz|role[s]?[- ](based|and)|permission|workspace|organi[sz]ations?|invite (code|members)|per[- ]org|isolation|realtime|websocket|payments?|stripe|billing|subscription|admin (panel|dashboard)|kanban|drag[- ]and[- ]drop)\b/gi;
 const EASY =
   /\b(rename|typo|format|lint|comment|readme|hello world|simple|quick|small|tweak|adjust|change the (colou?r|text|label|title)|bump version|add a (button|link))\b/;
 
@@ -23,7 +28,13 @@ export function complexityTier(task: string, mode: SessionMode): Tier {
   else if (task.length > 240) score += 1;
   // multi-step asks (bulleted/numbered lists or many lines)
   if (/\n\s*([-*]|\d+[.)])\s/.test(task) || task.split('\n').length > 6) score += 1;
+  // enumerated REQUIREMENT clusters — "(1) BACKEND… (2) DATA… (3) FRONTEND…" style briefs
+  if ((task.match(/\(\d\)/g) || []).length >= 3) score += 1;
   if (HARD.test(t)) score += 2;
+  // 2+ distinct subsystems stacked in one brief = a genuinely large build
+  const subsystems = new Set((task.match(SUBSYSTEM) || []).map((s) => s.toLowerCase()));
+  if (subsystems.size >= 2) score += 2;
+  else if (subsystems.size === 1) score += 1;
   if (EASY.test(t)) score -= 1;
   if (mode === 'code') score += 1;
   else if (mode === 'chat') score -= 1;
@@ -47,6 +58,12 @@ const tierModel = (tier: Tier, mode: SessionMode, _o: RouteOpts): string => {
   if (mode === 'code' && byteplusReady()) return tier === 'light' ? SWIFT_MODEL : HEAVY_GLM51_MODEL;
   // Otherwise MiniMax: reports + no-key coding → M3 (Max); quick non-code light turns → Flash.
   if (mode === 'code' || mode === 'report') return MAX_MODEL;
+  // CHAT light/standard → Swift (seed-2-0-pro): the 2026-07-02 judgment bake-off winner —
+  // the ONLY model that correctly handled "make me an image" (clarify → generate, no
+  // "I can't create images / use Canva" hallucination — the exact deployed lie), the best
+  // repeat-error diagnosis (fixes the root cause itself instead of "escalating to IT"),
+  // and the fastest (3.5–8s). Heavy chat stays on M3 (long-context reasoning).
+  if (mode === 'chat' && tier !== 'heavy' && byteplusReady()) return SWIFT_MODEL;
   if (tier === 'light') return FAST_MODEL;
   return MAX_MODEL; // standard + heavy → M3
 };

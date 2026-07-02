@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.15';
+export const WHATS_NEW_VERSION = '2026-07-02.16';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -32,7 +32,11 @@ const ITEMS: { title: string; body: string }[] = [
   },
   {
     title: 'Chain camera moves like a director',
-    body: 'New shot sequencer: stack multiple motions in one video — aerial over the scene, zoom in on the subject, pull back out — as simple cards you drag to reorder. Each shot gets its slice of the clip automatically.',
+    body: 'New shot sequencer: stack multiple motions in one video — aerial over the scene, zoom in on the subject, pull back out — as simple cards you drag to reorder. Plus 20 product backdrops, from marble and silk to water splash and neon night.',
+  },
+  {
+    title: 'A sharper, more honest assistant',
+    body: 'Chat now runs on a faster brain that we benchmarked head-to-head on real judgment calls, and the whole system learned new discipline: errors get diagnosed instead of retried, big builds are recognised as big, and every resumed build carries its own contract so nothing drifts.',
   },
   {
     title: 'Long builds don’t give up',
