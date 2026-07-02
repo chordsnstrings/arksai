@@ -23,6 +23,7 @@ import { AdminDialog } from './components/AdminDialog';
 import { ConnectionsDialog } from './components/ConnectionsDialog';
 import { NewSessionDialog } from './components/NewSessionDialog';
 import { ProgressBar } from './components/ProgressBar';
+import { CheckpointTrail } from './components/CheckpointTrail';
 import { ProjectDialog } from './components/ProjectDialog';
 import { SchedulesDialog } from './components/SchedulesDialog';
 import { Sidebar } from './components/Sidebar';
@@ -320,6 +321,7 @@ export default function App() {
             <TopBar meta={activeMeta} />
             <LowBalanceBanner />
             <ProgressBar live={liveOrEmpty} />
+            <CheckpointTrail live={liveOrEmpty} />
             <Chat live={liveOrEmpty} sessionId={activeMeta.id} />
             <Composer
               meta={activeMeta}

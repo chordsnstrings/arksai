@@ -54,6 +54,8 @@ export interface LiveState {
   progress: ProgressState | null;
   /** what the last successful run produced — drives the "it's ready" card */
   completion: CompletionState | null;
+  /** the durable build-plan trail (committed checkpoints) for a long build */
+  checkpoints: Array<{ task: string; sha: string; ts: number }>;
 }
 
 /** Sessions deleted this client session — never re-add them from late events. */
@@ -75,6 +77,7 @@ export const emptyLive = (): LiveState => ({
   runningTasks: 1,
   progress: null,
   completion: null,
+  checkpoints: [],
 });
 
 interface StoreState {
@@ -317,6 +320,9 @@ function reduceEvent(live: LiveState, ev: AgentEvent): LiveState {
         progress: null,
         completion: null,
       };
+
+    case 'checkpoint_update':
+      return { ...live, checkpoints: ev.steps };
 
     case 'progress':
       return {

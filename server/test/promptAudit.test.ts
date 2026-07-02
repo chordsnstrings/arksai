@@ -242,3 +242,12 @@ test('tiered gate: the runner retries ONLY on blocking defects', () => {
   assert.match(runner, /cosmeticDefects/);
   assert.match(runner, /DO NOT fix/);
 });
+
+// Checkpoint plan visibility (operator 2026-07-02: "IF there is a checkpoint plan it should
+// show up somewhere on UI"): the runner pushes the ledger as checkpoint_update events.
+test('checkpoint trail: the runner emits checkpoint_update on auto + tool checkpoints + resume', () => {
+  const runner = fs.readFileSync(path.join(__dirname, '..', 'src', 'agent', 'runner.ts'), 'utf8');
+  assert.match(runner, /emitCheckpoints\(dir\)/);
+  assert.match(runner, /type: 'checkpoint_update'/);
+  assert.equal((runner.match(/emitCheckpoints\(dir\)/g) || []).length >= 3, true, 'auto + tool + resume paths all emit');
+});

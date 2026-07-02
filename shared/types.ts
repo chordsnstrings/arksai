@@ -294,6 +294,12 @@ export type AgentEvent =
       etaSeconds?: number;
     }
   | {
+      /** The durable build-plan trail: every committed checkpoint (auto or model-called),
+       *  so the UI can show "step N done" for a long build — and prove it's resumable. */
+      type: 'checkpoint_update';
+      steps: Array<{ task: string; sha: string; ts: number }>;
+    }
+  | {
       type: 'run_finished';
       runId: string;
       status: SessionStatus;

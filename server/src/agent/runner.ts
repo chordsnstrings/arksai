@@ -701,6 +701,8 @@ export class AgentRun {
       // Standard AND heavy builds get durable steps by default (the $6 Kanban run was heavy but
       // never checkpointed and died with no durable state; only trivial/light builds skip this).
       else if (this.taskProfile?.tier !== 'light' && !this.simpleBuild) systemContent += `\n\n${checkpointPlanGuidance()}`;
+      // A resumed build shows its completed-steps trail in the UI from the first second.
+      this.emitCheckpoints(dir);
     }
 
     // Design-brief compiler: for a VISUAL build, rewrite the user's casual request into an expert
@@ -1800,6 +1802,8 @@ export class AgentRun {
       durationMs,
       outputPreview,
     });
+    // A model-called checkpoint just landed → refresh the visible build-plan trail.
+    if (call.name === 'checkpoint' && ok) this.emitCheckpoints(dir);
     records.push({
       callId: call.id,
       tool: call.name,
@@ -2108,7 +2112,20 @@ export class AgentRun {
    *  automatically, so durability never depends on the model remembering to call the tool. */
   private autoCheckpoint(dir: string): void {
     if (!config.checkpointBuilds || this.session.mode !== 'code' || !this.mutated) return;
-    void recordCheckpoint(dir, 'auto: verified build state').catch(() => {});
+    void recordCheckpoint(dir, 'auto: verified build state')
+      .then(() => this.emitCheckpoints(dir))
+      .catch(() => {});
+  }
+
+  /** Push the durable checkpoint ledger to the client so the build plan is VISIBLE in the UI
+   *  (a step trail under the progress bar) — the user sees each milestone commit as it lands. */
+  private emitCheckpoints(dir: string): void {
+    try {
+      const steps = readCheckpoints(dir).map((c) => ({ task: c.task, sha: c.sha, ts: c.ts }));
+      if (steps.length) this.emit({ type: 'checkpoint_update', steps });
+    } catch {
+      /* display-only — never let it affect the run */
+    }
   }
 
   /**
