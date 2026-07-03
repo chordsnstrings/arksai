@@ -130,7 +130,13 @@ export function suggestArchitecture(task: string, profile: TaskProfile): Archite
     return { base: 'create_expo_app', modules: [], line: 'Mobile app → create_expo_app (native) or a PWA per the mobile decision rule.' };
   }
 
-  const needsBackend = BACKEND_SIGNALS.test(t) || profile.type === 'api' || profile.type === 'internal-tool';
+  // A developer API (webhooks/integrations, no UI) gets the api-only base — key auth +
+  // a self-documenting index instead of a client app.
+  if (profile.type === 'api') {
+    return { base: 'scaffold_app', modules: [], line: 'Developer API → scaffold_app base "api-only" (JSON + API-key auth + self-documenting index page).' };
+  }
+
+  const needsBackend = BACKEND_SIGNALS.test(t) || profile.type === 'internal-tool';
   if (needsBackend) {
     const modules = MODULE_SIGNALS.filter((m) => m.re.test(t)).map((m) => m.name);
     // crud is the exemplar the domain entities are cloned from — always in for entity apps.

@@ -178,3 +178,28 @@ test('scaffold: commerce/booking/content modules — engines correct, guards and
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('scaffold: api-only base — key-authed exemplar, truthful docs manifest, no modules allowed', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scaf-api-'));
+  try {
+    const rejected = await scaffoldAppTool.run({ name: 'HookRelay', base: 'api-only', modules: ['crud'] }, ctx(dir));
+    assert.match(String(rejected), /takes NO modules/);
+
+    const out = await scaffoldAppTool.run({ name: 'HookRelay', base: 'api-only', description: 'Webhook capture.' }, ctx(dir));
+    assert.match(String(out), /api-only base/);
+    // No client, no placeholders; key middleware + exemplar + docs present.
+    assert.ok(!fs.existsSync(path.join(dir, 'client')));
+    for (const f of ['server.js', 'server/middleware/apiKey.js', 'server/routes/records.js', 'server/docs.js', 'server/seed.js']) {
+      assert.ok(fs.existsSync(path.join(dir, f)), `missing ${f}`);
+      assert.ok(!fs.readFileSync(path.join(dir, f), 'utf8').includes('__APP_'), `${f} has unpatched placeholders`);
+    }
+    // The manifest asserts the key gate (401 without a key) + the public front door.
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.arksai', 'verify.json'), 'utf8'));
+    assert.ok(manifest.routes.some((r: any) => r.path === '/api/records' && r.expect === 401));
+    assert.ok(manifest.routes.some((r: any) => r.path === '/' && r.expect === 200));
+    assert.ok(!manifest.demo, 'api-only has no browser demo login');
+    assert.match(fs.readFileSync(path.join(dir, '.arksai', 'CONTRACT.md'), 'utf8'), /X-API-Key/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

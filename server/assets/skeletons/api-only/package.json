@@ -1,0 +1,15 @@
+{
+  "name": "__APP_SLUG__",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node -e \"console.log('api-only: nothing to build')\"",
+    "seed": "node server/seed.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.19.2",
+    "nanoid": "^5.0.7"
+  }
+}

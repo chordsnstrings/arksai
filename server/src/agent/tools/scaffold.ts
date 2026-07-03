@@ -5,6 +5,7 @@ import { resolveInWorkspace, type ToolDef } from './common';
 
 const SKELETONS = path.join(repoRoot, 'server', 'assets', 'skeletons');
 const SERVICE = path.join(SKELETONS, 'service');
+const API_ONLY = path.join(SKELETONS, 'api-only');
 const MODULES = path.join(SKELETONS, 'modules');
 
 export interface ModuleMeta {
@@ -211,6 +212,7 @@ export const scaffoldAppTool: ToolDef = {
     type: 'object',
     properties: {
       name: { type: 'string', description: 'The app name (e.g. "TaskForge").' },
+      base: { type: 'string', enum: ['service', 'api-only'], description: 'Skeleton base: "service" (default — API + React client on one port) or "api-only" (a pure JSON API with key auth + a self-documenting index page; no client, no modules — for webhooks/integrations/developer APIs).' },
       modules: { type: 'array', items: { type: 'string' }, description: 'Capability modules to install (deps auto-added).' },
       description: { type: 'string', description: 'One sentence of what the app does (lands on the auth page + home).' },
       tagline: { type: 'string', description: 'Short brand line for the auth art panel.' },
@@ -233,6 +235,51 @@ export const scaffoldAppTool: ToolDef = {
       return (
         'Error: the workspace already contains a project — scaffold_app never overwrites existing code. ' +
         'Work with the existing codebase directly (read it first), or scaffold into an empty subfolder via dest.'
+      );
+    }
+
+    // API-ONLY base: a pure JSON API (key auth + self-documenting index). No client, no modules.
+    if (String(args.base || 'service') === 'api-only') {
+      if (Array.isArray(args.modules) && args.modules.length) {
+        return 'Error: the api-only base takes NO modules (they are client-app capabilities). Re-call without modules, or use base "service".';
+      }
+      copyTree(API_ONLY, dest);
+      const slug0 = slugify(name);
+      patchPlaceholders(dest, {
+        __APP_SLUG__: slug0,
+        __APP_NAME__: name,
+        __APP_DESCRIPTION__: String(args.description || `${name} — a JSON API.`),
+      });
+      const arksDir = path.join(dest, '.arksai');
+      fs.mkdirSync(arksDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(arksDir, 'verify.json'),
+        JSON.stringify(
+          {
+            routes: [
+              { method: 'GET', path: '/api/health', expect: 200 },
+              { method: 'GET', path: '/', expect: 200 },
+              { method: 'GET', path: '/api/records', expect: 401 },
+            ],
+            note: 'API-only app: the gate asserts these routes (no browser walk needed). Keep this in sync with server/api.js ENDPOINTS.',
+          },
+          null,
+          2,
+        ),
+      );
+      fs.writeFileSync(
+        path.join(arksDir, 'CONTRACT.md'),
+        `# BUILD CONTRACT — ${name} (api-only; BINDING for every later step/session)\n\n` +
+          `- ONE service: \`npm install && npm run seed && npm start\` on PORT (default 4000). JSON only under /api/*; GET / is the self-documenting index (server/docs.js renders server/api.js ENDPOINTS — keep it truthful when adding routes).\n` +
+          `- RESPONSES: flat camelCase JSON; errors are \`{ "error": "reason" }\` with the right status. AUTH: X-API-Key (or Bearer) — the first key prints ONCE at seed.\n` +
+          `- NEW ENTITIES: clone server/routes/records.js (+ migration) and rename; add the endpoints to ENDPOINTS in server/api.js.\n` +
+          `- PRODUCTION-COMPLETE: the exemplar "records" resource MUST be renamed/cloned into the real domain; the docs page lists every real endpoint.\n`,
+      );
+      return (
+        `Scaffolded "${name}" (api-only base).\n` +
+        `Boot: npm install && npm run seed && npm start (PORT env, default 4000). The seed prints the first API key ONCE.\n` +
+        `GET / serves a self-documenting endpoint index; keep ENDPOINTS in server/api.js truthful as you add routes.\n` +
+        `Next: clone server/routes/records.js into the REAL domain resources and update ENDPOINTS + .arksai/verify.json.`
       );
     }
 

@@ -894,7 +894,9 @@ path-based host (apps live under /apps/<slug>/, behind a proxy that rewrites roo
   (multi-tenant workspaces/invites/isolation — NEVER hand-roll tenancy), dashboard, forms, uploads,
   realtime (SSE), jobs, catalog (products/cart/server-priced checkout/order fulfillment — NEVER hand-roll
   a cart or checkout), booking (resources/slots/conflict-safe reservations — NEVER hand-roll slot math),
-  cms-lite (markdown posts + editor + public read API). Your work after scaffolding = domain entities
+  cms-lite (markdown posts + editor + public read API). A pure DEVELOPER API (webhooks, integrations,
+  no UI) → scaffold_app with base:"api-only" (JSON + API-key auth + a self-documenting index page — no
+  client, no modules). Your work after scaffolding = domain entities
   (cloned from the exemplar), real copy + real seed data, and the look (tokens.css) — never the server
   shell, auth flow, guard wiring, or the responsive layer's position. The demo user and verify.json are
   LOAD-BEARING (the gate uses them) — keep them in sync with any route you add.
