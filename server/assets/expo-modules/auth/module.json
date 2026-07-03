@@ -1,0 +1,7 @@
+{
+  "name": "auth",
+  "label": "Accounts: typed API client + auth provider + sign-in screen",
+  "deps": [],
+  "extraDeps": { "@react-native-async-storage/async-storage": "1.23.1" },
+  "note": "Wired to the add_app_backend contract (POST /api/auth/login|signup → {token,user}). Set API_BASE in src/lib/api.ts to the published backend URL."
+}

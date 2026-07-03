@@ -1,0 +1,7 @@
+{
+  "name": "crud",
+  "label": "Exemplar entity: local SQLite list/detail/edit (clone per real entity)",
+  "deps": ["tabs"],
+  "extraDeps": { "expo-sqlite": "~15.0.3" },
+  "note": "Local-first storage (works offline, no backend needed). For synced data, swap src/lib/db.ts calls for the auth module's api client."
+}

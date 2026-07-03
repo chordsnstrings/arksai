@@ -1,0 +1,7 @@
+{
+  "name": "scanner",
+  "label": "Camera + QR/barcode scanning (permission flow included)",
+  "deps": [],
+  "extraDeps": { "expo-camera": "~16.0.5" },
+  "note": "app/scan.tsx: permission ask → live scanner → result sheet. Navigate with router.push('/scan')."
+}

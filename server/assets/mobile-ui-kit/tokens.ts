@@ -64,8 +64,12 @@ export const shadow = {
 
 export const motion = { fast: 140, base: 220, slow: 360 } as const;
 
+/** Palette shape — WIDENED to plain strings so dark/brand palettes assign cleanly
+ *  (the literal `as const` types otherwise reject every non-default hex — a real tsc error). */
+export type Palette = { [K in keyof typeof palette]: string };
+
 export type Theme = {
-  colors: typeof palette;
+  colors: Palette;
   space: typeof space;
   type: typeof type;
   radius: typeof radius;

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-03.21';
+export const WHATS_NEW_VERSION = '2026-07-03.22';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'App building now covers commerce and services out of the box: product catalogs with a cart and secure checkout (prices always computed server-side), appointment booking with double-booking made impossible, and publishable content pages with a clean editor — all pre-verified, so your store or studio app works on the first build.',
   },
   {
-    title: 'Updates never lose your data',
-    body: 'When an app you published gets an update or a fix, everything its users already saved — records, uploads, orders — now carries over automatically. Shipping version two never resets version one.',
+    title: 'Android apps, built on rails',
+    body: 'Native Android builds now start from ready-made building blocks — tab navigation, sign-in, offline data, a QR scanner — styled by a 23-piece mobile design kit. And before any build machine spins up, the app is type-checked and bundle-checked locally, so broken builds get caught in seconds, not after a ten-minute wait.',
   },
   {
     title: 'Numbers you can trust, first time',

@@ -930,7 +930,14 @@ path-based host (apps live under /apps/<slug>/, behind a proxy that rewrites roo
   • NATIVE (a real Android APK) = create_expo_app → build_apk. Use this when the user signals it — "native",
     "APK", "Play Store", "Android app/Studio", "React Native", or a need a PWA can't meet (rich hardware,
     background services, store distribution). create_expo_app unpacks a runnable, crash-safe expo-router app
-    wired to the mobile UI kit; build_apk compiles a real signed APK on the build droplet.
+    wired to the mobile UI kit (23 components: Screen/AppText/Button/Card/Field/ListRow/Header/SearchBar/
+    Chip/SettingRow/FAB/Sheet/Toast/…) — pass modules for the capabilities the app needs: tabs (bottom tab
+    bar — the structure for ANY multi-surface app), auth (typed client + provider + sign-in wired to
+    add_app_backend), crud (exemplar entity with local SQLite — CLONE per real entity, never deliver a
+    generic "Items" tab), scanner (camera/QR with the full permission flow). NEVER hand-roll tab bars, auth
+    screens, list/detail patterns or scanners. The scaffold writes .arksai/CONTRACT.md (binding) and
+    build_apk runs a deterministic PRE-BUILD GATE (tsc + the android Metro bundle) — a type error or broken
+    import is returned to you in the tool result BEFORE any build machine is started; fix and re-call.
   • If the user just says "a mobile app" and which one MATTERS, ask ONE line (an installable web app now, or a
     real native Android APK?); otherwise default to the instant PWA. Never ship a desktop-width site for a
     "mobile app" request.

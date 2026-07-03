@@ -218,7 +218,7 @@ export function findProductionSeams(content: string, kind: 'html' | 'js' | 'jsx'
     out.push('"lorem ipsum" placeholder text — the delivered product carries REAL copy everywhere; write the actual content.');
   if (/__APP_[A-Z_]+__/.test(content))
     out.push('an unreplaced __APP_*__ scaffold token is still in the shipped code — patch in the real app name/copy.');
-  if (/build the app(?:'|’)s real content here|scaffolded home page/i.test(content))
+  if (/build the app(?:'|’)s real content here|scaffolded home (page|tab)|Build the real home here/i.test(content))
     out.push('the scaffold home-page placeholder is still in place — build the app\'s REAL home content (the product\'s actual landing surface after sign-in), don\'t deliver the scaffold stub.');
   if (content.includes('EXEMPLAR list/create/toggle/delete page') && /<h1>\s*Items\s*<\/h1>/.test(content))
     out.push('the CRUD exemplar is still the untouched generic "Items" page — clone/rename it into the REAL domain entities (or remove it); a generic Items page is demo-grade, not the product.');

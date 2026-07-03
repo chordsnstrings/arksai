@@ -1,7 +1,52 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { config } from '../../config';
 import type { ToolDef } from './common';
 import { createBuild, getBuild, listBuildsForSession, type Build } from '../../build/store';
 import { startAndroidBuild, isBuildConfigured } from '../../build/androidBuild';
+import { execBash } from '../../lib/exec';
+
+/** The Expo app dir: workspace root or the first one-level subdir with an expo dependency. */
+export function findExpoAppDir(repoDir: string): string | null {
+  const isExpo = (d: string) => {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8'));
+      return !!(pkg.dependencies?.expo || pkg.devDependencies?.expo);
+    } catch {
+      return false;
+    }
+  };
+  if (isExpo(repoDir)) return repoDir;
+  try {
+    for (const ent of fs.readdirSync(repoDir, { withFileTypes: true })) {
+      if (ent.isDirectory() && !ent.name.startsWith('.') && ent.name !== 'node_modules' && isExpo(path.join(repoDir, ent.name)))
+        return path.join(repoDir, ent.name);
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * The deterministic pre-APK gate: tsc + a Metro android bundle, locally, BEFORE any droplet
+ * spend. These two catch virtually every "APK build failed" class (type errors, broken
+ * imports, missing modules/assets) in ~1–3 min instead of a ~10-min failed remote build.
+ * Degrades open (ok:true) only when the checks themselves can't run (e.g. install failed).
+ */
+export async function expoPreflight(appDir: string, signal: AbortSignal): Promise<{ ok: boolean; detail: string }> {
+  const tail = (s: string, n = 1800) => s.slice(-n).trim();
+  if (!fs.existsSync(path.join(appDir, 'node_modules'))) {
+    const inst = await execBash('npm install --no-audit --no-fund --prefer-offline', { cwd: appDir, timeoutMs: 420_000, signal }).catch(() => null);
+    if (!inst?.ok) return { ok: true, detail: '(preflight skipped: dependency install did not complete here — the build machine installs fresh)' };
+  }
+  const tsc = await execBash('npx tsc --noEmit', { cwd: appDir, timeoutMs: 240_000, signal }).catch(() => null);
+  if (tsc && !tsc.ok) return { ok: false, detail: `TypeScript errors (fix these exact lines):\n${tail(tsc.output)}` };
+  const exp = await execBash(
+    'npx expo export --platform android --output-dir .arksai-bundle-check && rm -rf .arksai-bundle-check',
+    { cwd: appDir, timeoutMs: 420_000, signal, env: { CI: '1', EXPO_NO_TELEMETRY: '1' } },
+  ).catch(() => null);
+  if (exp && !exp.ok) return { ok: false, detail: `The Android JS bundle failed to build (a broken import/module/asset — the APK would fail the same way):\n${tail(exp.output)}` };
+  return { ok: true, detail: 'tsc + android bundle clean' };
+}
 
 const POLL_MS = 12_000;
 const MAX_WAIT_MS = 20 * 60 * 1000; // bounded; cold Gradle can run ~18 min
@@ -53,6 +98,23 @@ export const buildApkTool: ToolDef = {
       return 'Android APK builds are not configured on this server. Deliver the PWA/web build instead (it installs from the browser); the native APK builder needs the one-time build-machine setup.';
     }
     const appName = String(args?.name || ctx.session.title || 'ArksAI App').slice(0, 60);
+
+    // PRE-APK GATE (deterministic, local, cheap): a droplet build costs minutes + money, so a
+    // type error or a broken import must NEVER reach it. Run `tsc --noEmit` + an
+    // `expo export --platform android` Metro bundle locally first — the two checks that catch
+    // virtually every "APK build failed" class — and return the exact errors for a same-turn fix.
+    {
+      const appDir = findExpoAppDir(ctx.repoDir);
+      if (appDir) {
+        const pre = await expoPreflight(appDir, ctx.signal);
+        if (!pre.ok) {
+          return (
+            `Pre-build check failed — NOT starting the build machine (this saves the failed-build wait). ` +
+            `Fix exactly this, then call build_apk again:\n${pre.detail}`
+          );
+        }
+      }
+    }
 
     // SINGLE-FLIGHT: never start a second build while one is already in flight for this
     // session (the agent occasionally called build_apk twice → duplicate droplets + cost).

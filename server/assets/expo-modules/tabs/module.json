@@ -1,0 +1,8 @@
+{
+  "name": "tabs",
+  "label": "Bottom tab navigation (the structure for any multi-surface app)",
+  "deps": [],
+  "extraDeps": {},
+  "remove": ["app/index.tsx"],
+  "note": "Home + Settings tabs. Add a tab = a file in app/(tabs)/ + one Tabs.Screen entry."
+}
