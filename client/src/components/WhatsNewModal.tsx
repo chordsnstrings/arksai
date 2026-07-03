@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-03.20';
+export const WHATS_NEW_VERSION = '2026-07-03.21';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -25,6 +25,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Updates never lose your data',
     body: 'When an app you published gets an update or a fix, everything its users already saved — records, uploads, orders — now carries over automatically. Shipping version two never resets version one.',
+  },
+  {
+    title: 'Numbers you can trust, first time',
+    body: 'Spreadsheets are now audited the moment they\'re created — live formulas, complete statements, no hidden errors — and every figure in an analysis is computed from your actual data rows, never estimated. Wrong numbers get caught and fixed before you ever see the file.',
   },
 ];
 

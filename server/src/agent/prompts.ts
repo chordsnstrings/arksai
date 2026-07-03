@@ -429,10 +429,14 @@ DATA RULES (critical):
   mark anything missing as "data not provided" rather than inventing a number.
 
 ANALYSIS RIGOR (the report is only as good as the numbers — do the work FIRST):
-- For any non-trivial dataset, run a SYSTEMATIC analysis pass BEFORE writing —
-  don't eyeball it with a single awk. Load it properly (bash + a real pass: the
-  container has python3 with the stdlib csv/statistics modules — no pandas — or parse
-  in Node), PROFILE the columns (counts, ranges, null/blank rate, distinct values),
+- EVERY figure derived from provided data is COMPUTED, never estimated: run
+  query_spreadsheet (SQL over any xlsx/csv/json — start with profile:true) or
+  compute_financials, and quote the returned numbers EXACTLY. Doing arithmetic in
+  your head over rows you read is FORBIDDEN — it is the root cause of subtly-wrong
+  report numbers. If those tools can't run here, fall back to a real scripted pass
+  (python3 stdlib csv/statistics, or Node) and paste the computed output.
+- For any non-trivial dataset, run that SYSTEMATIC analysis pass BEFORE writing —
+  PROFILE the columns (counts, ranges, null/blank rate, distinct values),
   and compute the FULL cross-tabs the brief implies (e.g. by month×year, by source,
   by segment, by interest, the funnel stages) — numbers, not adjectives.
 - RECONCILE conflicting signals before you publish a headline figure: real exports

@@ -410,10 +410,21 @@ export const generateSpreadsheetTool: ToolDef = {
     }
 
     // Validate: re-open with SheetJS and confirm the sheets + row counts landed.
+    let auditDefects: string[] = [];
     try {
       const XLSX: any = await import('xlsx');
       const buf = fs.readFileSync(absOut);
       const check = XLSX.read(buf, { type: 'buffer' });
+      // FIRST-GO audit: run the exact deterministic checks the pre-completion self-audit and
+      // the verify gate run (formula-driven model, empty statement sheets, banner rows,
+      // error cells, impossible numbers) HERE, in the tool result — so the model fixes a
+      // defect in the same turn instead of after a gate round-trip.
+      try {
+        const { deterministicDeliverableDefects } = await import('../deliverableCheck');
+        auditDefects = deterministicDeliverableDefects({ wb: check }) || [];
+      } catch {
+        /* audit is best-effort — never block the write on it */
+      }
       for (const e of expected) {
         const ws = check.Sheets[e.name];
         if (!ws) return `Error: validation failed — sheet "${e.name}" missing from the written file.`;
@@ -443,6 +454,17 @@ export const generateSpreadsheetTool: ToolDef = {
     const more = append
       ? ' Call again with append:true to add the next sheet, or stop here if the model is complete.'
       : '';
-    return `Generated ${finalName} (${Math.round(sz / 1024)} KB) — ${sheetNote}, styled and validated. Offered as a download; the canvas can preview it.${more}`;
+    if (auditDefects.length) {
+      // The file is written, but it would NOT pass the quality gate — say so now, with the
+      // exact defects, so the fix happens in this turn (minimal targeted re-call).
+      return (
+        `Wrote ${finalName} (${sheetNote}), BUT the automatic audit found defect(s) the quality gate will reject — ` +
+        `fix them NOW with a minimal targeted re-call (only the affected sheet(s)):\n- ${auditDefects.join('\n- ')}` +
+        (append
+          ? `\n(If your NEXT append:true call adds the sheet/formulas named above, just continue — this audit re-runs after every call and clears once the workbook is complete.)`
+          : '')
+      );
+    }
+    return `Generated ${finalName} (${Math.round(sz / 1024)} KB) — ${sheetNote}, styled, validated, and audit-clean (formulas, statements, numbers). Offered as a download; the canvas can preview it.${more}`;
   },
 };

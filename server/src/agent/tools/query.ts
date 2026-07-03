@@ -73,6 +73,19 @@ try:
         df = pd.read_csv(path, sep=None, engine="python")
         con.register("data", df); used.add("data")
         tables.append(("data", os.path.basename(path), list(df.columns), len(df)))
+    elif ext == ".json":
+        # An array of records (or {data:[...]}) — the common API-export shape.
+        import json as _json
+        with open(path) as fh:
+            raw = _json.load(fh)
+        if isinstance(raw, dict) and isinstance(raw.get("data"), list):
+            raw = raw["data"]
+        if not isinstance(raw, list):
+            print("LOAD_ERROR: the JSON is not an array of records (or {data:[...]}).")
+            sys.exit(0)
+        df = pd.json_normalize(raw)
+        con.register("data", df); used.add("data")
+        tables.append(("data", os.path.basename(path), list(df.columns), len(df)))
     else:
         sheets = pd.read_excel(path, sheet_name=None)
         for name, df in sheets.items():
@@ -125,7 +138,10 @@ with pd.option_context("display.max_columns", 60, "display.width", 240, "display
 export const querySpreadsheetTool: ToolDef = {
   name: 'query_spreadsheet',
   description:
-    'Run a SQL query across ALL tabs of a spreadsheet (.xlsx/.xls/.csv) and get back ONLY the result — ' +
+    'Run a SQL query across ALL tabs of a data file (.xlsx/.xls/.csv/.tsv/.json records) and get back ONLY ' +
+    'the result. MANDATORY for analysis correctness: every figure you derive from provided data (totals, ' +
+    'averages, shares, rankings, cross-tabs) must come from THIS tool or compute_financials and be quoted ' +
+    'EXACTLY — never sum or count rows in your head; eyeballed arithmetic over a file WILL be wrong somewhere. ' +
     'the right way to analyse a LARGE or MULTI-TAB workbook (totals, group-bys, joins across tabs, pivots, ' +
     'filters, reconciliation) WITHOUT paging raw cells into the conversation. Every sheet is loaded into ' +
     'DuckDB as a table; the data stays in a separate process, so this scales to huge, many-tab files. ' +
@@ -139,7 +155,7 @@ export const querySpreadsheetTool: ToolDef = {
   parameters: {
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'Workspace path to the spreadsheet, e.g. "uploads/data.xlsx".' },
+      path: { type: 'string', description: 'Workspace path to the data file (.xlsx/.xls/.csv/.tsv/.json), e.g. "uploads/data.xlsx".' },
       sql: {
         type: 'string',
         description:
@@ -176,7 +192,12 @@ export const querySpreadsheetTool: ToolDef = {
       return `Error: could not stage the query — ${e?.message ?? e}`;
     }
     try {
-      const res = await execBash(`python3 ${JSON.stringify(scriptPath)}`, {
+      // -P (safe path, 3.11+): the workspace dir must NOT land on sys.path — a stray user
+      // module there (types.py, json.py, anything with import-time side effects) otherwise
+      // shadows what pandas imports and the tool dies with a bogus "MISSING_DEPS"
+      // (reproduced with a workspace .py that read env at import). -P keeps user
+      // site-packages (where pip --user deps live), unlike -I which would drop them.
+      const res = await execBash(`python3 -P ${JSON.stringify(scriptPath)}`, {
         cwd: ctx.repoDir,
         timeoutMs: 90_000,
         signal: ctx.signal,

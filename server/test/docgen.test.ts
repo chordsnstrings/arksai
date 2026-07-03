@@ -616,3 +616,52 @@ test('currencyNumFmt: ISO codes are quoted, symbols prefix, empty falls back to 
   assert.equal(currencyNumFmt(''), '$#,##0.00');
   assert.equal(currencyNumFmt(undefined), '$#,##0.00');
 });
+
+// FIRST-GO: generate_spreadsheet now runs the gate's deterministic audits INSIDE the tool
+// call — a hard-coded model is told to fix itself in the same turn, never at the gate.
+test('generate_spreadsheet: a hard-coded financial model is flagged IN the tool result', async () => {
+  const res = await generateSpreadsheetTool.run(
+    {
+      filename: 'hardcoded-model.xlsx',
+      sheets: [
+        {
+          name: 'Assumptions',
+          columns: [{ header: 'Driver' }, { header: 'Value', type: 'number' }],
+          rows: [['Growth', 0.12], ['Price', 49], ['Churn', 0.03], ['CAC', 180], ['Seats', 1200], ['Fixed cost', 90000], ['Tax', 0.09], ['Discount', 0.1]],
+        },
+        {
+          name: 'P&L',
+          columns: [{ header: 'Line' }, { header: 'Y1', type: 'currency' }, { header: 'Y2', type: 'currency' }],
+          rows: [
+            ['Revenue', 100000, 112000], ['COGS', 40000, 44800], ['Gross profit', 60000, 67200],
+            ['Opex', 30000, 31000], ['EBITDA', 30000, 36200], ['Tax', 2700, 3258],
+            ['Net income', 27300, 32942], ['Total', 27300, 32942],
+          ],
+        },
+      ],
+    },
+    ctx(),
+  );
+  assert.match(String(res), /audit found defect|hard-coded|LIVE formulas/i);
+});
+
+test('generate_spreadsheet: a genuinely formula-driven sheet reports audit-clean', async () => {
+  const res = await generateSpreadsheetTool.run(
+    {
+      filename: 'clean-model.xlsx',
+      sheets: [
+        {
+          name: 'Sales',
+          columns: [{ header: 'Product' }, { header: 'Units', type: 'number' }, { header: 'Price', type: 'currency' }, { header: 'Revenue', type: 'currency' }],
+          rows: [
+            ['Alpha', 120, 25, { f: 'B2*C2', v: 3000 }],
+            ['Beta', 80, 40, { f: 'B3*C3', v: 3200 }],
+            ['Total', { f: 'SUM(B2:B3)', v: 200 }, '', { f: 'SUM(D2:D3)', v: 6200 }],
+          ],
+        },
+      ],
+    },
+    ctx(),
+  );
+  assert.match(String(res), /audit-clean/);
+});

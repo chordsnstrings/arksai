@@ -80,3 +80,9 @@ test('query_spreadsheet profile mode returns per-column stats (or degrades)', as
 test('query_spreadsheet is available in every mode', () => {
   for (const m of ['chat', 'plan', 'code', 'report'] as const) assert.ok(querySpreadsheetTool.modes.includes(m));
 });
+
+test('buildQueryScript: loads .json records and runs python with a safe sys.path', () => {
+  const s = buildQueryScript();
+  assert.match(s, /ext == "\.json"/);
+  assert.match(s, /json_normalize/);
+});
