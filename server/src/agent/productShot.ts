@@ -178,6 +178,71 @@ export function buildProductFrameHtml(opts: { imgDataUrl: string; backdropId: st
   </div></body></html>`;
 }
 
+/**
+ * The staged LINE-UP first frame: several products (a range) shoulder to shoulder on one
+ * backdrop — hero variant center at full size, siblings flanking slightly smaller (pure).
+ * Powers the family-lineup ad style for brands with a product range.
+ */
+export function buildLineupFrameHtml(opts: { items: { imgDataUrl: string; isolated: boolean }[]; backdropId: string; w: number; h: number }): string {
+  const scene = BACKDROP_CSS[opts.backdropId] || BACKDROP_CSS['studio-white'];
+  const dark = /dark-luxury|neon-night|tech|festive|stone-slate|smoke-mist|industrial/.test(opts.backdropId);
+  const n = opts.items.length;
+  // Hero (first item) center; the rest alternate right/left so the row stays balanced.
+  const left: number[] = [];
+  const right: number[] = [];
+  for (let i = 1; i < n; i++) (i % 2 ? right : left).push(i);
+  const row = [...left.reverse(), 0, ...right];
+  // Explicit pixel slot widths — percentage max-widths inside shrink-to-fit flex slots
+  // resolve circularly and render the products tiny (found by eyeballing a real raster).
+  const gap = Math.round(opts.w * 0.012);
+  const slotW = Math.floor((opts.w * 0.88 - gap * (n - 1)) / n);
+  const imgs = row
+    .map((idx) => {
+      const it = opts.items[idx];
+      const hero = idx === 0;
+      return `
+    <div class="slot" style="z-index:${hero ? 3 : 2}">
+      <img class="r" style="opacity:${it.isolated ? 0.14 : 0}" src="${it.imgDataUrl}">
+      <img class="p" style="transform:scale(${hero ? 1 : 0.82});" src="${it.imgDataUrl}">
+    </div>`;
+    })
+    .join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+  html,body{margin:0;width:${opts.w}px;height:${opts.h}px;overflow:hidden}
+  .scene{position:relative;width:100%;height:100%;${scene}}
+  .floor{position:absolute;left:0;right:0;bottom:0;height:34%;background:linear-gradient(180deg,transparent,rgba(0,0,0,${dark ? 0.5 : 0.14}))}
+  .row{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);display:flex;align-items:flex-end;justify-content:center;gap:${gap}px}
+  .slot{position:relative;width:${slotW}px;display:flex;flex-direction:column;align-items:center}
+  .p{display:block;max-width:100%;max-height:${Math.round(opts.h * 0.56)}px;transform-origin:bottom center;
+     filter:drop-shadow(0 ${Math.round(opts.h * 0.025)}px ${Math.round(opts.h * 0.04)}px rgba(0,0,0,${dark ? 0.6 : 0.32}));}
+  .r{position:absolute;top:100%;left:50%;transform:translate(-50%,0) scaleY(-1);max-height:${Math.round(opts.h * 0.18)}px;max-width:88%;
+     -webkit-mask-image:linear-gradient(180deg,transparent 30%,rgba(0,0,0,.8));}
+  </style></head><body><div class="scene">
+    <div class="floor"></div>
+    <div class="row">${imgs}</div>
+  </div></body></html>`;
+}
+
+const FRAME_SIZES: Record<string, { w: number; h: number }> = { '16:9': { w: 1280, h: 720 }, '9:16': { w: 720, h: 1280 }, '1:1': { w: 1024, h: 1024 } };
+
+function imageDataUrl(p: string): string {
+  const mime = /\.png$/i.test(p) ? 'image/png' : /\.webp$/i.test(p) ? 'image/webp' : 'image/jpeg';
+  return `data:${mime};base64,${fs.readFileSync(p).toString('base64')}`;
+}
+
+async function rasterizeFrame(html: string, w: number, h: number, outPath: string): Promise<void> {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch({ args: ['--no-sandbox'] });
+  try {
+    const page = await browser.newPage({ viewport: { width: w, height: h } });
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.waitForTimeout(120);
+    await page.screenshot({ path: outPath, type: 'jpeg', quality: 92 });
+  } finally {
+    await browser.close();
+  }
+}
+
 /** Rasterize the staged frame with headless Chromium (same pattern as creative.ts). */
 export async function composeProductFrame(opts: {
   productImagePath: string; // cutout PNG (preferred) or the original photo
@@ -186,19 +251,24 @@ export async function composeProductFrame(opts: {
   aspect?: '16:9' | '9:16' | '1:1';
   isolated: boolean;
 }): Promise<void> {
-  const sizes: Record<string, { w: number; h: number }> = { '16:9': { w: 1280, h: 720 }, '9:16': { w: 720, h: 1280 }, '1:1': { w: 1024, h: 1024 } };
-  const { w, h } = sizes[opts.aspect ?? '16:9'];
-  const mime = /\.png$/i.test(opts.productImagePath) ? 'image/png' : /\.webp$/i.test(opts.productImagePath) ? 'image/webp' : 'image/jpeg';
-  const dataUrl = `data:${mime};base64,${fs.readFileSync(opts.productImagePath).toString('base64')}`;
-  const html = buildProductFrameHtml({ imgDataUrl: dataUrl, backdropId: opts.backdropId, w, h, isolated: opts.isolated });
-  const { chromium } = await import('playwright');
-  const browser = await chromium.launch({ args: ['--no-sandbox'] });
-  try {
-    const page = await browser.newPage({ viewport: { width: w, height: h } });
-    await page.setContent(html, { waitUntil: 'load' });
-    await page.waitForTimeout(120);
-    await page.screenshot({ path: opts.outPath, type: 'jpeg', quality: 92 });
-  } finally {
-    await browser.close();
-  }
+  const { w, h } = FRAME_SIZES[opts.aspect ?? '16:9'];
+  const html = buildProductFrameHtml({ imgDataUrl: imageDataUrl(opts.productImagePath), backdropId: opts.backdropId, w, h, isolated: opts.isolated });
+  await rasterizeFrame(html, w, h, opts.outPath);
+}
+
+/** Rasterize a multi-product LINE-UP frame (the family-lineup ad style). */
+export async function composeProductLineup(opts: {
+  items: { productImagePath: string; isolated: boolean }[];
+  backdropId: string;
+  outPath: string;
+  aspect?: '16:9' | '9:16' | '1:1';
+}): Promise<void> {
+  const { w, h } = FRAME_SIZES[opts.aspect ?? '16:9'];
+  const html = buildLineupFrameHtml({
+    items: opts.items.map((it) => ({ imgDataUrl: imageDataUrl(it.productImagePath), isolated: it.isolated })),
+    backdropId: opts.backdropId,
+    w,
+    h,
+  });
+  await rasterizeFrame(html, w, h, opts.outPath);
 }

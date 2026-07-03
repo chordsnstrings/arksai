@@ -4,6 +4,7 @@ import { useStore } from '../state/sessionStore';
 import { VideoCard } from './VideoCard';
 import { PresetIcon } from './VideoPresetIcon';
 import { PRODUCT_CATEGORIES, BACKDROP_CSS, BACKDROP_LABELS, templatesFor } from '@shared/productAds';
+import { ART_STYLES, ART_STYLE_GROUPS, findArtStyle } from '@shared/videoStyles';
 
 /**
  * "Video" — the dedicated full-page studio surface (Sidebar 🎬 / /video), mirroring Android/Robots.
@@ -52,19 +53,9 @@ const DURATIONS_BY_MODEL: Record<ModelChoice, number[]> = {
   'arksai-video-20': [4, 6, 8, 10, 12, 15],
 };
 
-const STYLES: { id: string; label: string; brief: string }[] = [
-  { id: 'cinematic', label: 'Cinematic', brief: 'cinematic, shallow depth of field, filmic color, smooth camera move' },
-  { id: 'product', label: 'Product', brief: 'clean product shot, soft studio light, slow rotating/tracking camera' },
-  { id: 'ugc', label: 'UGC / handheld', brief: 'authentic handheld UGC look, natural light, casual energy' },
-  { id: 'anime', label: 'Animated', brief: 'stylised animation, bold color, expressive motion' },
-  { id: 'documentary', label: 'Documentary', brief: 'observational documentary realism, natural light, unstaged' },
-  { id: 'vintage', label: 'Vintage film', brief: 'vintage 16mm film, warm faded tones, visible grain' },
-  { id: 'noir', label: 'Noir B&W', brief: 'high-contrast black-and-white film noir, hard shadows' },
-  { id: 'dreamy', label: 'Dreamy', brief: 'dreamy soft-focus, ethereal glow, gentle bloom' },
-  { id: 'vibrant', label: 'Vibrant', brief: 'vibrant saturated bold color, high energy' },
-  { id: 'luxury', label: 'Luxury', brief: 'luxury editorial, glossy premium finish, elegant' },
-  { id: 'none', label: 'No preset', brief: '' },
-];
+// Art styles now live in the shared modular catalog (@shared/videoStyles) — photoreal camera
+// looks, animated/illustrated renders (3D, cartoon, anime, claymation…), and stylized worlds
+// (cyberpunk, synthwave…) — grouped in the picker; '' = no preset (the compiler's default grade).
 
 // Camera-move presets — the 8 official Seedance moves + Auto. "Auto" lets the server prompt
 // compiler pick the best single move for the subject (push-in for people, orbit for products,
@@ -115,7 +106,9 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [dialogue, setDialogue] = useState('');
   // Product mode: the product's actual photo (animated with exact fidelity), name, spoken
   // tagline, and a commercial backdrop.
-  const [productPhoto, setProductPhoto] = useState<Pick2 | null>(null);
+  // Up to 4 product photos — one = a solo hero; several = a RANGE staged as a line-up
+  // (first photo is the hero variant, center).
+  const [productPhotos, setProductPhotos] = useState<Pick2[]>([]);
   const [productName, setProductName] = useState('');
   const [tagline, setTagline] = useState('');
   const [backdrop, setBackdrop] = useState('studio-white');
@@ -162,31 +155,36 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   }
 
   /** The product-ad brief — drives generate_video's product mode with the exact parameters,
-   *  so the server isolates the product, stages it on the backdrop, and compiles the expert
-   *  per-category shot plan (skincare shows application on skin, food the pour/steam…). */
-  function productBrief(img: { productPath?: string }): string {
+   *  so the server isolates the product(s), stages them on the backdrop (a line-up when
+   *  it's a range), and compiles the expert per-category shot plan. */
+  function productBrief(img: { productPaths: string[] }): string {
     const cat = PRODUCT_CATEGORIES.find((c) => c.id === category) || null;
     const styles = templatesFor(category);
     // A universal style (unboxing, UGC…) is a real pick even with no category; a category
     // defaults to its first bespoke style; General with no pick = the classic hero.
     const tpl = styles.find((t) => t.key === template) || (cat ? styles[0] : null);
+    const hasPhotos = img.productPaths.length > 0;
+    const art = findArtStyle(style);
     const lines: string[] = [
       `Generate a ${duration}s ${RATIOS.find((r) => r.id === ratio)?.label.toLowerCase()} (${ratio}) PRODUCT video ad for "${productName.trim()}" with the generate_video tool.`,
       scene.trim() ? `About the product: ${scene.trim()}` : '',
       'Call generate_video with EXACTLY these parameters:',
-      img.productPath ? `- product_photo: ${img.productPath}` : '',
+      img.productPaths.length === 1 ? `- product_photo: ${img.productPaths[0]}` : '',
+      img.productPaths.length > 1 ? `- product_photos: [${img.productPaths.join(', ')}]   (a product RANGE — the first photo is the hero variant, staged center)` : '',
       `- product_name: ${productName.trim()}`,
       cat ? `- product_category: ${cat.id}` : '',
       tpl ? `- ad_template: ${tpl.key}   (${tpl.label} — ${tpl.desc})` : '',
       `- backdrop: ${backdrop}`,
-      img.productPath && !focusProduct ? '- focus_product: false   (keep my photo exactly as-is — do not remove its background)' : '',
+      hasPhotos && !focusProduct ? '- focus_product: false   (keep my photos exactly as-is — do not remove their backgrounds)' : '',
       `- aspect_ratio: "${ratio}", duration: ${duration}`,
       tagline.trim() ? `- dialogue: "${tagline.trim()}"   (a voiceover speaks it)` : '',
       model !== 'auto' ? `- model: "${model === 'arksai-video-15' ? 'video-1.5' : 'video-2.0'}"` : '',
-      // No photo → product mode can't stage a first frame; carry the template's direction in prose.
-      !img.productPath && tpl
+      // No photo → product mode can't stage a first frame; carry the template's direction
+      // (and any chosen art style — a described product can be rendered in ANY style) in prose.
+      !hasPhotos && tpl
         ? `No photo — stage the product from the description. Shot plan: ${tpl.beats.map((b, i) => `${i + 1}. ${b.motion} — ${b.view}`).join('; ')}. Lighting: ${tpl.light}.`
         : '',
+      !hasPhotos && art ? `Art style — render the WHOLE ad in this style: ${art.phrase}.` : '',
       audio ? 'Audio: subtle premium ambience' + (tagline.trim() ? ' under the voiceover.' : ', no music.') : 'No audio — silent clip.',
       '',
       "Make a DRAFT first (fast 480p) so I can approve the direction, then I'll ask for the final.",
@@ -195,12 +193,12 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   }
 
   function brief(img: { startPath?: string; endPath?: string; refPaths: string[]; characterPath?: string }): string {
-    const styleObj = STYLES.find((s) => s.id === style)!;
+    const art = findArtStyle(style);
     const lines: string[] = [
       `Generate a ${duration}s ${RATIOS.find((r) => r.id === ratio)?.label.toLowerCase()} (${ratio}) video.`,
       `Scene: ${scene.trim()}`,
     ];
-    if (styleObj.brief) lines.push(`Look: ${styleObj.brief}.`);
+    if (art) lines.push(`Look: ${art.phrase}.`);
     const seq = beatsBlock();
     if (seq) {
       lines.push(seq);
@@ -262,8 +260,8 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       };
       let msg: string;
       if (kind === 'product') {
-        const productPath = (await up(productPhoto))[0];
-        msg = productBrief({ productPath });
+        const productPaths = await up(productPhotos);
+        msg = productBrief({ productPaths });
       } else {
         const startPath = (await up(startFrame))[0];
         const endPath = (await up(endFrame))[0];
@@ -309,15 +307,34 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           <>
             <div className="aw-step">1 · The product</div>
             <div className="aw-field">
-              <span className="aw-label">Product photo <em>(any background — we find the product and lift it out)</em></span>
+              <span className="aw-label">Product photo{productPhotos.length > 1 ? 's' : ''} <em>(any background — we find the product and lift it out; add 2–4 for a RANGE line-up)</em></span>
               <div className="vs-character">
-                <FrameTile label="" hint="add the product" pick={productPhoto} onPick={(p) => setProductPhoto(p)} />
+                <div className="vs-refs-row">
+                  {productPhotos.map((p, i) => (
+                    <div key={i} className="vs-frame-box has sm">
+                      <img src={p.url} alt={`Product ${i + 1}`} />
+                      {productPhotos.length > 1 && i === 0 && <span className="vs-frame-label" style={{ position: 'absolute', top: 2, left: 4 }}>hero</span>}
+                      <button className="vs-frame-x" type="button" onClick={() => { URL.revokeObjectURL(p.url); setProductPhotos(productPhotos.filter((_, j) => j !== i)); }} aria-label="Remove">×</button>
+                    </div>
+                  ))}
+                  {productPhotos.length < 4 && (
+                    <label className="vs-frame-box sm">
+                      <input type="file" accept="image/*" multiple hidden onChange={(e) => {
+                        const files = e.target.files; if (!files) return;
+                        const room = 4 - productPhotos.length;
+                        setProductPhotos([...productPhotos, ...Array.from(files).slice(0, room).map((f) => ({ file: f, url: URL.createObjectURL(f) }))]);
+                      }} />
+                      <span className="vs-frame-plus">+</span>
+                      <span className="vs-frame-hint">{productPhotos.length ? 'add variant' : 'add the product'}</span>
+                    </label>
+                  )}
+                </div>
                 <div className="vs-char-copy">
-                  <p>Any photo works — kitchen counter, shop shelf, wherever. We identify the product, remove the background, and stage just the product on your chosen backdrop. Without a photo we stage it from your description instead.</p>
-                  {productPhoto && (
+                  <p>Any photo works — kitchen counter, shop shelf, wherever. We identify the product, remove the background, and stage just the product on your chosen backdrop. Add more photos and the whole range stands shoulder to shoulder (first photo = the hero, center). Without a photo we stage it from your description instead.</p>
+                  {productPhotos.length > 0 && (
                     <label className="aw-toggle">
                       <input type="checkbox" checked={focusProduct} onChange={(e) => setFocusProduct(e.target.checked)} />
-                      <span>Focus on the product (remove the photo's background)</span>
+                      <span>Focus on the product{productPhotos.length > 1 ? 's' : ''} (remove the photo background)</span>
                     </label>
                   )}
                 </div>
@@ -434,18 +451,19 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {kind === 'product' && productPhotos.length === 0 && (
+          <div className="aw-field">
+            <span className="aw-label">Art style <em>(no photo yet — a described product can be rendered in ANY style, photoreal to cartoon)</em></span>
+            <ArtStylePicker style={style} onPick={setStyle} />
+          </div>
+        )}
+
         {kind === 'scene' && (
         <>
         <div className="aw-step">2 · Direction <em style={{ fontWeight: 400, fontStyle: 'normal', color: 'var(--text-faint)' }}>· Auto is smart — override only if you want</em></div>
         <div className="aw-field">
-          <span className="aw-label">Look</span>
-          <div className="aw-grid">
-            {STYLES.map((s) => (
-              <button key={s.id} className={`aw-card ${style === s.id ? 'on' : ''}`} onClick={() => setStyle(s.id)} type="button">
-                <span className="aw-card-head"><PresetIcon group="look" id={s.id} size={16} /><strong>{s.label}</strong></span>
-              </button>
-            ))}
-          </div>
+          <span className="aw-label">Look <em>(photoreal camera looks, animated renders, or a stylized world)</em></span>
+          <ArtStylePicker style={style} onPick={setStyle} />
         </div>
 
         {beats.length < 2 && (
@@ -546,6 +564,34 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
 
         <VideoLibrary sessions={sessions.map((s) => s.id)} onOpen={(id) => { setActive(id); onClose(); }} />
       </div>
+    </div>
+  );
+}
+
+/** The modular art-style picker — the shared catalog grouped: photoreal camera looks,
+ *  animated/illustrated renders, and stylized worlds. Click the active chip to clear it
+ *  (no preset → the prompt compiler's premium default grade). */
+function ArtStylePicker({ style, onPick }: { style: string; onPick: (id: string) => void }) {
+  return (
+    <div className="vs-artstyles">
+      {ART_STYLE_GROUPS.map((g) => (
+        <div key={g} className="vs-art-group">
+          <span className="vs-art-group-label">{g}</span>
+          <div className="aw-chips">
+            {ART_STYLES.filter((s) => s.group === g).map((s) => (
+              <button
+                key={s.id}
+                className={`aw-chip ${style === s.id ? 'on' : ''}`}
+                onClick={() => onPick(style === s.id ? '' : s.id)}
+                type="button"
+                title={s.phrase}
+              >
+                <PresetIcon group="look" id={s.id} /> {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

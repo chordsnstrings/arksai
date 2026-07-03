@@ -2677,6 +2677,14 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- Video studio (reuses the .android-* / .aw-* shell) ---------- */
 .aw-toggle { display: flex; align-items: center; gap: 9px; font-size: 13.5px; color: var(--text); cursor: pointer; }
+/* Art-style picker — the grouped modular catalog (photoreal / animated / stylized) */
+.vs-artstyles { display: flex; flex-direction: column; gap: 10px; }
+.vs-art-group { display: flex; flex-direction: column; gap: 5px; }
+.vs-art-group-label {
+  font-family: var(--font-label, inherit); font-size: 10.5px; font-weight: 650;
+  letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint);
+}
+
 /* Frames & references — start/end frame tiles + a reference strip */
 .vs-frames { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
 .vs-frame { display: flex; flex-direction: column; gap: 6px; }

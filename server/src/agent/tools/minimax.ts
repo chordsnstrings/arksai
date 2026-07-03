@@ -4,7 +4,7 @@ import { config } from '../../config';
 import { analyzeImage, fileToDataUrl, generateImage, generateVideo, textToSpeech } from '../../engines/minimax';
 import { createVideoTask, pollVideoTask, downloadVideo, seedanceOn, isRealPersonRejection, realPersonFallbackSpec } from '../../engines/seedance';
 import { compileVideoPrompt } from '../videoBrief';
-import { isolateProduct, composeProductFrame, productAdBrief, BACKDROP_CSS } from '../productShot';
+import { isolateProduct, composeProductFrame, productAdBrief, BACKDROP_CSS, composeProductLineup } from '../productShot';
 import { resolveInWorkspace, type ToolDef } from './common';
 
 const minimaxOn = () => !!config.minimaxApiKey;
@@ -209,6 +209,7 @@ export const generateVideoTool: ToolDef = {
       last_frame_image: { type: 'string', description: 'Optional workspace image path — the clip ENDS on this exact frame; with first_frame_image it animates start→end.' },
       reference_images: { type: 'array', items: { type: 'string' }, description: 'Optional workspace image paths — subject/product/style references the video keeps consistent (best on Video 2.0). Up to 4.' },
       product_photo: { type: 'string', description: 'PRODUCT-AD MODE: workspace path to the product photo. The product is IDENTIFIED and lifted off its background (whatever was behind it), staged on the chosen backdrop with shadow/reflection, and the video OPENS on that clean frame.' },
+      product_photos: { type: 'array', items: { type: 'string' }, description: 'PRODUCT-AD MODE, RANGE/LINE-UP: 2–4 workspace photo paths for a product FAMILY. Each product is isolated and they are staged shoulder-to-shoulder on one backdrop (first photo = the hero variant, center). Defaults the ad style to family-lineup.' },
       product_name: { type: 'string', description: 'Product-ad mode: the product name (used in the director brief).' },
       product_category: { type: 'string', description: 'Product-ad mode: skincare | food | fashion | jewellery | electronics | fragrance | furniture | fitness | automotive | fmcg — picks the expert ad language (skincare shows application on skin, food the pour/steam, jewellery the macro sparkle…).' },
       ad_template: { type: 'string', description: "Product-ad mode: the category's ad style key (e.g. skincare: texture-ritual | ingredient-story | splash-fresh | luxe-noir), or a UNIVERSAL style any product can use: unboxing | ugc-real | zero-gravity | asmr-macro | before-after | festive-gift | miniature-world | retro-film. Omit for the category default." },
@@ -234,30 +235,43 @@ export const generateVideoTool: ToolDef = {
         // Degrades honestly: if isolation can't run, the original photo stages as-is.
         let productNote = '';
         let adPrompt: string | null = null;
-        if (args.product_photo) {
-          const photoAbs = resolveInWorkspace(ctx.repoDir, String(args.product_photo));
-          if (!fs.existsSync(photoAbs)) return `Error: product_photo not found: ${args.product_photo}`;
+        const productPhotos: string[] = Array.isArray(args.product_photos) && args.product_photos.length
+          ? args.product_photos.slice(0, 4).map((p: unknown) => String(p))
+          : args.product_photo
+            ? [String(args.product_photo)]
+            : [];
+        if (productPhotos.length) {
           const vidDir = path.join(ctx.repoDir, 'videos');
           fs.mkdirSync(vidDir, { recursive: true });
-          let stagedFrom = photoAbs;
-          let isolated = false;
-          if (args.focus_product !== false) {
-            const cut = path.join(vidDir, `product-cut-${Date.now()}.png`);
-            const iso = await isolateProduct(photoAbs, cut, ctx.signal);
-            if (iso.ok) { stagedFrom = cut; isolated = true; }
-            else productNote = `\nNote: background removal was skipped (${iso.reason}) — the original photo was staged as-is.`;
+          // Isolate each photo (focus_product default on); degrade per-photo, honestly.
+          const staged: { productImagePath: string; isolated: boolean }[] = [];
+          for (const [i, rel] of productPhotos.entries()) {
+            const photoAbs = resolveInWorkspace(ctx.repoDir, rel);
+            if (!fs.existsSync(photoAbs)) return `Error: product photo not found: ${rel}`;
+            let stagedFrom = photoAbs;
+            let isolated = false;
+            if (args.focus_product !== false) {
+              const cut = path.join(vidDir, `product-cut-${Date.now()}-${i}.png`);
+              const iso = await isolateProduct(photoAbs, cut, ctx.signal);
+              if (iso.ok) { stagedFrom = cut; isolated = true; }
+              else productNote += `\nNote: background removal was skipped for ${path.basename(rel)} (${iso.reason}) — that photo was staged as-is.`;
+            }
+            staged.push({ productImagePath: stagedFrom, isolated });
           }
           const backdropId = BACKDROP_CSS[String(args.backdrop || '')] ? String(args.backdrop) : 'studio-white';
           const stagedOut = path.join(vidDir, `product-frame-${Date.now()}.jpg`);
           const aspect = ['16:9', '9:16', '1:1'].includes(String(args.aspect_ratio)) ? (String(args.aspect_ratio) as '16:9' | '9:16' | '1:1') : '16:9';
-          await composeProductFrame({ productImagePath: stagedFrom, backdropId, outPath: stagedOut, aspect, isolated });
+          const lineup = staged.length > 1;
+          if (lineup) await composeProductLineup({ items: staged, backdropId, outPath: stagedOut, aspect });
+          else await composeProductFrame({ productImagePath: staged[0].productImagePath, backdropId, outPath: stagedOut, aspect, isolated: staged[0].isolated });
           args.first_frame_image = path.relative(ctx.repoDir, stagedOut);
           adPrompt = productAdBrief({
             productName: String(args.product_name || prompt.slice(0, 80)),
             productDesc: args.product_name ? prompt : undefined,
             categoryId: args.product_category ? String(args.product_category) : undefined,
-            templateKey: args.ad_template ? String(args.ad_template) : undefined,
-            backdropPhrase: `staged on a ${backdropId.replace(/-/g, ' ')} set`,
+            // A range with no explicit style gets the line-up treatment by default.
+            templateKey: args.ad_template ? String(args.ad_template) : lineup ? 'family-lineup' : undefined,
+            backdropPhrase: `staged on a ${backdropId.replace(/-/g, ' ')} set${lineup ? ` — a line-up of ${staged.length} products, hero variant center` : ''}`,
             tagline: args.dialogue ? String(args.dialogue) : undefined,
             durationS: Number(args.duration) || 12,
           });

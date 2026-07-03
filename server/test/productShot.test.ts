@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { productAdBrief, buildProductFrameHtml } from '../src/agent/productShot';
+import { productAdBrief, buildProductFrameHtml, buildLineupFrameHtml } from '../src/agent/productShot';
 import { PRODUCT_CATEGORIES, UNIVERSAL_TEMPLATES, BACKDROP_CSS, BACKDROP_LABELS, findCategory, findTemplate, templatesFor } from '../../shared/productAds';
+import { ART_STYLES, ART_STYLE_GROUPS, findArtStyle } from '../../shared/videoStyles';
 
 // ── Catalog integrity ─────────────────────────────────────────────────────────
 // The catalog is pure data shared by the server brief compiler and the client Video
@@ -119,6 +120,56 @@ test('buildProductFrameHtml: scene, product, shadow and reflection compose', () 
   assert.match(html, /opacity:0\.16/);
   const raw = buildProductFrameHtml({ imgDataUrl: 'data:image/jpeg;base64,BBB', backdropId: 'dark-luxury', w: 720, h: 1280, isolated: false });
   assert.match(raw, /opacity:0;/);
+});
+
+test('buildLineupFrameHtml: hero centers, siblings flank, reflections only when isolated', () => {
+  const items = [
+    { imgDataUrl: 'data:image/png;base64,HERO', isolated: true },
+    { imgDataUrl: 'data:image/png;base64,SIB1', isolated: true },
+    { imgDataUrl: 'data:image/png;base64,SIB2', isolated: false },
+  ];
+  const html = buildLineupFrameHtml({ items, backdropId: 'studio-white', w: 1280, h: 720 });
+  // Each product appears twice (hero image + reflection) in a shared row on one scene.
+  for (const it of items) assert.equal((html.match(new RegExp(it.imgDataUrl, 'g')) || []).length, 2);
+  assert.match(html, /class="row"/);
+  // Hero (first item) renders center: row order for 3 = [sib2, hero, sib1] — hero is the 2nd slot.
+  const slots = html.split('class="slot"').slice(1);
+  assert.equal(slots.length, 3);
+  assert.ok(slots[1].includes('HERO'), 'hero variant sits center');
+  assert.ok(slots[1].includes('scale(1)'), 'hero at full size');
+  assert.ok(slots[0].includes('scale(0.82)') && slots[2].includes('scale(0.82)'), 'siblings slightly smaller');
+  // The non-isolated photo must not mirror its rectangular background.
+  assert.ok(slots.find((s) => s.includes('SIB2'))!.includes('opacity:0"'), 'raw photo gets no reflection');
+});
+
+test('new universal styles resolve: problem→solution, hype cut, line-up', () => {
+  assert.match(productAdBrief({ productName: 'X', templateKey: 'problem-solution', durationS: 12 }), /relatable everyday frustration/);
+  assert.match(productAdBrief({ productName: 'X', templateKey: 'speed-ramp', durationS: 6 }), /speed ramp/);
+  const lineup = productAdBrief({ productName: 'X', categoryId: 'skincare', templateKey: 'family-lineup', durationS: 12 });
+  assert.match(lineup, /product range standing in a confident row/);
+  assert.match(lineup, /no invented variants/);
+});
+
+test('ART_STYLES: unique ids, complete phrases, every group populated', () => {
+  const ids = ART_STYLES.map((s) => s.id);
+  assert.equal(new Set(ids).size, ids.length, 'style ids unique');
+  assert.ok(ART_STYLES.length >= 20, 'a comprehensive style menu');
+  for (const s of ART_STYLES) {
+    assert.ok(s.label.trim() && s.phrase.trim().length > 20, `${s.id}: label + a real style phrase`);
+    assert.ok(ART_STYLE_GROUPS.includes(s.group), `${s.id}: known group`);
+  }
+  for (const g of ART_STYLE_GROUPS) {
+    assert.ok(ART_STYLES.some((s) => s.group === g), `${g}: has styles`);
+  }
+  assert.equal(findArtStyle('claymation')?.group, 'Animated & illustrated');
+  assert.equal(findArtStyle('nope'), null);
+  // Every phrase must trip the prompt compiler's HAS_STYLE guard so the default premium
+  // grade never overwrites a chosen style (mirror of videoBrief.ts's regex).
+  const HAS_STYLE = /cinematic|editorial|photoreal|anim(e|ated)|illustrat|film|35mm|4k|grade|grain|stylized|noir|documentary|vintage|retro|watercolou?r|3d render/i;
+  const EXTRA = /cartoon|claymation|paper|comic|pixel|low-poly|sketch|neon|synthwave|fantasy|toy|surreal|handheld|ugc|dream|saturated|luxury|glow/i;
+  for (const s of ART_STYLES) {
+    assert.ok(HAS_STYLE.test(s.phrase) || EXTRA.test(s.phrase), `${s.id}: phrase carries a recognizable style signal`);
+  }
 });
 
 test('buildProductFrameHtml: unknown backdrop falls back to studio-white; dark scenes deepen the shadow', () => {
