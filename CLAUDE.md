@@ -73,6 +73,7 @@ A hands-on audit ran ALL 52 plays end-to-end (real API + Playwright/mupdf captur
 - After changes: commit to `main` and push. **Auto-deploy** (systemd timer on the Droplet) pulls + rebuilds `main` every ~2 min — no manual deploy needed. Don't hand-edit files in `/opt/arksai` (overwritten); `.env` is safe.
 - The user wants work landed on `main`. The web/task harness sometimes assigns a feature branch (e.g. `claude/...`); auto-deploy only watches `main`, so commit/merge to `main` — the user has said "commit to main" explicitly and repeatedly.
 - Local manual run for testing: `APP_PASSWORD=testpass PORT=3000 DEEPSEEK_API_KEY=... nohup node server/dist/server/src/index.js &` — start it in an ISOLATED bash command (a `pkill`/`kill` in the same command kills the new start; that's burned me repeatedly).
+- **UI work is always VISUALLY QA'd, not just gate-checked (operator directive, 2026-07-03):** any change to a skeleton/template/client surface gets Playwright screenshots at 390px AND 1280px of every affected page, eyeballed for micro-animations, responsiveness, palette and overall aesthetic before shipping. The screenshots have caught what the detectors can't (a builder-note leaking into a delivered dashboard).
 - To reproduce UI bugs, drive a real headless browser (Playwright is installed) and click the actual element — curl tests miss frontend-path bugs (the DELETE-400 bug was only visible through the browser).
 
 ## Deployment (DigitalOcean)

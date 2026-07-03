@@ -21,7 +21,7 @@ export default function Orders() {
   };
   const setStatus = (o, status) => api.patch(`/orders/${o.id}`, { status }).then(() => { load(); setOpen(null); toast(`Order ${status}`); }).catch((e) => toast(e.message, 'error'));
 
-  if (rows === null) return <div className="page"><div className="empty">Loading…</div></div>;
+  if (rows === null) return <div className="page"><div className="empty loading">Loading…</div></div>;
   return (
     <div className="page">
       <div className="page-hd">

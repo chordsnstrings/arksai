@@ -40,7 +40,7 @@ export default function Products() {
   const toggle = (p) => api.patch(`/products/${p.id}`, { active: !p.active }).then(load).catch((e) => toast(e.message, 'error'));
   const remove = (p) => api.del(`/products/${p.id}`).then(load).catch((e) => toast(e.message, 'error'));
 
-  if (rows === null) return <div className="page"><div className="empty">Loading…</div></div>;
+  if (rows === null) return <div className="page"><div className="empty loading">Loading…</div></div>;
   return (
     <div className="page">
       <div className="page-hd">

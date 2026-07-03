@@ -21,7 +21,7 @@ export default function Items() {
   const toggle = (it) => api.patch(`/items/${it.id}`, { status: it.status === 'done' ? 'open' : 'done' }).then(load).catch((e) => toast(e.message, 'error'));
   const remove = (it) => api.del(`/items/${it.id}`).then(load).catch((e) => toast(e.message, 'error'));
 
-  if (items === null) return <div className="page"><div className="empty">Loading…</div></div>;
+  if (items === null) return <div className="page"><div className="empty loading">Loading…</div></div>;
   return (
     <div className="page">
       <div className="page-hd">

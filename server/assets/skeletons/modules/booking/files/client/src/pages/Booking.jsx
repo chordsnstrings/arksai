@@ -56,7 +56,7 @@ export default function Booking() {
     }
   }).catch((e) => toast(e.message, 'error'));
 
-  if (resources === null) return <div className="page"><div className="empty">Loading…</div></div>;
+  if (resources === null) return <div className="page"><div className="empty loading">Loading…</div></div>;
   return (
     <div className="page">
       <div className="page-hd">
@@ -87,7 +87,7 @@ export default function Booking() {
               ))}
             </div>
             {slots === null ? (
-              <div className="empty">Loading availability…</div>
+              <div className="empty loading">Loading availability…</div>
             ) : (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {slots.map((s) => (

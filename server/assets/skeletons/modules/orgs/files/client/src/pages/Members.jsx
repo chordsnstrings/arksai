@@ -18,7 +18,7 @@ export default function Members() {
     }).catch((e) => { toast(e.message, 'error'); setMembers([]); });
   }, []);
 
-  if (members === null) return <div className="page"><div className="empty">Loading…</div></div>;
+  if (members === null) return <div className="page"><div className="empty loading">Loading…</div></div>;
   return (
     <div className="page">
       <div className="page-hd">

@@ -48,7 +48,7 @@ export default function Shop() {
     finally { setPlacing(false); }
   }
 
-  if (products === null) return <div className="page"><div className="empty">Loading…</div></div>;
+  if (products === null) return <div className="page"><div className="empty loading">Loading…</div></div>;
   return (
     <div className="page">
       <div className="page-hd">

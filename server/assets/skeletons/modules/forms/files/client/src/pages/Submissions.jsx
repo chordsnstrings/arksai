@@ -5,7 +5,7 @@ import { api } from '../lib/api.js';
 export default function Submissions() {
   const [rows, setRows] = useState(null);
   useEffect(() => { api.get('/submissions').then(setRows).catch(() => setRows([])); }, []);
-  if (rows === null) return <div className="page"><div className="empty">Loading…</div></div>;
+  if (rows === null) return <div className="page"><div className="empty loading">Loading…</div></div>;
   return (
     <div className="page">
       <div className="page-hd">

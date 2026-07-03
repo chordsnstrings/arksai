@@ -18,7 +18,7 @@ function Ring({ pct, label }) {
 export default function Dashboard() {
   const [s, setS] = useState(null);
   useEffect(() => { api.get('/stats').then(setS).catch(() => setS({ total: 0, done: 0, open: 0, donePct: 0 })); }, []);
-  if (!s) return <div className="page"><div className="empty">Loading…</div></div>;
+  if (!s) return <div className="page"><div className="empty loading">Loading…</div></div>;
   return (
     <div className="page">
       <div className="page-hd">
@@ -39,7 +39,17 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-        <div className="card"><div className="card-hd"><h3>Next</h3></div><p className="muted">Wire real KPIs per entity here — the stats route shows the SQL aggregation pattern.</p></div>
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="card-hd" style={{ padding: '16px 18px 4px' }}><h3>Recent</h3></div>
+          {(s.recent || []).map((x) => (
+            <div key={x.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px', borderBottom: '1px solid var(--line-soft)' }}>
+              <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: x.status === 'done' ? 'var(--done)' : 'var(--doing)' }} />
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>{x.title}</span>
+              <span className="muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{new Date(x.createdAt).toLocaleDateString()}</span>
+            </div>
+          ))}
+          {!(s.recent || []).length && <div className="empty" style={{ padding: 20 }}>Activity shows up here as records are added.</div>}
+        </div>
       </div>
     </div>
   );

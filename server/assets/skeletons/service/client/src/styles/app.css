@@ -430,6 +430,34 @@ ul { list-style: none; padding: 0; margin: 0; }
 .field input:focus-visible, .field textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .muted { color: var(--ink-3); font-size: 13px; line-height: 1.5; }
 
+/* ── Micro-motion (restrained, purposeful; all of it collapses under reduced-motion) ── */
+.page { animation: pageIn .32s var(--ease-out) both; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* Cards settle in with a whisper of stagger on first paint… */
+.page .grid > .card { animation: lift .3s var(--ease-out) both; }
+.page .grid > .card:nth-child(2) { animation-delay: .045s; }
+.page .grid > .card:nth-child(3) { animation-delay: .09s; }
+.page .grid > .card:nth-child(4) { animation-delay: .135s; }
+.page .grid > .card:nth-child(n+5) { animation-delay: .18s; }
+/* …and lift gently under the pointer (only inside grids, where cards are content units). */
+.card { transition: border-color .2s var(--ease-out), box-shadow .2s var(--ease-out); }
+.grid > .card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-md); }
+/* Primary actions carry a soft accent glow that deepens on hover. */
+.btn-primary { box-shadow: 0 1px 10px var(--accent-tint); }
+.btn-primary:hover { box-shadow: 0 3px 16px rgba(217, 119, 87, 0.28); transform: translateY(-0.5px); }
+.btn-primary:active { transform: translateY(0.5px); }
+/* The active nav item earns a small accent bar that grows in. */
+.nav-item { position: relative; }
+.nav-item::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 2.5px; height: 0; border-radius: 2px; background: var(--accent);
+  transition: height .18s var(--ease-out);
+}
+.nav-item.active::before { height: 15px; }
+/* Loading placeholders breathe instead of sitting frozen. */
+.loading { animation: softPulse 1.6s ease-in-out infinite; }
+@keyframes softPulse { 0%, 100% { opacity: .75; } 50% { opacity: .4; } }
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

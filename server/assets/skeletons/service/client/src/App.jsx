@@ -8,7 +8,7 @@ import { PAGES } from './modules.gen.js';
 function Root() {
   const { user, ready } = useAuth();
   const [page, setPage] = useState(PAGES[0].key);
-  if (!ready) return <div className="page"><div className="empty">Loading…</div></div>;
+  if (!ready) return <div className="page"><div className="empty loading">Loading…</div></div>;
   if (!user) return <Auth />;
   const Current = (PAGES.find((p) => p.key === page) || PAGES[0]).component;
   return (

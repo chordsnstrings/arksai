@@ -37,7 +37,7 @@ export default function Content() {
   const togglePublish = (p) => api.patch(`/content-admin/${p.id}`, { published: !p.published }).then(() => { load(); toast(p.published ? 'Unpublished' : 'Published'); }).catch((e) => toast(e.message, 'error'));
   const remove = (p) => api.del(`/content-admin/${p.id}`).then(() => { if (editing === p.id) reset(); load(); toast('Deleted'); }).catch((e) => toast(e.message, 'error'));
 
-  if (rows === null) return <div className="page"><div className="empty">Loading…</div></div>;
+  if (rows === null) return <div className="page"><div className="empty loading">Loading…</div></div>;
   return (
     <div className="page">
       <div className="page-hd">
