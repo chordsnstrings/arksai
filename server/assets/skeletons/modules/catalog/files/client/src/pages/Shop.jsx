@@ -29,7 +29,10 @@ export default function Shop() {
     const q = new URLSearchParams(window.location.search);
     const provider = q.get('paid');
     if (!provider) return;
-    const body = provider === 'stripe' ? { provider, sessionId: q.get('session_id') } : { provider, token: q.get('token') };
+    const body =
+      provider === 'stripe' ? { provider, sessionId: q.get('session_id') }
+      : provider === 'paypal' ? { provider, token: q.get('token') }
+      : { provider, orderId: q.get('order') };
     window.history.replaceState(null, '', window.location.pathname);
     api.post('/payments/confirm', body)
       .then((d) => toast(`Payment received — order ${d.orderId} is paid`))
@@ -128,9 +131,9 @@ export default function Shop() {
           {placed && !lines.length ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <p style={{ margin: 0 }}>Order <strong>{placed.orderId}</strong> received — total {money(placed.totalCents)}.</p>
-              {payOptions && (payOptions.stripe || payOptions.paypal) ? (
+              {payOptions && (payOptions.cardProvider || payOptions.paypal) ? (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {payOptions.stripe && <button className="btn btn-primary" onClick={() => payNow('stripe')} disabled={!!paying}>{paying === 'stripe' ? 'Opening secure checkout…' : 'Pay now by card'}</button>}
+                  {payOptions.cardProvider && <button className="btn btn-primary" onClick={() => payNow(payOptions.cardProvider)} disabled={!!paying}>{paying && paying !== 'paypal' ? 'Opening secure checkout…' : 'Pay now'}</button>}
                   {payOptions.paypal && <button className="btn" onClick={() => payNow('paypal')} disabled={!!paying}>{paying === 'paypal' ? 'Opening PayPal…' : 'Pay with PayPal'}</button>}
                 </div>
               ) : (

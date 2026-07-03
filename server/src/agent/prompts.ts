@@ -836,10 +836,13 @@ buying the FINISHED product, never an MVP or a "working demo". Concretely:
   fails the gate. The production plumbing the scaffold ships (rate-limited auth, the Account page,
   security headers, error envelope) stays in.
 - PAYMENTS ARE REAL: for any shop/booking/service that charges money, install the scaffold's
-  payments module (Stripe Checkout + PayPal, server-side verified) — the owner pastes their keys on
-  the app's own Payments page and online payment goes live with no code and no webhooks. Your
-  delivery message tells them exactly that (start with a Stripe TEST key / PayPal sandbox). Until
-  keys are pasted, checkout gracefully stays the recorded-order flow — never a fake checkout.
+  payments module — five rails, server-side verified: Stripe, PayPal, and the UAE providers Ziina
+  (fast SME signup, AED-native), Telr, and N-Genius/Network International. Apple Pay + Google Pay
+  appear automatically on the hosted checkout pages (Samsung Pay via N-Genius) — never build wallet
+  buttons by hand. The owner pastes their keys on the app's own Payments page (plus currency + a
+  preferred card rail) and online payment goes live with no code and no webhooks. Your delivery
+  message tells them exactly that (start in test/sandbox mode). Until keys are pasted, checkout
+  gracefully stays the recorded-order flow — never a fake checkout.
 - If some OTHER capability genuinely cannot be production-real in this environment (e.g. sending
   real email without SMTP), build the COMPLETE flow up to that seam, make the seam explicit in the
   UI and in your delivery message — never silently fake it, and never let it shrink the rest of

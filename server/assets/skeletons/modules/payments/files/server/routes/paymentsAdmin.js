@@ -1,32 +1,54 @@
-// Owner settings (signed-in): paste provider keys, see configured state. WRITE-ONLY —
-// secrets are never returned over the API, only booleans + key tails for recognition.
+// Owner settings (signed-in): paste provider keys, pick the preferred card rail + currency.
+// WRITE-ONLY — secrets are never returned over the API, only booleans + key tails.
 import { Router } from 'express';
 import { db } from '../db.js';
-import { getSettings, saveSettings, providersConfigured } from '../lib/payments.js';
+import { getSettingsExtended, saveSettingsExtended, allProviders } from '../lib/payments.js';
 
 const r = Router();
+const CURRENCIES = ['USD', 'AED', 'SAR', 'EUR', 'GBP', 'KWD', 'BHD', 'QAR', 'OMR', 'EGP', 'INR'];
 
 r.get('/settings', (_req, res) => {
-  const s = getSettings();
+  const s = getSettingsExtended();
   const tail = (v) => (v ? `…${String(v).slice(-4)}` : '');
   res.json({
-    ...providersConfigured(),
+    ...allProviders(),
     stripeKeyTail: tail(s.stripeSecretKey),
     paypalClientTail: tail(s.paypalClientId),
     paypalLive: s.paypalLive,
+    ziinaKeyTail: tail(s.ziinaSecret),
+    ziinaTest: s.ziinaTest,
+    telrStoreTail: tail(s.telrStoreId),
+    telrTest: s.telrTest,
+    ngeniusKeyTail: tail(s.ngeniusApiKey),
+    ngeniusOutletTail: tail(s.ngeniusOutletRef),
+    ngeniusLive: s.ngeniusLive,
+    defaultProvider: s.defaultProvider,
+    currencies: CURRENCIES,
   });
 });
 
 r.put('/settings', (req, res) => {
   const b = req.body || {};
-  const clean = (v) => (v === undefined ? undefined : String(v).trim().slice(0, 300));
-  saveSettings({
+  const clean = (v) => (v === undefined ? undefined : String(v).trim().slice(0, 400));
+  if (b.currencyCode !== undefined && !CURRENCIES.includes(String(b.currencyCode).toUpperCase()))
+    return res.status(400).json({ error: `currency must be one of ${CURRENCIES.join(', ')}` });
+  saveSettingsExtended({
     stripeSecretKey: clean(b.stripeSecretKey),
     paypalClientId: clean(b.paypalClientId),
     paypalSecret: clean(b.paypalSecret),
     paypalLive: b.paypalLive,
+    ziinaSecret: clean(b.ziinaSecret),
+    ziinaTest: b.ziinaTest,
+    telrStoreId: clean(b.telrStoreId),
+    telrAuthKey: clean(b.telrAuthKey),
+    telrTest: b.telrTest,
+    ngeniusApiKey: clean(b.ngeniusApiKey),
+    ngeniusOutletRef: clean(b.ngeniusOutletRef),
+    ngeniusLive: b.ngeniusLive,
+    currencyCode: clean(b.currencyCode),
+    defaultProvider: clean(b.defaultProvider),
   });
-  res.json({ ok: true, ...providersConfigured() });
+  res.json({ ok: true, ...allProviders() });
 });
 
 // Payment history for the owner (order + provider + status).

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-03.23';
+export const WHATS_NEW_VERSION = '2026-07-03.24';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Get paid — Stripe and PayPal built in',
-    body: 'Apps that sell now come with real online payment. Open your app\'s Payments page, paste your Stripe or PayPal keys, and buyers can pay by card or PayPal immediately — money goes straight to your account. Every payment is verified with the provider before an order is marked paid, and until you add keys, orders are simply recorded for you to arrange payment.',
+    title: 'Get paid — UAE payments built in',
+    body: 'Apps that sell now take real payments through Ziina, Telr, Network International, Stripe or PayPal — with Apple Pay and Google Pay appearing automatically at checkout (Samsung Pay via Network International). Paste your keys on your app\'s Payments page, pick your currency (AED included), and buyers pay instantly; money goes straight to your account and every payment is verified with the provider first.',
   },
   {
     title: 'Shops, bookings, and content sites',
