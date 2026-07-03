@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-03.29';
+export const WHATS_NEW_VERSION = '2026-07-03.30';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -18,6 +18,10 @@ export function shouldShowWhatsNew(): boolean {
 
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
+  {
+    title: 'Story videos — multiple scenes, one film',
+    body: 'Describe a whole sequence — "a man walks the desert, zooms into his phone, a helicopter drops a car, the driver opens his door" — and ArksAI plans the scenes, gives each exactly the length it needs, keeps the same people, products and even exact on-screen text consistent across scenes, and stitches everything into ONE video. A cheap draft comes first with a scene-by-scene list; retake any single scene, then render the final.',
+  },
   {
     title: 'Product videos that focus on YOUR product',
     body: 'Upload a photo of your product on any background — a kitchen counter, a shop shelf, anywhere — and ArksAI finds the product, removes the background, and stages it on a proper commercial set (20 backdrops, from studio white to dark luxury) before the video even starts. The clip opens on that clean staged frame, so the product in the ad is exactly yours.',

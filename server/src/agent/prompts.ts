@@ -128,7 +128,12 @@ function minimaxSlice(): string {
     from these tools means FIX THE CALL and try AGAIN — it does NOT mean they're unavailable;
     never substitute an HTML/CSS/SVG graphic and never tell the user image generation is unavailable.
   • text_to_speech — narration/voiceover (needs MINIMAX_GROUP_ID); saved to audio/.
-  • generate_video — short clips via Hailuo (slow, the most expensive); confirm first.`;
+  • generate_video — ONE continuous video clip (a single shot/scene, 4–15 s), draft-first.
+  • generate_video_story — a MULTI-SCENE story stitched into ONE video: use it whenever the ask
+    describes a SEQUENCE (multiple moments, "then…", "after that…", a mini-ad with a narrative
+    arc). It plans the scenes, keeps people/products/exact on-screen text consistent across them,
+    renders cheap drafts first and returns a scene list — the user can retake ONE scene or
+    approve the 1080p final. Present the returned scene plan/results to the user as-is.`;
 }
 
 /** SLICE: the document-creation / live-data / deliver-out / downloads / auto-export

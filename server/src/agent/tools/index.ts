@@ -17,6 +17,7 @@ import { webFetchTool, webSearchTool } from './web';
 import { verifyTool } from './verify';
 import { generateMusicTool, extendMusicTool, generateLyricsTool, coverAudioTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
+import { generateVideoStoryTool } from './videoStoryTool';
 import { generateCreativeTool } from './creative';
 import { generateLogoTool } from './logo';
 import { renderReportTool } from './report';
@@ -70,6 +71,7 @@ export const ALL_TOOLS: ToolDef[] = [
   generateLogoTool,
   textToSpeechTool,
   generateVideoTool,
+  generateVideoStoryTool,
   bashTool,
   bashBackgroundTool,
   bashOutputTool,

@@ -230,7 +230,7 @@ function imageDataUrl(p: string): string {
   return `data:${mime};base64,${fs.readFileSync(p).toString('base64')}`;
 }
 
-async function rasterizeFrame(html: string, w: number, h: number, outPath: string): Promise<void> {
+export async function rasterizeFrame(html: string, w: number, h: number, outPath: string): Promise<void> {
   const { chromium } = await import('playwright');
   const browser = await chromium.launch({ args: ['--no-sandbox'] });
   try {

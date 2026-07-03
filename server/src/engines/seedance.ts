@@ -142,7 +142,7 @@ export async function pollVideoTask(
   id: string,
   signal: AbortSignal,
   onPhase?: (phase: string) => void,
-): Promise<{ ok: true; videoUrl: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; videoUrl: string; tokens?: number } | { ok: false; error: string }> {
   const deadline = Date.now() + 10 * 60_000;
   let lastStatus = '';
   for (;;) {
@@ -163,7 +163,8 @@ export async function pollVideoTask(
     }
     if (status === 'succeeded') {
       const url = d?.content?.video_url ?? d?.video_url ?? d?.content?.url ?? d?.outputs?.[0];
-      if (typeof url === 'string' && url) return { ok: true, videoUrl: url };
+      const tokens = Number(d?.usage?.total_tokens) || undefined;
+      if (typeof url === 'string' && url) return { ok: true, videoUrl: url, tokens };
       return { ok: false, error: 'task succeeded but no video URL was returned' };
     }
     if (status === 'failed' || status === 'cancelled' || status === 'expired') {
