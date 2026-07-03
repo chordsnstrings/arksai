@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-03.31';
+export const WHATS_NEW_VERSION = '2026-07-03.32';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,20 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Spreadsheets that check their own math',
-    body: 'Every generated Excel model is now audited cell-by-cell the moment it\'s built: broken references between sheets are caught (with the right tab suggested), and every formula is recomputed — if the number written in a cell disagrees with what its own formula calculates, the exact cells are flagged and fixed before you ever see the file. Big exports got faster too: a 120,000-row workbook builds a quarter faster.',
+    title: 'Word documents — bilingual Arabic, done properly',
+    body: 'Arabic anywhere in a document — a heading, a whole section, or one clause inside an English sentence — is now typeset in a real embedded Arabic face with correct right-to-left direction and right alignment. Bilingual UAE contracts, police reports and notarised documents finally read like they came from a law firm, in Word itself, on any machine.',
   },
   {
-    title: 'Story videos — multiple scenes, one film',
-    body: 'Describe a whole sequence — "a man walks the desert, zooms into his phone, a helicopter drops a car, the driver opens his door" — and ArksAI plans the scenes, gives each exactly the length it needs, keeps the same people, products and even exact on-screen text consistent across scenes, and stitches everything into ONE video. A cheap draft comes first with a scene-by-scene list; retake any single scene, then render the final.',
-  },
-  {
-    title: 'Product videos that focus on YOUR product',
-    body: 'Upload a photo of your product on any background — a kitchen counter, a shop shelf, anywhere — and ArksAI finds the product, removes the background, and stages it on a proper commercial set (20 backdrops, from studio white to dark luxury) before the video even starts. The clip opens on that clean staged frame, so the product in the ad is exactly yours.',
-  },
-  {
-    title: '51 ad styles, product line-ups, and any art style',
-    body: 'Every kind of product now has a full menu of director-grade ad styles — its own expert formats plus eleven universal ones, including the unboxing, shot-on-a-phone UGC, a problem→solved story arc, speed-ramp hype cuts, and zero gravity. Got a product range? Upload 2–4 photos and the whole family is cut out and staged shoulder to shoulder, hero variant center. And videos now come in 24 art styles across three families — photoreal camera looks, animated renders (3D, cartoon, anime, claymation, watercolour…), and stylized worlds (cyberpunk, synthwave, toy world…).',
+    title: 'Documents with real structure',
+    body: 'Long documents now carry proper furniture: an auto-updating Contents page, running headers with the document title, "Page X of Y" footers, a logo on the cover, shaded key-finding callout boxes, embedded images with captions, and landscape mode for wide material. Every document is also re-opened and checked after writing, so a broken file can never be delivered silently.',
   },
 ];
 

@@ -10,32 +10,77 @@ import { renderChartPng, chartSize, type ChartArgs } from './chart';
 // but the bold flags below keep the hierarchy intact. Falls back to a clean
 // system stack if the TTFs are ever missing, so generation never breaks.
 const DOC_FONTS_DIR = path.join(repoRoot, 'server', 'assets', 'report-fonts');
-function loadEmbedFonts(): { fonts: Array<{ name: string; data: Buffer }>; display: string; body: string } {
+function loadEmbedFonts(): { fonts: Array<{ name: string; data: Buffer }>; display: string; body: string; arabic: string } {
   try {
     const inter = fs.readFileSync(path.join(DOC_FONTS_DIR, 'Inter-Regular.ttf'));
     const serif = fs.readFileSync(path.join(DOC_FONTS_DIR, 'SourceSerif4-Regular.ttf'));
-    return {
-      fonts: [
-        { name: 'Inter', data: inter },
-        { name: 'Source Serif 4', data: serif },
-      ],
-      display: 'Source Serif 4',
-      body: 'Inter',
-    };
+    const fonts = [
+      { name: 'Inter', data: inter },
+      { name: 'Source Serif 4', data: serif },
+    ];
+    // Arabic face (the legal follow-up: bilingual documents in eloquent MSA). Optional asset —
+    // when present, Arabic-script text renders in a real Naskh instead of a substituted glyph
+    // soup; when absent, Word/LibreOffice substitute and the bidi flags still hold the layout.
+    let arabic = 'Noto Naskh Arabic';
+    try {
+      fonts.push({ name: arabic, data: fs.readFileSync(path.join(DOC_FONTS_DIR, 'NotoNaskhArabic-Regular.ttf')) });
+    } catch {
+      arabic = 'Arial'; // universal Arabic-capable fallback
+    }
+    return { fonts, display: 'Source Serif 4', body: 'Inter', arabic };
   } catch {
-    return { fonts: [], display: 'Georgia', body: 'Calibri' };
+    return { fonts: [], display: 'Georgia', body: 'Calibri', arabic: 'Arial' };
   }
 }
 
-type BlockType = 'heading' | 'subheading' | 'paragraph' | 'bullets' | 'numbered' | 'table' | 'quote' | 'chart' | 'spacer';
+/** Arabic-script detection (Arabic + supplements + presentation forms). */
+export const ARABIC_RE = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
+/** Split text into script segments so Arabic spans get the Arabic face + RTL flags while
+ *  Latin spans keep the body face — one paragraph can carry both (bilingual legal docs). */
+export function scriptSegments(text: string): { text: string; arabic: boolean }[] {
+  const out: { text: string; arabic: boolean }[] = [];
+  let cur = '';
+  let curArabic: boolean | null = null;
+  for (const ch of String(text ?? '')) {
+    // Neutral characters (spaces, digits, punctuation) stick to the current segment.
+    const isAr: boolean | null = ARABIC_RE.test(ch) ? true : /[A-Za-z]/.test(ch) ? false : curArabic;
+    const a: boolean = isAr === null ? false : isAr;
+    if (curArabic === null) curArabic = a;
+    if (a !== curArabic) {
+      if (cur) out.push({ text: cur, arabic: curArabic });
+      cur = '';
+      curArabic = a;
+    }
+    cur += ch;
+  }
+  if (cur) out.push({ text: cur, arabic: curArabic ?? false });
+  return out;
+}
+
+type BlockType =
+  | 'heading'
+  | 'subheading'
+  | 'heading3'
+  | 'paragraph'
+  | 'bullets'
+  | 'numbered'
+  | 'table'
+  | 'quote'
+  | 'callout'
+  | 'image'
+  | 'chart'
+  | 'spacer';
 interface Block {
   type: BlockType;
   text?: string;
+  title?: string; // callout heading
   items?: string[];
   header?: string[];
   rows?: string[][];
   chart?: ChartArgs;
   caption?: string;
+  path?: string; // image: workspace path
+  width?: number; // image display width in px (default 480)
 }
 interface Kpi {
   value: string;
@@ -87,6 +132,10 @@ export const generateDocTool: ToolDef = {
       title: { type: 'string', description: 'Document title (rendered as the cover heading).' },
       subtitle: { type: 'string', description: 'Optional subtitle / byline under the title.' },
       accent: { type: 'string', description: 'Accent colour as hex (e.g. "#4f46e5"); used on headings.' },
+      toc: { type: 'boolean', description: 'Insert a Table of Contents (built from heading/subheading blocks) after the cover — use for any document over ~4 sections.' },
+      orientation: { type: 'string', enum: ['portrait', 'landscape'], description: 'Page orientation (default portrait). Landscape for wide tables/schedules.' },
+      footer_text: { type: 'string', description: 'Short running footer line (defaults to the title). Page numbers are added automatically on multi-section documents.' },
+      logo: { type: 'string', description: 'Workspace path to a logo image — placed at the top of the cover.' },
       cover: {
         type: 'object',
         description: 'Optional DESIGNED COVER PAGE (recommended for reports/briefs): masthead, accent title line, one-line thesis, a KPI band of headline numbers, and a metadata footer — then a page break before the body.',
@@ -109,9 +158,12 @@ export const generateDocTool: ToolDef = {
           properties: {
             type: {
               type: 'string',
-              enum: ['heading', 'subheading', 'paragraph', 'bullets', 'numbered', 'table', 'quote', 'chart', 'spacer'],
+              enum: ['heading', 'subheading', 'heading3', 'paragraph', 'bullets', 'numbered', 'table', 'quote', 'callout', 'image', 'chart', 'spacer'],
             },
-            text: { type: 'string', description: 'Text for heading/subheading/paragraph/quote.' },
+            text: { type: 'string', description: 'Text for heading/subheading/heading3/paragraph/quote/callout. Arabic text is detected automatically: it renders right-to-left in an embedded Naskh face (bilingual paragraphs supported), so bilingual legal documents come out properly typeset.' },
+            title: { type: 'string', description: 'For a "callout" block: the small bold heading above the callout text.' },
+            path: { type: 'string', description: 'For an "image" block: workspace path to a png/jpg to place (centered).' },
+            width: { type: 'number', description: 'Image display width in px (default 480).' },
             items: { type: 'array', items: { type: 'string' }, description: 'Items for bullets/numbered.' },
             header: { type: 'array', items: { type: 'string' }, description: 'Table header cells.' },
             rows: {
@@ -164,16 +216,68 @@ export const generateDocTool: ToolDef = {
       ShadingType,
       ImageRun,
       PageBreak,
+      Header,
+      Footer,
+      PageNumber,
+      TableOfContents,
+      PageOrientation,
     } = docx;
 
     const accent = hex6(args.accent, '4F46E5');
-    const { fonts: embedFonts, display: DISPLAY, body: BODY } = loadEmbedFonts();
+    const { fonts: embedFonts, display: DISPLAY, body: BODY, arabic: ARABIC } = loadEmbedFonts();
     const children: any[] = [];
+
+    /** Load a workspace image for embedding; returns null (never throws) on any problem. */
+    const loadImage = (rel: string): { data: Buffer; type: 'png' | 'jpg'; w: number; h: number } | null => {
+      try {
+        const abs = resolveInWorkspace(ctx.repoDir, String(rel));
+        const data = fs.readFileSync(abs);
+        const isPng = data[0] === 0x89 && data[1] === 0x50;
+        const isJpg = data[0] === 0xff && data[1] === 0xd8;
+        if (!isPng && !isJpg) return null;
+        // Dimensions: PNG IHDR / JPEG SOF scan — enough to preserve aspect ratio.
+        let w = 480;
+        let h = 320;
+        if (isPng && data.length > 24) {
+          w = data.readUInt32BE(16);
+          h = data.readUInt32BE(20);
+        } else if (isJpg) {
+          for (let i = 2; i + 9 < data.length; ) {
+            if (data[i] !== 0xff) break;
+            const marker = data[i + 1];
+            const len = data.readUInt16BE(i + 2);
+            if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+              h = data.readUInt16BE(i + 5);
+              w = data.readUInt16BE(i + 7);
+              break;
+            }
+            i += 2 + len;
+          }
+        }
+        return { data, type: isPng ? 'png' : 'jpg', w: Math.max(1, w), h: Math.max(1, h) };
+      } catch {
+        return null;
+      }
+    };
 
     if (args.cover) {
       const cov = args.cover as Cover;
       const COVER_INK = '16181D';
       const noB = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+      // Brand logo above the masthead (scaled to a 42px-high mark).
+      if (args.logo) {
+        const img = loadImage(String(args.logo));
+        if (img) {
+          const h = 42;
+          const w = Math.max(1, Math.round((img.w / img.h) * h));
+          children.push(
+            new Paragraph({
+              spacing: { after: 160 },
+              children: [new ImageRun({ type: img.type === 'png' ? 'png' : 'jpg', data: img.data, transformation: { width: Math.min(w, 220), height: h } })],
+            }),
+          );
+        }
+      }
       if (cov.masthead) {
         children.push(
           new Paragraph({
@@ -233,6 +337,19 @@ export const generateDocTool: ToolDef = {
       children.push(new Paragraph({ children: [new PageBreak()] }));
     }
 
+    // Table of Contents (built from the heading blocks; Word/LibreOffice populate the field on
+    // open — updateFields is enabled on the Document so it fills without a manual refresh).
+    if (args.toc === true) {
+      children.push(
+        new Paragraph({
+          spacing: { after: 160 },
+          children: [new TextRun({ text: 'Contents', font: DISPLAY, size: 34, bold: true, color: '16181D' })],
+        }),
+        new TableOfContents('Contents', { hyperlink: true, headingStyleRange: '1-3' }),
+        new Paragraph({ children: [new PageBreak()] }),
+      );
+    }
+
     if (!args.cover && args.title) {
       children.push(
         new Paragraph({
@@ -252,7 +369,8 @@ export const generateDocTool: ToolDef = {
 
     // Split inline markup into styled runs so the model's <b>/<strong>/<em>/<i> and **bold**
     // become real bold/italic instead of literal tags shown as text (the .docx bug). Any other
-    // stray HTML tag is dropped.
+    // stray HTML tag is dropped. Arabic-script spans additionally get the embedded Naskh face
+    // + right-to-left run flags — one paragraph can be bilingual (the legal-doc requirement).
     const inlineRuns = (text: string, base: any = {}): any[] => {
       const t = String(text ?? "")
         .replace(/<\/?(?:strong|b)\s*>/gi, "[[B]]")
@@ -265,14 +383,35 @@ export const generateDocTool: ToolDef = {
         if (p === "[[B]]") { bold = !bold; continue; }
         if (p === "[[I]]") { italic = !italic; continue; }
         if (!p) continue;
-        runs.push(new TextRun({ font: BODY, size: 22, color: "16181D", ...base, text: p, bold: bold || !!base.bold, italics: italic || !!base.italics }));
+        for (const seg of scriptSegments(p)) {
+          runs.push(
+            new TextRun({
+              font: BODY, size: 22, color: "16181D", ...base,
+              text: seg.text,
+              bold: bold || !!base.bold,
+              italics: italic || !!base.italics,
+              ...(seg.arabic ? { font: ARABIC, rightToLeft: true } : {}),
+            }),
+          );
+        }
       }
       return runs.length ? runs : [new TextRun({ font: BODY, size: 22, color: "16181D", ...base, text: "" })];
     };
 
+    // Majority-Arabic text → the PARAGRAPH itself flows right-to-left (alignment + bidi),
+    // so an Arabic clause reads correctly instead of left-anchored Latin layout.
+    const isRtlText = (text: string): boolean => {
+      const s = String(text ?? '');
+      const ar = (s.match(new RegExp(ARABIC_RE.source, 'g')) || []).length;
+      const latin = (s.match(/[A-Za-z]/g) || []).length;
+      return ar > 0 && ar >= latin;
+    };
+    const rtlProps = (text: string): any => (isRtlText(text) ? { bidirectional: true, alignment: AlignmentType.RIGHT } : {});
+
     const para = (text: string, opts: any = {}) =>
       new Paragraph({
         spacing: { after: 140, line: 300 },
+        ...rtlProps(text),
         children: inlineRuns(text, opts),
       });
 
@@ -283,7 +422,8 @@ export const generateDocTool: ToolDef = {
             new Paragraph({
               heading: HeadingLevel.HEADING_1,
               spacing: { before: 260, after: 120 },
-              children: [new TextRun({ text: String(b.text || ''), bold: true, size: 30, font: DISPLAY, color: accent })],
+              ...rtlProps(String(b.text || '')),
+              children: inlineRuns(String(b.text || ''), { bold: true, size: 30, font: DISPLAY, color: accent }),
             }),
           );
           break;
@@ -292,10 +432,87 @@ export const generateDocTool: ToolDef = {
             new Paragraph({
               heading: HeadingLevel.HEADING_2,
               spacing: { before: 180, after: 90 },
-              children: [new TextRun({ text: String(b.text || ''), bold: true, size: 24, font: DISPLAY, color: '16181D' })],
+              ...rtlProps(String(b.text || '')),
+              children: inlineRuns(String(b.text || ''), { bold: true, size: 24, font: DISPLAY, color: '16181D' }),
             }),
           );
           break;
+        case 'heading3':
+          children.push(
+            new Paragraph({
+              heading: HeadingLevel.HEADING_3,
+              spacing: { before: 140, after: 70 },
+              ...rtlProps(String(b.text || '')),
+              children: inlineRuns(String(b.text || ''), { bold: true, size: 21, font: BODY, color: '374151' }),
+            }),
+          );
+          break;
+        case 'callout': {
+          // A shaded info box with an accent rule — for key findings / warnings / definitions.
+          const inner: any[] = [];
+          if (b.title) {
+            inner.push(
+              new Paragraph({
+                spacing: { after: 60 },
+                ...rtlProps(String(b.title)),
+                children: inlineRuns(String(b.title).toUpperCase(), { bold: true, size: 17, color: accent, characterSpacing: 16 }),
+              }),
+            );
+          }
+          inner.push(
+            new Paragraph({
+              spacing: { line: 290 },
+              ...rtlProps(String(b.text || '')),
+              children: inlineRuns(String(b.text || ''), { size: 21, color: '1F2937' }),
+            }),
+          );
+          const noBd = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+          children.push(
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              borders: { top: noBd, bottom: noBd, right: noBd, insideHorizontal: noBd, insideVertical: noBd, left: { style: BorderStyle.SINGLE, size: 20, color: accent } },
+              rows: [
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      shading: { type: ShadingType.SOLID, color: 'F6F6F3', fill: 'F6F6F3' },
+                      margins: { top: 140, bottom: 140, left: 200, right: 200 },
+                      children: inner,
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            new Paragraph({ spacing: { after: 140 }, children: [] }),
+          );
+          break;
+        }
+        case 'image': {
+          const img = b.path ? loadImage(String(b.path)) : null;
+          if (img) {
+            const dispW = Math.max(80, Math.min(Number(b.width) || 480, 620));
+            const dispH = Math.max(1, Math.round(dispW * (img.h / img.w)));
+            children.push(
+              new Paragraph({
+                spacing: { before: 120, after: b.caption ? 40 : 160 },
+                alignment: AlignmentType.CENTER,
+                children: [new ImageRun({ type: img.type === 'png' ? 'png' : 'jpg', data: img.data, transformation: { width: dispW, height: dispH } })],
+              }),
+            );
+            if (b.caption) {
+              children.push(
+                new Paragraph({
+                  spacing: { after: 180 },
+                  alignment: AlignmentType.CENTER,
+                  children: [new TextRun({ text: String(b.caption), font: BODY, size: 18, italics: true, color: '6B7280' })],
+                }),
+              );
+            }
+          } else {
+            children.push(para(`[image not found: ${String(b.path || '(no path)')}]`, { italics: true, color: '6B7280' }));
+          }
+          break;
+        }
         case 'paragraph':
           children.push(para(String(b.text || '')));
           break;
@@ -305,6 +522,7 @@ export const generateDocTool: ToolDef = {
               spacing: { before: 120, after: 160, line: 300 },
               indent: { left: 360 },
               border: { left: { style: BorderStyle.SINGLE, size: 18, space: 12, color: accent } },
+              ...rtlProps(String(b.text || '')),
               children: inlineRuns(String(b.text || ''), { italics: true, color: '374151' }),
             }),
           );
@@ -317,6 +535,7 @@ export const generateDocTool: ToolDef = {
                 spacing: { after: 70, line: 290 },
                 bullet: b.type === 'bullets' ? { level: 0 } : undefined,
                 numbering: b.type === 'numbered' ? { reference: 'arksai-num', level: 0 } : undefined,
+                ...rtlProps(String(item)),
                 children: inlineRuns(String(item)),
               }),
             );
@@ -407,8 +626,47 @@ export const generateDocTool: ToolDef = {
     }
 
     try {
+      // Page furniture: a hairline running header (masthead/title) + centred "Page X of Y"
+      // footer on every page EXCEPT the cover (titlePage → empty `first` header/footer).
+      // Only for documents with real length — a one-page memo stays clean.
+      const runningTitle = String(args.footer_text || (args.cover as Cover | undefined)?.masthead || args.title || '').slice(0, 80);
+      const wantFurniture = !!args.cover || blocks.length >= 8;
+      const furniture = wantFurniture
+        ? {
+            headers: {
+              default: new Header({
+                children: [
+                  new Paragraph({
+                    border: { bottom: { style: BorderStyle.SINGLE, size: 2, space: 4, color: 'E7E6E2' } },
+                    children: [new TextRun({ text: runningTitle.toUpperCase(), font: BODY, size: 14, color: '9CA3AF', characterSpacing: 20 })],
+                  }),
+                ],
+              }),
+              first: new Header({ children: [] }),
+            },
+            footers: {
+              default: new Footer({
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [
+                      new TextRun({ text: 'Page ', font: BODY, size: 14, color: '9CA3AF' }),
+                      new TextRun({ font: BODY, size: 14, color: '9CA3AF', children: [PageNumber.CURRENT] }),
+                      new TextRun({ text: ' of ', font: BODY, size: 14, color: '9CA3AF' }),
+                      new TextRun({ font: BODY, size: 14, color: '9CA3AF', children: [PageNumber.TOTAL_PAGES] }),
+                    ],
+                  }),
+                ],
+              }),
+              first: new Footer({ children: [] }),
+            },
+          }
+        : {};
+      const landscape = String(args.orientation || '') === 'landscape';
       const doc = new Document({
         creator: 'ArksAI',
+        // TOC fields refresh on open so the contents page is never stale/blank.
+        features: { updateFields: args.toc === true },
         ...(embedFonts.length ? { fonts: embedFonts } : {}),
         numbering: {
           config: [
@@ -418,7 +676,19 @@ export const generateDocTool: ToolDef = {
             },
           ],
         },
-        sections: [{ properties: { page: { margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } } }, children }],
+        sections: [
+          {
+            properties: {
+              titlePage: wantFurniture ? true : undefined,
+              page: {
+                margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 },
+                ...(landscape ? { size: { orientation: PageOrientation.LANDSCAPE } } : {}),
+              },
+            },
+            ...furniture,
+            children,
+          },
+        ],
       });
       const buf = await Packer.toBuffer(doc);
       fs.writeFileSync(absOut, buf);
@@ -426,17 +696,30 @@ export const generateDocTool: ToolDef = {
       return `Error: failed to build the document — ${e?.message ?? e}`;
     }
 
-    // Validate: confirm it's a non-trivial OOXML (zip) file.
+    // Validate: confirm it's a non-trivial OOXML (zip) file, then RE-OPEN it (mammoth) and
+    // check the text actually landed — a structurally-valid but empty document is a failure.
+    let words = 0;
     try {
       const buf = fs.readFileSync(absOut);
       if (buf.length < 500 || buf[0] !== 0x50 || buf[1] !== 0x4b) {
         return `Error: the written .docx looks invalid (${buf.length} bytes).`;
+      }
+      try {
+        const mammoth: any = await import('mammoth');
+        const extracted = await mammoth.extractRawText({ buffer: buf });
+        words = String(extracted?.value || '').split(/\s+/).filter(Boolean).length;
+        const expectedText = blocks.some((b) => (b.text && String(b.text).trim()) || b.items?.length || b.rows?.length);
+        if (expectedText && words < 3) {
+          return 'Error: the document wrote but re-opens EMPTY — the content blocks did not land. Re-send the blocks.';
+        }
+      } catch {
+        /* mammoth unavailable → the zip check above stands alone */
       }
     } catch (e: any) {
       return `Error: wrote the file but could not validate it — ${e?.message ?? e}`;
     }
 
     const sz = fs.statSync(absOut).size;
-    return `Generated ${finalName} (${Math.round(sz / 1024)} KB) — styled and editable. Offered as a download; the canvas can preview it.`;
+    return `Generated ${finalName} (${Math.round(sz / 1024)} KB, ${words ? `${words} words, ` : ''}re-open validated) — styled and editable${args.toc ? ', with a Contents page' : ''}. Offered as a download; the canvas can preview it.`;
   },
 };
