@@ -3,7 +3,7 @@ import { api } from '../lib/api.js';
 import { useToast } from '../components/Toast.jsx';
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
-const RAIL_NAMES = { stripe: 'Stripe', ziina: 'Ziina', telr: 'Telr', ngenius: 'Network International' };
+const RAIL_NAMES = { stripe: 'Stripe', ziina: 'Ziina', telr: 'Telr', ngenius: 'Network International', paypal: 'PayPal', binance: 'Binance Pay' };
 
 /** Owner setup: paste keys for any provider and online payment goes live — no code, no
  *  webhooks, no redeploy. Keys are write-only (never shown back in full). Apple Pay and
@@ -37,8 +37,8 @@ export default function Payments() {
       }
       const d = await api.put('/payments-admin/settings', body);
       setForm({});
-      const on = ['stripe', 'paypal', 'ziina', 'telr', 'ngenius'].filter((p) => d[p]);
-      toast(on.length ? `Payments live: ${on.map((p) => RAIL_NAMES[p] || 'PayPal').join(', ')}` : 'Saved');
+      const on = ['stripe', 'paypal', 'ziina', 'telr', 'ngenius', 'binance'].filter((p) => d[p]);
+      toast(on.length ? `Payments live: ${on.map((p) => RAIL_NAMES[p] || p).join(', ')}` : 'Saved');
       load();
     } catch (e2) { toast(e2.message, 'error'); }
     finally { setBusy(false); }
@@ -46,7 +46,7 @@ export default function Payments() {
 
   if (state === null) return <div className="page"><div className="empty loading">Loading…</div></div>;
   const configuredRails = ['ziina', 'telr', 'ngenius', 'stripe'].filter((p) => state[p]);
-  const anyOn = configuredRails.length > 0 || state.paypal;
+  const anyOn = configuredRails.length > 0 || state.paypal || state.binance;
 
   const Key = ({ label, k, placeholder, type = 'password' }) => (
     <label className="field"><span>{label}</span><input type={type} autoComplete="off" value={form[k] ?? ''} onChange={set(k)} placeholder={placeholder} /></label>
@@ -66,7 +66,7 @@ export default function Payments() {
           <h1>Payments</h1>
           <div className="sub">
             {anyOn
-              ? `Online payment is ON — card via ${RAIL_NAMES[state.cardProvider] ?? '—'}${state.paypal ? ' + PayPal' : ''}. Apple Pay & Google Pay show automatically at checkout.`
+              ? `Online payment is ON — ${[state.cardProvider && `card via ${RAIL_NAMES[state.cardProvider]}`, state.paypal && 'PayPal', state.binance && 'crypto (Binance Pay)'].filter(Boolean).join(' + ')}. Apple Pay & Google Pay show automatically at checkout.`
               : 'Paste keys for any ONE provider below and buyers can pay online instantly.'}
           </div>
         </div>
@@ -112,6 +112,14 @@ export default function Payments() {
               <Key label="Client ID" k="paypalClientId" type="text" />
               <Key label="Secret" k="paypalSecret" />
               <LiveToggle k="paypalLive" current={state.paypalLive} />
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-hd"><h3>Binance Pay {state.binance ? `· connected (${state.binanceKeyTail})` : ''}</h3></div>
+            <p className="muted">Accept crypto (settled in USDT). Binance Merchant dashboard → API Management: API key (certificate) + Secret. Shows as "Pay with crypto" at checkout.</p>
+            <div className="fields">
+              <Key label="API key" k="binanceApiKey" type="text" />
+              <Key label="Secret key" k="binanceSecret" />
             </div>
           </div>
           <div className="card">

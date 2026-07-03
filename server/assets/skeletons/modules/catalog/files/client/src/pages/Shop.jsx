@@ -131,10 +131,11 @@ export default function Shop() {
           {placed && !lines.length ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <p style={{ margin: 0 }}>Order <strong>{placed.orderId}</strong> received — total {money(placed.totalCents)}.</p>
-              {payOptions && (payOptions.cardProvider || payOptions.paypal) ? (
+              {payOptions && (payOptions.cardProvider || payOptions.paypal || payOptions.binance) ? (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {payOptions.cardProvider && <button className="btn btn-primary" onClick={() => payNow(payOptions.cardProvider)} disabled={!!paying}>{paying && paying !== 'paypal' ? 'Opening secure checkout…' : 'Pay now'}</button>}
+                  {payOptions.cardProvider && <button className="btn btn-primary" onClick={() => payNow(payOptions.cardProvider)} disabled={!!paying}>{paying === payOptions.cardProvider ? 'Opening secure checkout…' : 'Pay now'}</button>}
                   {payOptions.paypal && <button className="btn" onClick={() => payNow('paypal')} disabled={!!paying}>{paying === 'paypal' ? 'Opening PayPal…' : 'Pay with PayPal'}</button>}
+                  {payOptions.binance && <button className="btn" onClick={() => payNow('binance')} disabled={!!paying}>{paying === 'binance' ? 'Opening Binance Pay…' : 'Pay with crypto (Binance Pay)'}</button>}
                 </div>
               ) : (
                 <p className="muted" style={{ margin: 0 }}>We'll email {user?.email} to confirm and arrange payment.</p>

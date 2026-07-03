@@ -2,7 +2,7 @@
 // WRITE-ONLY — secrets are never returned over the API, only booleans + key tails.
 import { Router } from 'express';
 import { db } from '../db.js';
-import { getSettingsExtended, saveSettingsExtended, allProviders } from '../lib/payments.js';
+import { getSettingsExtended, saveSettingsExtended, allProviders, binanceSettings, saveBinanceSettings } from '../lib/payments.js';
 
 const r = Router();
 const CURRENCIES = ['USD', 'AED', 'SAR', 'EUR', 'GBP', 'KWD', 'BHD', 'QAR', 'OMR', 'EGP', 'INR'];
@@ -22,6 +22,7 @@ r.get('/settings', (_req, res) => {
     ngeniusKeyTail: tail(s.ngeniusApiKey),
     ngeniusOutletTail: tail(s.ngeniusOutletRef),
     ngeniusLive: s.ngeniusLive,
+    binanceKeyTail: tail(binanceSettings().apiKey),
     defaultProvider: s.defaultProvider,
     currencies: CURRENCIES,
   });
@@ -48,6 +49,9 @@ r.put('/settings', (req, res) => {
     currencyCode: clean(b.currencyCode),
     defaultProvider: clean(b.defaultProvider),
   });
+  if (b.binanceApiKey !== undefined || b.binanceSecret !== undefined) {
+    saveBinanceSettings({ binanceApiKey: clean(b.binanceApiKey), binanceSecret: clean(b.binanceSecret) });
+  }
   res.json({ ok: true, ...allProviders() });
 });
 

@@ -157,6 +157,7 @@ export function allProviders() {
     ziina: !!s.ziinaSecret,
     telr: !!(s.telrStoreId && s.telrAuthKey),
     ngenius: !!(s.ngeniusApiKey && s.ngeniusOutletRef),
+    binance: binanceConfigured(),
   };
   const CARD_RAILS = ['ziina', 'telr', 'ngenius', 'stripe'];
   const cardProvider = (s.defaultProvider && conf[s.defaultProvider] && s.defaultProvider !== 'paypal')
@@ -276,4 +277,83 @@ export async function ngeniusVerify(orderRef) {
   if (!res.ok) throw new Error(d?.message || `N-Genius error (${res.status})`);
   const states = [d?.state, ...((d?._embedded?.payment || []).map((p) => p?.state))].filter(Boolean);
   return { paid: states.some((x) => /PURCHASED|CAPTURED/i.test(String(x))) };
+}
+
+/* ── Binance Pay: crypto checkout (hosted page; USDT settlement) ─────────────
+   Auth per request: HMAC-SHA512 over `timestamp \n nonce \n body \n` (hex,
+   UPPERCASE) with headers BinancePay-Timestamp/Nonce/Certificate-SN/Signature.
+   Orders are denominated in the shop currency; if the merchant account doesn't
+   support that fiat, Binance's own error surfaces verbatim to the owner. */
+import crypto from 'node:crypto';
+
+export function binanceSettings() {
+  const row = db.prepare('SELECT * FROM payment_settings WHERE id = 1').get() || {};
+  return {
+    apiKey: process.env.BINANCE_PAY_API_KEY || row.binance_api_key || '',
+    secret: process.env.BINANCE_PAY_SECRET || row.binance_secret || '',
+  };
+}
+export function saveBinanceSettings(patch) {
+  const cur = db.prepare('SELECT * FROM payment_settings WHERE id = 1').get();
+  db.prepare('UPDATE payment_settings SET binance_api_key = ?, binance_secret = ?, updated_at = ? WHERE id = 1').run(
+    patch.binanceApiKey ?? cur.binance_api_key,
+    patch.binanceSecret ?? cur.binance_secret,
+    Date.now(),
+  );
+}
+export const binanceConfigured = () => {
+  const s = binanceSettings();
+  return !!(s.apiKey && s.secret);
+};
+
+async function binanceCall(path, body) {
+  const s = binanceSettings();
+  const payload = JSON.stringify(body);
+  const timestamp = String(Date.now());
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const signature = crypto
+    .createHmac('sha512', s.secret)
+    .update(`${timestamp}\n${nonce}\n${payload}\n`)
+    .digest('hex')
+    .toUpperCase();
+  const res = await fetch(`https://bpay.binanceapi.com${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'BinancePay-Timestamp': timestamp,
+      'BinancePay-Nonce': nonce,
+      'BinancePay-Certificate-SN': s.apiKey,
+      'BinancePay-Signature': signature,
+    },
+    body: payload,
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || d?.status !== 'SUCCESS') throw new Error(d?.errorMessage || d?.message || `Binance Pay error (${d?.code || res.status})`);
+  return d.data;
+}
+
+export async function binanceCreateOrder({ order, items, totalCents, successUrl, cancelUrl }) {
+  const s = getSettingsExtended();
+  const tradeNo = (order.id.replace(/[^a-zA-Z0-9]/g, '') + Date.now().toString(36)).slice(0, 32);
+  const d = await binanceCall('/binancepay/openapi/v3/order', {
+    env: { terminalType: 'WEB' },
+    merchantTradeNo: tradeNo,
+    orderAmount: (totalCents / 100).toFixed(2),
+    currency: s.currencyCode,
+    description: `Order ${order.id}`.slice(0, 256),
+    goodsDetails: [{
+      goodsType: '02',
+      goodsCategory: 'Z000',
+      referenceGoodsId: order.id.slice(0, 64),
+      goodsName: (items?.[0]?.name || 'Order').slice(0, 256),
+    }],
+    returnUrl: successUrl,
+    cancelUrl,
+  });
+  if (!d?.checkoutUrl) throw new Error('Binance Pay did not return a checkout link');
+  return { ref: d.prepayId || tradeNo, url: d.checkoutUrl };
+}
+export async function binanceVerify(prepayId) {
+  const d = await binanceCall('/binancepay/openapi/v2/order/query', { prepayId: String(prepayId) });
+  return { paid: String(d?.status).toUpperCase() === 'PAID' };
 }

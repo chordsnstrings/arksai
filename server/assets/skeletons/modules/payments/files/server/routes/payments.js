@@ -15,6 +15,7 @@ import {
   ziinaCreateIntent, ziinaVerify,
   telrCreateOrder, telrVerify,
   ngeniusCreateOrder, ngeniusVerify,
+  binanceCreateOrder, binanceVerify,
 } from '../lib/payments.js';
 
 const r = Router();
@@ -52,6 +53,7 @@ r.post('/checkout', limiter, async (req, res) => {
     else if (p === 'paypal') session = await paypalCreateOrder({ ...args, currency: conf.currencyCode, successUrl: mk('paid=paypal') });
     else if (p === 'ziina') session = await ziinaCreateIntent(args);
     else if (p === 'telr') session = await telrCreateOrder(args);
+    else if (p === 'binance') session = await binanceCreateOrder(args);
     else session = await ngeniusCreateOrder(args);
 
     db.prepare('INSERT INTO payments (id, order_id, provider, provider_ref, status, amount_cents, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
@@ -78,11 +80,15 @@ r.post('/confirm', limiter, async (req, res) => {
       const v = await paypalCaptureOrder(String(token));
       verdict = { paid: v.paid };
       order = v.orderId ? db.prepare('SELECT * FROM orders WHERE id = ?').get(v.orderId) : null;
-    } else if (['ziina', 'telr', 'ngenius'].includes(p) && orderId) {
+    } else if (['ziina', 'telr', 'ngenius', 'binance'].includes(p) && orderId) {
       order = db.prepare('SELECT * FROM orders WHERE id = ?').get(String(orderId));
       const pay = order && db.prepare('SELECT * FROM payments WHERE order_id = ? AND provider = ? ORDER BY created_at DESC').get(order.id, p);
       if (!pay) return res.status(404).json({ error: 'not_found' });
-      verdict = p === 'ziina' ? await ziinaVerify(pay.provider_ref) : p === 'telr' ? await telrVerify(pay.provider_ref) : await ngeniusVerify(pay.provider_ref);
+      verdict =
+        p === 'ziina' ? await ziinaVerify(pay.provider_ref)
+        : p === 'telr' ? await telrVerify(pay.provider_ref)
+        : p === 'binance' ? await binanceVerify(pay.provider_ref)
+        : await ngeniusVerify(pay.provider_ref);
     } else {
       return res.status(400).json({ error: 'provider + its reference are required' });
     }

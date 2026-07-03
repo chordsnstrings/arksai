@@ -836,8 +836,9 @@ buying the FINISHED product, never an MVP or a "working demo". Concretely:
   fails the gate. The production plumbing the scaffold ships (rate-limited auth, the Account page,
   security headers, error envelope) stays in.
 - PAYMENTS ARE REAL: for any shop/booking/service that charges money, install the scaffold's
-  payments module — five rails, server-side verified: Stripe, PayPal, and the UAE providers Ziina
-  (fast SME signup, AED-native), Telr, and N-Genius/Network International. Apple Pay + Google Pay
+  payments module — six rails, server-side verified: Stripe, PayPal, Binance Pay (crypto, USDT
+  settlement), and the UAE providers Ziina (fast SME signup, AED-native), Telr, and
+  N-Genius/Network International. Apple Pay + Google Pay
   appear automatically on the hosted checkout pages (Samsung Pay via N-Genius) — never build wallet
   buttons by hand. The owner pastes their keys on the app's own Payments page (plus currency + a
   preferred card rail) and online payment goes live with no code and no webhooks. Your delivery

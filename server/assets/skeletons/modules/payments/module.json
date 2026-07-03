@@ -1,6 +1,6 @@
 {
   "name": "payments",
-  "label": "Checkout rails: Stripe, PayPal, Ziina, Telr, N-Genius (keys pasted in-app)",
+  "label": "Checkout rails: Stripe, PayPal, Ziina, Telr, N-Genius, Binance Pay (keys pasted in-app)",
   "deps": [
     "catalog"
   ],
