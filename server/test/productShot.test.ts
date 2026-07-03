@@ -11,9 +11,11 @@ test('PRODUCT_CATEGORIES: unique ids, each with at least one complete template',
   const ids = PRODUCT_CATEGORIES.map((c) => c.id);
   assert.equal(new Set(ids).size, ids.length, 'category ids must be unique');
   assert.ok(PRODUCT_CATEGORIES.length >= 10, 'the researched catalog covers at least 10 kinds of product');
+  const total = PRODUCT_CATEGORIES.reduce((n, c) => n + c.templates.length, 0);
+  assert.ok(total >= 36, `a real menu of ad styles across the catalog (got ${total})`);
   for (const cat of PRODUCT_CATEGORIES) {
     assert.ok(cat.label.trim(), `${cat.id}: label`);
-    assert.ok(cat.templates.length >= 1, `${cat.id}: at least one ad template`);
+    assert.ok(cat.templates.length >= 3, `${cat.id}: a real choice of ad styles (3+), got ${cat.templates.length}`);
     const keys = cat.templates.map((t) => t.key);
     assert.equal(new Set(keys).size, keys.length, `${cat.id}: template keys unique`);
     for (const t of cat.templates) {

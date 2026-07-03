@@ -7,6 +7,7 @@ import { recoverDeployments, deploymentRegistry } from './deploy/registry';
 import { startDeploymentJanitor, startDeploymentHealthMonitor } from './deploy/publish';
 import { startScheduler } from './schedule/scheduler';
 import { startAnalyticsDigest } from './analytics/digest';
+import { warmBackgroundRemoval } from './agent/productShot';
 import { startRobotPoller } from './robots/poller';
 import { startBuildReaper } from './build/androidBuild';
 import { loadBuildRuntime } from './build/runtime';
@@ -38,6 +39,7 @@ async function main() {
   startDeploymentJanitor(); // 24h-preview auto-cleanup
   startDeploymentHealthMonitor(); // restart any published app whose process died (self-healing)
   startAnalyticsDigest(); // periodic platform metric snapshots (+ optional webhook)
+  warmBackgroundRemoval(); // one-time rembg JIT warmup so the first product video is never slow
   await loadBuildRuntime(); // load DO token + snapshot id from app_settings (if not in env)
   await loadByteplusRuntime(); // load the BytePlus/Dola ark key from app_settings (if not in env)
   await loadDbRuntime(); // load the managed-Postgres admin URL from app_settings (if not in env)

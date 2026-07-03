@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execBash } from '../lib/exec';
 
@@ -70,6 +71,18 @@ export function productAdBrief(opts: {
 
 /** CSS scenes for the composited first frame — one per studio backdrop id. The video model
  *  re-lights the scene from the prompt, so these only need to stage the product cleanly. */
+
+/**
+ * Warm rembg's import path at boot (fire-and-forget). The FIRST `from rembg import …` after
+ * a deploy JIT-compiles its numba dependencies (~45s measured on the droplet); subsequent
+ * imports are ~2.5s. Warming once at startup means no user's first product video ever pays
+ * that tax. Silent no-op when python/rembg is absent.
+ */
+export function warmBackgroundRemoval(): void {
+  execBash(`python3 -P -c "from rembg import remove, new_session" 2>/dev/null || true`, {
+    cwd: os.tmpdir(), timeoutMs: 180_000,
+  }).catch(() => { /* absent or failed → isolateProduct degrades gracefully anyway */ });
+}
 
 /**
  * Lift the product off its background with rembg (U2Net). Graceful degrade: if python/rembg
