@@ -181,6 +181,60 @@ extension + reference packs + the Story studio UI; Phase 3 = transitions, Suno b
 per-scene vision QC. Validate §5 items 1–5 plus the §6b bake-off with ~$3 of live probes before
 any code.
 
+## 8. PROBE RESULTS (run live from the sandbox, 2026-07-03 — ~$0.5–0.9 total, all §5 items answered)
+
+Every §5/§6b question was probed against the real API with the ark key. Artifacts sent to the
+operator (story-cut.mp4, d-uitap.mp4, b-extend.mp4). Facts, not guesses:
+
+1. **Model ids on our account:** `dreamina-seedance-2-0-260128` (standard) +
+   `dreamina-seedance-2-0-fast-260128` (fast — suffix BEFORE the date; the plan's `-260128-fast`
+   guess was wrong). No `-mini`/`-pro`. A video input silently routes to an internal
+   `…-fast-r2v` variant.
+2. **Extension = r2v with `reference_video`** — there is no separate extension flag on this API
+   (unknown body fields are ignored; the ONLY accepted video role is `reference_video`).
+   **Videos must be WEB URLs — data URLs are rejected** ("must be provided as a web url") →
+   the platform must serve the previous scene's clip at a public URL (token-gated route on
+   arksai.studio, same pattern as the Android build source route). Result quality: **seamless** —
+   the continuation opened on the source clip's exact final state (same man, same helicopter,
+   same grade) and executed "lower the car on cables" perfectly. 117 s wall, **141 k tokens**
+   (~3× a draft — the input video is tokenized too).
+3. **Frame chaining is cheap and excellent**: ffmpeg `-sseof` last-frame → `first_frame` on a
+   1.5 draft; scene 3 opened pixel-continuous with scene 1 (wardrobe/light/helicopter all held).
+   23 s wall, 36 k tokens. This is the workhorse cut mechanism.
+4. **Composited-UI scene EXCEEDED expectations**: our Chromium-rastered phone frame (real
+   "Pick up by ecosine" button) → 1.5 i2v — the model *staged the phone INTO a real desert*
+   (sand, dunes, matching light) while keeping the UI text pixel-legible, then animated a thumb
+   tapping the button. 52 s, 24 k tokens. Deterministic in-video text: proven.
+5. **Reference-pack consistency works with ONE image**: the same jar (gold lid, label layout)
+   held across two INDEPENDENT 2.0-fast r2v generations (marble bathroom + candlelit slate).
+   69–75 s, 40.6 k tokens each. Micro-text on the label softens slightly — pack labels that must
+   be readable should use the composited-frame trick instead.
+6. **⚠️ 2.0-fast t2v is FLAKY on our account**: the same multi-beat desert prompt failed TWICE
+   (fully reworded the second time) with `OutputVideoSensitiveContentDetected.PolicyViolation`
+   ("copyright restrictions") after 113–128 s of wall time each — while plain 1.5 rendered the
+   identical prompt fine, and 2.0-fast **r2v** (extension + both reference probes) never tripped
+   it. Revises §6b: NOT blanket "2.0-first" but **mechanism-based routing** — 1.5 for fresh t2v
+   shots (its drafts finished in 23–52 s (!) — far faster than the plan's 2-min estimate),
+   2.0-fast r2v for continuity (extension/reference). The story engine needs retry-with-reword +
+   honest surfacing for the copyright filter.
+7. **Stitching verified end-to-end**: all clips come out h264/aac/24 fps → concat demuxer
+   stream-copy is instant and lossless (14.1 s two-scene story produced); `xfade`+`acrossfade`
+   re-encode also verified. ffmpeg 6.1.1 installs cleanly via apt (Dockerfile line needed —
+   NOT yet added).
+8. **Cost/usage observed** (usage.total_tokens returned per task): 8 s 480p draft = 48.5 k tok,
+   6 s draft = 36.4 k, 4 s draft = 24.4 k, 6 s extension = 141 k, 4 s r2v w/ image ref = 40.6 k.
+   At the console's 1.5 rate ($0.0012–0.0024/K) the whole probe battery cost ≈ $0.5–0.9.
+   2.0 per-token rate still needs a console check (operator).
+9. **Concurrency**: 3 tasks ran simultaneously without queuing errors, matching the documented
+   3-concurrent ceiling.
+
+**Net effect on the recommendation:** unchanged architecture, two amendments — (a) routing is
+per-MECHANISM (1.5 t2v/i2v for fresh shots + drafts; 2.0-fast r2v for extension/reference), not
+per-model; (b) the executor needs a public token-gated clip URL for extension inputs, and a
+copyright-filter retry policy. Everything the operator's example needs is now PROVEN: scenes 1+3
+were generated, frame-chained and stitched; scene 2's exact-UI tap was generated from a
+composited frame; the extension and reference mechanisms both work.
+
 ## Sources (checked 2026-07-03)
 
 - In-repo: `SEEDANCE_PLAN.md` §1 (live-probed capabilities), `engines/seedance.ts`,
