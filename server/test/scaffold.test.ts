@@ -203,3 +203,35 @@ test('scaffold: api-only base — key-authed exemplar, truthful docs manifest, n
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('scaffold: payments module — guards, manifest, write-only secrets, graceful degradation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scaf-pay-'));
+  try {
+    await scaffoldAppTool.run({ name: 'PayShop', modules: ['payments'] }, ctx(dir));
+    // catalog auto-added by deps; public flow + authed admin mounted with the right guards.
+    const api = fs.readFileSync(path.join(dir, 'server', 'api.js'), 'utf8');
+    assert.match(api, /app\.use\('\/api\/payments', r\d+\);/);
+    assert.match(api, /app\.use\('\/api\/payments-admin', requireAuth, r\d+\);/);
+    assert.match(api, /app\.use\('\/api\/checkout', r\d+\);/); // catalog came along
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.arksai', 'verify.json'), 'utf8'));
+    assert.ok(manifest.routes.some((r: any) => r.path === '/api/payments-admin/settings' && r.auth));
+    assert.ok(manifest.routes.some((r: any) => r.path === '/api/payments/checkout' && r.expect === 400));
+
+    // The admin settings route never returns secrets — only booleans + 4-char tails.
+    const admin = fs.readFileSync(path.join(dir, 'server', 'routes', 'paymentsAdmin.js'), 'utf8');
+    assert.ok(!/res\.json\([^)]*stripe_secret_key/.test(admin), 'secrets must never be serialized');
+    assert.match(admin, /slice\(-4\)/);
+
+    // Payment truth is server-verified (confirm hits the provider, never trusts the client).
+    const pub = fs.readFileSync(path.join(dir, 'server', 'routes', 'payments.js'), 'utf8');
+    assert.match(pub, /stripeVerifySession|paypalCaptureOrder/);
+
+    // The storefront degrades gracefully: options 404 → order-request flow stays.
+    const shop = fs.readFileSync(path.join(dir, 'client', 'src', 'pages', 'Shop.jsx'), 'utf8');
+    assert.match(shop, /payments\/options/);
+    assert.match(shop, /catch\(\(\) => setPayOptions\(null\)\)/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -108,6 +108,7 @@ const BACKEND_SIGNALS =
 const MODULE_SIGNALS: { name: string; re: RegExp }[] = [
   { name: 'orgs', re: /\b(multi[\s-]?tenant|saas|workspaces?|teams?|organi[sz]ations?|invite|memberships?|tenants?)\b/ },
   { name: 'catalog', re: /\b(shop|store(front)?|e[\s-]?commerce|products?|cart|checkout|sell(ing)?|orders?|menu\s?ordering)\b/ },
+  { name: 'payments', re: /\b(stripe|paypal|payments?|pay\s?online|card\s?payments?|take\s?payments?|accept\s?(cards?|payments?))\b/ },
   { name: 'booking', re: /\b(book(ing|ings)?|appointments?|reservations?|time\s?slots?|scheduling|clinic|salon|rentals?|court|classes?\s?schedule)\b/ },
   { name: 'cms-lite', re: /\b(blog|posts?|articles?|cms|news(letter)?\s?section|journal|content\s?management)\b/ },
   { name: 'dashboard', re: /\b(dashboards?|analytics|kpis?|metrics|stats|charts?|insights)\b/ },

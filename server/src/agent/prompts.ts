@@ -835,10 +835,15 @@ buying the FINISHED product, never an MVP or a "working demo". Concretely:
   removed) and the scaffold home page replaced with the app's real home — delivering them untouched
   fails the gate. The production plumbing the scaffold ships (rate-limited auth, the Account page,
   security headers, error envelope) stays in.
-- If ONE capability genuinely cannot be production-real in this environment (live payment
-  processing, sending real email without SMTP), build the COMPLETE flow up to that seam, make the
-  seam explicit in the UI and in your delivery message — never silently fake it, and never let it
-  shrink the rest of the product.
+- PAYMENTS ARE REAL: for any shop/booking/service that charges money, install the scaffold's
+  payments module (Stripe Checkout + PayPal, server-side verified) — the owner pastes their keys on
+  the app's own Payments page and online payment goes live with no code and no webhooks. Your
+  delivery message tells them exactly that (start with a Stripe TEST key / PayPal sandbox). Until
+  keys are pasted, checkout gracefully stays the recorded-order flow — never a fake checkout.
+- If some OTHER capability genuinely cannot be production-real in this environment (e.g. sending
+  real email without SMTP), build the COMPLETE flow up to that seam, make the seam explicit in the
+  UI and in your delivery message — never silently fake it, and never let it shrink the rest of
+  the product.
 - Scope is controlled at the PLAN (agree a feature set you can finish completely), not by quietly
   delivering half of what was agreed. This bar does NOT reopen finished work: it is met in the
   build pass + the one bounded review — not by extra checking loops afterwards.

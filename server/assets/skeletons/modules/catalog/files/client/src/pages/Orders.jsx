@@ -3,8 +3,8 @@ import { api } from '../lib/api.js';
 import { useToast } from '../components/Toast.jsx';
 
 const money = (c) => `$${(c / 100).toFixed(2)}`;
-const NEXT = { new: ['confirmed', 'cancelled'], confirmed: ['fulfilled', 'cancelled'], fulfilled: [], cancelled: [] };
-const TONE = { new: 'var(--accent)', confirmed: '#7c9cd9', fulfilled: '#5fb98a', cancelled: 'var(--ink-3)' };
+const NEXT = { new: ['confirmed', 'cancelled'], paid: ['confirmed', 'cancelled'], confirmed: ['fulfilled', 'cancelled'], fulfilled: [], cancelled: [] };
+const TONE = { new: 'var(--accent)', paid: '#5fb98a', confirmed: '#7c9cd9', fulfilled: '#5fb98a', cancelled: 'var(--ink-3)' };
 
 /** Order fulfillment: every order, newest first, with the status flow. */
 export default function Orders() {

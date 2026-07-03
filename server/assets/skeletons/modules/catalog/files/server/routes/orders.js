@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { db } from '../db.js';
 
 const r = Router();
-const FLOW = ['new', 'confirmed', 'fulfilled', 'cancelled'];
+const FLOW = ['new', 'paid', 'confirmed', 'fulfilled', 'cancelled'];
 const shape = (o) => ({ id: o.id, name: o.name, email: o.email, note: o.note, status: o.status, totalCents: o.total_cents, createdAt: o.created_at });
 const itemShape = (i) => ({ id: i.id, productId: i.product_id, name: i.name, priceCents: i.price_cents, qty: i.qty });
 

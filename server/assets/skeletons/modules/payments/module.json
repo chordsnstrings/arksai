@@ -1,0 +1,18 @@
+{
+  "name": "payments",
+  "label": "Stripe + PayPal checkout (owner pastes keys in-app; no code, no webhooks)",
+  "deps": ["catalog"],
+  "mounts": [
+    { "path": "/api/payments", "router": "./routes/payments.js", "auth": false },
+    { "path": "/api/payments-admin", "router": "./routes/paymentsAdmin.js", "auth": true }
+  ],
+  "nav": [
+    { "key": "payments", "label": "Payments", "icon": "tag", "page": "./pages/Payments.jsx" }
+  ],
+  "verify": {
+    "routes": [
+      { "method": "GET", "path": "/api/payments-admin/settings", "auth": true, "expect": 200 },
+      { "method": "POST", "path": "/api/payments/checkout", "expect": 400 }
+    ]
+  }
+}

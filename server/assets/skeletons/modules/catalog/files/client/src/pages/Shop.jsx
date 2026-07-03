@@ -18,8 +18,32 @@ export default function Shop() {
   const [cart, setCart] = useState(readCart); // { productId: qty }
   const [placing, setPlacing] = useState(false);
   const [placed, setPlaced] = useState(null);
+  const [payOptions, setPayOptions] = useState(null); // {stripe,paypal} when the payments module is installed
+  const [paying, setPaying] = useState('');
 
   useEffect(() => { api.get('/products').then(setProducts).catch(() => setProducts([])); }, []);
+  // Payments module present? (404 = not installed → the order-request flow stands alone.)
+  useEffect(() => { api.get('/payments/options').then(setPayOptions).catch(() => setPayOptions(null)); }, []);
+  // Confirm-on-return: the provider redirected back — verify SERVER-SIDE and show the outcome.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const provider = q.get('paid');
+    if (!provider) return;
+    const body = provider === 'stripe' ? { provider, sessionId: q.get('session_id') } : { provider, token: q.get('token') };
+    window.history.replaceState(null, '', window.location.pathname);
+    api.post('/payments/confirm', body)
+      .then((d) => toast(`Payment received — order ${d.orderId} is paid`))
+      .catch((e) => toast(e.message, 'error'));
+  }, []);
+
+  async function payNow(provider) {
+    if (!placed || paying) return;
+    setPaying(provider);
+    try {
+      const d = await api.post('/payments/checkout', { orderId: placed.orderId, provider, returnUrl: window.location.href });
+      window.location.href = d.url;
+    } catch (e) { toast(e.message, 'error'); setPaying(''); }
+  }
   useEffect(() => { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch {} }, [cart]);
 
   const cats = useMemo(() => [...new Set((products || []).map((p) => p.category).filter(Boolean))], [products]);
@@ -102,7 +126,17 @@ export default function Shop() {
         <div className="card" style={{ marginTop: 18 }}>
           <div className="card-hd"><h3>Your cart</h3></div>
           {placed && !lines.length ? (
-            <p>Order <strong>{placed.orderId}</strong> received — total {money(placed.totalCents)}. We'll email {user?.email} to confirm and arrange payment.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <p style={{ margin: 0 }}>Order <strong>{placed.orderId}</strong> received — total {money(placed.totalCents)}.</p>
+              {payOptions && (payOptions.stripe || payOptions.paypal) ? (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {payOptions.stripe && <button className="btn btn-primary" onClick={() => payNow('stripe')} disabled={!!paying}>{paying === 'stripe' ? 'Opening secure checkout…' : 'Pay now by card'}</button>}
+                  {payOptions.paypal && <button className="btn" onClick={() => payNow('paypal')} disabled={!!paying}>{paying === 'paypal' ? 'Opening PayPal…' : 'Pay with PayPal'}</button>}
+                </div>
+              ) : (
+                <p className="muted" style={{ margin: 0 }}>We'll email {user?.email} to confirm and arrange payment.</p>
+              )}
+            </div>
           ) : (
             <>
               {lines.map((l) => (

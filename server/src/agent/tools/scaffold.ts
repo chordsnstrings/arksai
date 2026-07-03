@@ -199,7 +199,10 @@ export const scaffoldAppTool: ToolDef = {
     '+ isolation middleware), dashboard (stats + ring, needs crud), forms (public intake + outbox), ' +
     'uploads (authed files in data/uploads), realtime (SSE live updates), jobs (in-process ' +
     'scheduler), catalog (products + cart + server-priced checkout + order fulfillment — commerce ' +
-    'with no payment keys; NEVER hand-roll a cart/checkout), booking (resources + per-day slots + ' +
+    'with no payment keys; NEVER hand-roll a cart/checkout), payments (REAL Stripe Checkout + PayPal on '+
+    'top of catalog — the owner pastes their keys on the in-app Payments page and online payment goes '+
+    'live instantly; server-side verified, no webhooks needed; until keys exist checkout stays the '+
+    'order-request flow; NEVER hand-roll a payment integration), booking (resources + per-day slots + ' +
     'conflict-safe reservations in a transaction — NEVER hand-roll slot math), cms-lite (markdown ' +
     'posts + editor + a public read API for blogs/docs). ' +
     'The base is production-grade out of the box: security headers, rate-limited auth, ' +
