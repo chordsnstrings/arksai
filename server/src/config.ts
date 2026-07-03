@@ -102,6 +102,9 @@ export const config = {
   // Nominal cost estimates for the session cost bar (tune against real billing).
   seedanceDraftCost: Number(process.env.SEEDANCE_DRAFT_COST || '0.05') || 0.05,
   seedanceFinalCostPerSec: Number(process.env.SEEDANCE_FINAL_COST_PER_SEC || '0.08') || 0.08,
+  // Per-K-video-token rate for story cost ESTIMATES (console June 2026: 1.5 ≈ $0.0012–0.0024/K;
+  // mid default). The 2.0 rate rides the same knob until the console confirms a separate one.
+  seedanceCostPerKTok: Number(process.env.SEEDANCE_COST_PER_KTOK || '0.0018') || 0.0018,
   byteplusModel: process.env.BYTEPLUS_MODEL || 'seed-2-0-pro',
   // Heavy-tier BytePlus coders under evaluation for the heavy build lane (branded id → concrete
   // model, with an optional per-model base URL override; env-overridable). All run on the coding
