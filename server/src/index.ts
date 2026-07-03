@@ -2,7 +2,8 @@ import { config, validateConfig } from './config';
 import { buildApp } from './app';
 import * as store from './sessions/store';
 import { sweepWorkspaces } from './sessions/workspace';
-import { recoverDeployments } from './deploy/registry';
+import { attachWsUpgradeProxy } from './deploy/wsProxy';
+import { recoverDeployments, deploymentRegistry } from './deploy/registry';
 import { startDeploymentJanitor, startDeploymentHealthMonitor } from './deploy/publish';
 import { startScheduler } from './schedule/scheduler';
 import { startAnalyticsDigest } from './analytics/digest';
@@ -28,6 +29,10 @@ async function main() {
 
   const app = await buildApp();
   await app.listen({ port: config.port, host: '0.0.0.0' });
+  // WebSocket upgrade forwarding for published apps: /apps/<slug>/… WS handshakes are piped
+  // to the app's local port (the fetch-based proxy can't carry an UPGRADE). SSE stays the
+  // default realtime transport; this makes real-WS apps work at their published URL too.
+  attachWsUpgradeProxy(app.server, (slug) => deploymentRegistry.runningPort(slug));
   startScheduler();
   startRobotPoller(); // inbound mail → robot draft replies (Stage 2)
   startDeploymentJanitor(); // 24h-preview auto-cleanup

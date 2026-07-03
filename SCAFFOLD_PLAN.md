@@ -158,8 +158,14 @@ bounded review — no new loops. Live-validated on a fresh all-modules scaffold.
 (pure slots engine + transaction-guarded conflict-safe reservations), cms-lite (XSS-safe
 markdown, draft→publish, public read API) — all boot-proven through the full gate; and
 `data/` preservation across republish (stash/restore in publish.ts, unit-tested).
-**REMAINING**: `api-only` + `service-py` + Vue/Svelte variants; archetype auto-routing at
-the plan gate; nightly canary; brownfield guided-diff modules; WS upgrade-forwarding test.
+**SHIPPED (2026-07-03, Phase 3+4 core)**: the archetype router (suggestArchitecture →
+shown at the plan gate; negations respected; developer APIs route to api-only); the
+`api-only` skeleton (key auth, exemplar resource, self-documenting index, browserless
+verify.json — boot-proven); and **WS upgrade forwarding** (wsProxy.ts pipes /apps/<slug>/
+UPGRADE handshakes to the app's port — the Phase-4 test passes: 101 + correct accept key +
+prefix stripped; SSE stays the default transport, real-WS apps now also work live).
+**REMAINING**: `service-py` (FastAPI) + Vue/Svelte variants; nightly canary (create via the
+live scheduler); brownfield guided-diff modules; DO dual-path templates.
 
 - **Phase 1 — the workhorse (kills the TaskForge class outright)**: `service` skeleton
   (Express + SQLite + Vite/React client, auth module built-in-able), CONTRACT.md +
