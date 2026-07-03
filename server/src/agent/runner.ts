@@ -444,6 +444,9 @@ export class AgentRun {
   // instead of opening new revision rounds); compactions = Claude-style auto-continue windows used
   // (a checkpointed build never dies asking the user for "continue" — it compacts and keeps going).
   private wrapUp = false;
+  // The 85% hard order ("publish NOW") — the 60% notice alone let a finished app burn its
+  // last 40% polishing a lint warning and die unpublished (the Kiln&Co break).
+  private finalWrapNudge = false;
   private compactions = 0;
 
   constructor(private session: SessionMeta) {}
@@ -800,21 +803,47 @@ export class AgentRun {
               'improvement, inspection, or polish. If a known minor issue remains, state it in one line instead of fixing it.',
           });
         }
+        // 85%: the hard order. The 60% notice proved too soft — a finished app burned its last
+        // 40% polishing a lint warning and died UNPUBLISHED. Past here, delivery is the only
+        // permitted work: publish (for an app) or hand over what exists, in this turn.
+        if (!this.finalWrapNudge && this.usage.totalTokens > windowBase + maxRunTokens * 0.85) {
+          this.finalWrapNudge = true;
+          sysInfo('⏳ Budget nearly exhausted — delivering now.');
+          context.push({
+            role: 'user',
+            content:
+              '[SYSTEM] FINAL BUDGET WARNING — DELIVER IMMEDIATELY, THIS TURN. If this is an app and it is not yet ' +
+              'published, run the production build if needed and call publish_app NOW, then end with the live URL. ' +
+              'For any other deliverable, hand over what exists now. Every remaining fix or polish item is FORFEIT — ' +
+              'note known minor issues in one line instead of touching them. Any tool call that is not build/publish/' +
+              'final-answer is a violation of this order.',
+          });
+        }
         if (this.usage.totalTokens > windowBase + maxRunTokens) {
-          // AUTO-CONTINUE: with durable checkpoints, exhaustion means "compact and keep going",
-          // not "die mid-fix and wait for a human to type continue".
+          // AUTO-CONTINUE: exhaustion means "compact and keep going", not "die mid-fix and wait
+          // for a human to type continue". Checkpoints are the ideal resume state, but a MUTATED
+          // code workspace is durable state too — the Kiln&Co break was exactly this: app built,
+          // zero checkpoints (no gate pass yet), cap hit → the run died one publish call short
+          // and a HUMAN had to type "continue". Never again: any mutated code build continues.
           const cps = this.session.mode === 'code' && config.checkpointBuilds ? readCheckpoints(dir) : [];
-          if (cps.length && this.compactions < MAX_AUTO_WINDOWS) {
+          const workspaceDurable = this.session.mode === 'code' && this.mutated;
+          if ((cps.length || workspaceDurable) && this.compactions < MAX_AUTO_WINDOWS) {
             this.compactions++;
             this.wrapUp = false;
-            sysInfo(`♻ Auto-continuing from checkpoint ${cps.length} — compacted the context to keep going (window ${this.compactions + 1}/${MAX_AUTO_WINDOWS + 1}).`);
+            this.finalWrapNudge = false;
+            sysInfo(
+              cps.length
+                ? `♻ Auto-continuing from checkpoint ${cps.length} — compacted the context to keep going (window ${this.compactions + 1}/${MAX_AUTO_WINDOWS + 1}).`
+                : `♻ Auto-continuing — compacted the context to finish and deliver (window ${this.compactions + 1}/${MAX_AUTO_WINDOWS + 1}).`,
+            );
             const resume = checkpointResumeNote(dir);
             context.length = 0;
             context.push({
               role: 'user',
               content:
-                `${userText}\n\n(You are CONTINUING this build after an automatic context compaction — the earlier conversation was dropped to free budget; the workspace and its git checkpoints are fully intact.)${resume}\n\n` +
-                `Finish the REMAINING work only: inspect the workspace to see its current state, complete what's missing, verify ONCE, and deliver. Do NOT rebuild anything already checkpointed.`,
+                `${userText}\n\n(You are CONTINUING this build after an automatic context compaction — the earlier conversation was dropped to free budget; the workspace${cps.length ? ' and its git checkpoints are' : ' is'} fully intact.)${resume}\n\n` +
+                `Finish the REMAINING work only: inspect the workspace to see its current state, complete what's missing, verify ONCE, and deliver. Do NOT rebuild anything already done. ` +
+                `If the app is already BUILT and working, your ONLY remaining steps are: build once if needed → publish_app → end with the live URL. No polish.`,
             });
             continue;
           }
