@@ -606,9 +606,128 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
   },
 ];
 
+/**
+ * Universal ad styles — proven commercial formats that work for ANY kind of product, offered
+ * alongside every category's bespoke styles (and on their own for a "General" product).
+ */
+export const UNIVERSAL_TEMPLATES: AdTemplate[] = [
+  {
+    key: 'unboxing',
+    label: 'The unboxing',
+    desc: 'Lid lifts, tissue parts, the reveal',
+    beats: [
+      { motion: 'push in on a premium box', view: 'an elegant box on a clean table, quiet anticipation' },
+      { motion: 'the lid lifts in slow motion', view: 'tissue parting, soft light spilling onto the product inside' },
+      { motion: 'the product rises to center frame', view: 'the hero pose, packaging softly blurred below' },
+    ],
+    light: 'warm soft key with a gentle bloom as the box opens',
+    audio: 'paper and tissue foley, a soft breath, one warm chime',
+    negatives: 'no invented logos or text on the box, no warped hands',
+  },
+  {
+    key: 'ugc-real',
+    label: 'Shot on a phone',
+    desc: 'Authentic handheld, real-life energy',
+    beats: [
+      { motion: 'handheld phone-style shot', view: 'the product held up to camera in natural light, casual and genuine' },
+      { motion: 'quick handheld move to real use', view: 'the product in use in an everyday setting, unstaged energy' },
+      { motion: 'steadier close-up', view: 'the product filling the frame, honest and likeable' },
+    ],
+    light: 'natural available light, slightly imperfect, authentic',
+    audio: 'real room ambience and handling sounds, no polished score',
+    negatives: 'no studio-perfect gloss, no warped hands or faces, no text',
+  },
+  {
+    key: 'zero-gravity',
+    label: 'Zero gravity',
+    desc: 'It floats, the world slows',
+    beats: [
+      { motion: 'the product floats weightless', view: 'slow rotation center frame, perfectly lit, dreamlike calm' },
+      { motion: 'elements drift into orbit', view: 'fitting loose elements (droplets, petals, parts) circling it gently' },
+      { motion: 'a soft landing', view: 'everything settles as the product lands in its hero pose' },
+    ],
+    light: 'clean studio gradient with a soft rim',
+    audio: 'airy weightless pads, a soft landing note',
+    negatives: 'no text, the product never morphs while rotating',
+  },
+  {
+    key: 'asmr-macro',
+    label: 'Satisfying close-up',
+    desc: 'Slow, tactile, ASMR calm',
+    beats: [
+      { motion: 'extreme macro glide', view: "the product's most tactile surface — texture filling the frame" },
+      { motion: 'one slow satisfying interaction', view: 'a press, a click, a swirl or a pour in extreme close-up' },
+      { motion: 'pull back to the hero', view: 'the product composed and calm, detail still legible' },
+    ],
+    light: 'soft directional light that makes texture readable',
+    audio: 'intimate ASMR foley — taps, clicks, textures; no music',
+    negatives: 'no warped fingers, no text',
+  },
+  {
+    key: 'before-after',
+    label: 'Transformation',
+    desc: 'From dull to wow',
+    beats: [
+      { motion: 'hold on the muted "before"', view: 'a flat, grey scene clearly missing what the product brings' },
+      { motion: 'the product arrives', view: 'light warms and colour floods back as it takes effect' },
+      { motion: 'push in on the "after"', view: 'the transformed result glowing, the product hero in front' },
+    ],
+    light: 'flat grey opening that blooms into warm saturated light',
+    audio: 'quiet start swelling into a warm resolving score',
+    negatives: 'no misleading exaggeration of the product itself — it stays exactly as photographed; no text',
+  },
+  {
+    key: 'festive-gift',
+    label: 'Celebration gift',
+    desc: 'Ribbon, sparkle, giving',
+    beats: [
+      { motion: 'push in through warm bokeh', view: 'the product beribboned amid celebration lights' },
+      { motion: 'slow-motion ribbon pull', view: 'the unwrap moment, fine sparkles drifting in the warm light' },
+      { motion: 'settle to the hero', view: 'the product crisp, lights twinkling softly behind' },
+    ],
+    light: 'warm festive bokeh, candle-warm and generous',
+    audio: 'a gentle celebratory score, one ribbon swish',
+    negatives: 'keep the celebration generic (lights and ribbon) unless a specific occasion is described; no text',
+  },
+  {
+    key: 'miniature-world',
+    label: 'Miniature world',
+    desc: 'A tiny world around a giant product',
+    beats: [
+      { motion: 'tilt-shift aerial', view: 'a miniature scene — tiny figures, roads, trees — arranged around the towering product' },
+      { motion: 'track through the tiny world', view: 'miniature life interacting with the giant product, playful detail' },
+      { motion: 'rise to the hero', view: 'the product monumental above its tiny admirers' },
+    ],
+    light: 'bright toy-like daylight with tilt-shift depth of field',
+    audio: 'playful whimsical score, tiny foley details',
+    negatives: 'no warped tiny figures, no text',
+  },
+  {
+    key: 'retro-film',
+    label: 'Retro film',
+    desc: 'Warm 16mm nostalgia',
+    beats: [
+      { motion: 'a vintage film look opens', view: 'the product in a period-styled scene — grain, warm faded tones' },
+      { motion: 'slow zoom with gentle film weave', view: 'light leaks kissing the edges, nostalgic warmth' },
+      { motion: 'settle to the hero', view: 'the product crisp, a final flicker like a projector stopping' },
+    ],
+    light: 'warm faded film tones with soft halation',
+    audio: 'a faint projector whir under a nostalgic tune',
+    negatives: 'grain and fade never hide the product — the label stays legible; no text overlays',
+  },
+];
+
 export const findCategory = (id: string) => PRODUCT_CATEGORIES.find((c) => c.id === id) || null;
+/** Resolve a template key: the category's bespoke styles first, then the universal set. */
 export const findTemplate = (catId: string, key: string) =>
-  findCategory(catId)?.templates.find((t) => t.key === key) || null;
+  findCategory(catId)?.templates.find((t) => t.key === key) ||
+  UNIVERSAL_TEMPLATES.find((t) => t.key === key) ||
+  null;
+/** Every style available for a category (bespoke + universal); just the universal set for none. */
+export const templatesFor = (catId: string): AdTemplate[] => {
+  const cat = findCategory(catId);
+  return cat ? [...cat.templates, ...UNIVERSAL_TEMPLATES] : [...UNIVERSAL_TEMPLATES];
+};
 
 /** CSS scenes for the staged first frame — one per studio backdrop id. The server composites
  *  the isolated product onto these in Chromium; the client uses the same CSS as tile previews. */

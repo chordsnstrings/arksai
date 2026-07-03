@@ -20,9 +20,11 @@ import { execBash } from '../lib/exec';
 
 import {
   PRODUCT_CATEGORIES,
+  UNIVERSAL_TEMPLATES,
   HERO,
   findCategory,
   findTemplate,
+  templatesFor,
   BACKDROP_CSS,
   type AdBeat,
   type AdTemplate,
@@ -31,7 +33,7 @@ import {
 
 // Re-exported so existing server imports keep working; the data itself lives in shared/
 // (the client Video studio renders the same catalog).
-export { PRODUCT_CATEGORIES, findCategory, findTemplate, BACKDROP_CSS };
+export { PRODUCT_CATEGORIES, UNIVERSAL_TEMPLATES, findCategory, findTemplate, templatesFor, BACKDROP_CSS };
 export type { AdBeat, AdTemplate, ProductCategory };
 
 /** Compile the timed, director-grade product-ad shot plan (pure). */
@@ -45,7 +47,9 @@ export function productAdBrief(opts: {
   durationS?: number;
 }): string {
   const cat = opts.categoryId ? findCategory(opts.categoryId) : null;
-  const tpl = (cat && opts.templateKey && findTemplate(cat.id, opts.templateKey)) || cat?.templates[0] || null;
+  // A template key resolves against the category's bespoke styles first, then the universal
+  // set — so "unboxing" works for any product, category chosen or not.
+  const tpl = (opts.templateKey && findTemplate(cat?.id ?? '', opts.templateKey)) || cat?.templates[0] || null;
   const beats = tpl?.beats ?? [HERO, { motion: 'gentle push in', view: 'label and details crisp' }, { motion: 'settle to a static hero pose', view: 'the product centered, poster-clean' }];
   const dur = Math.max(4, Math.min(15, opts.durationS ?? 12));
   const per = dur / beats.length;

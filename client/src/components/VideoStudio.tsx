@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { VideoCard } from './VideoCard';
 import { PresetIcon } from './VideoPresetIcon';
-import { PRODUCT_CATEGORIES, BACKDROP_CSS, BACKDROP_LABELS } from '@shared/productAds';
+import { PRODUCT_CATEGORIES, BACKDROP_CSS, BACKDROP_LABELS, templatesFor } from '@shared/productAds';
 
 /**
  * "Video" — the dedicated full-page studio surface (Sidebar 🎬 / /video), mirroring Android/Robots.
@@ -166,7 +166,10 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
    *  per-category shot plan (skincare shows application on skin, food the pour/steam…). */
   function productBrief(img: { productPath?: string }): string {
     const cat = PRODUCT_CATEGORIES.find((c) => c.id === category) || null;
-    const tpl = cat ? cat.templates.find((t) => t.key === template) || cat.templates[0] : null;
+    const styles = templatesFor(category);
+    // A universal style (unboxing, UGC…) is a real pick even with no category; a category
+    // defaults to its first bespoke style; General with no pick = the classic hero.
+    const tpl = styles.find((t) => t.key === template) || (cat ? styles[0] : null);
     const lines: string[] = [
       `Generate a ${duration}s ${RATIOS.find((r) => r.id === ratio)?.label.toLowerCase()} (${ratio}) PRODUCT video ad for "${productName.trim()}" with the generate_video tool.`,
       scene.trim() ? `About the product: ${scene.trim()}` : '',
@@ -174,7 +177,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       img.productPath ? `- product_photo: ${img.productPath}` : '',
       `- product_name: ${productName.trim()}`,
       cat ? `- product_category: ${cat.id}` : '',
-      cat && tpl ? `- ad_template: ${tpl.key}   (${tpl.label} — ${tpl.desc})` : '',
+      tpl ? `- ad_template: ${tpl.key}   (${tpl.label} — ${tpl.desc})` : '',
       `- backdrop: ${backdrop}`,
       img.productPath && !focusProduct ? '- focus_product: false   (keep my photo exactly as-is — do not remove its background)' : '',
       `- aspect_ratio: "${ratio}", duration: ${duration}`,
@@ -338,23 +341,29 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
                 </button>
                 {PRODUCT_CATEGORIES.map((c) => (
                   <button key={c.id} className={`aw-card ${category === c.id ? 'on' : ''}`} onClick={() => { setCategory(c.id); setTemplate(c.templates[0].key); }} type="button">
-                    <strong>{c.label}</strong><span>{c.templates.length} ad style{c.templates.length > 1 ? 's' : ''}</span>
+                    <strong>{c.label}</strong><span>{templatesFor(c.id).length} ad styles</span>
                   </button>
                 ))}
               </div>
             </div>
-            {category && (
-              <div className="aw-field">
-                <span className="aw-label">Ad style</span>
-                <div className="aw-grid">
-                  {PRODUCT_CATEGORIES.find((c) => c.id === category)!.templates.map((t) => (
-                    <button key={t.key} className={`aw-card ${(template || PRODUCT_CATEGORIES.find((c) => c.id === category)!.templates[0].key) === t.key ? 'on' : ''}`} onClick={() => setTemplate(t.key)} type="button">
+            <div className="aw-field">
+              <span className="aw-label">Ad style <em>{category ? '(its own styles first, then styles any product can use)' : '(classic hero, or any universal style)'}</em></span>
+              <div className="aw-grid">
+                {!category && (
+                  <button className={`aw-card ${template === '' ? 'on' : ''}`} onClick={() => setTemplate('')} type="button">
+                    <strong>Classic hero</strong><span>orbit, details crisp, poster-clean end</span>
+                  </button>
+                )}
+                {templatesFor(category).map((t) => {
+                  const selected = category ? template || templatesFor(category)[0].key : template;
+                  return (
+                    <button key={t.key} className={`aw-card ${selected === t.key ? 'on' : ''}`} onClick={() => setTemplate(t.key)} type="button">
                       <strong>{t.label}</strong><span>{t.desc}</span>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
             <label className="aw-field">
               <span className="aw-label">Spoken tagline <em>(optional — a voiceover says it)</em></span>
               <input className="aw-input" value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder='e.g. "Glow, bottled."' maxLength={160} />

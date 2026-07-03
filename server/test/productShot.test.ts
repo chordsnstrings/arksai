@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { productAdBrief, buildProductFrameHtml } from '../src/agent/productShot';
-import { PRODUCT_CATEGORIES, BACKDROP_CSS, BACKDROP_LABELS, findCategory, findTemplate } from '../../shared/productAds';
+import { PRODUCT_CATEGORIES, UNIVERSAL_TEMPLATES, BACKDROP_CSS, BACKDROP_LABELS, findCategory, findTemplate, templatesFor } from '../../shared/productAds';
 
 // ── Catalog integrity ─────────────────────────────────────────────────────────
 // The catalog is pure data shared by the server brief compiler and the client Video
@@ -40,6 +40,38 @@ test('findCategory/findTemplate: lookups and misses', () => {
   assert.equal(findCategory('nope'), null);
   assert.ok(findTemplate('skincare', 'texture-ritual'));
   assert.equal(findTemplate('skincare', 'nope'), null);
+});
+
+test('universal styles: complete, unique, no key collisions, offered everywhere', () => {
+  assert.ok(UNIVERSAL_TEMPLATES.length >= 8, 'a real universal menu');
+  const uKeys = UNIVERSAL_TEMPLATES.map((t) => t.key);
+  assert.equal(new Set(uKeys).size, uKeys.length, 'universal keys unique');
+  for (const t of UNIVERSAL_TEMPLATES) {
+    assert.ok(t.label.trim() && t.desc.trim() && t.beats.length >= 2 && t.light.trim() && t.audio.trim(), `${t.key}: complete`);
+  }
+  // A universal key must never shadow (or be shadowed by) a category's bespoke key —
+  // findTemplate resolves bespoke first, so a collision would silently change meaning.
+  for (const cat of PRODUCT_CATEGORIES) {
+    for (const t of cat.templates) assert.ok(!uKeys.includes(t.key), `${cat.id}/${t.key} collides with a universal key`);
+  }
+  // Every category's menu = its bespoke styles then the universal set; General = universal only.
+  for (const cat of PRODUCT_CATEGORIES) {
+    const menu = templatesFor(cat.id);
+    assert.equal(menu.length, cat.templates.length + UNIVERSAL_TEMPLATES.length, `${cat.id}: full menu`);
+  }
+  assert.equal(templatesFor('').length, UNIVERSAL_TEMPLATES.length);
+  // Resolution: universal works WITH a category and WITHOUT one.
+  assert.equal(findTemplate('skincare', 'unboxing')?.label, 'The unboxing');
+  assert.equal(findTemplate('', 'zero-gravity')?.label, 'Zero gravity');
+});
+
+test('productAdBrief: a universal style drives the shot plan, with or without a category', () => {
+  const noCat = productAdBrief({ productName: 'X', templateKey: 'unboxing', durationS: 9 });
+  assert.match(noCat, /lid lifts in slow motion/);
+  assert.match(noCat, /tissue foley/);
+  const withCat = productAdBrief({ productName: 'X', categoryId: 'automotive', templateKey: 'retro-film', durationS: 9 });
+  assert.match(withCat, /automotive commercial/);
+  assert.match(withCat, /projector whir/);
 });
 
 // ── productAdBrief ────────────────────────────────────────────────────────────

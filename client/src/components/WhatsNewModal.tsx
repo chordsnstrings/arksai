@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-03.27';
+export const WHATS_NEW_VERSION = '2026-07-03.28';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'Upload a photo of your product on any background — a kitchen counter, a shop shelf, anywhere — and ArksAI finds the product, removes the background, and stages it on a proper commercial set (20 backdrops, from studio white to dark luxury) before the video even starts. The clip opens on that clean staged frame, so the product in the ad is exactly yours.',
   },
   {
-    title: '40 expert ad styles across 10 kinds of product',
-    body: 'Tell us what kind of product it is — skincare, food & beverage, fashion, jewellery, electronics, fragrance, furniture, fitness, automotive, or everyday goods — and pick from a real menu of ad styles made for it: skincare gets texture macros, freshness splashes and dark-luxury gold sweeps; jewellery gets macro sparkle, worn elegance, a gift-box reveal and dark-water reflections; cars get the night-city neon run and off-road grit. Every style is a timed, director-grade shot plan.',
+    title: '48 expert ad styles across 10 kinds of product',
+    body: 'Tell us what kind of product it is — skincare, food & beverage, fashion, jewellery, electronics, fragrance, furniture, fitness, automotive, or everyday goods — and pick from a real menu of ad styles made for it: skincare gets texture macros and dark-luxury gold sweeps, jewellery gets a gift-box reveal and dark-water reflections, cars get the night-city neon run. Plus eight universal formats any product can wear: the unboxing, shot-on-a-phone UGC, zero gravity, satisfying ASMR close-ups, a before/after transformation, a celebration gift, a miniature world, and warm retro film. Every style is a timed, director-grade shot plan.',
   },
 ];
 
