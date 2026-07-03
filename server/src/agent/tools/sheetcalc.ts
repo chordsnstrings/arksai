@@ -50,24 +50,37 @@ const rowToArray = (row: any, cols: any[]): any[] =>
  * as {f,v}); the formula is preserved, so this never harms the downloaded file. Handles array
  * rows and object rows. Best-effort: any structural surprise is swallowed (leaves data as-is).
  */
+/** Build the pure Workbook map from a generate_spreadsheet `sheets` array (header = row 1,
+ *  data starts at row 2, columns A,B,C… in order). Exported for the formula auditors. */
+export function toWorkbook(sheets: any[]): Workbook {
+  const wb: Workbook = new Map();
+  for (const s of Array.isArray(sheets) ? sheets : []) {
+    const name = String(s?.name || 'Sheet').slice(0, 31);
+    const cols = Array.isArray(s?.columns) ? s.columns : [];
+    const rows = Array.isArray(s?.rows) ? s.rows : [];
+    const grid: SheetGrid = new Map();
+    rows.forEach((row: any, ri: number) => {
+      rowToArray(row, cols).forEach((cell: any, ci: number) => {
+        grid.set(colLet(ci + 1) + (ri + 2), parseCell(cell));
+      });
+    });
+    wb.set(name, grid);
+  }
+  return wb;
+}
+
+/** The function names evalFormula can compute — exported so audits can spot unsupported ones. */
+export const SUPPORTED_FNS = new Set(['SUM', 'AVERAGE', 'MIN', 'MAX', 'COUNT', 'ROUND', 'ABS', 'IF']);
+
 export function recalcSheetData(sheets: any[]): void {
   if (!Array.isArray(sheets)) return;
   try {
-    const wb: Workbook = new Map();
     const norm = sheets.map((s) => ({
       name: String(s?.name || 'Sheet').slice(0, 31),
       cols: Array.isArray(s?.columns) ? s.columns : [],
       rows: Array.isArray(s?.rows) ? s.rows : [],
     }));
-    for (const s of norm) {
-      const grid: SheetGrid = new Map();
-      s.rows.forEach((row: any, ri: number) => {
-        rowToArray(row, s.cols).forEach((cell: any, ci: number) => {
-          grid.set(colLet(ci + 1) + (ri + 2), parseCell(cell));
-        });
-      });
-      wb.set(s.name, grid);
-    }
+    const wb = toWorkbook(sheets);
     recalc(wb);
     for (const s of norm) {
       const grid = wb.get(s.name)!;

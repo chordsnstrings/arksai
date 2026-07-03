@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { resolveInWorkspace, type ToolDef } from './common';
 import { recalcSheetData, recalcWorkbook } from './sheetcalc';
+import { auditFormulaRefs, auditExcelWorkbook, formulaAuditLines } from './sheetAudit';
 import { STRINGY_REF_RE } from '../deliverableCheck';
 
 type ColType = 'text' | 'number' | 'currency' | 'percent' | 'date';
@@ -214,31 +215,44 @@ function buildSheet(wb: any, s: any, accentArgb: string, currencyFmt?: string): 
     if (c.type && c.type !== 'text' && c.type !== 'date') col.alignment = { horizontal: 'right' };
   });
 
+  // Cosmetic passes are per-cell object writes — O(rows × cols) allocations. On BIG DATA
+  // sheets they dominate build time without adding information, so they cap out: zebra and
+  // total-row detection stop past 5k rows (a 100k-row export is a dataset, not a statement),
+  // and auto-width samples the first 500 rows (widths converge long before that).
+  const BIG = rows.length > 5000;
+
   // Zebra banding.
-  ws.eachRow((row: any, n: number) => {
-    if (n > 1 && n % 2 === 1) {
-      row.eachCell((cell: any) => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F5' } };
-      });
-    }
-  });
+  if (!BIG) {
+    ws.eachRow((row: any, n: number) => {
+      if (n > 1 && n % 2 === 1) {
+        row.eachCell((cell: any) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F5' } };
+        });
+      }
+    });
+  }
 
   // Total/roll-up rows: bold + a hairline top rule so a model reads like a real statement.
-  ws.eachRow((row: any, n: number) => {
-    if (n === 1) return;
-    if (!TOTAL_ROW_RE.test(firstCellLabel(row.getCell(1).value))) return;
-    row.eachCell((cell: any) => {
-      cell.font = { ...(cell.font || {}), bold: true };
-      cell.border = { ...(cell.border || {}), top: { style: 'thin', color: { argb: 'FFB8B8B0' } } };
+  if (!BIG) {
+    ws.eachRow((row: any, n: number) => {
+      if (n === 1) return;
+      if (!TOTAL_ROW_RE.test(firstCellLabel(row.getCell(1).value))) return;
+      row.eachCell((cell: any) => {
+        cell.font = { ...(cell.font || {}), bold: true };
+        cell.border = { ...(cell.border || {}), top: { style: 'thin', color: { argb: 'FFB8B8B0' } } };
+      });
     });
-  });
+  }
 
-  // Auto width refinement.
+  // Auto width refinement (sampled — widths converge within a few hundred rows).
+  const WIDTH_SAMPLE = 500;
   cols.forEach((_c, i) => {
     const col = ws.getColumn(i + 1);
     if (_c.width && _c.width > 0) return;
     let max = String(cols[i]?.header || '').length;
+    let seen = 0;
     col.eachCell({ includeEmpty: false }, (cell: any) => {
+      if (seen++ > WIDTH_SAMPLE) return;
       const len = String(cell.value ?? '').length;
       if (len > max) max = len;
     });
@@ -352,6 +366,11 @@ export const generateSpreadsheetTool: ToolDef = {
     // then customises via a follow-up append/overwrite call). Only seeds when no sheets are given.
     if (!sheets.length && String(args.template || '') === 'financial-model') sheets = financialModelScaffold();
     if (!sheets.length) return 'Error: provide at least one sheet (name, columns, rows), or set template:"financial-model".';
+    // ACCURACY audit part 1 — cached-vs-computed MISMATCHES, captured from the RAW payload
+    // BEFORE any recalc pass overwrites the model's cached values: where {f,v} disagree
+    // materially, the model's arithmetic and its formula tell two different stories — which
+    // usually marks a WRONG formula (wrong row/sign/term). Surfaced in the result below.
+    const payloadAudit = auditFormulaRefs(sheets);
     // Recompute formula cells' cached values so the in-app PREVIEW shows correct numbers
     // (models often write a wrong/0 cached value; the formula itself is preserved + Excel
     // recalculates the download regardless, so this is a strictly-improving preview fix).
@@ -399,6 +418,12 @@ export const generateSpreadsheetTool: ToolDef = {
         if (prior) wb.removeWorksheet(prior.id);
         expected.push(buildSheet(wb, s, accentArgb, currencyFmt));
       }
+      // ACCURACY audit part 2 — REFERENCE defects, checked on the BUILT workbook so a staged
+      // (append) build sees EVERY sheet in the file: dangling sheet names (with the intended
+      // tab suggested on a near-miss), dot-notation refs, and single-cell refs beyond a
+      // sheet's real extent (the banner-shift off-by-one). Runs BEFORE recalcWorkbook.
+      const builtAudit = auditExcelWorkbook(wb);
+      payloadAudit.refDefects = builtAudit.refDefects;
       // AUTHORITATIVE pass: compute + cache every formula cell's result on the BUILT
       // workbook (real coordinates), so the in-app preview never shows blank formula
       // cells — even when the model's structure defeated the pre-write recalc.
@@ -445,6 +470,10 @@ export const generateSpreadsheetTool: ToolDef = {
     } catch (e: any) {
       return `Error: wrote the file but validation could not re-open it — ${e?.message ?? e}`;
     }
+
+    // Merge the formula-accuracy findings (refs from the built workbook, mismatches from the
+    // raw payload) into the same defect channel as the deterministic audit.
+    auditDefects = [...auditDefects, ...formulaAuditLines(payloadAudit)];
 
     const sz = fs.existsSync(absOut) ? fs.statSync(absOut).size : 0;
     const total = expected.reduce((n, e) => n + e.rows, 0);
