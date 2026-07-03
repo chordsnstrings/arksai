@@ -1166,13 +1166,33 @@ export class AgentRun {
         // completion card) and add only a soft INFO note — never hand the user an error over a
         // finished file. Only show the hard budget error when NOTHING was produced.
         const produced = await this.newestDeliverable(dir, ['.pdf', '.pptx', '.docx', '.xlsx']).catch(() => null);
-        if (produced) {
+        // Same grace for a BUILT WEB APP (the $6 Kiln&Co case: app complete, run died polishing
+        // a warning BEFORE publish — the user got an error over a finished product). Attempt ONE
+        // publish; publishSession runs its own post-publish smoke test, so a broken app comes
+        // back status 'error' and we still fall through to the honest budget message.
+        let publishedUrl: string | null = null;
+        if (!produced && this.session.mode === 'code' && this.mutated) {
+          try {
+            const renderable = detectRenderable(dir);
+            if (renderable.renderable) {
+              sysInfo('⏳ Out of processing budget, but the app is built — publishing it so you still get your live link…');
+              const { publishSession } = await import('../deploy/publish');
+              const dep = await publishSession(this.session.id, this.session.title || undefined);
+              if (dep?.status === 'running') publishedUrl = dep.url;
+            }
+          } catch (e) {
+            console.warn(`[budget] rescue publish failed for ${this.session.id}: ${String(e).slice(0, 200)}`);
+          }
+        }
+        if (produced || publishedUrl) {
           finalStatus = 'done';
           liveItems.push({
             kind: 'system',
             id: randomUUID(),
             level: 'info',
-            text: `This one took a bit more processing than usual. Your document is ready below.`,
+            text: publishedUrl
+              ? `This one took a bit more processing than usual, but your app is built and LIVE: ${publishedUrl}`
+              : `This one took a bit more processing than usual. Your document is ready below.`,
             ts: Date.now(),
           });
           console.warn(`[budget] run ${this.runId} hit the token budget (${this.usage.totalTokens} tokens) but a deliverable was produced — completing normally — session ${this.session.id}`);
