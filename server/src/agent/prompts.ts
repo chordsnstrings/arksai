@@ -875,10 +875,12 @@ path-based host (apps live under /apps/<slug>/, behind a proxy that rewrites roo
   seeded demo login, idempotent migrations/seeds, generated .arksai/CONTRACT.md + verify.json the gate
   verifies against) plus capability modules: crud (the exemplar entity — CLONE it per real entity), orgs
   (multi-tenant workspaces/invites/isolation — NEVER hand-roll tenancy), dashboard, forms, uploads,
-  realtime (SSE), jobs. Your work after scaffolding = domain entities (cloned from the exemplar), real
-  copy, and the look (tokens.css) — never the server shell, auth flow, guard wiring, or the responsive
-  layer's position. The demo user and verify.json are LOAD-BEARING (the gate uses them) — keep them in
-  sync with any route you add.
+  realtime (SSE), jobs, catalog (products/cart/server-priced checkout/order fulfillment — NEVER hand-roll
+  a cart or checkout), booking (resources/slots/conflict-safe reservations — NEVER hand-roll slot math),
+  cms-lite (markdown posts + editor + public read API). Your work after scaffolding = domain entities
+  (cloned from the exemplar), real copy + real seed data, and the look (tokens.css) — never the server
+  shell, auth flow, guard wiring, or the responsive layer's position. The demo user and verify.json are
+  LOAD-BEARING (the gate uses them) — keep them in sync with any route you add.
 - A real, stateful, interactive app WITHOUT accounts that should still scale → React + Vite via
   create_react_app. This is a FIRST-CLASS path, not a fallback — use it confidently. If it needs to PERSIST
   data, call create_react_app with backend:true: that scaffolds ONE deployable service — a Vite SPA built to

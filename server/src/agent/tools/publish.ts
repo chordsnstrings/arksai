@@ -24,8 +24,10 @@ export const publishAppTool: ToolDef = {
   description:
     'Publish the current app to a public URL the user can open AND SHARE with anyone (no login needed to view). ' +
     'This is a 24-HOUR PREVIEW: the link auto-deletes 24h after publishing (re-publish to refresh it). Works for ' +
-    'static sites/SPAs and node/python server apps. Use it once the app is built and verified — this is how the ' +
-    'user gets a finished, live, shareable result without doing anything technical. Tell them it stays live for 24 hours.',
+    'static sites/SPAs and node/python server apps. Re-publishing PRESERVES the live app\'s data (its data/ ' +
+    'database + uploads carry over) — shipping a fix never wipes what users already saved. Use it once the app ' +
+    'is built and verified — this is how the user gets a finished, live, shareable result without doing anything ' +
+    'technical. Tell them it stays live for 24 hours.',
   parameters: {
     type: 'object',
     properties: {

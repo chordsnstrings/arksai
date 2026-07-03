@@ -130,3 +130,51 @@ test('scaffold: production bar — a fresh scaffold is flagged as demo-grade unt
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('scaffold: commerce/booking/content modules — engines correct, guards and manifests right', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scaf-b2c-'));
+  try {
+    await scaffoldAppTool.run({ name: 'StudioFront', modules: ['catalog', 'booking', 'cms-lite'] }, ctx(dir));
+
+    // The pure slots engine (from the SCAFFOLDED tree) — half-open overlap + conflict rules.
+    const slots = await import(path.join(dir, 'server', 'lib', 'slots.js'));
+    assert.equal(slots.overlaps(60, 120, 120, 180), false); // back-to-back is NOT a conflict
+    assert.equal(slots.overlaps(60, 120, 90, 150), true);
+    const resource = { open_min: 540, close_min: 720, slot_minutes: 60 };
+    const free = slots.slotsForDay(resource, []);
+    assert.deepEqual(free.map((s) => s.startMin), [540, 600, 660]);
+    const taken = slots.slotsForDay(resource, [{ start_min: 600, end_min: 660, status: 'booked' }, { start_min: 660, end_min: 720, status: 'cancelled' }]);
+    assert.deepEqual(taken.map((s) => s.free), [true, false, true]); // cancelled frees the slot
+
+    // Mount guards: public storefront/checkout/content, authed orders/admin/booking.
+    const api = fs.readFileSync(path.join(dir, 'server', 'api.js'), 'utf8');
+    assert.match(api, /app\.use\('\/api\/products', r\d+\);/);
+    assert.match(api, /app\.use\('\/api\/checkout', r\d+\);/);
+    assert.match(api, /app\.use\('\/api\/orders', requireAuth, r\d+\);/);
+    assert.match(api, /app\.use\('\/api\/booking', requireAuth, r\d+\);/);
+    assert.match(api, /app\.use\('\/api\/content', r\d+\);/);
+    assert.match(api, /app\.use\('\/api\/content-admin', requireAuth, r\d+\);/);
+
+    // The manifest declares the new checks (public 200s, validation 400s, authed 200s).
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.arksai', 'verify.json'), 'utf8'));
+    const has = (m: string, p: string, e: number) => manifest.routes.some((r: any) => r.method === m && r.path === p && r.expect === e);
+    assert.ok(has('GET', '/api/products', 200) && has('POST', '/api/checkout', 400) && has('GET', '/api/orders', 200));
+    assert.ok(has('GET', '/api/booking/resources', 200) && has('POST', '/api/booking/reservations', 400));
+    assert.ok(has('GET', '/api/content', 200) && has('GET', '/api/content-admin', 200));
+
+    // Pages wired into the nav registry.
+    const gen = fs.readFileSync(path.join(dir, 'client', 'src', 'modules.gen.js'), 'utf8');
+    for (const k of ['shop', 'products', 'orders', 'booking', 'content']) assert.match(gen, new RegExp(`key: '${k}'`));
+
+    // The safe markdown renderer: escapes HTML, renders the trusted subset, no javascript: links.
+    const md = await import(path.join(dir, 'client', 'src', 'lib', 'markdown.js'));
+    const html = md.renderMarkdown('# Title\n\n**bold** and <script>alert(1)</script>\n\n- a\n- b\n\n[x](javascript:alert(1)) [ok](https://example.com)');
+    assert.match(html, /<h2>Title<\/h2>/);
+    assert.match(html, /<strong>bold<\/strong>/);
+    assert.ok(!html.includes('<script>'), 'raw HTML must be escaped');
+    assert.ok(!/href="javascript:/i.test(html), 'a javascript: URL must never become a link'); // it stays inert text
+    assert.match(html, /<a href="https:\/\/example\.com"/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

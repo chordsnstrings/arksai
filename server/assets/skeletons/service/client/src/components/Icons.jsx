@@ -32,6 +32,10 @@ export function Icon({ name, size = 16, style }) {
     case 'log-out':   return <svg {...props}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>;
     case 'sparkle':   return <svg {...props}><path d="M12 2l2 7 7 2-7 2-2 7-2-7-7-2 7-2z"/></svg>;
     case 'inbox':     return <svg {...props}><path d="M3 13h4l2 3h6l2-3h4M3 13L5 5a2 2 0 012-2h10a2 2 0 012 2l2 8v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6z"/></svg>;
+    case 'bag':       return <svg {...props}><path d="M6 7h12l1 13a1.8 1.8 0 01-1.8 2H6.8A1.8 1.8 0 015 20L6 7z"/><path d="M9 10V6a3 3 0 016 0v4"/></svg>;
+    case 'tag':       return <svg {...props}><path d="M20.6 13.4L12 22 2 12V2h10l8.6 8.6a2 2 0 010 2.8z"/><circle cx="7.5" cy="7.5" r="1.4"/></svg>;
+    case 'clock':     return <svg {...props}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>;
+    case 'file':      return <svg {...props}><path d="M14 2H7a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2V7l-5-5z"/><path d="M14 2v5h5M9 13h6M9 17h6"/></svg>;
     default: return null;
   }
 }

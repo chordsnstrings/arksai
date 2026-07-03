@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { detectSpaBuild, findAppRoot } from '../src/deploy/publish';
+import { detectSpaBuild, findAppRoot, stashLiveData, restoreLiveData } from '../src/deploy/publish';
 import { rewriteHtml } from '../src/routes/deployments';
 
 function pkgDir(pkg: any): string {
@@ -89,4 +89,55 @@ test('rewriteHtml: the fetch shim prefixes root-absolute paths but leaves extern
   assert.equal(fx('https://api.example.com/x'), 'https://api.example.com/x'); // external untouched
   assert.equal(fx('//cdn.example.com/x'), '//cdn.example.com/x'); // protocol-relative untouched
   assert.equal(fx('api/hello'), 'api/hello'); // relative untouched (<base> handles it)
+});
+
+// A republish must NEVER wipe a live app's user data: the prior deployment's data/ (db +
+// uploads) and known root sqlite files are stashed and restored over the fresh snapshot.
+test('stashLiveData/restoreLiveData: live data survives a republish; snapshot seed data is replaced', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-datap-'));
+  try {
+    // The OLD deployment: real user records + uploads + a prisma db.
+    const oldDir = path.join(root, 'old');
+    fs.mkdirSync(path.join(oldDir, 'data', 'uploads'), { recursive: true });
+    fs.mkdirSync(path.join(oldDir, 'prisma'), { recursive: true });
+    fs.writeFileSync(path.join(oldDir, 'data', 'app.db'), 'LIVE-DB');
+    fs.writeFileSync(path.join(oldDir, 'data', 'uploads', 'logo.png'), 'LIVE-UPLOAD');
+    fs.writeFileSync(path.join(oldDir, 'prisma', 'prod.db'), 'LIVE-PRISMA');
+    fs.writeFileSync(path.join(oldDir, 'server.js'), 'OLD-CODE'); // code is NOT preserved
+
+    const stash = stashLiveData(oldDir, root);
+    assert.ok(stash, 'expected a stash');
+    assert.ok(!fs.existsSync(path.join(oldDir, 'data')), 'data moved out of the old dir');
+    assert.ok(fs.existsSync(path.join(oldDir, 'server.js')), 'code stays for the rm');
+
+    // The NEW snapshot: new code + the sandbox's seed database.
+    const dest = path.join(root, 'new');
+    fs.mkdirSync(path.join(dest, 'data'), { recursive: true });
+    fs.mkdirSync(path.join(dest, 'prisma'), { recursive: true });
+    fs.writeFileSync(path.join(dest, 'data', 'app.db'), 'SEED-DB');
+    fs.writeFileSync(path.join(dest, 'prisma', 'prod.db'), 'SEED-PRISMA');
+    fs.writeFileSync(path.join(dest, 'prisma', 'schema.prisma'), 'SCHEMA'); // must survive the merge
+    fs.writeFileSync(path.join(dest, 'server.js'), 'NEW-CODE');
+
+    restoreLiveData(stash!, dest);
+    assert.equal(fs.readFileSync(path.join(dest, 'data', 'app.db'), 'utf8'), 'LIVE-DB');
+    assert.equal(fs.readFileSync(path.join(dest, 'data', 'uploads', 'logo.png'), 'utf8'), 'LIVE-UPLOAD');
+    assert.equal(fs.readFileSync(path.join(dest, 'prisma', 'prod.db'), 'utf8'), 'LIVE-PRISMA');
+    assert.equal(fs.readFileSync(path.join(dest, 'prisma', 'schema.prisma'), 'utf8'), 'SCHEMA');
+    assert.equal(fs.readFileSync(path.join(dest, 'server.js'), 'utf8'), 'NEW-CODE');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('stashLiveData: a deployment with no live data → no stash (fresh publish unchanged)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-datap-'));
+  try {
+    const dir = path.join(root, 'app');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'index.html'), '<html></html>');
+    assert.equal(stashLiveData(dir, root), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

@@ -1,0 +1,22 @@
+{
+  "name": "catalog",
+  "label": "Products, cart & orders (commerce without payment keys)",
+  "deps": [],
+  "mounts": [
+    { "path": "/api/products", "router": "./routes/products.js", "auth": false },
+    { "path": "/api/checkout", "router": "./routes/checkout.js", "auth": false },
+    { "path": "/api/orders", "router": "./routes/orders.js", "auth": true }
+  ],
+  "nav": [
+    { "key": "shop", "label": "Shop", "icon": "bag", "page": "./pages/Shop.jsx" },
+    { "key": "products", "label": "Products", "icon": "tag", "page": "./pages/Products.jsx" },
+    { "key": "orders", "label": "Orders", "icon": "check", "page": "./pages/Orders.jsx" }
+  ],
+  "verify": {
+    "routes": [
+      { "method": "GET", "path": "/api/products", "expect": 200 },
+      { "method": "POST", "path": "/api/checkout", "expect": 400 },
+      { "method": "GET", "path": "/api/orders", "auth": true, "expect": 200 }
+    ]
+  }
+}

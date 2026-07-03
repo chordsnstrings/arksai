@@ -154,9 +154,12 @@ gate (lorem ipsum / coming-soon / not-implemented copy, __APP_ residue, dead-# l
 untouched Home/Items scaffold fingerprints — vendored/minified files skipped); PRODUCTION-COMPLETE
 doctrine in the code prompt + Definition-of-Done + CONTRACT.md. All inside the existing single
 bounded review — no new loops. Live-validated on a fresh all-modules scaffold.
-**REMAINING**: catalog/booking/cms-lite modules; `data/` preservation across republish;
-`api-only` + `service-py` + Vue/Svelte variants; archetype auto-routing at the plan gate;
-nightly canary; brownfield guided-diff modules; WS upgrade-forwarding test.
+**SHIPPED (2026-07-03, Wave A)**: catalog (server-priced checkout, order flow), booking
+(pure slots engine + transaction-guarded conflict-safe reservations), cms-lite (XSS-safe
+markdown, draft→publish, public read API) — all boot-proven through the full gate; and
+`data/` preservation across republish (stash/restore in publish.ts, unit-tested).
+**REMAINING**: `api-only` + `service-py` + Vue/Svelte variants; archetype auto-routing at
+the plan gate; nightly canary; brownfield guided-diff modules; WS upgrade-forwarding test.
 
 - **Phase 1 — the workhorse (kills the TaskForge class outright)**: `service` skeleton
   (Express + SQLite + Vite/React client, auth module built-in-able), CONTRACT.md +

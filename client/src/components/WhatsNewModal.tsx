@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-02.19';
+export const WHATS_NEW_VERSION = '2026-07-03.20';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Finished products, not demos',
-    body: 'The bar for every delivered app is now production-complete: every feature in your brief fully built, every button doing its real job, real copy everywhere. Before delivery, ArksAI scans the app for demo-grade leftovers — placeholder text, "coming soon" screens, dead links — and finishes them instead of shipping them.',
+    title: 'Shops, bookings, and content sites',
+    body: 'App building now covers commerce and services out of the box: product catalogs with a cart and secure checkout (prices always computed server-side), appointment booking with double-booking made impossible, and publishable content pages with a clean editor — all pre-verified, so your store or studio app works on the first build.',
   },
   {
-    title: 'Every app ships production-hardened',
-    body: 'Apps with accounts now come with the safety rails real products have: brute-force protection on sign-in, secure headers, clean error messages, and a working Account page where users can update their profile and change their password — included and verified automatically.',
+    title: 'Updates never lose your data',
+    body: 'When an app you published gets an update or a fix, everything its users already saved — records, uploads, orders — now carries over automatically. Shipping version two never resets version one.',
   },
 ];
 

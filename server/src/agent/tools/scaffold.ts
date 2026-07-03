@@ -182,7 +182,7 @@ function generateContract(name: string, slug: string, mods: ModuleMeta[]): strin
 - NEW ENTITIES: clone the exemplar (server/routes/items.js + its migration/seed/page) and rename — keep the same shapes, guards and validation pattern.
 - MODULES INSTALLED: ${mods.map((m) => m.name).join(', ') || '(none)'}. Their mounts live in server/api.js; their pages in client/src/modules.gen.js.
 - STYLES: mechanics live in app.css (responsive layer stays at the END of the file); the look is tokens.css only.
-- PRODUCTION-COMPLETE, NOT A DEMO: the delivered app is the finished product. The Items exemplar MUST be cloned/renamed into the real domain entities (or removed) — never delivered as a literal "Items" page. All copy is real product copy (no lorem ipsum / coming soon / placeholder screens); every visible control performs its real action; auth endpoints are rate-limited and the Account page (profile + password) ships working — keep them.
+- PRODUCTION-COMPLETE, NOT A DEMO: the delivered app is the finished product. The Items exemplar MUST be cloned/renamed into the real domain entities (or removed) — never delivered as a literal "Items" page. EXEMPLAR seeds (products/resources) must be replaced with the app's real data. All copy is real product copy (no lorem ipsum / coming soon / placeholder screens); every visible control performs its real action; auth endpoints are rate-limited and the Account page (profile + password) ships working — keep them.
 `;
 }
 
@@ -197,7 +197,11 @@ export const scaffoldAppTool: ToolDef = {
     'crud (the exemplar entity you CLONE per real entity), orgs (multi-tenant workspaces + invites ' +
     '+ isolation middleware), dashboard (stats + ring, needs crud), forms (public intake + outbox), ' +
     'uploads (authed files in data/uploads), realtime (SSE live updates), jobs (in-process ' +
-    'scheduler). The base is production-grade out of the box: security headers, rate-limited auth, ' +
+    'scheduler), catalog (products + cart + server-priced checkout + order fulfillment — commerce ' +
+    'with no payment keys; NEVER hand-roll a cart/checkout), booking (resources + per-day slots + ' +
+    'conflict-safe reservations in a transaction — NEVER hand-roll slot math), cms-lite (markdown ' +
+    'posts + editor + a public read API for blogs/docs). ' +
+    'The base is production-grade out of the box: security headers, rate-limited auth, ' +
     'a working Account page (profile + password change), JSON error envelope everywhere. After ' +
     'scaffolding: rename/clone the exemplar into the REAL domain entities, write real copy, theme ' +
     'via tokens.css — the skeleton mechanics (server.js, api.js guards, auth flow, responsive ' +

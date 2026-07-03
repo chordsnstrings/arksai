@@ -1,0 +1,17 @@
+{
+  "name": "booking",
+  "label": "Resources, time slots & reservations (conflict-safe)",
+  "deps": [],
+  "mounts": [
+    { "path": "/api/booking", "router": "./routes/booking.js", "auth": true }
+  ],
+  "nav": [
+    { "key": "booking", "label": "Bookings", "icon": "calendar", "page": "./pages/Booking.jsx" }
+  ],
+  "verify": {
+    "routes": [
+      { "method": "GET", "path": "/api/booking/resources", "auth": true, "expect": 200 },
+      { "method": "POST", "path": "/api/booking/reservations", "auth": true, "expect": 400 }
+    ]
+  }
+}

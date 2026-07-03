@@ -1,0 +1,18 @@
+{
+  "name": "cms-lite",
+  "label": "Content: markdown posts with a public read API",
+  "deps": [],
+  "mounts": [
+    { "path": "/api/content", "router": "./routes/content.js", "auth": false },
+    { "path": "/api/content-admin", "router": "./routes/contentAdmin.js", "auth": true }
+  ],
+  "nav": [
+    { "key": "content", "label": "Content", "icon": "file", "page": "./pages/Content.jsx" }
+  ],
+  "verify": {
+    "routes": [
+      { "method": "GET", "path": "/api/content", "expect": 200 },
+      { "method": "GET", "path": "/api/content-admin", "auth": true, "expect": 200 }
+    ]
+  }
+}

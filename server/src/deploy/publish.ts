@@ -211,6 +211,47 @@ async function uniqueSlug(base: string): Promise<string> {
   return s;
 }
 
+// Live-data preservation across republish: the paths a running app writes user records to.
+// data/ is the scaffold contract's canonical location; the sqlite files cover Prisma apps.
+export const LIVE_DATA_PATHS = ['data', 'prod.db', 'dev.db', 'prisma/prod.db', 'prisma/dev.db'];
+
+/** Move any live-data paths out of `dir` into a stash dir. Returns the stash, or null if none. */
+export function stashLiveData(dir: string, stashRoot: string): string | null {
+  let stash: string | null = null;
+  for (const rel of LIVE_DATA_PATHS) {
+    const from = path.join(dir, rel);
+    if (!fs.existsSync(from)) continue;
+    if (!stash) {
+      stash = path.join(stashRoot, `.data-stash-${Date.now()}`);
+      fs.mkdirSync(stash, { recursive: true });
+    }
+    const to = path.join(stash, rel);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.renameSync(from, to);
+  }
+  return stash;
+}
+
+/** Restore a stash over a fresh snapshot: the live copy replaces the snapshot's seed/dev copy. */
+export function restoreLiveData(stash: string, dest: string): void {
+  const restore = (stashDir: string, destDir: string) => {
+    for (const ent of fs.readdirSync(stashDir, { withFileTypes: true })) {
+      const from = path.join(stashDir, ent.name);
+      const to = path.join(destDir, ent.name);
+      if (ent.isDirectory() && ent.name !== 'data') {
+        // Nested layout (prisma/prod.db): merge into the snapshot's dir, replace files.
+        fs.mkdirSync(to, { recursive: true });
+        restore(from, to);
+      } else {
+        // data/ (db + uploads) and root sqlite files: the live copy replaces the snapshot's.
+        fs.rmSync(to, { recursive: true, force: true });
+        fs.renameSync(from, to);
+      }
+    }
+  };
+  restore(stash, dest);
+}
+
 /** Snapshot a session's built app into a durable dir and serve/run it at a slug URL. */
 export async function publishSession(sessionId: string, name?: string): Promise<PublishResult> {
   const session = await store.getSession(sessionId);
@@ -221,15 +262,27 @@ export async function publishSession(sessionId: string, name?: string): Promise<
   // Supersede any prior deployment(s) for this session — kill + remove them — so
   // re-publishes (including verification retries) don't pile up errored/duplicate
   // slugs, and the public URL stays stable instead of drifting to -2/-3.
+  //
+  // LIVE DATA SURVIVES A REPUBLISH: before removing the newest prior deployment, its
+  // data/ dir (SQLite db + uploads — the users' REAL records) and any known root SQLite
+  // files are stashed, then restored over the fresh snapshot below. The workspace copy
+  // only carries seed/dev data; the deployment's copy is authoritative. Migrations are
+  // idempotent (run-once by name) and seeds only fire when their data is absent, so a
+  // preserved database boots cleanly under new code.
+  let dataStash: string | null = null;
   const priorSlugs: string[] = [];
   try {
-    const prior = (await store.listDeployments()).filter((d) => d.sessionId === sessionId);
+    const prior = (await store.listDeployments())
+      .filter((d) => d.sessionId === sessionId)
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
     for (const d of prior) {
       priorSlugs.push(d.slug);
       deploymentRegistry.kill(d.slug);
       await store.deleteDeployment(d.slug);
       try {
-        fs.rmSync(deploymentDir(d.slug), { recursive: true, force: true });
+        const dir = deploymentDir(d.slug);
+        if (!dataStash) dataStash = stashLiveData(dir, deploymentsRoot());
+        fs.rmSync(dir, { recursive: true, force: true });
       } catch {}
     }
   } catch {}
@@ -260,6 +313,18 @@ export async function publishSession(sessionId: string, name?: string): Promise<
       { cwd: deploymentsRoot(), timeoutMs: 60_000 },
     ).catch(() => null);
     if (!r?.ok) console.warn(`[deploy] re-root from ${path.relative(dest, appRoot)} failed for ${slug}`);
+  }
+
+  // Restore the previous deployment's live data over the fresh snapshot (see the stash above).
+  if (dataStash) {
+    try {
+      restoreLiveData(dataStash, dest);
+      console.log(`[deploy] preserved live data across republish for ${slug}`);
+    } catch (e) {
+      console.warn(`[deploy] live-data restore failed for ${slug}: ${String(e)}`);
+    } finally {
+      fs.rmSync(dataStash, { recursive: true, force: true });
+    }
   }
 
   let kind: DeploymentKind = 'static';
