@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Fastify from 'fastify';
-import { buildConcatList, concatCmd, xfadeCmd, lastFrameCmd, probeDurationCmd } from '../src/agent/videoStitch';
+import { buildConcatList, concatCmd, xfadeCmd, lastFrameCmd, firstFrameCmd, probeDurationCmd, musicBedCmd, captionsCmd } from '../src/agent/videoStitch';
 import { buildVideoTask, isContentPolicyError, VIDEO_MODELS } from '../src/engines/seedance';
 import { mintVideoToken, registerVideoSrcRoutes } from '../src/routes/videoSrc';
 import fs from 'node:fs';
@@ -31,9 +31,33 @@ test('xfadeCmd: A/V crossfade with clamped fade and offset', () => {
   assert.match(xfadeCmd('/a', '/b', '/o', { fadeS: 99, offsetS: -5 }), /duration=2:offset=0/);
 });
 
-test('lastFrameCmd/probeDurationCmd: frame-chain + QC probes', () => {
+test('lastFrameCmd/firstFrameCmd/probeDurationCmd: frame-chain + QC probes', () => {
   assert.match(lastFrameCmd('/v.mp4', '/f.jpg'), /-sseof -0\.15 .* -frames:v 1/);
+  assert.match(firstFrameCmd('/v.mp4', '/f.jpg'), /-frames:v 1/);
+  assert.ok(!firstFrameCmd('/v.mp4', '/f.jpg').includes('-sseof'), 'first frame reads from the start');
   assert.match(probeDurationCmd('/v.mp4'), /ffprobe .*format=duration/);
+});
+
+test('xfadeCmd: fade-black kind selects the fadeblack transition', () => {
+  assert.match(xfadeCmd('/a', '/b', '/o', { fadeS: 0.4, offsetS: 5, kind: 'fadeblack' }), /xfade=transition=fadeblack/);
+  assert.match(xfadeCmd('/a', '/b', '/o', { fadeS: 0.4, offsetS: 5 }), /xfade=transition=fade:/);
+});
+
+test('musicBedCmd: bed loops quietly under the story; duck adds sidechain compression', () => {
+  const plain = musicBedCmd('/story.mp4', '/bed.mp3', '/out.mp4');
+  assert.match(plain, /aloop=loop=-1/);
+  assert.match(plain, /volume=0\.3/);
+  assert.match(plain, /amix=inputs=2:duration=first/);
+  assert.match(plain, /-c:v copy/);
+  assert.ok(!plain.includes('sidechaincompress'));
+  const ducked = musicBedCmd('/story.mp4', '/bed.mp3', '/out.mp4', { duck: true });
+  assert.match(ducked, /sidechaincompress/);
+});
+
+test('captionsCmd: drawtext strip with filter-breaking characters stripped', () => {
+  const cmd = captionsCmd('/in.mp4', '/out.mp4', `Wherever; you're: "50%" there,`);
+  assert.match(cmd, /drawtext=text='Wherever you re 50 there'/);
+  assert.match(cmd, /-c:a copy/);
 });
 
 // ── seedance engine additions ──

@@ -28,17 +28,82 @@ export function concatCmd(listFile: string, out: string): string {
 }
 
 /**
- * A/V cross-dissolve between exactly two clips (re-encode). `offsetS` = where in clip A the
- * video fade begins (usually A's duration − fade).
+ * A/V transition between exactly two clips (re-encode). `offsetS` = where in clip A the video
+ * fade begins (usually A's duration − fade). `kind`: 'fade' cross-dissolve | 'fadeblack' dip.
  */
-export function xfadeCmd(a: string, b: string, out: string, opts: { fadeS: number; offsetS: number }): string {
+export function xfadeCmd(a: string, b: string, out: string, opts: { fadeS: number; offsetS: number; kind?: 'fade' | 'fadeblack' }): string {
   const f = Math.max(0.2, Math.min(2, opts.fadeS));
   const o = Math.max(0, opts.offsetS);
+  const k = opts.kind === 'fadeblack' ? 'fadeblack' : 'fade';
   return (
     `ffmpeg -v error -i ${q(a)} -i ${q(b)} -filter_complex ` +
-    `"[0:v][1:v]xfade=transition=fade:duration=${f}:offset=${o}[v];[0:a][1:a]acrossfade=d=${Math.min(2, f * 2)}[a]" ` +
+    `"[0:v][1:v]xfade=transition=${k}:duration=${f}:offset=${o}[v];[0:a][1:a]acrossfade=d=${Math.min(2, f * 2)}[a]" ` +
     `-map "[v]" -map "[a]" -c:v libx264 -crf 20 -c:a aac -y ${q(out)}`
   );
+}
+
+/**
+ * Lay ONE continuous music bed under a stitched story (re-encode audio only, video stream
+ * copied). With `duck`, the bed sidechain-compresses under the story's own audio (dialogue/SFX
+ * stay in front); otherwise a simple quiet mix.
+ */
+export function musicBedCmd(videoIn: string, bedIn: string, out: string, opts: { duck?: boolean; bedVolume?: number } = {}): string {
+  const vol = Math.max(0.1, Math.min(1, opts.bedVolume ?? 0.3));
+  const filter = opts.duck
+    ? `[1:a]volume=${vol},aloop=loop=-1:size=2e9[bed];[bed][0:a]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=400[dk];[0:a][dk]amix=inputs=2:duration=first:dropout_transition=2[a]`
+    : `[1:a]volume=${vol},aloop=loop=-1:size=2e9[bed];[0:a][bed]amix=inputs=2:duration=first:dropout_transition=2[a]`;
+  return `ffmpeg -v error -i ${q(videoIn)} -i ${q(bedIn)} -filter_complex "${filter}" -map 0:v -map "[a]" -c:v copy -c:a aac -shortest -y ${q(out)}`;
+}
+
+/** Burn a caption line along the bottom of the whole video (used for the story voiceover). */
+export function captionsCmd(videoIn: string, out: string, text: string): string {
+  // drawtext is escape-sensitive: strip the characters that break the filter graph rather than
+  // attempt full escaping (captions are a courtesy render, not typography).
+  const safe = text.replace(/[\\'":;%,]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  return (
+    `ffmpeg -v error -i ${q(videoIn)} -vf ` +
+    `"drawtext=text='${safe}':fontcolor=white:fontsize=h/22:box=1:boxcolor=black@0.45:boxborderw=12:x=(w-text_w)/2:y=h-(h/8)" ` +
+    `-c:a copy -y ${q(out)}`
+  );
+}
+
+/** Mix a music bed under a stitched story; falls back to the un-mixed file on any failure. */
+export async function mixMusicBed(
+  videoAbs: string,
+  bedAbs: string,
+  outAbs: string,
+  opts: { duck?: boolean; signal?: AbortSignal } = {},
+): Promise<boolean> {
+  try {
+    await run(musicBedCmd(videoAbs, bedAbs, outAbs, { duck: opts.duck }), path.dirname(outAbs), opts.signal);
+    return fs.existsSync(outAbs) && fs.statSync(outAbs).size > 10_000;
+  } catch {
+    return false;
+  }
+}
+
+/** Burn captions; false (and no output) on failure — callers keep the clean file. */
+export async function burnCaptions(videoAbs: string, outAbs: string, text: string, signal?: AbortSignal): Promise<boolean> {
+  try {
+    await run(captionsCmd(videoAbs, outAbs, text), path.dirname(outAbs), signal);
+    return fs.existsSync(outAbs) && fs.statSync(outAbs).size > 10_000;
+  } catch {
+    return false;
+  }
+}
+
+/** Extract the FIRST frame (continuity QC compares it against the previous scene's last). */
+export function firstFrameCmd(clip: string, outJpg: string): string {
+  return `ffmpeg -v error -i ${q(clip)} -frames:v 1 -y ${q(outJpg)}`;
+}
+
+export async function extractFirstFrame(clipAbs: string, outJpgAbs: string, signal?: AbortSignal): Promise<string> {
+  fs.mkdirSync(path.dirname(outJpgAbs), { recursive: true });
+  await run(firstFrameCmd(clipAbs, outJpgAbs), path.dirname(outJpgAbs), signal);
+  if (!fs.existsSync(outJpgAbs) || fs.statSync(outJpgAbs).size < 1_000) {
+    throw new Error('could not extract the opening frame');
+  }
+  return outJpgAbs;
 }
 
 /** Extract the final frame of a clip (the anchor for a frame-chained next scene). */
@@ -78,7 +143,7 @@ export async function ffmpegAvailable(): Promise<boolean> {
 export async function stitchClips(
   files: string[],
   outAbs: string,
-  opts: { transition?: 'cut' | 'dissolve'; fadeS?: number; signal?: AbortSignal } = {},
+  opts: { transition?: 'cut' | 'dissolve' | 'fade-black'; fadeS?: number; signal?: AbortSignal } = {},
 ): Promise<void> {
   if (files.length === 0) throw new Error('nothing to stitch — no scene clips were produced');
   const dir = path.dirname(outAbs);
@@ -98,11 +163,12 @@ export async function stitchClips(
   } else {
     // Pairwise fold: ((s1 ⨯ s2) ⨯ s3) … — each xfade needs the running clip's duration.
     const fadeS = opts.fadeS ?? 0.4;
+    const kind = opts.transition === 'fade-black' ? 'fadeblack' : 'fade';
     let acc = files[0];
     for (let i = 1; i < files.length; i++) {
       const durS = await probeDuration(acc, dir, opts.signal);
       const step = i === files.length - 1 ? outAbs : path.join(dir, `.xfade-${Date.now()}-${i}.mp4`);
-      await run(xfadeCmd(acc, files[i], step, { fadeS, offsetS: Math.max(0, durS - fadeS) }), dir, opts.signal);
+      await run(xfadeCmd(acc, files[i], step, { fadeS, offsetS: Math.max(0, durS - fadeS), kind }), dir, opts.signal);
       if (acc !== files[0]) fs.rmSync(acc, { force: true });
       acc = step;
     }

@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config';
-import { generateTextM3, fileToDataUrl } from '../engines/minimax';
+import { generateTextM3, analyzeImage, fileToDataUrl } from '../engines/minimax';
+import { generateMusic } from '../engines/suno';
 import {
   createVideoTask,
   pollVideoTask,
@@ -11,7 +12,7 @@ import {
 } from '../engines/seedance';
 import { compileVideoPrompt } from './videoBrief';
 import { rasterizeFrame } from './productShot';
-import { stitchClips, extractLastFrame, probeDuration } from './videoStitch';
+import { stitchClips, extractLastFrame, extractFirstFrame, probeDuration, mixMusicBed, burnCaptions } from './videoStitch';
 import { mintVideoToken } from '../routes/videoSrc';
 import { planStory, type ScenePlan, type StoryPlan, type PlanStoryOpts } from './videoStory';
 
@@ -47,13 +48,19 @@ export interface StoryManifest {
   aspect: string;
   audio: boolean;
   dialogue?: string;
-  transition: 'cut' | 'dissolve';
+  transition: 'cut' | 'dissolve' | 'fade-black';
   plan: StoryPlan;
   pass: 'draft' | 'final';
   scenes: SceneResult[];
   stitched?: string; // repo-relative stitched output
   totalTokens: number;
   costUsd: number;
+  /** Phase 4 options, persisted so finals/retakes repeat them. */
+  music?: string; // a music-bed style description (Suno)
+  musicFile?: string; // the generated bed, reused across passes
+  captions?: boolean;
+  openingFrame?: string; // workspace image path anchoring scene 1 (product-story bridge)
+  resolution?: '1080p' | '4k';
 }
 
 export const storyDirName = (id: string) => `videos/story-${id}`;
@@ -181,10 +188,17 @@ async function runScene(
       audio: m.audio,
       model: mech === 'extend' || useRefs ? 'arksai-video-20-fast' : 'arksai-video-15',
       draft: !o.final,
-      resolution: o.final ? '1080p' : '480p',
+      // 4K only when the story explicitly asked for it (STORY_PLAN Phase 4).
+      resolution: o.final ? (m.resolution === '4k' ? '4k' : '1080p') : '480p',
     };
     if (useRefs) {
       spec.referenceUrls = (scene.castRefs ?? []).map((p) => fileToDataUrl(path.resolve(o.repoDir, p)));
+    }
+    // Product-story bridge: an explicit opening frame anchors scene 1 (e.g. the staged
+    // product frame from a product ad — "make this a story").
+    if (scene.id === 1 && m.openingFrame && mech !== 'i2v-composited') {
+      const abs = path.resolve(o.repoDir, m.openingFrame);
+      if (fs.existsSync(abs)) spec.imageUrl = fileToDataUrl(abs);
     }
     if (mech === 'i2v-composited' && scene.compositeHtml) {
       const frame = path.join(dir, `scene-${scene.id}-frame.jpg`);
@@ -266,6 +280,7 @@ export async function executeStory(
   const dir = path.join(o.repoDir, storyDirName(m.id));
   fs.mkdirSync(dir, { recursive: true });
   let prevClipAbs: string | null = null;
+  let continuityRetakes = 1; // Phase 4: at most ONE vision-driven auto-retake per story pass
   const results: SceneResult[] = [];
   for (const scene of m.plan.scenes) {
     if (o.signal.aborted) break;
@@ -275,6 +290,32 @@ export async function executeStory(
       res = reuse;
     } else {
       res = await runScene(scene, m.plan, m, prevClipAbs, o);
+      // Continuity vision QC (Phase 4): a frame-chained cut whose opening visibly breaks from
+      // the previous scene (person/wardrobe/light) gets ONE bounded auto-retake.
+      if (
+        res.status === 'ok' &&
+        res.file &&
+        scene.mechanism === 'frame-chain' &&
+        prevClipAbs &&
+        continuityRetakes > 0 &&
+        config.minimaxApiKey &&
+        !o.generate
+      ) {
+        const verdict = await continuityCheck(prevClipAbs, path.join(o.repoDir, res.file), dir, scene.id, o.signal);
+        if (verdict === 'mismatch') {
+          continuityRetakes -= 1;
+          const retry = await runScene(
+            { ...scene, prompt: `${scene.prompt} CONTINUITY: match the provided first frame exactly — the same person, same wardrobe, same lighting, same setting.` },
+            m.plan,
+            m,
+            prevClipAbs,
+            o,
+          );
+          if (retry.status === 'ok') {
+            res = { ...retry, note: [retry.note, 'auto-retaken once for continuity'].filter(Boolean).join('; ') };
+          }
+        }
+      }
       if (res.tokens) {
         const usd = (res.tokens / 1000) * config.seedanceCostPerKTok;
         m.costUsd += usd;
@@ -294,13 +335,89 @@ export async function executeStory(
     .filter((r): r is SceneResult => !!r && r.status === 'ok' && !!r.file)
     .map((r) => path.join(o.repoDir, r.file!));
   if (okFiles.length) {
-    const out = path.join(dir, o.final ? 'story-final.mp4' : 'story-draft.mp4');
+    let out = path.join(dir, o.final ? 'story-final.mp4' : 'story-draft.mp4');
     await stitchClips(okFiles, out, { transition: m.transition, signal: o.signal });
+    // Phase 4: ONE continuous music bed under the whole story (diegetic scene audio stays;
+    // the bed ducks under it when there's a voiceover). The bed is generated once and reused.
+    if (m.music) {
+      const bedAbs = await ensureMusicBed(m, o);
+      if (bedAbs) {
+        const mixed = out.replace(/\.mp4$/, '-scored.mp4');
+        if (await mixMusicBed(out, bedAbs, mixed, { duck: !!m.dialogue, signal: o.signal })) out = mixed;
+      }
+    }
+    // Phase 4: burned captions of the voiceover line, only on explicit ask.
+    if (m.captions && m.dialogue) {
+      const captioned = out.replace(/\.mp4$/, '-captioned.mp4');
+      if (await burnCaptions(out, captioned, m.dialogue, o.signal)) out = captioned;
+    }
     m.stitched = path.relative(o.repoDir, out);
   }
   m.pass = o.final ? 'final' : 'draft';
   saveManifest(o.repoDir, m);
   return m;
+}
+
+/** Generate (once) and cache the Suno music bed for a story. Fail-soft: null keeps the clean cut. */
+async function ensureMusicBed(m: StoryManifest, o: ExecuteOpts): Promise<string | null> {
+  if (m.musicFile) {
+    const abs = path.resolve(o.repoDir, m.musicFile);
+    if (fs.existsSync(abs)) return abs;
+  }
+  if (!config.sunoApiKey || !m.music) return null;
+  try {
+    const r = await generateMusic(
+      { prompt: `Instrumental only. ${m.music}`, instrumental: true, style: m.music.slice(0, 900), title: 'story score' },
+      o.repoDir,
+      o.signal,
+    );
+    const f = r.ok ? r.files[0]?.path : undefined;
+    if (!f) return null;
+    o.addCost(config.sunoCostPerTrack);
+    m.musicFile = f;
+    saveManifest(o.repoDir, m);
+    return path.resolve(o.repoDir, f);
+  } catch {
+    return null;
+  }
+}
+
+/** Vision continuity check: prev scene's final frame vs the new scene's opening frame. */
+async function continuityCheck(
+  prevClipAbs: string,
+  newClipAbs: string,
+  dir: string,
+  sceneId: number,
+  signal: AbortSignal,
+): Promise<'match' | 'mismatch' | 'unknown'> {
+  try {
+    const a = path.join(dir, `.qc-${sceneId}-prev.jpg`);
+    const b = path.join(dir, `.qc-${sceneId}-next.jpg`);
+    const pair = path.join(dir, `.qc-${sceneId}-pair.jpg`);
+    await extractLastFrame(prevClipAbs, a, signal);
+    await extractFirstFrame(newClipAbs, b, signal);
+    await hstackFrames(a, b, pair, signal);
+    const r = await analyzeImage(
+      fileToDataUrl(pair),
+      'LEFT is the final frame of one scene; RIGHT is the first frame of the next scene, which cuts directly from it. Judge only gross continuity across the cut: same person (if any), same wardrobe, same location, compatible lighting. Answer exactly MATCH or MISMATCH followed by a 5-word reason.',
+      signal,
+    );
+    for (const f of [a, b, pair]) fs.rmSync(f, { force: true });
+    if (!r.ok || !r.text) return 'unknown';
+    return /\bMISMATCH\b/i.test(r.text) ? 'mismatch' : 'match';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** Side-by-side comparison image for the continuity check (same-aspect frames). */
+async function hstackFrames(a: string, b: string, out: string, signal: AbortSignal): Promise<void> {
+  const { execBash } = await import('../lib/exec');
+  await execBash(
+    `ffmpeg -v error -i ${JSON.stringify(a)} -i ${JSON.stringify(b)} -filter_complex "[0:v][1:v]hstack" -frames:v 1 -y ${JSON.stringify(out)}`,
+    { cwd: path.dirname(out), timeoutMs: 60_000, signal },
+  );
+  if (!fs.existsSync(out)) throw new Error('hstack failed');
 }
 
 /** Merge fresh results over prior ones by scene id. PURE. */
@@ -313,7 +430,17 @@ export function mergeScenes(prior: SceneResult[], fresh: SceneResult[]): SceneRe
 /** Create a fresh manifest for a newly planned story. */
 export async function planAndInitStory(
   story: string,
-  o: { repoDir: string; aspect?: string; audio?: boolean; dialogue?: string; transition?: 'cut' | 'dissolve' } & PlanStoryOpts,
+  o: {
+    repoDir: string;
+    aspect?: string;
+    audio?: boolean;
+    dialogue?: string;
+    transition?: 'cut' | 'dissolve' | 'fade-black';
+    music?: string;
+    captions?: boolean;
+    openingFrame?: string;
+    resolution?: '1080p' | '4k';
+  } & PlanStoryOpts,
 ): Promise<StoryManifest> {
   const plan = await planStory(story, o);
   const id = String(Date.now());
@@ -330,6 +457,10 @@ export async function planAndInitStory(
     scenes: [],
     totalTokens: 0,
     costUsd: 0,
+    music: o.music,
+    captions: o.captions,
+    openingFrame: o.openingFrame,
+    resolution: o.resolution,
   };
   saveManifest(o.repoDir, m);
   return m;

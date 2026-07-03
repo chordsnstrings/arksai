@@ -200,7 +200,10 @@ MECHANISM RULES (follow exactly):
 - anything that must show EXACT text or UI (an app screen, a sign, a menu, a scoreboard):
   "i2v-composited" + provide compositeHtml — a single self-contained <div> layout (inline CSS,
   no external resources) that renders that exact content; the video model animates FROM it.
-  Real text the user asked for must appear VERBATIM in the HTML.
+  compositeHtml craft rules (it gets FILMED, so design for the camera): the user's exact text
+  VERBATIM; large high-contrast type (any button/headline ≥40px, labels ≥24px, never below
+  20px); a simple bold layout filling the frame (one screen/sign, generous padding); dark-UI or
+  strong-contrast colours — thin grey small-print smears on video.
 - ${o.castNote}
 Constraints: ${o.aspect} aspect; ≤${STORY_CAPS.maxScenes} scenes; total ≤${STORY_CAPS.maxTotalS}s${o.durationHint ? `; aim for ~${o.durationHint}s total` : ''}; every scene prompt mentions continuity anchors ("the same man", "the same kitchen") by DESCRIPTION, never "as before".`;
 }
