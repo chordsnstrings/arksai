@@ -20,8 +20,9 @@ import { ART_STYLES, ART_STYLE_GROUPS, findArtStyle } from '@shared/videoStyles'
 type ModelChoice = 'auto' | 'arksai-video-15' | 'arksai-video-20';
 /** A staged image: the File + a preview object-URL. */
 type Pick2 = { file: File; url: string };
-/** What kind of video: a free-form scene, or a product ad built from the product's photo. */
-type StudioKind = 'scene' | 'product';
+/** What kind of video: a free-form scene, a product ad from the product's photo, or a
+ *  multi-scene STORY planned + stitched into one film. */
+type StudioKind = 'scene' | 'product' | 'story';
 
 /** One beat of a multi-shot sequence: a camera motion + what we see during it. Seedance 2.0
  *  natively supports sequenced motion in one continuous clip (aerial → zoom in → pull out);
@@ -137,7 +138,18 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  const canBuild = kind === 'product' ? productName.trim().length > 1 && !busy : scene.trim().length > 5 && !busy;
+  // Story mode: the sequence description + cast stills + a total-length hint.
+  const [storyText, setStoryText] = useState('');
+  const [castPhotos, setCastPhotos] = useState<Pick2[]>([]);
+  const [storyLength, setStoryLength] = useState(20);
+  const [transition, setTransition] = useState<'cut' | 'dissolve'>('cut');
+
+  const canBuild =
+    kind === 'product'
+      ? productName.trim().length > 1 && !busy
+      : kind === 'story'
+        ? storyText.trim().length > 14 && !busy
+        : scene.trim().length > 5 && !busy;
 
   /** Compile the ordered beats into a timed shot sequence (empty when fewer than 2 beats). */
   function beatsBlock(): string {
@@ -152,6 +164,27 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       })
       .join('\n');
     return `Shot sequence — ONE continuous video with these camera beats in this exact order, flowing smoothly from one into the next (no hard cuts):\n${seq}`;
+  }
+
+  /** The story brief — drives generate_video_story with the exact parameters: the planner
+   *  breaks the sequence into scenes, keeps cast/text consistent, and stitches one film. */
+  function storyBrief(img: { castPaths: string[] }): string {
+    const art = findArtStyle(style);
+    const lines: string[] = [
+      `Create a MULTI-SCENE story video with the generate_video_story tool.`,
+      'Call generate_video_story with EXACTLY these parameters:',
+      `- story: ${storyText.trim()}`,
+      `- aspect_ratio: "${ratio}"`,
+      `- duration_hint: ${storyLength}`,
+      img.castPaths.length ? `- cast_images: [${img.castPaths.join(', ')}]   (keep these characters/products consistent across scenes)` : '',
+      tagline.trim() ? `- dialogue: "${tagline.trim()}"   (a voiceover over the story)` : '',
+      transition === 'dissolve' ? `- transition: "dissolve"` : '',
+      !audio ? '- audio: false' : '',
+      art ? `The story's overall look: ${art.phrase} — mention it when presenting the plan.` : '',
+      '',
+      'Present the returned scene plan and results to me as-is (scene list included). The first pass is a cheap stitched DRAFT — after I approve, call it again with final:true; if I want one scene changed, use retake_scene + retake_note.',
+    ];
+    return lines.filter(Boolean).join('\n');
   }
 
   /** The product-ad brief — drives generate_video's product mode with the exact parameters,
@@ -262,6 +295,9 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       if (kind === 'product') {
         const productPaths = await up(productPhotos);
         msg = productBrief({ productPaths });
+      } else if (kind === 'story') {
+        const castPaths = await up(castPhotos);
+        msg = storyBrief({ castPaths });
       } else {
         const startPath = (await up(startFrame))[0];
         const endPath = (await up(endFrame))[0];
@@ -300,10 +336,78 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             <button className={`aw-seg ${kind === 'product' ? 'on' : ''}`} onClick={() => setKind('product')} type="button">
               <strong>Product video</strong><span>a commercial for your product</span>
             </button>
+            <button className={`aw-seg ${kind === 'story' ? 'on' : ''}`} onClick={() => setKind('story')} type="button">
+              <strong>Story</strong><span>multiple scenes, one film</span>
+            </button>
           </div>
         </div>
 
-        {kind === 'product' ? (
+        {kind === 'story' ? (
+          <>
+            <div className="aw-step">1 · The story</div>
+            <label className="aw-field">
+              <span className="aw-label">What happens, in order? <em>(write it like you'd tell a friend — we plan the scenes)</em></span>
+              <textarea
+                className="aw-input"
+                rows={4}
+                value={storyText}
+                onChange={(e) => setStoryText(e.target.value)}
+                placeholder='e.g. A man walks through the desert holding a phone. The camera zooms into the phone — an app with a button that says "Pick up by ecosine". Right after, a helicopter lowers a sleek car in front of him, and a suited driver steps out and opens the door.'
+              />
+            </label>
+            <div className="aw-field">
+              <span className="aw-label">Cast <em>(optional — photos of the people/products that must stay consistent across scenes)</em></span>
+              <div className="vs-refs-row">
+                {castPhotos.map((p, i) => (
+                  <div key={i} className="vs-frame-box has sm">
+                    <img src={p.url} alt={`Cast ${i + 1}`} />
+                    <button className="vs-frame-x" type="button" onClick={() => { URL.revokeObjectURL(p.url); setCastPhotos(castPhotos.filter((_, j) => j !== i)); }} aria-label="Remove">×</button>
+                  </div>
+                ))}
+                {castPhotos.length < 4 && (
+                  <label className="vs-frame-box sm">
+                    <input type="file" accept="image/*" multiple hidden onChange={(e) => {
+                      const files = e.target.files; if (!files) return;
+                      const room = 4 - castPhotos.length;
+                      setCastPhotos([...castPhotos, ...Array.from(files).slice(0, room).map((f) => ({ file: f, url: URL.createObjectURL(f) }))]);
+                    }} />
+                    <span className="vs-frame-plus">+</span>
+                    <span className="vs-frame-hint">add cast</span>
+                  </label>
+                )}
+              </div>
+            </div>
+            <label className="aw-field">
+              <span className="aw-label">Voiceover <em>(optional — spoken over the whole story)</em></span>
+              <input className="aw-input" value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder='e.g. "Wherever you are. Pick up by ecosine."' maxLength={160} />
+            </label>
+            <div className="aw-field">
+              <span className="aw-label">Look <em>(optional — one look carried across every scene)</em></span>
+              <ArtStylePicker style={style} onPick={setStyle} />
+            </div>
+            <div className="aw-field">
+              <span className="aw-label">Between scenes</span>
+              <div className="aw-segs">
+                <button className={`aw-seg ${transition === 'cut' ? 'on' : ''}`} onClick={() => setTransition('cut')} type="button">
+                  <strong>Clean cuts</strong><span>crisp, commercial</span>
+                </button>
+                <button className={`aw-seg ${transition === 'dissolve' ? 'on' : ''}`} onClick={() => setTransition('dissolve')} type="button">
+                  <strong>Dissolves</strong><span>soft crossfades</span>
+                </button>
+              </div>
+            </div>
+            <div className="aw-field">
+              <span className="aw-label">Total length <em>(approximate — each scene gets exactly what it needs)</em></span>
+              <div className="aw-segs">
+                {[12, 20, 30, 45, 60].map((d) => (
+                  <button key={d} className={`aw-seg ${storyLength === d ? 'on' : ''}`} onClick={() => setStoryLength(d)} type="button">
+                    <strong>~{d}s</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : kind === 'product' ? (
           <>
             <div className="aw-step">1 · The product</div>
             <div className="aw-field">
@@ -517,6 +621,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
+        {kind !== 'story' && (
         <div className="aw-field">
           <span className="aw-label">Duration</span>
           <div className="aw-segs">
@@ -527,7 +632,9 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </div>
+        )}
 
+        {kind !== 'story' && (
         <div className="aw-field">
           <span className="aw-label">Model</span>
           <div className="aw-grid">
@@ -547,6 +654,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </div>
+        )}
 
         <div className="aw-field">
           <label className="aw-toggle">
