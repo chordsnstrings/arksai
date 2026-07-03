@@ -88,3 +88,74 @@ export function classifyTask(task: string, mode: SessionMode): TaskProfile {
 
   return { type, isVisual, audience, tier };
 }
+
+/**
+ * Archetype router (Phase 3): map the brief → the scaffold-first architecture pick, so the
+ * plan gate SHOWS the user what will be built ("multi-tenant SaaS → service + orgs + crud")
+ * and the build starts from the right correct-by-construction base. Pure + deterministic;
+ * the model may adjust with a stated reason, never silently.
+ */
+export interface ArchitectureSuggestion {
+  base: 'scaffold_app' | 'create_react_app' | 'create_web_app' | 'create_expo_app';
+  modules: string[];
+  /** One human-readable line for the plan ("Multi-tenant SaaS → scaffold_app + orgs, crud, dashboard"). */
+  line: string;
+}
+
+const BACKEND_SIGNALS =
+  /\b(login|log[\s-]?in|sign[\s-]?up|account|auth|users?\b|members?\b|multi[\s-]?tenant|saas|workspace|team|database|backend|persist|server[\s-]?side|api\b|store\s?data|save\s?data|orders?\b|bookings?\b|reservations?\b|inventory|crm|admin)/;
+
+const MODULE_SIGNALS: { name: string; re: RegExp }[] = [
+  { name: 'orgs', re: /\b(multi[\s-]?tenant|saas|workspaces?|teams?|organi[sz]ations?|invite|memberships?|tenants?)\b/ },
+  { name: 'catalog', re: /\b(shop|store(front)?|e[\s-]?commerce|products?|cart|checkout|sell(ing)?|orders?|menu\s?ordering)\b/ },
+  { name: 'booking', re: /\b(book(ing|ings)?|appointments?|reservations?|time\s?slots?|scheduling|clinic|salon|rentals?|court|classes?\s?schedule)\b/ },
+  { name: 'cms-lite', re: /\b(blog|posts?|articles?|cms|news(letter)?\s?section|journal|content\s?management)\b/ },
+  { name: 'dashboard', re: /\b(dashboards?|analytics|kpis?|metrics|stats|charts?|insights)\b/ },
+  { name: 'forms', re: /\b(contact\s?form|intake|surveys?|questionnaires?|submissions?|enquir(y|ies)|inquir(y|ies)|lead\s?capture)\b/ },
+  { name: 'uploads', re: /\b(uploads?|photos?|images?|avatars?|attachments?|files?\b|gallery|documents?)\b/ },
+  { name: 'realtime', re: /\b(real[\s-]?time|live\s?(updates?|board|feed)|chat|presence|notifications?|collaborat)/ },
+  { name: 'jobs', re: /\b(daily|weekly|digest|cron|scheduled\s?(task|job|report)|reminders?|recurring)\b/ },
+];
+
+// "no accounts needed", "without a backend", "doesn't need login" — a NEGATED capability
+// must not count as a backend signal. Remove negated phrases before matching.
+const NEGATION_RE =
+  /\b(?:no|without|not?\s+(?:need(?:ed|ing)?|required?|want(?:ed)?)|doesn'?t\s+(?:need|require|have)|don'?t\s+(?:need|require|want))\s+(?:an?\s+|any\s+)?(?:user\s+)?(logins?|log[\s-]?ins?|accounts?|sign[\s-]?ups?|auth\w*|backend|databases?|servers?)\b/g;
+
+export function suggestArchitecture(task: string, profile: TaskProfile): ArchitectureSuggestion | null {
+  const t = task.toLowerCase().replace(NEGATION_RE, ' ');
+  if (profile.type === 'report' || profile.type === 'cli' || profile.type === 'library') return null;
+
+  if (profile.type === 'mobile') {
+    return { base: 'create_expo_app', modules: [], line: 'Mobile app → create_expo_app (native) or a PWA per the mobile decision rule.' };
+  }
+
+  const needsBackend = BACKEND_SIGNALS.test(t) || profile.type === 'api' || profile.type === 'internal-tool';
+  if (needsBackend) {
+    const modules = MODULE_SIGNALS.filter((m) => m.re.test(t)).map((m) => m.name);
+    // crud is the exemplar the domain entities are cloned from — always in for entity apps.
+    if (!modules.length || !['catalog', 'booking', 'cms-lite'].some((m) => modules.includes(m)) || /\b(track|manage|records?|entries|list)\b/.test(t)) {
+      modules.unshift('crud');
+    }
+    const label = modules.includes('orgs')
+      ? 'Multi-tenant SaaS'
+      : modules.includes('catalog')
+        ? 'Commerce'
+        : modules.includes('booking')
+          ? 'Booking/scheduling'
+          : 'App with accounts + data';
+    return {
+      base: 'scaffold_app',
+      modules: [...new Set(modules)],
+      line: `${label} → scaffold_app + modules: ${[...new Set(modules)].join(', ') || '(base)'}`,
+    };
+  }
+
+  if (profile.type === 'landing' || profile.type === 'portfolio' || profile.type === 'content') {
+    return { base: 'create_web_app', modules: [], line: 'Static site → create_web_app (no server, publishes as files).' };
+  }
+  if (profile.isVisual) {
+    return { base: 'create_react_app', modules: [], line: 'Stateful client app → create_react_app (backend:true only if it must persist).' };
+  }
+  return null;
+}

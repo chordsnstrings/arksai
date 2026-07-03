@@ -4,7 +4,7 @@ import { designContext } from './designSystem';
 import { expertiseFor } from './expertise';
 import { briefScaffold } from './brief';
 import { definitionOfDone } from './definitionOfDone';
-import type { TaskProfile, TaskType } from './taskProfile';
+import { suggestArchitecture, type TaskProfile, type TaskType } from './taskProfile';
 
 /** The few targeted questions to ask up front, by deliverable type. */
 const INTAKE_QUESTIONS: Partial<Record<TaskType, string>> = {
@@ -263,7 +263,20 @@ This session was started automatically by a schedule. NOBODY is watching the cha
   // Definition of Done — the EXACT structural/visual checks the gate enforces, front-loaded so the
   // first build aims to pass them (the visual/structural twin of Auto-Brief's SELF_AUDIT_GATE).
   const dod = definitionOfDone(userText, profile, session.mode);
-  const exp = [expertise, scaffold, dod].filter(Boolean).map((b) => `\n\n${b}`).join('');
+  // Archetype router (Phase 3): the deterministic architecture pick, shown at the plan gate so
+  // the user sees WHAT will be built ("Multi-tenant SaaS → scaffold_app + orgs, crud") before
+  // the build, and the build starts from the right correct-by-construction base.
+  const arch =
+    (session.mode === 'plan' || session.mode === 'code') && profile && userText ? suggestArchitecture(userText, profile) : null;
+  const archBlock = arch
+    ? `## Architecture pick (deterministic router — present this in your plan)\n` +
+      `${arch.line}\n` +
+      (arch.base === 'scaffold_app'
+        ? `Start the build with scaffold_app(modules: [${arch.modules.map((m) => `'${m}'`).join(', ')}]), then clone the exemplar into the real domain entities. `
+        : '') +
+      `State this architecture (one line) in the plan you present. You may deviate only for a concrete stated reason — never silently.`
+    : null;
+  const exp = [expertise, scaffold, dod, archBlock].filter(Boolean).map((b) => `\n\n${b}`).join('');
 
   // Agent-driven ORGANIZATION ONBOARDING — a warm, fully-visible setup conversation
   // (the user watches every step) that seeds the org's shared brand + profile.
