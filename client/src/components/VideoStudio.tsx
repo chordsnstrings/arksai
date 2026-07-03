@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { useStore } from '../state/sessionStore';
 import { VideoCard } from './VideoCard';
 import { PresetIcon } from './VideoPresetIcon';
+import { PRODUCT_CATEGORIES, BACKDROP_CSS, BACKDROP_LABELS } from '@shared/productAds';
 
 /**
  * "Video" — the dedicated full-page studio surface (Sidebar 🎬 / /video), mirroring Android/Robots.
@@ -26,29 +27,9 @@ type StudioKind = 'scene' | 'product';
  *  the "one steady move" rule applies WITHIN a beat, not across the sequence. */
 type Beat = { id: number; move: string; what: string };
 
-/** Product-ad backdrops — each is the exact set-dressing phrase for a commercial hero shot. */
-const BACKDROPS: { id: string; label: string; phrase: string }[] = [
-  { id: 'studio', label: 'Studio white', phrase: 'seamless white studio sweep, soft natural shadows, commercial catalogue finish' },
-  { id: 'grey', label: 'Studio grey', phrase: 'neutral grey seamless studio, sculpted soft shadows, premium editorial finish' },
-  { id: 'dark', label: 'Dark luxury', phrase: 'dark luxury backdrop, dramatic rim light, subtle reflective surface below the product' },
-  { id: 'colorpop', label: 'Colour pop', phrase: 'a bold saturated colour-block backdrop that complements the product, playful modern energy' },
-  { id: 'gradient', label: 'Gradient', phrase: 'smooth two-tone gradient backdrop, soft glow behind the product, contemporary and clean' },
-  { id: 'marble', label: 'Marble', phrase: 'white marble surface with soft veining, elegant spa-like staging' },
-  { id: 'silk', label: 'Silk & fabric', phrase: 'flowing silk fabric drapes rippling gently around the product, sensual premium softness' },
-  { id: 'water', label: 'Water splash', phrase: 'dynamic water splashes and droplets frozen mid-air around the product, fresh and crisp' },
-  { id: 'ice', label: 'Ice & frost', phrase: 'frosted ice staging with cool mist, condensation droplets on the product, chilled freshness' },
-  { id: 'smoke', label: 'Smoke & mist', phrase: 'slow-rolling atmospheric smoke and mist around the product, moody and cinematic' },
-  { id: 'stone', label: 'Stone & slate', phrase: 'dark slate and raw stone staging, earthy minimal texture, quiet strength' },
-  { id: 'wood', label: 'Warm wood', phrase: 'warm oiled wood surface, artisanal natural staging, cosy craft feel' },
-  { id: 'botanical', label: 'Botanical', phrase: 'lush green foliage and soft botanical shadows around the product, fresh organic staging' },
-  { id: 'sand', label: 'Desert sand', phrase: 'rippled desert sand and warm sun-baked tones, golden airy minimalism' },
-  { id: 'clouds', label: 'Floating', phrase: 'the product floating weightlessly among soft clouds and sky light, dreamlike levity' },
-  { id: 'concrete', label: 'Industrial', phrase: 'raw concrete and brushed metal staging, urban industrial edge' },
-  { id: 'neoncyber', label: 'Neon night', phrase: 'wet-look night surface with neon reflections, electric city-night mood' },
-  { id: 'festive', label: 'Festive', phrase: 'warm festive staging — bokeh lights, gift-wrap textures, celebratory sparkle' },
-  { id: 'lifestyle', label: 'Lifestyle', phrase: 'a natural lifestyle setting where the product is used, softly blurred background' },
-  { id: 'tech', label: 'Tech', phrase: 'sleek minimal tech environment, cool tones, soft gradient light' },
-];
+/** The CSS background value for a backdrop tile preview (shared ids drive the server compositor). */
+const backdropPreview = (id: string) =>
+  (BACKDROP_CSS[id] || '').replace(/^background:\s*/, '').replace(/;\s*$/, '');
 
 const MODELS: { id: ModelChoice; label: string; hint: string }[] = [
   { id: 'auto', label: 'Auto', hint: 'we pick the right one' },
@@ -137,7 +118,12 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [productPhoto, setProductPhoto] = useState<Pick2 | null>(null);
   const [productName, setProductName] = useState('');
   const [tagline, setTagline] = useState('');
-  const [backdrop, setBackdrop] = useState('studio');
+  const [backdrop, setBackdrop] = useState('studio-white');
+  // What KIND of product ('' = general) + which expert ad template for that kind.
+  const [category, setCategory] = useState('');
+  const [template, setTemplate] = useState('');
+  // Remove the photo's background and stage just the product (the default). Off = keep the photo as-is.
+  const [focusProduct, setFocusProduct] = useState(true);
   const [model, setModel] = useState<ModelChoice>('auto');
   const [ratio, setRatio] = useState('9:16');
   const [duration, setDuration] = useState(8);
@@ -175,25 +161,32 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
     return `Shot sequence — ONE continuous video with these camera beats in this exact order, flowing smoothly from one into the next (no hard cuts):\n${seq}`;
   }
 
-  /** The product-ad brief — a commercial hero-shot plan built from the product's own photo. */
+  /** The product-ad brief — drives generate_video's product mode with the exact parameters,
+   *  so the server isolates the product, stages it on the backdrop, and compiles the expert
+   *  per-category shot plan (skincare shows application on skin, food the pour/steam…). */
   function productBrief(img: { productPath?: string }): string {
-    const bd = BACKDROPS.find((b) => b.id === backdrop)!;
-    const cam = CAMERAS.find((c) => c.id === camera)?.phrase || 'slow orbit around the product';
-    const lit = LIGHTS.find((l) => l.id === light)?.phrase || 'clean studio softbox lighting, even and flattering';
-    const seq = beatsBlock();
+    const cat = PRODUCT_CATEGORIES.find((c) => c.id === category) || null;
+    const tpl = cat ? cat.templates.find((t) => t.key === template) || cat.templates[0] : null;
     const lines: string[] = [
-      `Generate a ${duration}s ${RATIOS.find((r) => r.id === ratio)?.label.toLowerCase()} (${ratio}) PRODUCT video ad for "${productName.trim()}".`,
+      `Generate a ${duration}s ${RATIOS.find((r) => r.id === ratio)?.label.toLowerCase()} (${ratio}) PRODUCT video ad for "${productName.trim()}" with the generate_video tool.`,
       scene.trim() ? `About the product: ${scene.trim()}` : '',
-      `Shot plan: a premium commercial product hero — the product is the star, perfectly centered and in crisp focus; ${bd.phrase}; ${seq ? 'camera per the shot sequence below' : `${cam} (one steady move)`}; ${lit}. No text overlays baked into the video. End beat: the product settles center-frame in its hero pose.`,
-      seq,
-      img.productPath
-        ? `Use the product's ACTUAL photo — pass it as first_frame_image (the video starts on the photo itself, so the product is exactly ours): ${img.productPath}`
+      'Call generate_video with EXACTLY these parameters:',
+      img.productPath ? `- product_photo: ${img.productPath}` : '',
+      `- product_name: ${productName.trim()}`,
+      cat ? `- product_category: ${cat.id}` : '',
+      cat && tpl ? `- ad_template: ${tpl.key}   (${tpl.label} — ${tpl.desc})` : '',
+      `- backdrop: ${backdrop}`,
+      img.productPath && !focusProduct ? '- focus_product: false   (keep my photo exactly as-is — do not remove its background)' : '',
+      `- aspect_ratio: "${ratio}", duration: ${duration}`,
+      tagline.trim() ? `- dialogue: "${tagline.trim()}"   (a voiceover speaks it)` : '',
+      model !== 'auto' ? `- model: "${model === 'arksai-video-15' ? 'video-1.5' : 'video-2.0'}"` : '',
+      // No photo → product mode can't stage a first frame; carry the template's direction in prose.
+      !img.productPath && tpl
+        ? `No photo — stage the product from the description. Shot plan: ${tpl.beats.map((b, i) => `${i + 1}. ${b.motion} — ${b.view}`).join('; ')}. Lighting: ${tpl.light}.`
         : '',
-      tagline.trim() ? `Voiceover (spoken clearly): "${tagline.trim()}"` : '',
       audio ? 'Audio: subtle premium ambience' + (tagline.trim() ? ' under the voiceover.' : ', no music.') : 'No audio — silent clip.',
-      model !== 'auto' ? `Use ${MODELS.find((m) => m.id === model)?.label}.` : '',
       '',
-      "Make a DRAFT first (fast 480p) so I can approve the direction, then I'll ask for the final. Use the generate_video tool.",
+      "Make a DRAFT first (fast 480p) so I can approve the direction, then I'll ask for the final.",
     ];
     return lines.filter(Boolean).join('\n');
   }
@@ -313,11 +306,17 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           <>
             <div className="aw-step">1 · The product</div>
             <div className="aw-field">
-              <span className="aw-label">Product photo <em>(we animate the actual photo — the product stays exactly yours)</em></span>
+              <span className="aw-label">Product photo <em>(any background — we find the product and lift it out)</em></span>
               <div className="vs-character">
                 <FrameTile label="" hint="add the product" pick={productPhoto} onPick={(p) => setProductPhoto(p)} />
                 <div className="vs-char-copy">
-                  <p>A clean shot of the product works best — centered, good light, plain background if you have one. Without a photo we stage the product from your description instead.</p>
+                  <p>Any photo works — kitchen counter, shop shelf, wherever. We identify the product, remove the background, and stage just the product on your chosen backdrop. Without a photo we stage it from your description instead.</p>
+                  {productPhoto && (
+                    <label className="aw-toggle">
+                      <input type="checkbox" checked={focusProduct} onChange={(e) => setFocusProduct(e.target.checked)} />
+                      <span>Focus on the product (remove the photo's background)</span>
+                    </label>
+                  )}
                 </div>
               </div>
             </div>
@@ -329,15 +328,45 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
               <span className="aw-label">What is it / what should the ad emphasise? <em>(optional)</em></span>
               <textarea className="aw-input" rows={2} value={scene} onChange={(e) => setScene(e.target.value)} placeholder="e.g. A vitamin-C serum in frosted glass — emphasise the golden droplets and the glass texture." />
             </label>
+
+            <div className="aw-step">2 · The ad</div>
+            <div className="aw-field">
+              <span className="aw-label">What kind of product? <em>(each kind gets its own expert ad style)</em></span>
+              <div className="aw-grid">
+                <button className={`aw-card ${category === '' ? 'on' : ''}`} onClick={() => { setCategory(''); setTemplate(''); }} type="button">
+                  <strong>General</strong><span>classic hero shot</span>
+                </button>
+                {PRODUCT_CATEGORIES.map((c) => (
+                  <button key={c.id} className={`aw-card ${category === c.id ? 'on' : ''}`} onClick={() => { setCategory(c.id); setTemplate(c.templates[0].key); }} type="button">
+                    <strong>{c.label}</strong><span>{c.templates.length} ad style{c.templates.length > 1 ? 's' : ''}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {category && (
+              <div className="aw-field">
+                <span className="aw-label">Ad style</span>
+                <div className="aw-grid">
+                  {PRODUCT_CATEGORIES.find((c) => c.id === category)!.templates.map((t) => (
+                    <button key={t.key} className={`aw-card ${(template || PRODUCT_CATEGORIES.find((c) => c.id === category)!.templates[0].key) === t.key ? 'on' : ''}`} onClick={() => setTemplate(t.key)} type="button">
+                      <strong>{t.label}</strong><span>{t.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <label className="aw-field">
               <span className="aw-label">Spoken tagline <em>(optional — a voiceover says it)</em></span>
               <input className="aw-input" value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder='e.g. "Glow, bottled."' maxLength={160} />
             </label>
             <div className="aw-field">
-              <span className="aw-label">Backdrop</span>
+              <span className="aw-label">Backdrop <em>(the set your product is staged on)</em></span>
               <div className="aw-grid">
-                {BACKDROPS.map((b) => (
+                {BACKDROP_LABELS.map((b) => (
                   <button key={b.id} className={`aw-card ${backdrop === b.id ? 'on' : ''}`} onClick={() => setBackdrop(b.id)} type="button">
+                    <span className="aw-kit-bar" aria-hidden>
+                      <i style={{ background: backdropPreview(b.id), width: '100%', height: 16, borderRadius: 4 }} />
+                    </span>
                     <strong>{b.label}</strong>
                   </button>
                 ))}
@@ -396,8 +425,9 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
           </>
         )}
 
-        <div className="aw-step">2 · Direction <em style={{ fontWeight: 400, fontStyle: 'normal', color: 'var(--text-faint)' }}>· Auto is smart — override only if you want</em></div>
         {kind === 'scene' && (
+        <>
+        <div className="aw-step">2 · Direction <em style={{ fontWeight: 400, fontStyle: 'normal', color: 'var(--text-faint)' }}>· Auto is smart — override only if you want</em></div>
         <div className="aw-field">
           <span className="aw-label">Look</span>
           <div className="aw-grid">
@@ -408,7 +438,6 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </div>
-        )}
 
         {beats.length < 2 && (
           <div className="aw-field">
@@ -443,6 +472,8 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </div>
+        </>
+        )}
 
         <div className="aw-step">3 · Format</div>
         <div className="aw-field">

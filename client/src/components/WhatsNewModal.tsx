@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-03.25';
+export const WHATS_NEW_VERSION = '2026-07-03.26';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Get paid — cards, wallets, and crypto',
-    body: 'Apps that sell now take real payments through Ziina, Telr, Network International, Stripe, PayPal — and crypto via Binance Pay. Apple Pay and Google Pay appear automatically at checkout (Samsung Pay via Network International). Paste your keys on your app\'s Payments page, pick your currency (AED included), and buyers pay instantly; every payment is verified with the provider before an order is marked paid.',
+    title: 'Product videos that focus on YOUR product',
+    body: 'Upload a photo of your product on any background — a kitchen counter, a shop shelf, anywhere — and ArksAI finds the product, removes the background, and stages it on a proper commercial set (20 backdrops, from studio white to dark luxury) before the video even starts. The clip opens on that clean staged frame, so the product in the ad is exactly yours.',
   },
   {
-    title: 'Shops, bookings, and content sites',
-    body: 'App building now covers commerce and services out of the box: product catalogs with a cart and secure checkout (prices always computed server-side), appointment booking with double-booking made impossible, and publishable content pages with a clean editor — all pre-verified, so your store or studio app works on the first build.',
-  },
-  {
-    title: 'Android apps, built on rails',
-    body: 'Native Android builds now start from ready-made building blocks — tab navigation, sign-in, offline data, a QR scanner — styled by a 23-piece mobile design kit. And before any build machine spins up, the app is type-checked and bundle-checked locally, so broken builds get caught in seconds, not after a ten-minute wait.',
+    title: 'Expert ad styles per kind of product',
+    body: 'Tell us what kind of product it is — skincare, food & beverage, fashion, jewellery, electronics, fragrance, furniture, fitness, automotive, or everyday goods — and pick an ad style made for it: skincare shows the texture and the glow on real skin, food gets the slow-motion pour and steam, jewellery the macro sparkle. Each style is a timed, director-grade shot plan.',
   },
 ];
 

@@ -4,6 +4,7 @@ import { config } from '../../config';
 import { analyzeImage, fileToDataUrl, generateImage, generateVideo, textToSpeech } from '../../engines/minimax';
 import { createVideoTask, pollVideoTask, downloadVideo, seedanceOn, isRealPersonRejection, realPersonFallbackSpec } from '../../engines/seedance';
 import { compileVideoPrompt } from '../videoBrief';
+import { isolateProduct, composeProductFrame, productAdBrief, BACKDROP_CSS } from '../productShot';
 import { resolveInWorkspace, type ToolDef } from './common';
 
 const minimaxOn = () => !!config.minimaxApiKey;
@@ -207,6 +208,12 @@ export const generateVideoTool: ToolDef = {
       first_frame_image: { type: 'string', description: 'Optional workspace image path — the clip STARTS on this exact frame (image-to-video).' },
       last_frame_image: { type: 'string', description: 'Optional workspace image path — the clip ENDS on this exact frame; with first_frame_image it animates start→end.' },
       reference_images: { type: 'array', items: { type: 'string' }, description: 'Optional workspace image paths — subject/product/style references the video keeps consistent (best on Video 2.0). Up to 4.' },
+      product_photo: { type: 'string', description: 'PRODUCT-AD MODE: workspace path to the product photo. The product is IDENTIFIED and lifted off its background (whatever was behind it), staged on the chosen backdrop with shadow/reflection, and the video OPENS on that clean frame.' },
+      product_name: { type: 'string', description: 'Product-ad mode: the product name (used in the director brief).' },
+      product_category: { type: 'string', description: 'Product-ad mode: skincare | food | fashion | jewellery | electronics | fragrance | furniture | fitness | automotive | fmcg — picks the expert ad language (skincare shows application on skin, food the pour/steam, jewellery the macro sparkle…).' },
+      ad_template: { type: 'string', description: "Product-ad mode: the category's ad template key (e.g. skincare: texture-ritual | ingredient-story). Omit for the category default." },
+      backdrop: { type: 'string', description: 'Product-ad mode: staging backdrop id (studio-white, studio-grey, dark-luxury, colour-pop, gradient, marble, silk-fabric, water-splash, ice-frost, smoke-mist, stone-slate, warm-wood, botanical, desert-sand, floating, industrial, neon-night, festive, lifestyle, tech). Default studio-white.' },
+      focus_product: { type: 'boolean', description: 'Product-ad mode: remove the photo background and focus on the product (default true). false keeps the original photo as-is.' },
     },
     required: ['prompt'],
   },
@@ -222,6 +229,39 @@ export const generateVideoTool: ToolDef = {
       try {
         const modelArg = String(args.model || 'auto');
         const branded = modelArg === 'video-2.0' ? 'arksai-video-20' : 'arksai-video-15';
+        // PRODUCT-AD MODE: identify + isolate the product from ANY photo, stage it on the
+        // chosen backdrop (shadow + reflection), and open the video on that clean frame.
+        // Degrades honestly: if isolation can't run, the original photo stages as-is.
+        let productNote = '';
+        let adPrompt: string | null = null;
+        if (args.product_photo) {
+          const photoAbs = resolveInWorkspace(ctx.repoDir, String(args.product_photo));
+          if (!fs.existsSync(photoAbs)) return `Error: product_photo not found: ${args.product_photo}`;
+          const vidDir = path.join(ctx.repoDir, 'videos');
+          fs.mkdirSync(vidDir, { recursive: true });
+          let stagedFrom = photoAbs;
+          let isolated = false;
+          if (args.focus_product !== false) {
+            const cut = path.join(vidDir, `product-cut-${Date.now()}.png`);
+            const iso = await isolateProduct(photoAbs, cut, ctx.signal);
+            if (iso.ok) { stagedFrom = cut; isolated = true; }
+            else productNote = `\nNote: background removal was skipped (${iso.reason}) — the original photo was staged as-is.`;
+          }
+          const backdropId = BACKDROP_CSS[String(args.backdrop || '')] ? String(args.backdrop) : 'studio-white';
+          const stagedOut = path.join(vidDir, `product-frame-${Date.now()}.jpg`);
+          const aspect = ['16:9', '9:16', '1:1'].includes(String(args.aspect_ratio)) ? (String(args.aspect_ratio) as '16:9' | '9:16' | '1:1') : '16:9';
+          await composeProductFrame({ productImagePath: stagedFrom, backdropId, outPath: stagedOut, aspect, isolated });
+          args.first_frame_image = path.relative(ctx.repoDir, stagedOut);
+          adPrompt = productAdBrief({
+            productName: String(args.product_name || prompt.slice(0, 80)),
+            productDesc: args.product_name ? prompt : undefined,
+            categoryId: args.product_category ? String(args.product_category) : undefined,
+            templateKey: args.ad_template ? String(args.ad_template) : undefined,
+            backdropPhrase: `staged on a ${backdropId.replace(/-/g, ' ')} set`,
+            tagline: args.dialogue ? String(args.dialogue) : undefined,
+            durationS: Number(args.duration) || 12,
+          });
+        }
         let imageUrl: string | undefined;
         if (args.first_frame_image) {
           imageUrl = fileToDataUrl(resolveInWorkspace(ctx.repoDir, String(args.first_frame_image)));
@@ -234,7 +274,7 @@ export const generateVideoTool: ToolDef = {
           ? args.reference_images.slice(0, 4).map((p: unknown) => fileToDataUrl(resolveInWorkspace(ctx.repoDir, String(p))))
           : [];
         const compiled = compileVideoPrompt({
-          brief: prompt,
+          brief: adPrompt ?? prompt,
           dialogue: args.dialogue ? String(args.dialogue) : undefined,
           durationSec: Number(args.duration) || undefined,
         });
@@ -276,8 +316,8 @@ export const generateVideoTool: ToolDef = {
           ? ' NOTE: the photo contains a real person, so it was rendered by animating their ACTUAL photo (Video 1.5, first frame = the photo itself — exact likeness preserved); identity-reference mode declines real people (provider policy). Tell the user this plainly if relevant.'
           : '';
         return built.draft
-          ? `Draft video ready: videos/${name} (${built.label}, ${built.duration}s ${built.resolution}, audio ${built.body.generate_audio ? 'on' : 'off'}, ${Math.round(bytes / 1024)} KB).${realPersonNote} Show it to the user; when they approve, call generate_video again with final:true (same prompt) for the 1080p render. If they want a change, adjust the prompt and make ONE new draft.`
-          : `Final video ready: videos/${name} (${built.label}, ${built.duration}s ${built.resolution}, ${Math.round(bytes / 1024)} KB).${realPersonNote} Offer it as the download.`;
+          ? `Draft video ready: videos/${name} (${built.label}, ${built.duration}s ${built.resolution}, audio ${built.body.generate_audio ? 'on' : 'off'}, ${Math.round(bytes / 1024)} KB).${realPersonNote}${productNote} Show it to the user; when they approve, call generate_video again with final:true (same prompt) for the 1080p render. If they want a change, adjust the prompt and make ONE new draft.`
+          : `Final video ready: videos/${name} (${built.label}, ${built.duration}s ${built.resolution}, ${Math.round(bytes / 1024)} KB).${realPersonNote}${productNote} Offer it as the download.`;
       } catch (e: any) {
         return `Error: video generation failed — ${e?.message ?? e}`;
       }
