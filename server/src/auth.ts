@@ -261,6 +261,9 @@ export function registerAuth(app: FastifyInstance) {
       // Ephemeral Android build droplet → source/artifact/fail. Token-gated INSIDE the
       // route (per-build one-time token); the droplet has no app session cookie.
       /^\/api\/builds\/[^/]+\/(source|artifact|fail|bakelog)$/.test(url) ||
+      // Story-video extension inputs: the video provider fetches a clip via a short-lived,
+      // path-locked token minted server-side (routes/videoSrc.ts). Token IS the gate.
+      /^\/api\/video-src\/[A-Za-z0-9_-]+$/.test(url) ||
       !isApi;
     if (open || req.identity) return;
     return reply.code(401).send({ error: 'Unauthorized' });

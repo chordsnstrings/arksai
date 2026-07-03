@@ -26,11 +26,18 @@ export interface VideoSpec {
   imageUrl?: string; // i2v: first-frame / start image (https or data URL)
   lastFrameUrl?: string; // end-frame image — the clip animates from first_frame → last_frame
   referenceUrls?: string[]; // subject/style reference images (Seedance 2.0 keeps their look/identity)
+  /** Reference VIDEO (Seedance 2.0 r2v) — extension/"continue this clip"/style-of-this-clip.
+   *  MUST be a public web URL: the API rejects data URLs for video (probed 2026-07-03). */
+  videoUrl?: string;
 }
 
 export const VIDEO_MODELS: Record<string, { api: string; label: string; min: number; max: number; draft: boolean }> = {
   'arksai-video-15': { api: 'seedance-1-5-pro-251215', label: 'ArksAI Video 1.5', min: 4, max: 12, draft: true },
   'arksai-video-20': { api: 'dreamina-seedance-2-0-260128', label: 'ArksAI Video 2.0', min: 4, max: 15, draft: false },
+  // Internal cost tier for continuity work (extension/reference scenes in stories) — never shown
+  // as a selectable model. The `-fast` suffix sits BEFORE the date (probed 2026-07-03; the
+  // date-then-fast guess 404s). No -mini/-pro exist on our account.
+  'arksai-video-20-fast': { api: 'dreamina-seedance-2-0-fast-260128', label: 'ArksAI Video 2.0', min: 4, max: 15, draft: false },
 };
 
 const VALID_RES = new Set(['480p', '720p', '1080p', '4k']);
@@ -63,6 +70,10 @@ export function buildVideoTask(spec: VideoSpec): {
   for (const ref of spec.referenceUrls ?? []) {
     if (ref) content.push({ type: 'image_url', image_url: { url: ref }, role: 'reference_image' });
   }
+  // Reference video (2.0 r2v): the ONLY video role the API accepts is reference_video, and it
+  // must be a WEB url (data URLs rejected: "must be provided as a web url"). Extension =
+  // reference_video + a "continue this exact video" prompt — there is no separate flag.
+  if (spec.videoUrl) content.push({ type: 'video_url', video_url: { url: spec.videoUrl }, role: 'reference_video' });
   const body: Record<string, unknown> = {
     model: m.api,
     content,
@@ -74,6 +85,15 @@ export function buildVideoTask(spec: VideoSpec): {
 
 /** True when the provider declined the request because an input image contains a real person. */
 export const isRealPersonRejection = (msg: string): boolean => /input image may contain (a )?real person/i.test(msg || '');
+
+/**
+ * True when the OUTPUT was blocked by the provider's content/copyright moderation
+ * (`OutputVideoSensitiveContentDetected.PolicyViolation` — hit twice on 2.0-fast t2v in the
+ * 2026-07-03 probes while identical prompts rendered fine on 1.5 and on 2.0 r2v). The story
+ * executor's ladder: one reworded retry → downgrade the mechanism to 1.5 → honest note.
+ */
+export const isContentPolicyError = (msg: string): boolean =>
+  /OutputVideoSensitiveContentDetected|sensitive\s?content|copyright restriction/i.test(msg || '');
 
 /**
  * The legitimate real-person path (verified live 2026-07-02): Video 2.0 declines real-person

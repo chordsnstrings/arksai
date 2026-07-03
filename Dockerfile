@@ -63,6 +63,11 @@ RUN ( pip3 install --no-cache-dir --break-system-packages rembg onnxruntime pill
         && python3 -c "from rembg import new_session; new_session('u2net')" \
         && chmod -R a+rX /u2net ) \
       || echo "WARN: rembg install/model fetch failed — product isolation degrades to staging the original photo."
+# ffmpeg powers multi-scene story stitching + frame chaining (agent/videoStitch.ts). OPTIONAL +
+# non-fatal: without it scenes still generate individually and the stitcher says so plainly.
+RUN ( apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+        && rm -rf /var/lib/apt/lists/* ) \
+      || echo "WARN: ffmpeg install failed — story stitching/frame chaining unavailable at runtime."
 COPY --from=build /app /app
 ENV NODE_ENV=production \
     PORT=3000 \

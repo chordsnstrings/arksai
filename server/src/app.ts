@@ -19,6 +19,7 @@ import { registerProjectRoutes } from './routes/projects';
 import { registerDeploymentRoutes } from './routes/deployments';
 import { registerDocviewRoutes } from './routes/docview';
 import { registerLeadRoutes } from './routes/leads';
+import { registerVideoSrcRoutes } from './routes/videoSrc';
 import { registerScheduleRoutes } from './routes/schedules';
 import { registerHomeRoutes } from './routes/home';
 import { registerOrgRoutes } from './routes/orgs';
@@ -101,6 +102,7 @@ export async function buildApp() {
   registerDeploymentRoutes(app);
   registerDocviewRoutes(app);
   registerLeadRoutes(app);
+  registerVideoSrcRoutes(app);
   registerScheduleRoutes(app);
   registerHomeRoutes(app);
   registerOrgRoutes(app);
