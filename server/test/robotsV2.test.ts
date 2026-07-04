@@ -218,8 +218,10 @@ test('voice: transcribeAudio — no key fails closed; mocked ARK round-trip + no
   assert.equal(off.ok, false);
 
   // With a key + mocked fetch: mp3 input skips ffmpeg, round-trips the transcript.
-  const { config } = await import('../src/config');
-  (config as any).byteplusApiKey = 'test-key';
+  // The key must flow through the RUNTIME cache (env OR Admin→Keys DB) — reading the env-only
+  // config here was the live asr:false bug on the droplet.
+  const bp = await import('../src/agent/byteplusRuntime');
+  bp.__setByteplusKeyForTest('test-key');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'asr-'));
   const mp3 = path.join(dir, 'note.mp3');
   fs.writeFileSync(mp3, Buffer.from('fake-mp3-bytes'));
@@ -238,7 +240,7 @@ test('voice: transcribeAudio — no key fails closed; mocked ARK round-trip + no
     assert.equal(quiet.ok, true);
     assert.equal(quiet.noSpeech, true);
   } finally {
-    (config as any).byteplusApiKey = '';
+    bp.__setByteplusKeyForTest('');
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

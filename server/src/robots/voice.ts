@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { config } from '../config';
+import { byteplusConfigured, byteplusKey } from '../agent/byteplusRuntime';
 
 /**
  * Voice-note TRANSCRIPTION for the robot channels — the missing half of "voice commands".
@@ -38,7 +38,10 @@ export function __setVoiceFetch(f: typeof fetch): void {
 }
 
 export function voiceAvailable(): boolean {
-  return !!config.byteplusApiKey;
+  // The ark key may live in env OR the encrypted app_settings (Admin → Keys) — the runtime
+  // cache covers both. Reading config.byteplusApiKey directly here missed the DB-backed key
+  // the droplet actually uses (caught live: /api/voice/capabilities said asr:false).
+  return byteplusConfigured();
 }
 
 /** Convert any audio container ffmpeg understands into a small 16k mono mp3. */
@@ -79,7 +82,7 @@ export async function transcribeAudio(absPath: string, signal: AbortSignal): Pro
     try {
       const res = await httpFetch(ARK_CHAT_URL(), {
         method: 'POST',
-        headers: { Authorization: `Bearer ${config.byteplusApiKey}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${byteplusKey()}`, 'Content-Type': 'application/json' },
         signal: ac.signal,
         body: JSON.stringify({
           model: ASR_MODEL,
