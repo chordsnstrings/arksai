@@ -123,3 +123,18 @@ test('router: motion-graphics/explainer briefs go to the heavy lane', () => {
   assert.equal(complexityTier('make me an explainer video on our onboarding', 'chat'), 'heavy');
   assert.equal(complexityTier('what is LDL?', 'chat'), 'light');
 });
+
+test('scene contrast doctrine: kit grounds + MOTION.md rule + tool/prompt steering (operator 2026-07-04)', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  assert.match(css, /\.mg-ground-dark/);
+  assert.match(css, /\.mg-ground-accent/);
+  assert.match(css, /\.mg-split/);
+  assert.match(css, /\.mg-hero-stat/);
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  assert.match(md, /SCENE CONTRAST/);
+  assert.match(md, /never share BOTH ground and composition/);
+  assert.match(renderMotionVideoTool.description, /SCENE CONTRAST is required/);
+  const tool = fs.readFileSync(path.join(__dirname, '../src/agent/tools/motionVideo.ts'), 'utf8');
+  assert.match(tool, /varietyCheck/);
+  assert.match(tool, /SCENE-CONTRAST REVIEW/);
+});

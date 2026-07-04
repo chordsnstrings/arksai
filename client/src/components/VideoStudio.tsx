@@ -207,7 +207,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       'Do the WHOLE thing autonomously, then show me the finished video:',
       '1. Write the narration script; split it into scenes (one idea per scene, ~2 short sentences each).',
       '2. Read motion-kit/MOTION.md. Get every icon/logo via search_assets (never hand-draw), charts via render_chart.',
-      '3. Author each scene as a self-contained motion-kit HTML page — one consistent visual identity (--mg-* theme vars) across all scenes.',
+      '3. Author each scene as a self-contained motion-kit HTML page — one consistent identity (--mg-* vars) but STRONG scene-to-scene contrast: alternate grounds (.mg-ground-dark/.mg-ground-accent vs light) and rotate compositions per MOTION.md SCENE CONTRAST.',
       '4. Call render_motion_video with the scenes in order; if it reports a scene defect, fix that scene file and retake JUST that scene.',
       'Facts in the narration must be accurate and non-controversial; keep any health/finance content evidence-based with a one-line "educational, not professional advice" closing scene.',
     ].filter(Boolean).join('\n');

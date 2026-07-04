@@ -18,6 +18,20 @@ audio) and steps `window.__seek(ms)` per frame.
    paths. Charts come from `render_chart` SVGs (animate bars with `.mg-bar-v`, lines with
    `.mg-draw`).
 
+## SCENE CONTRAST (non-negotiable — the #1 review failure)
+Consecutive scenes must read as a real CUT, never the same slide re-worded. Across the
+video, VARY two things on every scene change:
+1. **The ground** — alternate `.mg-ground-dark` (ink, light text) and `.mg-ground-accent`
+   (deep accent, white text) against the default light ground. A good 6-scene rhythm:
+   light hero → light card → **dark stat** → light split → **accent emphasis** → dark
+   closing. Never more than TWO consecutive scenes on the same ground.
+2. **The composition** — rotate layout archetypes: centered hero (`.mg-center`), asymmetric
+   split (`.mg-split` + `.mg-left`), one giant number (`.mg-hero-stat`), an icon grid
+   (`.mg-row .mg-stagger`), a full-width band (`.mg-band`), an edge-anchored `.mg-rail`
+   scene. Two adjacent scenes must never share BOTH ground and composition.
+Scale contrast helps too: one scene whose stat fills a quarter of the frame beats another
+medium-sized card.
+
 ## Building blocks
 - Stage: `.mg-scene .mg-safe [.mg-center]`, `.mg-row/.mg-col/.mg-grid`, `.mg-wash` backdrop.
 - Type: `.mg-kicker` (mono eyebrow), `.mg-title` (serif display), `.mg-sub`, `.mg-stat`

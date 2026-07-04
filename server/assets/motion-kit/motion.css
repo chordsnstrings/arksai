@@ -122,3 +122,46 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
     radial-gradient(60vw 46vh at 82% 8%, color-mix(in srgb, var(--mg-accent) 7%, transparent), transparent 70%),
     radial-gradient(50vw 40vh at 8% 92%, color-mix(in srgb, var(--mg-accent-2) 6%, transparent), transparent 70%);
 }
+
+/* ---------- scene grounds (SCENE CONTRAST: alternate these across the video) ---------- */
+/* The #1 monotony failure is every scene on the same light ground with the same centered
+ * card. Alternate: light → dark → light → accent … so consecutive frames read as a CUT,
+ * not the same slide re-worded. */
+.mg-ground-dark {
+  --mg-bg: #17201d;
+  --mg-ink: #f2f4ef;
+  --mg-muted: #a7b3ab;
+  background: var(--mg-bg);
+  color: var(--mg-ink);
+}
+.mg-ground-dark .mg-wash {
+  background:
+    radial-gradient(60vw 46vh at 82% 8%, color-mix(in srgb, var(--mg-accent) 16%, transparent), transparent 70%),
+    radial-gradient(50vw 40vh at 8% 92%, color-mix(in srgb, var(--mg-accent-2) 12%, transparent), transparent 70%);
+}
+.mg-ground-accent {
+  --mg-bg: var(--mg-accent);
+  --mg-ink: #ffffff;
+  --mg-muted: color-mix(in srgb, #ffffff 78%, var(--mg-accent));
+  background: linear-gradient(135deg, var(--mg-accent), color-mix(in srgb, var(--mg-accent) 72%, #10201a));
+  color: var(--mg-ink);
+}
+.mg-ground-dark .mg-kicker, .mg-ground-accent .mg-kicker { color: color-mix(in srgb, #ffffff 85%, var(--mg-accent)); }
+.mg-ground-dark .mg-stat { color: color-mix(in srgb, var(--mg-accent) 55%, #ffffff); }
+.mg-ground-accent .mg-stat { color: #ffffff; }
+.mg-ground-dark .mg-chip { background: rgba(255, 255, 255, 0.09); color: #e9efe9; }
+.mg-ground-accent .mg-chip { background: rgba(255, 255, 255, 0.16); color: #ffffff; }
+
+/* ---------- layout archetypes (vary the COMPOSITION scene to scene) ---------- */
+.mg-split { display: grid; grid-template-columns: 1.1fr 1fr; gap: 4vw; align-items: center; height: 100%; }
+.mg-left { text-align: left; align-items: flex-start; }
+.mg-hero-stat .mg-stat { font-size: 24vh; letter-spacing: -0.02em; }
+.mg-hero-stat .mg-label { font-size: 3vh; }
+.mg-band {
+  align-self: stretch;
+  padding: 2.2vh 3vw;
+  border-radius: 2.4vh;
+  background: color-mix(in srgb, var(--mg-ink) 5%, transparent);
+}
+/* full-bleed edge rail — an asymmetric anchor so not everything is centered */
+.mg-rail { position: absolute; left: 0; top: 0; bottom: 0; width: 1.2vw; background: var(--mg-accent); }

@@ -184,6 +184,67 @@ async function renderScene(
   s.status = 'ok';
 }
 
+/**
+ * Cross-scene VARIETY QC (operator 2026-07-04: "there isn't a good contrast between the
+ * frames"): tile one mid-frame per scene into a contact sheet and let vision judge whether
+ * consecutive scenes read as real cuts (ground + composition change) or the same slide
+ * re-worded. Best-effort; the verdict is reported as a defect note, never fatal.
+ */
+async function varietyCheck(m: MotionManifest, repoDir: string, signal: AbortSignal): Promise<string | null> {
+  if (!config.minimaxApiKey) return null;
+  const clips = m.scenes.filter((s) => s.status === 'ok' && s.clip).slice(0, 8);
+  if (clips.length < 3) return null;
+  const dir = path.join(repoDir, dirName(m.id));
+  const stills: string[] = [];
+  try {
+    for (const s of clips) {
+      const out = path.join(dir, `.var-${s.id}.jpg`);
+      const mid = ((s.durationMs ?? 4000) / 2000).toFixed(2);
+      const r = await execBashQuiet(
+        `ffmpeg -v error -ss ${mid} -i ${JSON.stringify(path.join(repoDir, s.clip!))} -frames:v 1 -vf scale=360:-1 -y ${JSON.stringify(out)}`,
+        repoDir,
+        signal,
+      );
+      if (r && fs.existsSync(out)) stills.push(out);
+    }
+    if (stills.length < 3) return null;
+    const sheet = path.join(dir, '.var-sheet.jpg');
+    const inputs = stills.map((f) => `-i ${JSON.stringify(f)}`).join(' ');
+    const refs = stills.map((_, i) => `[${i}:v]`).join('');
+    const ok = await execBashQuiet(
+      `ffmpeg -v error ${inputs} -filter_complex "${refs}hstack=inputs=${stills.length}" -y ${JSON.stringify(sheet)}`,
+      repoDir,
+      signal,
+    );
+    if (!ok || !fs.existsSync(sheet)) return null;
+    const v = await analyzeImage(
+      fileToDataUrl(sheet),
+      `These are the scenes of one motion-graphics video, in order. Judge SCENE-TO-SCENE CONTRAST: do consecutive ` +
+        `scenes vary in ground (light/dark/accent) AND composition (centered vs split vs giant-number vs grid), reading ` +
+        `as real cuts? Answer "OK" if the sequence has clear visual variety, otherwise name the adjacent scene numbers ` +
+        `that look like the same slide re-worded and what to vary (one line each, at most 3 lines).`,
+      signal,
+    );
+    fs.rmSync(sheet, { force: true });
+    if (v.ok && v.text && !/^\s*ok\b/i.test(v.text)) return v.text.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 3).join(' / ');
+    return null;
+  } catch {
+    return null;
+  } finally {
+    for (const f of stills) fs.rmSync(f, { force: true });
+  }
+}
+
+async function execBashQuiet(cmd: string, cwd: string, signal: AbortSignal): Promise<boolean> {
+  try {
+    const { execBash } = await import('../../lib/exec');
+    const r = await execBash(cmd, { cwd, timeoutMs: 60_000, signal });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function assemble(m: MotionManifest, repoDir: string, signal: AbortSignal, addCost: (u: number) => void): Promise<void> {
   const clips = m.scenes.filter((s) => s.status === 'ok' && s.clip).map((s) => path.join(repoDir, s.clip!));
   if (!clips.length) throw new Error('no scene rendered successfully — nothing to assemble');
@@ -249,7 +310,10 @@ export const renderMotionVideoTool: ToolDef = {
     '(3) write each scene as a self-contained HTML file using the motion-kit (this tool installs ' +
     'motion-kit/ + read motion-kit/MOTION.md first; link motion-kit/motion.css + motion.js with ' +
     'RELATIVE paths, entrances in the first 1.5-3s, no wall-clock JS, theme via --mg-* vars — one ' +
-    'identity across scenes); (4) call this tool with the scenes IN ORDER. It synthesizes the ' +
+    'identity across scenes). SCENE CONTRAST is required: alternate grounds (.mg-ground-dark / ' +
+    '.mg-ground-accent vs light) and rotate compositions (centered hero, .mg-split, .mg-hero-stat ' +
+    'giant number, icon grid, .mg-band) — consecutive scenes must read as a real CUT, never the ' +
+    'same slide re-worded (see MOTION.md); (4) call this tool with the scenes IN ORDER. It synthesizes the ' +
     'narration per scene (timing derives from the real audio), captures frames deterministically, ' +
     'encodes, quality-checks frames, and assembles the final mp4 (+ optional ducked music bed). ' +
     'Scenes with QC defects come back named — fix the HTML and retake JUST that scene via ' +
@@ -387,6 +451,15 @@ export const renderMotionVideoTool: ToolDef = {
       return `Error: assembly failed — ${String(e?.message ?? e)}\n${describe(m)}`;
     }
     saveManifest(ctx.repoDir, m);
-    return describe(m);
+    // Cross-scene contrast verdict — only on a fresh full render (retakes keep their notes).
+    let variety = '';
+    if (retake == null) {
+      const v = await varietyCheck(m, ctx.repoDir, ctx.signal);
+      if (v)
+        variety =
+          `\n\nSCENE-CONTRAST REVIEW: ${v}\nVary the named scenes' GROUND (.mg-ground-dark / .mg-ground-accent vs light) ` +
+          `and COMPOSITION (see MOTION.md "SCENE CONTRAST"), then retake them.`;
+    }
+    return describe(m) + variety;
   },
 };
