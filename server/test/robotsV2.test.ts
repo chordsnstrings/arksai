@@ -7,8 +7,10 @@ import path from 'node:path';
 // Throwaway SQLite DB + crypto key, set BEFORE any import.
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-robov2-'));
 process.env.ENCRYPTION_KEY = 'test-key-robov2';
+process.env.APP_PASSWORD = 'test-operator';
 delete process.env.DATABASE_URL;
 delete process.env.MINIMAX_API_KEY;
+delete process.env.MINIMAX_GROUP_ID;
 delete process.env.DEEPSEEK_API_KEY;
 
 let db: typeof import('../src/db');
@@ -23,6 +25,14 @@ let jobs: typeof import('../src/robots/jobs');
 let actions: typeof import('../src/robots/actions');
 let analytics: typeof import('../src/robots/analytics');
 let reply: typeof import('../src/robots/reply');
+let app: any;
+let cachedCookie: string | null = null;
+async function opCookie(): Promise<string> {
+  if (cachedCookie) return cachedCookie;
+  const r = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { password: 'test-operator' } });
+  cachedCookie = String(r.headers['set-cookie']).split(';')[0];
+  return cachedCookie;
+}
 
 before(async () => {
   db = await import('../src/db');
@@ -40,6 +50,8 @@ before(async () => {
   actions = await import('../src/robots/actions');
   analytics = await import('../src/robots/analytics');
   reply = await import('../src/robots/reply');
+  const appMod = await import('../src/app');
+  app = await appMod.buildApp();
 });
 
 const mkDraft = (robotId: string, orgId: string, over: Partial<Parameters<typeof store.createDraft>[0]> = {}) =>
@@ -390,6 +402,49 @@ test('actions: upsert stores headers encrypted + write-only; rate limiter caps p
   let allowed = 0;
   for (let i = 0; i < 25; i++) if (actions.underRateLimit('rate-test-robot')) allowed++;
   assert.equal(allowed, 20);
+});
+
+// ---- two-way voice ----
+
+test('voice out: wantsVoiceReply policy + speakableText strips the unspeakable', async () => {
+  const outbound = await import('../src/robots/outbound');
+  // mirror (default): speak only when the sender spoke, chat channels only.
+  assert.equal(outbound.wantsVoiceReply({}, 'telegram', true), true);
+  assert.equal(outbound.wantsVoiceReply({}, 'telegram', false), false);
+  assert.equal(outbound.wantsVoiceReply(undefined, 'whatsapp', true), true);
+  assert.equal(outbound.wantsVoiceReply({ voiceReplies: 'always' }, 'telegram', false), true);
+  assert.equal(outbound.wantsVoiceReply({ voiceReplies: 'off' }, 'telegram', true), false);
+  // Never on email/SMS (wrong medium), whatever the config says.
+  assert.equal(outbound.wantsVoiceReply({ voiceReplies: 'always' }, 'email', true), false);
+  assert.equal(outbound.wantsVoiceReply({ voiceReplies: 'always' }, 'sms', true), false);
+
+  const spoken = outbound.speakableText(
+    'Here you go: **bold** and a [link](https://x.com/page) plus https://raw.example.com/a\n```js\ncode();\n```\nDone.',
+  );
+  assert.ok(!spoken.includes('```') && !spoken.includes('https://'));
+  assert.match(spoken, /bold/);
+  assert.match(spoken, /link/); // link TEXT survives, the URL doesn't
+  assert.match(spoken, /code omitted/);
+  const long = outbound.speakableText('word '.repeat(400));
+  assert.ok(long.length <= 605 && long.endsWith('…'));
+});
+
+test('voice chat routes: capabilities honest; transcribe/speak 503 when engines unkeyed', async () => {
+  const caps = await app.inject({ url: '/api/voice/capabilities', headers: { cookie: (await opCookie()) } });
+  assert.equal(caps.statusCode, 200);
+  const c = caps.json();
+  assert.equal(typeof c.asr, 'boolean');
+  assert.equal(typeof c.tts, 'boolean');
+  assert.equal(c.tts, false); // no MiniMax key/group in tests
+
+  const sessions = await import('../src/sessions/store');
+  const s = await sessions.createSession({ repoUrl: null, repoName: null, branch: null, mode: 'chat', model: 'arksai-auto', orgId: 'default' });
+  const cookie = await opCookie();
+  const speak = await app.inject({
+    method: 'POST', url: `/api/sessions/${s.id}/speak`, headers: { cookie },
+    payload: { text: 'hello there' },
+  });
+  assert.equal(speak.statusCode, 503); // honest, not a fake success
 });
 
 // ---- #9 analytics ----

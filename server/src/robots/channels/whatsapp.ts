@@ -117,6 +117,15 @@ export const whatsappAdapter: ChannelAdapter = {
     await graphPost(token, phoneId, { to, type: 'text', text: { body: text.slice(0, 4096) } });
   },
 
+  // Voice notes go by PUBLIC LINK too (ogg/opus per Cloud API audio constraints).
+  async sendVoiceNote(ch, to, fileOrUrl) {
+    const { token, phoneId } = creds(ch);
+    if (!/^https?:\/\//i.test(fileOrUrl)) {
+      throw new Error('WhatsApp voice delivery needs a public URL (minted file link), not a local path.');
+    }
+    await graphPost(token, phoneId, { to, type: 'audio', audio: { link: fileOrUrl } });
+  },
+
   // Documents go by PUBLIC LINK — the caller passes a minted short-lived URL as `filePath`
   // when it starts with http(s); a raw local path can't be delivered on this channel.
   async sendFile(ch, to, fileUrlOrPath, caption) {

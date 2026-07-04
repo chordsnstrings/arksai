@@ -300,14 +300,20 @@ export async function generateImage(
 
 // ----------------------------------------------------------- Text-to-speech
 
-export async function textToSpeech(
+/** TTS is available when the MiniMax key AND the T2A group id are configured. */
+export function ttsAvailable(): boolean {
+  return !!config.minimaxApiKey && !!config.minimaxGroupId;
+}
+
+/** Core T2A: synthesize speech and return the MP3 bytes (shared by the agent tool, robot
+ *  voice replies, and the chat conversation mode). Never throws. */
+export async function synthesizeSpeechBuffer(
   text: string,
   opts: { voiceId?: string; speed?: number },
-  repoDir: string,
   signal: AbortSignal,
-): Promise<EngineResult> {
-  if (!config.minimaxGroupId) {
-    return { ok: false, files: [], error: 'MiniMax T2A needs MINIMAX_GROUP_ID set in the environment.' };
+): Promise<{ ok: boolean; buffer?: Buffer; error?: string }> {
+  if (!ttsAvailable()) {
+    return { ok: false, error: 'MiniMax T2A needs MINIMAX_API_KEY and MINIMAX_GROUP_ID set in the environment.' };
   }
   try {
     const res = await fetch(`${base()}/t2a_v2?GroupId=${encodeURIComponent(config.minimaxGroupId)}`, {
@@ -323,17 +329,28 @@ export async function textToSpeech(
       }),
     });
     const data: any = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, files: [], error: `HTTP ${res.status}: ${JSON.stringify(data).slice(0, 300)}` };
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${JSON.stringify(data).slice(0, 300)}` };
     // T2A v2 returns the audio as a hex string in data.audio (non-streaming).
     const hex: string | undefined = data?.data?.audio;
-    if (!hex) return { ok: false, files: [], error: `no audio in response: ${JSON.stringify(data).slice(0, 300)}` };
-    const dir = ensureDir(repoDir, 'audio');
-    const name = `minimax-speech-${Date.now()}.mp3`;
-    fs.writeFileSync(path.join(dir, name), Buffer.from(hex, 'hex'));
-    return { ok: true, files: [{ path: `audio/${name}`, kind: 'audio' }] };
+    if (!hex) return { ok: false, error: `no audio in response: ${JSON.stringify(data).slice(0, 300)}` };
+    return { ok: true, buffer: Buffer.from(hex, 'hex') };
   } catch (e: any) {
-    return { ok: false, files: [], error: String(e?.message ?? e) };
+    return { ok: false, error: String(e?.message ?? e) };
   }
+}
+
+export async function textToSpeech(
+  text: string,
+  opts: { voiceId?: string; speed?: number },
+  repoDir: string,
+  signal: AbortSignal,
+): Promise<EngineResult> {
+  const r = await synthesizeSpeechBuffer(text, opts, signal);
+  if (!r.ok || !r.buffer) return { ok: false, files: [], error: r.error || 'speech synthesis failed' };
+  const dir = ensureDir(repoDir, 'audio');
+  const name = `minimax-speech-${Date.now()}.mp3`;
+  fs.writeFileSync(path.join(dir, name), r.buffer);
+  return { ok: true, files: [{ path: `audio/${name}`, kind: 'audio' }] };
 }
 
 // ----------------------------------------------------------- Video (Hailuo)

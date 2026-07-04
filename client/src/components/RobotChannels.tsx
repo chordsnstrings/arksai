@@ -135,18 +135,41 @@ function ChannelForm({ orgId, robotId, kind, channel, onSaved }: {
 
 export function ChannelsPanel({ orgId, robotId }: { orgId: string; robotId: string }) {
   const [channels, setChannels] = useState<RobotChannel[] | null>(null);
+  const [voiceReplies, setVoiceReplies] = useState<string>('mirror');
   const load = () => {
     api.listRobotChannels(orgId, robotId).then(setChannels).catch(() => setChannels([]));
   };
   useEffect(load, [orgId, robotId]);
+  useEffect(() => {
+    api.getRobot(orgId, robotId).then((r) => setVoiceReplies(r.config?.voiceReplies ?? 'mirror')).catch(() => {});
+  }, [orgId, robotId]);
+  // Read-merge-write (never clobber the rest of the config).
+  const setVoice = async (v: string) => {
+    setVoiceReplies(v);
+    try {
+      const backend = await api.getRobot(orgId, robotId);
+      await api.updateRobot(orgId, robotId, { config: { ...(backend.config || {}), voiceReplies: v as any } });
+    } catch {
+      /* retried on next change */
+    }
+  };
   const byKind = (k: RobotChannelKind) => (channels ?? []).find((c) => c.kind === k) ?? null;
   return (
     <>
       <h3>Chat & SMS channels</h3>
       <p className="rb-mini-empty" style={{ marginBottom: 8 }}>
         Beyond email, this robot can answer on Telegram, WhatsApp and SMS — same brain, same approval rules,
-        replies always locked to the person who wrote in.
+        replies always locked to the person who wrote in. Voice notes people send are transcribed and
+        understood; the robot can answer with a voice note of its own too.
       </p>
+      <div className="rb-persona-row" style={{ marginBottom: 10 }}>
+        <span className="rb-rule-when" style={{ alignSelf: 'center' }}>Voice replies:</span>
+        <select value={voiceReplies} onChange={(e) => void setVoice(e.target.value)}>
+          <option value="mirror">Match the sender (speak when they speak)</option>
+          <option value="always">Always add a voice note</option>
+          <option value="off">Text only</option>
+        </select>
+      </div>
       {(['telegram', 'whatsapp', 'sms'] as RobotChannelKind[]).map((k) => (
         <ChannelForm key={k} orgId={orgId} robotId={robotId} kind={k} channel={byKind(k)} onSaved={load} />
       ))}

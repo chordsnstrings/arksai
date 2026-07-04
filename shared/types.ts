@@ -637,6 +637,9 @@ export interface RobotConfig {
   /** Owner pings to notify-enabled commanders: escalations only (default), everything
    *  awaiting approval, or off. */
   notify?: 'escalations' | 'all' | 'off';
+  /** Voice replies on chat channels: mirror the sender (default — speak only when they
+   *  sent a voice note), always speak, or never. */
+  voiceReplies?: 'mirror' | 'always' | 'off';
 }
 
 // ---- Robot channels (beyond email: chat/SMS auto-responders) ----

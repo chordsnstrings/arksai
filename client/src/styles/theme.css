@@ -921,6 +921,22 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text-muted); padding: 5px 9px; cursor: pointer; line-height: 1;
 }
 .connect-btn:hover { color: var(--text); border-color: var(--text-muted); }
+/* voice: mic + conversation-mode toggle (next to connect) */
+.vc-mic {
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-muted); padding: 4px 9px; cursor: pointer; font-size: 13px; line-height: 1.2;
+}
+.vc-mic:hover { color: var(--text); border-color: var(--text-muted); }
+.vc-mic.rec { color: #fff; background: var(--red, #c0502f); border-color: var(--red, #c0502f); animation: vcPulse 1.2s ease-in-out infinite; }
+@keyframes vcPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.65; } }
+.vc-convo {
+  background: none; border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text-faint); font-family: var(--label); font-size: 11px; letter-spacing: .03em;
+  padding: 4px 10px; cursor: pointer; white-space: nowrap;
+}
+.vc-convo:hover { color: var(--text); border-color: var(--text-muted); }
+.vc-convo.on { color: var(--accent, #2f6d5b); border-color: var(--accent, #2f6d5b); background: color-mix(in srgb, var(--accent, #2f6d5b) 8%, transparent); }
+@media (max-width: 560px) { .vc-convo { padding: 4px 7px; letter-spacing: 0; } } /* tighter on phones, never hidden */
 /* "Commit & push" — appears next to Send only when there's something to commit */
 .commit-btn {
   background: var(--accent); color: #fff; border: 1px solid var(--accent);

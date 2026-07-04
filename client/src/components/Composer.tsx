@@ -8,6 +8,7 @@ import { clearLoopTimer, startLoopTimer } from '../api/useAutomation';
 import { COMMANDS, matchCommands, type CommandMeta } from '../commands';
 import { ConnectModal } from './ConnectModal';
 import { ConnectorIcon } from './ConnectorIcon';
+import { VoiceControls } from './VoiceChat';
 
 function parseInterval(s: string): number | null {
   const m = s.match(/^(\d+)(s|m|h)?$/);
@@ -503,6 +504,15 @@ export function Composer({
           {/* No mode pills and no model picker — ArksAI reads the request and routes itself
               (build / plan / report / image / …) and picks the right model (M3 vs fast)
               automatically. Power users can still force them with /mode and /model. */}
+          <VoiceControls
+            sessionId={meta.id}
+            live={live}
+            onSystem={sys}
+            onTranscript={(t, conversation) => {
+              if (conversation) void sendToAgent(t);
+              else setText((cur) => (cur ? `${cur} ${t}` : t));
+            }}
+          />
           <span className="spacer" />
           {git?.hasRepo && git.dirty > 0 && !running && (
             <button className="commit-btn" disabled={committing} onClick={commitPush} title="Commit all changes and push to the connected repo">

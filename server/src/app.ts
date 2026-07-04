@@ -29,6 +29,7 @@ import { registerEmailRoutes } from './routes/email';
 import { registerRobotRoutes } from './routes/robots';
 import { registerRobotHookRoutes } from './routes/robotHooks';
 import { registerRobotFileRoutes } from './routes/robotFiles';
+import { registerVoiceChatRoutes } from './routes/voiceChat';
 import { registerConnectorRoutes } from './routes/connectors';
 import { registerGithubRoutes } from './routes/github';
 import { registerGoogleConnectRoutes } from './routes/googleConnect';
@@ -117,6 +118,7 @@ export async function buildApp() {
   registerRobotRoutes(app);
   registerRobotHookRoutes(app);
   registerRobotFileRoutes(app);
+  registerVoiceChatRoutes(app);
   registerConnectorRoutes(app);
   registerGithubRoutes(app);
   registerGoogleConnectRoutes(app);

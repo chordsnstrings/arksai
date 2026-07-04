@@ -46,6 +46,8 @@ export interface ChannelAdapter {
   /** Deliver a real file when the channel supports it (Telegram document, WhatsApp
    *  document-by-link). SMS falls back to a link in text. */
   sendFile?(ch: ChannelWithSecrets, to: string, filePath: string, caption?: string): Promise<void>;
+  /** Send a VOICE NOTE (ogg/opus). Telegram takes a local path; WhatsApp a public URL. */
+  sendVoiceNote?(ch: ChannelWithSecrets, to: string, fileOrUrl: string): Promise<void>;
   /** Poll-based inbound (Telegram getUpdates). Adapters persist their own cursor state. */
   fetchInbound?(ch: ChannelWithSecrets): Promise<ChannelInbound[]>;
 }

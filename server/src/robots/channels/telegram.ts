@@ -93,6 +93,16 @@ export const telegramAdapter: ChannelAdapter = {
     await call(token, 'sendDocument', form);
   },
 
+  // A real Telegram VOICE bubble (requires ogg/opus — the caller converts).
+  async sendVoiceNote(ch, to, fileOrUrl) {
+    const token = tokenOf(ch);
+    const form = new FormData();
+    form.set('chat_id', to);
+    const buf = fs.readFileSync(fileOrUrl);
+    form.set('voice', new Blob([new Uint8Array(buf)]), 'voice.ogg');
+    await call(token, 'sendVoice', form);
+  },
+
   async fetchInbound(ch) {
     const token = tokenOf(ch);
     const robotId = ch.channel.robotId;

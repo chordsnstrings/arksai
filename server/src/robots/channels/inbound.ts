@@ -4,6 +4,7 @@ import { createDraft, draftExistsFor, listActiveRules, markDraftStatus } from '.
 import { draftReplyWithActions } from '../actions';
 import { replyExtrasFor } from '../personas';
 import { cleanupAttachments, describeAttachments } from '../media';
+import { sendVoiceOnChannel, wantsVoiceReply } from '../outbound';
 import type { ChannelAdapter, ChannelInbound, ChannelWithSecrets } from './types';
 import { ADAPTERS } from './registry';
 export { ADAPTERS } from './registry';
@@ -180,6 +181,10 @@ export async function handleChannelInbound(
         await markDraftStatus(draft.id, robot.orgId, 'sent', Date.now());
         sum.sent++;
         autoSent = true;
+        // Two-way voice: speak the reply too when the policy says so (mirror = they spoke).
+        if (wantsVoiceReply(robot.config, kind, !!voiceText)) {
+          await sendVoiceOnChannel(robot, kind, msg.from, primary.text).catch(() => {});
+        }
       } catch (e: any) {
         sum.error = `auto-send failed: ${e?.message ?? e}`;
         console.error(`[robot ${robot.id}] ${kind} auto-send failed:`, sum.error);
