@@ -18,6 +18,8 @@ import {
 } from '../build/androidBuild';
 import { setBuildToken, setSnapshotId, doToken, snapshotId } from '../build/runtime';
 import { setByteplusKey, byteplusConfigured } from '../agent/byteplusRuntime';
+import { setMinimaxGroupId, minimaxGroupId } from '../engines/minimaxRuntime';
+import { ttsAvailable } from '../engines/minimax';
 import { startBake } from '../build/bake';
 import { config } from '../config';
 
@@ -69,6 +71,16 @@ export function registerBuildRoutes(app: FastifyInstance) {
     return { ok: true, configured: byteplusConfigured() };
   });
 
+  // Operator only: set the MiniMax T2A GroupId (the account UID) so voice replies + chat
+  // speech go live without SSH/redeploy. It's an account id, not a secret — plain app_settings.
+  app.post('/api/admin/providers/minimax-group', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    const id = String((req.body as any)?.groupId || '').trim();
+    if (!/^\d{6,}$/.test(id)) return reply.code(400).send({ error: 'Provide the numeric MiniMax account UID (GroupId).' });
+    await setMinimaxGroupId(id);
+    return { ok: true, configured: !!minimaxGroupId(), ttsAvailable: ttsAvailable() };
+  });
+
   // Operator only: rotate the DigitalOcean API token (encrypted at rest, no SSH/redeploy). Used by
   // the build orchestrator; the master ArksAI droplet is hard-protected from any destructive op.
   app.post('/api/admin/providers/do', async (req, reply) => {
@@ -86,6 +98,7 @@ export function registerBuildRoutes(app: FastifyInstance) {
     return {
       byteplus: { label: 'ArksAI Swift (BytePlus/Dola)', configured: byteplusConfigured() },
       digitalocean: { label: 'DigitalOcean API', configured: !!doToken() },
+      minimaxGroup: { label: 'MiniMax voice (T2A GroupId)', configured: !!minimaxGroupId(), ttsAvailable: ttsAvailable() },
       protected: { masterDropletId: config.masterDropletId, masterDropletName: config.masterDropletName },
     };
   });

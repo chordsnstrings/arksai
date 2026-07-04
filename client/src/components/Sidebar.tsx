@@ -50,6 +50,7 @@ export function Sidebar({
   onRobots,
   onAndroid,
   onVideo,
+  onDesign,
   onActivity,
   onDeployments,
   onAdmin,
@@ -63,6 +64,7 @@ export function Sidebar({
   onRobots: () => void;
   onAndroid: () => void;
   onVideo: () => void;
+  onDesign: () => void;
   onActivity: () => void;
   onDeployments: () => void;
   onAdmin: () => void;
@@ -282,6 +284,7 @@ export function Sidebar({
         </button>
         <button className="sb-tool" onClick={onAndroid}>📱 Android</button>
         <button className="sb-tool" onClick={onVideo}>🎬 Video</button>
+        <button className="sb-tool" onClick={onDesign}>🎨 Design</button>
       </div>
       <div className="sb-tools sb-tools-sub">
         <button className="sb-tool" onClick={onConnections}>

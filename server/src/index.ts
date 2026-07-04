@@ -14,6 +14,7 @@ import { installNotifyHooks } from './robots/notify';
 import { startBuildReaper } from './build/androidBuild';
 import { loadBuildRuntime } from './build/runtime';
 import { loadByteplusRuntime } from './agent/byteplusRuntime';
+import { loadMinimaxRuntime } from './engines/minimaxRuntime';
 import { loadDbRuntime } from './deploy/dbRuntime';
 import { loadGithubRuntime } from './github/runtime';
 import { loadGoogleRuntime } from './googleRuntime';
@@ -46,6 +47,7 @@ async function main() {
   warmBackgroundRemoval(); // one-time rembg JIT warmup so the first product video is never slow
   await loadBuildRuntime(); // load DO token + snapshot id from app_settings (if not in env)
   await loadByteplusRuntime(); // load the BytePlus/Dola ark key from app_settings (if not in env)
+  await loadMinimaxRuntime(); // load the MiniMax T2A GroupId from app_settings (if not in env)
   await loadDbRuntime(); // load the managed-Postgres admin URL from app_settings (if not in env)
   await loadGithubRuntime(); // load GitHub OAuth-app creds from app_settings (if not in env)
   await loadGoogleRuntime(); // load Google OAuth-client creds from app_settings (if not in env)

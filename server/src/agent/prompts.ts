@@ -815,6 +815,8 @@ CRAFT & RESTRAINT — one-shot discipline (bake-off-validated; this is what sepa
   a system font stack is always an acceptable, fast choice.
 - STANDARD CRAFT, always: wrap localStorage access in try/catch; :focus-visible focus rings;
   aria-label/aria-pressed on icon-only buttons; an @media (prefers-reduced-motion: reduce) guard.
+- COPY IS CRAFT: name things from the user's side (never system jargon), controls say exactly
+  what happens, errors say what went wrong + how to fix it, empty states say what to do next.
 - RESPONSIVE RULES LAST: every @media block goes at the END of the stylesheet, AFTER the base
   rules — a media rule declared above a base rule with the same selector is SILENTLY overridden
   (same specificity → source order wins) and your mobile layout half-applies. One responsive
@@ -876,10 +878,15 @@ handling, SQLite) that the publisher and verifier expect.
 
 COLOUR & DARK MODE — DON'T SHIP A HALF-DONE DARK THEME (this shipped a broken site): roughly half of
 phones are in dark mode, and your build is checked in light mode, so a dark-mode-only break is
-invisible to you. Two safe choices: (a) DON'T support auto dark mode — set :root{color-scheme:light}
+invisible to you. Three safe choices: (a) DON'T support auto dark mode — set :root{color-scheme:light}
 and a fixed light palette (simplest, always legible); or (b) support it FULLY — a prefers-color-scheme:dark
 block MUST switch the BACKGROUND too (not just the text colour), and every text/accent must still meet
-WCAG AA on the dark background. NEVER emit a dark block that flips --ink/text to a light colour while the
+WCAG AA on the dark background; or (c) the app has a THEME TOGGLE — go token-level: define the palette
+ONCE as custom properties on :root, redefine ONLY the tokens under @media (prefers-color-scheme: dark),
+then redefine them again under [data-theme="dark"] AND [data-theme="light"] so the user's toggle
+overrides the OS preference in BOTH directions; style components exclusively through the tokens (never
+hardcode colours inside the media query), and give the second theme the same care as the first — don't
+naively invert. NEVER emit a dark block that flips --ink/text to a light colour while the
 page background stays light — that makes text invisible. Define design tokens ONCE in a single clean
 :root (one source) — do NOT stack multiple token files that redefine --ink/--bg/--accent against each
 other, and never write a circular var like --accent:var(--accent) (it resolves to EMPTY, killing your

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config';
+import { minimaxGroupId } from './minimaxRuntime';
 
 /**
  * MiniMax engine: the capabilities DeepSeek (text-only) lacks — vision, image
@@ -300,9 +301,11 @@ export async function generateImage(
 
 // ----------------------------------------------------------- Text-to-speech
 
-/** TTS is available when the MiniMax key AND the T2A group id are configured. */
+/** TTS is available when the MiniMax key AND the T2A group id are configured.
+ *  The group id may come from env OR the runtime store (Admin → providers) — reading
+ *  config.minimaxGroupId directly would miss the DB-backed value the droplet uses. */
 export function ttsAvailable(): boolean {
-  return !!config.minimaxApiKey && !!config.minimaxGroupId;
+  return !!config.minimaxApiKey && !!minimaxGroupId();
 }
 
 /** Core T2A: synthesize speech and return the MP3 bytes (shared by the agent tool, robot
@@ -313,10 +316,10 @@ export async function synthesizeSpeechBuffer(
   signal: AbortSignal,
 ): Promise<{ ok: boolean; buffer?: Buffer; error?: string }> {
   if (!ttsAvailable()) {
-    return { ok: false, error: 'MiniMax T2A needs MINIMAX_API_KEY and MINIMAX_GROUP_ID set in the environment.' };
+    return { ok: false, error: 'MiniMax T2A needs MINIMAX_API_KEY plus a GroupId (env MINIMAX_GROUP_ID, or set it via Admin providers).' };
   }
   try {
-    const res = await fetch(`${base()}/t2a_v2?GroupId=${encodeURIComponent(config.minimaxGroupId)}`, {
+    const res = await fetch(`${base()}/t2a_v2?GroupId=${encodeURIComponent(minimaxGroupId())}`, {
       method: 'POST',
       headers: authHeaders(),
       signal,

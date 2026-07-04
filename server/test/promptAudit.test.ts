@@ -251,3 +251,48 @@ test('checkpoint trail: the runner emits checkpoint_update on auto + tool checkp
   assert.match(runner, /type: 'checkpoint_update'/);
   assert.equal((runner.match(/emitCheckpoints\(dir\)/g) || []).length >= 3, true, 'auto + tool + resume paths all emit');
 });
+
+// Claude-doctrine deltas (2026-07-04): treatment calibration, copy-as-design, token-level
+// dual theme, the completed anti-default-look list. Grep-level locks like the audits above.
+test('doctrine: designBrief compiler emits a TREATMENT line with both poles', () => {
+  const s = SRC('agent/designBrief.ts');
+  assert.match(s, /TREATMENT: utilitarian \| balanced \| editorial/);
+  assert.match(s, /composition, not identity/);
+  assert.match(s, /apply FULLY only to editorial/);
+  // the calibration tie-breaker travels in the compiler system prompt
+  assert.match(s, /well-composed page is never the wrong answer/);
+});
+
+test('doctrine: designCore calibrates treatment + treats words as design material', () => {
+  const s = SRC('agent/designSystem.ts');
+  assert.match(s, /CALIBRATE THE TREATMENT, NOT WHETHER TO DESIGN/);
+  assert.match(s, /Over-designing a utilitarian page is a failure/);
+  assert.match(s, /WORDS ARE DESIGN MATERIAL/);
+  assert.match(s, /not "webhook config"/);
+  // micro-craft: gap-not-margins + overflow container + balanced headings
+  assert.match(s, /flex\/grid gap, never per-element margins/);
+  assert.match(s, /overflow-x:auto container/);
+  assert.match(s, /text-wrap: balance on headings/);
+  // semantic state colour is separate from the accent (dashboard pack)
+  assert.match(s, /SEPARATE from the brand accent/);
+  // accent-conflict: shift analogous/desaturate, boldness in one place
+  assert.match(s, /analogous hue or drop its saturation/);
+  assert.match(s, /boldness in ONE place/);
+});
+
+test('doctrine: rubric judges per-treatment and names the completed default-look list', () => {
+  const s = SRC('agent/uiCheck.ts');
+  assert.match(s, /UTILITARIAN page .*judged on composition/i);
+  assert.match(s, /do NOT demand a hero/);
+  assert.match(s, /purple→blue gradient hero/);
+  assert.match(s, /emoji as section markers/);
+  assert.match(s, /COPY: words are design material/);
+});
+
+test('doctrine: CODE prompt offers the token-level dual-theme pattern for theme toggles', () => {
+  const p = buildSystemPrompt(codeSession, '/tmp', '');
+  assert.match(p, /THEME TOGGLE/);
+  assert.match(p, /redefine ONLY the tokens under @media \(prefers-color-scheme: dark\)/);
+  assert.match(p, /\[data-theme="dark"\] AND \[data-theme="light"\]/);
+  assert.match(p, /COPY IS CRAFT/);
+});

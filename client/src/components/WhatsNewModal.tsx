@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-04.36';
+export const WHATS_NEW_VERSION = '2026-07-04.37';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Your robot now pings YOU — and you can run it by message',
-    body: 'When something needs a human, the robot messages your own Telegram, WhatsApp or email with the customer\'s question and its proposed reply — answer APPROVE to send, IGNORE to drop, or just tell it how to respond. You can also ask "status", say "cancel", or after a delivery say "make the header blue" — it revises the same build and sends only what changed.',
+    title: 'New: the Design studio',
+    body: 'A dedicated design space — 🎨 Design in the sidebar. Tell it what you\'re making (a website, landing page, pitch deck, one-pager, social creative or document), pick a visual style from 40 tested directions — or your own brand — attach a logo, and send. It designs, shows the result beside the conversation, and you refine by just talking.',
   },
   {
-    title: 'Voice, both ways — robots and the chat',
-    body: 'Robots now listen AND talk: voice notes people send are transcribed in their original language (a spoken "build me a landing page…" works like the typed command), and replies can go back as real voice notes on Telegram and WhatsApp — by default matching the sender (speak when they speak). In the main chat, tap the new 🎙 to talk instead of typing, or turn on Conversation mode: your voice sends immediately and replies are read aloud.',
-  },
-  {
-    title: 'Routines, live lookups, and a performance report',
-    body: 'Schedule a daily digest of what your robot handled (quiet days send nothing) or a recurring build ("every Monday: the weekly sales PDF, delivered here"). Connect real lookups — an order-status API it can call mid-reply, with your keys encrypted and every call logged. And every robot\'s office now shows its 30-day performance: how much it handled solo, median reply time, and volume by channel.',
+    title: 'Designs calibrated to the job',
+    body: 'The design engine now reads what a request calls for: a memo or internal tool gets clean, quiet craft (no forced flashy hero), while a landing page or brand site gets the full art-directed treatment. Plus sharper interface copy and true dual light/dark theming in built apps.',
   },
 ];
 

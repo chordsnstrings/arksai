@@ -45,6 +45,18 @@ export interface PubUser {
   name: string | null;
   isSuperadmin: boolean;
 }
+/** A tested visual direction (summary) served by /api/design/directions for the Design studio. */
+export interface DesignDirectionSummary {
+  id: string;
+  group: 'modern' | 'glass' | 'structural' | 'aesthetic';
+  name: string;
+  mood: string;
+  accent: string;
+  dark: boolean;
+  display: string;
+  body: string;
+  signature: string;
+}
 export interface Org {
   id: string;
   name: string;
@@ -220,6 +232,9 @@ export const api = {
     request<{ code: string; rate: number; asOf: number | null }>('/api/admin/fx', { method: 'POST', body: JSON.stringify({ code, rate }) }),
   // Home/Workspace + Activity: one org-scoped read of running/needs-you state.
   getHome: () => request<HomeSnapshot>('/api/home'),
+  // Design studio: the tested visual-direction library (read-only summaries).
+  getDesignDirections: () =>
+    request<{ directions: DesignDirectionSummary[] }>('/api/design/directions').then((r) => r.directions),
   listSessions: () => request<SessionMeta[]>('/api/sessions'),
   createSession: (body: CreateSessionRequest) =>
     request<SessionMeta>('/api/sessions', { method: 'POST', body: JSON.stringify(body) }),

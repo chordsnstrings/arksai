@@ -96,7 +96,9 @@ export function normalizeBrief(args: any): DesignBrief {
     concept: cleanStr(args?.concept, 'Untitled direction', 80),
     rationale: cleanStr(args?.rationale, '', 600),
     structureEncodes: cleanStr(args?.structureEncodes, '', 300),
-    antiDefaults: anti.length ? anti : ['generic minimal-muted blue-on-white', 'cream + serif + terracotta', 'black + acid-green'],
+    antiDefaults: anti.length
+      ? anti
+      : ['generic minimal-muted blue-on-white', 'cream + serif + terracotta', 'black + acid-green', 'purple→blue gradient hero', 'everything-centered + uniform rounded-lg'],
     type,
     palette: {
       ink: cleanHex(p.ink, dark ? '#eef0f7' : '#14201a'),

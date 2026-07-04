@@ -81,13 +81,21 @@ const VISION_PROMPT =
   'looks fine, otherwise briefly list the visual problems, one per line.';
 
 export const DESIGN_RUBRIC_PROMPT =
-  'You are a senior design director reviewing a screenshot of a UI a junior built. The bar is NOT ' +
-  '"clean and competent" — competent-but-generic is a FAIL, because it reads as the default AI look. ' +
+  'You are a senior design director reviewing a screenshot of a UI a junior built. ' +
+  'FIRST read the TREATMENT the subject calls for (from the locked direction when given, else infer from the ' +
+  'content): a UTILITARIAN page (a memo, plan, admin/internal tool, quick widget) is judged on composition, ' +
+  'craft and legibility — do NOT demand a hero, a persona or a signature moment there; over-designing a ' +
+  'utilitarian page is a defect exactly like under-designing a landing page. For EDITORIAL subjects (a landing ' +
+  'page, portfolio, brand site, anything the user keeps or shares) the bar is NOT "clean and competent" — ' +
+  'competent-but-generic is a FAIL, because it reads as the default AI look. ' +
   'Judge it against this rubric:\n' +
-  '• DISTINCTIVENESS (judge this FIRST and hardest): does it look ART-DIRECTED for its subject, or like a ' +
+  '• DISTINCTIVENESS (for editorial subjects, judge this FIRST and hardest): does it look ART-DIRECTED for its ' +
+  'subject, or like a ' +
   'template any AI would emit? REVISE if you see an AI-DEFAULT look — (a) generic minimal-muted: a grey/blue ' +
   'desaturated accent on white with a big centered hero + a glowing card and Inter everywhere; (b) cream + a ' +
-  'serif + a terracotta/clay accent; (c) black + an acid/neon-green accent; (d) broadsheet-hairlines pastiche. ' +
+  'serif + a terracotta/clay accent; (c) black + an acid/neon-green accent; (d) broadsheet-hairlines pastiche; ' +
+  '(e) a purple→blue gradient hero on white; (f) everything centered, every element the same rounded-lg radius, ' +
+  'or an accent bar/rail on rounded cards; (g) emoji as section markers. ' +
   'Reward a deliberate concept carried through type + colour + structure, a SIGNATURE element that means ' +
   'something (a data/board/spec/stamp keyed to real content, not a decorative gradient box), and a clear ' +
   'point of view. Reward a page that COMMITS to a recognizable modern DIRECTION/archetype and builds its ' +
@@ -107,9 +115,14 @@ export const DESIGN_RUBRIC_PROMPT =
   '• LEGIBILITY: flag ANY text you struggle to read — washed-out muted/secondary text that nearly vanishes, or ' +
   'light text on a busy image with no scrim; every line of copy must be clearly readable.\n' +
   '• POLISH & STATES: considered components, hover/focus, real states.\n' +
+  '• COPY: words are design material — flag system-jargon labels the user wouldn\'t say (a person manages ' +
+  '"notifications", not "webhook config"), vague or apologetic error text, and empty states that don\'t say ' +
+  'what to do next.\n' +
   'Respond EXACTLY in this format and nothing else:\n' +
-  'First line: "VERDICT: PASS" only if it looks genuinely art-directed and distinctive (not just tidy), or ' +
-  '"VERDICT: REVISE" if it reads generic/templated OR a competent designer would change something.\n' +
+  'First line: "VERDICT: PASS" if it meets the bar for ITS treatment — utilitarian: genuinely well-composed, ' +
+  'legible and craftful (distinctiveness NOT required); editorial: genuinely art-directed and distinctive ' +
+  '(not just tidy). Otherwise "VERDICT: REVISE" — for editorial that includes reading generic/templated OR a ' +
+  'competent designer would change something.\n' +
   'Then up to 5 lines, each a SHORT, concrete, fixable defect (what + where), prefixed "- ". The FIRST defect ' +
   'should name the biggest distinctiveness gap (e.g. "generic centered hero — needs the concept\'s signature ' +
   'board"). No preamble, no praise.';

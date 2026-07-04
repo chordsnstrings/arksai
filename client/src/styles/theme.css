@@ -2855,3 +2855,342 @@ button { font-family: inherit; cursor: pointer; }
 .conn-sub { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
 .conn-repo { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-top: 1px solid var(--border); }
 .conn-repo-meta { color: var(--text-faint); font-size: 12px; }
+
+/* ============================= DESIGN STUDIO (.ds-*) =============================
+ * "Exactly like Claude" (operator, 2026-07-04): the studio wears Anthropic's exact
+ * visual identity — warm paper #faf9f5, ink #141413, clay #d97757, serif greeting —
+ * via a SCOPED token override (the shell is token-driven, so every reused component
+ * inside — Chat, Composer, Canvas — reskins automatically). Chat-first interaction:
+ * a centered greeting, one big rounded composer, suggestion chips, recents. */
+.ds-claude {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  /* Anthropic-exact tokens (light) */
+  --bg: #faf9f5;
+  --bg-sidebar: #f0eee6;
+  --bg-elev: #ffffff;
+  --bg-bubble: #f0eee6;
+  --bg-input: #ffffff;
+  --bg-hover: #f0eee6;
+  --bg-active: #e8e6dc;
+  --border: #e8e6dc;
+  --border-soft: #f0eee6;
+  --text: #141413;
+  --text-muted: #6e6d64;
+  --text-faint: #b0aea5;
+  --accent: #d97757;
+  --accent-strong: #c05f3c;
+  --accent-dim: rgba(217, 119, 87, 0.12);
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-hi: rgba(255, 255, 255, 0.5);
+  background: var(--bg);
+  color: var(--text);
+}
+/* Claude's dark: warm near-black, same clay accent (slightly lifted for contrast). */
+:root[data-theme='dark'] .ds-claude {
+  --bg: #262624;
+  --bg-sidebar: #1f1e1d;
+  --bg-elev: #30302e;
+  --bg-bubble: #333331;
+  --bg-input: #30302e;
+  --bg-hover: #333331;
+  --bg-active: #3a3a37;
+  --border: #3e3d3a;
+  --border-soft: #333330;
+  --text: #f5f4ef;
+  --text-muted: #b8b5ac;
+  --text-faint: #757369;
+  --accent: #e08b6d;
+  --accent-strong: #ec9a7d;
+  --accent-dim: rgba(224, 139, 109, 0.16);
+  --glass-bg: rgba(48, 48, 46, 0.7);
+  --glass-hi: rgba(255, 255, 255, 0.06);
+}
+
+.ds-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-soft);
+  flex: 0 0 auto;
+}
+.ds-back {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.ds-back:hover { background: var(--bg-hover); color: var(--text); }
+.ds-wordmark {
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+.ds-wordmark::first-letter, .ds-spark { color: var(--accent); }
+.ds-top-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.ds-close {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.ds-close:hover { background: var(--bg-hover); color: var(--text); }
+
+/* ---- landing (claude.ai home) ---- */
+.ds-hero {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: max(9vh, 40px) 20px 56px;
+}
+.ds-spark {
+  font-size: 26px;
+  line-height: 1;
+  animation: dsSpark 0.7s cubic-bezier(0.2, 0.7, 0.3, 1.2) both;
+}
+@keyframes dsSpark {
+  from { opacity: 0; transform: scale(0.5) rotate(-40deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+.ds-greet {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(24px, 3.4vw, 34px);
+  color: var(--text);
+  margin: 14px 0 26px;
+  text-align: center;
+  text-wrap: balance;
+  max-width: 30ch;
+}
+.ds-composer {
+  width: 100%;
+  max-width: 720px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: 0 4px 22px rgba(20, 20, 19, 0.05), 0 1px 3px rgba(20, 20, 19, 0.04);
+  padding: 14px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ds-composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: 0 6px 26px rgba(20, 20, 19, 0.07), 0 1px 3px rgba(20, 20, 19, 0.04);
+}
+.ds-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  resize: none;
+  font: inherit;
+  font-size: 15.5px;
+  line-height: 1.5;
+  color: var(--text);
+  min-height: 64px;
+  padding: 2px 4px;
+}
+.ds-input::placeholder { color: var(--text-faint); }
+.ds-files { display: flex; flex-wrap: wrap; gap: 6px; }
+.ds-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-bubble);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 3px 6px 3px 10px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-file button {
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+}
+.ds-file button:hover { color: var(--text); }
+.ds-toolrow { display: flex; align-items: center; gap: 8px; }
+.ds-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.ds-tool:hover { background: var(--bg-hover); color: var(--text); }
+.ds-caret { font-size: 10px; opacity: 0.7; }
+.ds-spacer { flex: 1; }
+.ds-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 17px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.ds-send:hover:not(:disabled) { background: var(--accent-strong); transform: translateY(-1px); }
+.ds-send:disabled { opacity: 0.35; cursor: default; }
+.ds-err { color: var(--red, #b23b3b); font-size: 13px; margin-top: 10px; }
+
+/* style menu */
+.ds-style { position: relative; }
+.ds-style-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 300px;
+  max-height: min(340px, 52vh);
+  overflow-y: auto;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 10px 34px rgba(20, 20, 19, 0.12);
+  padding: 6px;
+  z-index: 5;
+}
+.ds-style-group {
+  font-family: var(--label);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 8px 10px 4px;
+}
+.ds-style-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  padding: 7px 9px;
+  cursor: pointer;
+  color: var(--text);
+}
+.ds-style-row:hover { background: var(--bg-hover); }
+.ds-style-row.on { background: var(--accent-dim); }
+.ds-style-row strong { display: block; font-size: 13px; font-weight: 600; }
+.ds-style-row em { display: block; font-style: normal; font-size: 11.5px; color: var(--text-muted); }
+.ds-sw {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  border: 1px solid rgba(20, 20, 19, 0.12);
+}
+.ds-sw-auto { background: conic-gradient(#d97757, #6a9bcc, #788c5d, #d97757); }
+.ds-sw-brand { background: var(--accent); }
+.ds-dark-chip {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+/* chips + recents */
+.ds-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 18px; max-width: 720px; }
+.ds-chip {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.ds-chip:hover { background: var(--bg-hover); color: var(--text); }
+.ds-chip.on { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-dim); }
+.ds-recents { width: 100%; max-width: 720px; margin-top: 40px; }
+.ds-recents-label {
+  font-family: var(--label);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+  padding-left: 4px;
+}
+.ds-recent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border-soft);
+  padding: 11px 6px;
+  cursor: pointer;
+  color: var(--text);
+  border-radius: 8px;
+}
+.ds-recent:hover { background: var(--bg-hover); }
+.ds-recent-title { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-recent-when { font-size: 12px; color: var(--text-faint); flex: 0 0 auto; }
+
+/* ---- conversation inside the studio ---- */
+.ds-body { flex: 1; display: flex; min-height: 0; }
+.ds-conv { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+@media (max-width: 560px) {
+  .ds-hero { padding-top: 6vh; }
+  .ds-composer { border-radius: 18px; }
+  /* open DOWNWARD on phones — upward would extend past the viewport top */
+  .ds-style-menu { width: min(300px, calc(100vw - 48px)); bottom: auto; top: calc(100% + 8px); max-height: 42vh; }
+  .ds-top-title { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-spark { animation: none; }
+}

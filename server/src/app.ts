@@ -30,6 +30,7 @@ import { registerRobotRoutes } from './routes/robots';
 import { registerRobotHookRoutes } from './routes/robotHooks';
 import { registerRobotFileRoutes } from './routes/robotFiles';
 import { registerVoiceChatRoutes } from './routes/voiceChat';
+import { registerDesignRoutes } from './routes/design';
 import { registerConnectorRoutes } from './routes/connectors';
 import { registerGithubRoutes } from './routes/github';
 import { registerGoogleConnectRoutes } from './routes/googleConnect';
@@ -119,6 +120,7 @@ export async function buildApp() {
   registerRobotHookRoutes(app);
   registerRobotFileRoutes(app);
   registerVoiceChatRoutes(app);
+  registerDesignRoutes(app);
   registerConnectorRoutes(app);
   registerGithubRoutes(app);
   registerGoogleConnectRoutes(app);

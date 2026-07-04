@@ -35,6 +35,7 @@ import { AnalyticsConsole } from './components/AnalyticsConsole';
 import { Robots } from './components/Robots';
 import { AndroidConsole } from './components/AndroidConsole';
 import { VideoStudio } from './components/VideoStudio';
+import { DesignStudio } from './components/DesignStudio';
 import { useConfirm } from './state/confirmStore';
 import { useStore, emptyLive } from './state/sessionStore';
 import type { Project } from '@shared/types';
@@ -79,6 +80,10 @@ export default function App() {
   // Video studio: its own full-page surface at /video (mirrors Android).
   const [showVideo, setShowVideo] = useState(
     typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/video',
+  );
+  // Design studio: its own full-page surface at /design (mirrors Video).
+  const [showDesign, setShowDesign] = useState(
+    typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/design',
   );
   // Activity: the unified "needs you / delivered" feed at /activity (mirrors Robots).
   const [showActivity, setShowActivity] = useState(
@@ -185,6 +190,7 @@ export default function App() {
       setShowRobots(window.location.pathname.replace(/\/$/, '') === '/robots');
       setShowAndroid(window.location.pathname.replace(/\/$/, '') === '/android');
       setShowVideo(window.location.pathname.replace(/\/$/, '') === '/video');
+      setShowDesign(window.location.pathname.replace(/\/$/, '') === '/design');
       setShowActivity(window.location.pathname.replace(/\/$/, '') === '/activity');
       const mm = window.location.pathname.match(/^\/s\/([^/]+)$/);
       if (mm) resolve(mm[1]);
@@ -199,7 +205,7 @@ export default function App() {
 
   useEffect(() => {
     if (authed !== true) return;
-    if (showRobots || showAndroid || showVideo || showActivity) return; // these surfaces own the URL while open
+    if (showRobots || showAndroid || showVideo || showDesign || showActivity) return; // these surfaces own the URL while open
     const p = window.location.pathname;
     if (p.startsWith('/invite/') || p === '/operator' || p === '/operator/') return;
     // A real session is open → any earlier "not available" deep link is moot.
@@ -216,7 +222,7 @@ export default function App() {
     didInitialUrlSync.current = true;
     const target = activeId ? `/s/${activeId}` : '/';
     if (p !== target) window.history.pushState({}, '', target); // guard prevents popstate loops
-  }, [activeId, authed, deepLinkNotFound, showRobots, showAndroid, showVideo, showActivity]);
+  }, [activeId, authed, deepLinkNotFound, showRobots, showAndroid, showVideo, showDesign, showActivity]);
 
   useGlobalEvents(authed === true);
   useSessionEvents(authed === true ? activeId : null);
@@ -312,6 +318,10 @@ export default function App() {
           setShowVideo(true);
           window.history.pushState({}, '', '/video');
         }}
+        onDesign={() => {
+          setShowDesign(true);
+          window.history.pushState({}, '', '/design');
+        }}
         onActivity={() => {
           setShowActivity(true);
           window.history.pushState({}, '', '/activity');
@@ -401,6 +411,15 @@ export default function App() {
         <VideoStudio
           onClose={() => {
             setShowVideo(false);
+            const back = useStore.getState().activeId;
+            window.history.pushState({}, '', back ? `/s/${back}` : '/');
+          }}
+        />
+      )}
+      {showDesign && (
+        <DesignStudio
+          onClose={() => {
+            setShowDesign(false);
             const back = useStore.getState().activeId;
             window.history.pushState({}, '', back ? `/s/${back}` : '/');
           }}
