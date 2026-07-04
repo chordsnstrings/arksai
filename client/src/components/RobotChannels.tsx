@@ -329,24 +329,48 @@ export function CommandersPanel({ orgId, robotId }: { orgId: string; robotId: st
   const [commanders, setCommanders] = useState<RobotCommander[] | null>(null);
   const [channel, setChannel] = useState('telegram');
   const [address, setAddress] = useState('');
+  const [notifyLevel, setNotifyLevel] = useState<string>('escalations');
   const load = () => {
     api.listCommanders(orgId, robotId).then(setCommanders).catch(() => setCommanders([]));
   };
   useEffect(load, [orgId, robotId]);
+  useEffect(() => {
+    api.getRobot(orgId, robotId).then((r) => setNotifyLevel(r.config?.notify ?? 'escalations')).catch(() => {});
+  }, [orgId, robotId]);
   const add = async () => {
     if (!address.trim()) return;
     await api.addCommander(orgId, robotId, { channel, address: address.trim() }).catch(() => {});
     setAddress('');
     load();
   };
+  // Read-merge-write so the level never clobbers the rest of the robot's config.
+  const setLevel = async (level: string) => {
+    setNotifyLevel(level);
+    try {
+      const backend = await api.getRobot(orgId, robotId);
+      await api.updateRobot(orgId, robotId, { config: { ...(backend.config || {}), notify: level as any } });
+    } catch {
+      /* retried on next change */
+    }
+  };
   return (
     <>
-      <h3>Build commanders {commanders && commanders.length > 0 && <span className="rb-count">{commanders.length}</span>}</h3>
+      <h3>Your addresses (commands + alerts) {commanders && commanders.length > 0 && <span className="rb-count">{commanders.length}</span>}</h3>
       <p className="rb-mini-empty" style={{ marginBottom: 8 }}>
-        YOUR OWN addresses that may order builds by message — “make me a landing page and email it to X”.
-        Only these senders can start a build or name where it's delivered; everyone else just gets replies.
-        (Telegram uses your numeric chat id — message the bot once and check the robot timeline to find it.)
+        YOUR OWN addresses. From them you can order builds by message (“make me a landing page and email it
+        to X”), check status, cancel, or revise — and the robot pings you HERE when something needs you:
+        reply APPROVE to send its draft, IGNORE to drop it, or just tell it how to respond. Only these
+        senders have that power; everyone else just gets replies. (Telegram uses your numeric chat id —
+        message the bot once and check the robot timeline to find it.)
       </p>
+      <div className="rb-persona-row" style={{ marginBottom: 8 }}>
+        <span className="rb-rule-when" style={{ alignSelf: 'center' }}>Ping me about:</span>
+        <select value={notifyLevel} onChange={(e) => void setLevel(e.target.value)}>
+          <option value="escalations">Escalations only</option>
+          <option value="all">Everything awaiting approval</option>
+          <option value="off">Nothing (console only)</option>
+        </select>
+      </div>
       {commanders === null ? (
         <div className="rb-mini-empty">Loading…</div>
       ) : (

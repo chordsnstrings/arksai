@@ -71,6 +71,7 @@ function rowToDraft(r: any): RobotDraft {
     escalationReason: r.escalation_reason ?? null,
     status: r.status,
     channel: r.channel || 'email',
+    icsReply: r.ics_reply ?? null,
     createdAt: Number(r.created_at),
     sentAt: r.sent_at != null ? Number(r.sent_at) : null,
   };
@@ -186,6 +187,8 @@ export interface NewDraft {
   escalationReason?: string | null;
   /** Which channel the conversation lives on (send dispatches by this). Default email. */
   channel?: RobotDraft['channel'];
+  /** Meeting-invite lane: prepared iCal METHOD:REPLY to attach when the draft sends. */
+  icsReply?: string | null;
 }
 
 export async function createDraft(d: NewDraft): Promise<RobotDraft> {
@@ -195,8 +198,8 @@ export async function createDraft(d: NewDraft): Promise<RobotDraft> {
     `INSERT INTO robot_drafts(
        id, robot_id, org_id, inbound_message_id, inbound_from, inbound_name, inbound_subject,
        inbound_snippet, inbound_body, to_addr, subject, draft_text, model_used, alt_text, alt_model,
-       escalated, escalation_reason, status, created_at, sent_at, channel)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+       escalated, escalation_reason, status, created_at, sent_at, channel, ics_reply)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
     [
       id,
       d.robotId,
@@ -219,6 +222,7 @@ export async function createDraft(d: NewDraft): Promise<RobotDraft> {
       now,
       null,
       d.channel ?? 'email',
+      d.icsReply ?? null,
     ],
   );
   return (await getDraft(id))!;
@@ -333,6 +337,68 @@ export async function countPendingDrafts(orgId: string): Promise<number> {
 export async function draftExistsFor(robotId: string, messageId: string): Promise<boolean> {
   const r = await qOne('SELECT id FROM robot_drafts WHERE robot_id = $1 AND inbound_message_id = $2', [robotId, messageId]);
   return !!r;
+}
+
+// ---- conversation memory (per-sender thread history) ----
+
+/** Normalize a channel address for thread matching: emails case-fold; phone-ish addresses
+ *  compare digits-only (WhatsApp "9715…" vs SMS "+9715 0…"); chat ids compare exact. */
+export function normalizeAddr(addr: string): string {
+  const a = (addr || '').trim();
+  if (a.includes('@')) return a.toLowerCase();
+  const digits = a.replace(/[^\d]/g, '');
+  return digits.length >= 7 ? digits : a;
+}
+
+/** The prior exchanges with EXACTLY this sender on EXACTLY this robot+channel — the
+ *  data-minimization boundary: no other customer's thread can ever enter a reply context. */
+export async function listThreadDrafts(
+  robotId: string,
+  channel: RobotDraft['channel'],
+  fromAddr: string,
+  limit = 8,
+): Promise<RobotDraft[]> {
+  // Address matching happens in JS via normalizeAddr (portable across SQLite/PG and
+  // handles the +/space variance in phone numbers); the query narrows by robot+channel.
+  const rows = await q(
+    'SELECT * FROM robot_drafts WHERE robot_id = $1 AND channel = $2 ORDER BY created_at DESC LIMIT 200',
+    [robotId, channel || 'email'],
+  );
+  const want = normalizeAddr(fromAddr);
+  return rows
+    .map(rowToDraft)
+    .filter((d) => normalizeAddr(d.inboundFrom) === want)
+    .slice(0, limit)
+    .reverse(); // chronological
+}
+
+/**
+ * Pure: format thread drafts into compact history lines for the reply prompt.
+ * Includes what the customer wrote and what was actually SENT back (a pending/dismissed
+ * draft was never seen by the customer, so it appears only as an escalation marker).
+ */
+export function buildHistoryLines(drafts: RobotDraft[], perMsgCap = 350, totalCap = 2600): string[] {
+  const cap = (s: string) => (s.length > perMsgCap ? s.slice(0, perMsgCap) + '…' : s);
+  // Build each exchange's lines (chronological), then keep the most RECENT exchanges
+  // that fit the total budget — old context drops first, whole exchanges at a time.
+  const exchanges: string[][] = drafts.map((d) => {
+    const lines: string[] = [];
+    const inboundText = (d.inboundBody || d.inboundSnippet || '').replace(/\s+/g, ' ').trim();
+    if (inboundText) lines.push(cap(`Customer: ${inboundText}`));
+    if (d.status === 'sent' && d.draftText) lines.push(cap(`You replied: ${d.draftText.replace(/\s+/g, ' ').trim()}`));
+    else if (d.status === 'escalated') lines.push('(you escalated this to the owner — no reply was sent yet)');
+    else if (d.status === 'pending') lines.push('(a reply is still awaiting the owner’s approval — not sent yet)');
+    return lines;
+  });
+  const kept: string[][] = [];
+  let used = 0;
+  for (let i = exchanges.length - 1; i >= 0; i--) {
+    const size = exchanges[i].reduce((n, l) => n + l.length, 0);
+    if (used + size > totalCap) break;
+    kept.unshift(exchanges[i]);
+    used += size;
+  }
+  return kept.flat();
 }
 
 export async function setDraftText(id: string, orgId: string, text: string): Promise<void> {

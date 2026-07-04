@@ -20,14 +20,17 @@ import type {
   ProcessInfo,
   Project,
   Robot,
+  RobotAction,
   RobotChannel,
   RobotChannelKind,
   RobotCommander,
   RobotConfig,
   RobotDraft,
+  RobotJob,
   RobotKbDoc,
   RobotPersona,
   RobotRule,
+  RobotStats,
   RobotTask,
   ProjectFile,
   Schedule,
@@ -495,6 +498,20 @@ export const api = {
     request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/commanders/${cid}`, { method: 'DELETE' }),
   listRobotTasks: (orgId: string, rid: string) =>
     request<{ tasks: RobotTask[] }>(`/api/orgs/${orgId}/robots/${rid}/tasks`).then((r) => r.tasks),
+  listRobotJobs: (orgId: string, rid: string) =>
+    request<{ jobs: RobotJob[] }>(`/api/orgs/${orgId}/robots/${rid}/jobs`).then((r) => r.jobs),
+  createRobotJob: (orgId: string, rid: string, body: Record<string, unknown>) =>
+    request<{ job: RobotJob }>(`/api/orgs/${orgId}/robots/${rid}/jobs`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.job),
+  deleteRobotJob: (orgId: string, rid: string, jobId: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/jobs/${jobId}`, { method: 'DELETE' }),
+  listRobotActions: (orgId: string, rid: string) =>
+    request<{ actions: RobotAction[] }>(`/api/orgs/${orgId}/robots/${rid}/actions`).then((r) => r.actions),
+  saveRobotAction: (orgId: string, rid: string, body: Record<string, unknown>) =>
+    request<{ action: RobotAction }>(`/api/orgs/${orgId}/robots/${rid}/actions`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.action),
+  deleteRobotAction: (orgId: string, rid: string, actionId: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/actions/${actionId}`, { method: 'DELETE' }),
+  getRobotStats: (orgId: string, rid: string) =>
+    request<{ stats: RobotStats }>(`/api/orgs/${orgId}/robots/${rid}/stats`).then((r) => r.stats),
   listRules: (orgId: string, rid: string) =>
     request<{ rules: RobotRule[] }>(`/api/orgs/${orgId}/robots/${rid}/rules`).then((r) => r.rules),
   createRule: (orgId: string, rid: string, pattern: string, instruction: string) =>

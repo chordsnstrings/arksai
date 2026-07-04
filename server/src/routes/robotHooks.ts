@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { getRobot } from '../robots/store';
 import { channelSecrets, listEnabledChannelsByKind } from '../robots/channels/store';
 import { handleChannelInbound } from '../robots/channels/inbound';
+import { fetchWhatsappMedia } from '../robots/channels/whatsapp';
 import type { ChannelInbound } from '../robots/channels/types';
 
 /**
@@ -83,15 +84,30 @@ export function registerRobotHookRoutes(app: FastifyInstance) {
             if (c?.wa_id) names.set(String(c.wa_id), String(c?.profile?.name || ''));
           }
           for (const m of messages) {
-            if (m?.type !== 'text' || !m?.text?.body) continue;
+            const mediaKinds = ['image', 'document', 'audio', 'voice'] as const;
+            const isMedia = mediaKinds.includes(m?.type);
+            if (m?.type !== 'text' && !isMedia) continue; // reactions/stickers/locations skipped
+            let text = m?.type === 'text' ? String(m?.text?.body || '') : String(m?.[m.type]?.caption || '');
+            const attachments = [];
+            if (isMedia) {
+              const mediaObj = m[m.type] || {};
+              const att = await fetchWhatsappMedia(
+                { channel: chan, secrets },
+                String(mediaObj.id || ''),
+                mediaObj.filename ? String(mediaObj.filename) : undefined,
+              ).catch(() => null);
+              if (att) attachments.push(att);
+              else if (!text) text = ''; // handler reports an undownloadable attachment honestly
+            }
             const inbound: ChannelInbound = {
               id: String(m.id || `wa-${m.from}-${m.timestamp}`),
               from: String(m.from || ''),
               fromName: names.get(String(m.from)) || null,
-              text: String(m.text.body),
+              text,
               ts: (Number(m.timestamp) || 0) * 1000 || Date.now(),
+              attachments: attachments.length ? attachments : undefined,
             };
-            if (!inbound.from || !inbound.text.trim()) continue;
+            if (!inbound.from || (!inbound.text.trim() && !attachments.length)) continue;
             await handleChannelInbound(robot, { channel: chan, secrets }, inbound);
           }
         }

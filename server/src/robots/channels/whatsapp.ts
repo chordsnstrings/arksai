@@ -1,4 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { ChannelAdapter, ChannelWithSecrets } from './types';
+import { MAX_ATTACHMENT_BYTES, classifyMime, mediaTmpDir, type InboundAttachment } from '../media';
 
 /**
  * WhatsApp Cloud API (Meta) adapter. Send = POST graph.facebook.com/<ver>/<phone_number_id>/
@@ -42,6 +46,41 @@ async function graphPost(token: string, phoneId: string, payload: any): Promise<
       throw new Error(`WhatsApp send: ${data?.error?.message || `HTTP ${res.status}`}`);
     }
     return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Download one inbound WhatsApp media object (image/document/audio) to a temp file.
+ *  Meta flow: GET /<media-id> → {url, mime_type}; then GET that url with the same token. */
+export async function fetchWhatsappMedia(
+  ch: ChannelWithSecrets,
+  mediaId: string,
+  filename?: string,
+): Promise<InboundAttachment | null> {
+  const token = ch.secrets.accessToken || '';
+  if (!token || !mediaId) return null;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), TIMEOUT_MS * 2);
+  try {
+    const metaRes = await httpFetch(`https://graph.facebook.com/${GRAPH_VERSION}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: ac.signal,
+    });
+    const meta: any = await metaRes.json().catch(() => ({}));
+    if (!metaRes.ok || !meta?.url) return null;
+    if (Number(meta.file_size) > MAX_ATTACHMENT_BYTES) return null; // oversize reported by the describe pipeline
+    const binRes = await httpFetch(meta.url, { headers: { Authorization: `Bearer ${token}` }, signal: ac.signal });
+    if (!binRes.ok) return null;
+    const buf = Buffer.from(await binRes.arrayBuffer());
+    if (!buf.length || buf.length > MAX_ATTACHMENT_BYTES) return null;
+    const mime = String(meta.mime_type || 'application/octet-stream');
+    const name = filename || `media.${(mime.split('/')[1] || 'bin').split(';')[0]}`;
+    const dest = path.join(mediaTmpDir(), `${randomUUID()}-${name.replace(/[^\w.\-]+/g, '_')}`);
+    fs.writeFileSync(dest, buf);
+    return { kind: classifyMime(mime, name), name, path: dest, mime };
+  } catch {
+    return null;
   } finally {
     clearTimeout(timer);
   }

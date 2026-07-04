@@ -15,6 +15,7 @@ import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
 import { EmailSettings } from './EmailSettings';
 import { ChannelsPanel, CommandersPanel, KnowledgePanel, PersonaPanel, TasksPanel } from './RobotChannels';
+import { ActionsPanel, PerformancePanel, RoutinesPanel } from './RobotOps';
 import { api } from '../api/client';
 import { useEscClose } from '../hooks/useEscClose';
 import { ROBOT_TYPES, robotType } from '../lib/robotTypes';
@@ -563,6 +564,9 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
         )}
       </section>
 
+      {/* PERFORMANCE — proof of work (renders only once there's real activity) */}
+      {orgId && <PerformancePanel orgId={orgId} robotId={robot.id} />}
+
       {/* TIMELINE — ambient; everything it did */}
       {drafts && drafts.length > 0 && (
         <section className="rb-panel rb-span">
@@ -933,6 +937,12 @@ function RobotSettings({ robot, orgId, onBack, onRemoved }: { robot: Robot; orgI
             </section>
             <section className="rb-panel rb-span">
               <CommandersPanel orgId={orgId} robotId={robot.id} />
+            </section>
+            <section className="rb-panel">
+              <RoutinesPanel orgId={orgId} robotId={robot.id} />
+            </section>
+            <section className="rb-panel">
+              <ActionsPanel orgId={orgId} robotId={robot.id} />
             </section>
             <section className="rb-panel rb-span">
               <TasksPanel orgId={orgId} robotId={robot.id} />

@@ -34,6 +34,9 @@ export interface SendOptions {
   inReplyTo?: string; // Message-ID being replied to (threads the reply)
   references?: string;
   attachments?: OutgoingAttachment[];
+  /** A prepared iCalendar METHOD:REPLY payload — attached as a real calendar part so the
+   *  organizer's calendar records the accept/decline (RFC 5546). */
+  icsReply?: string;
 }
 
 export interface InboxMessage {
@@ -47,6 +50,10 @@ export interface InboxMessage {
   messageId: string;
   snippet: string;
   text: string;
+  /** Real file attachments (bounded: ≤4, ≤10MB each) — content in memory for processing. */
+  attachments?: { filename: string; contentType: string; content: Buffer; size: number }[];
+  /** Raw iCalendar part when the mail carries one (meeting invites/cancellations). */
+  calendar?: string;
 }
 
 // Standard mail ports imply their encryption mode, and getting it wrong is the #1
@@ -129,9 +136,16 @@ export async function sendWithAccount(
   secrets: EmailSecrets,
   opts: SendOptions,
 ): Promise<{ messageId: string }> {
-  const attachments = (opts.attachments ?? [])
+  const attachments: any[] = (opts.attachments ?? [])
     .filter((a) => a.path && fs.existsSync(a.path))
     .map((a) => ({ filename: a.filename || path.basename(a.path), path: a.path }));
+  if (opts.icsReply) {
+    attachments.push({
+      filename: 'invite-reply.ics',
+      content: opts.icsReply,
+      contentType: 'text/calendar; charset=utf-8; method=REPLY',
+    });
+  }
 
   const transport = smtpTransport(account, secrets);
   const info = await transport.sendMail({
@@ -233,6 +247,26 @@ export async function readInboxWithAccount(
           const parsed = await simpleParser(msg.source as Buffer);
           const fromAddr = parsed.from?.value?.[0];
           const text = (parsed.text || '').trim();
+          // Attachments: calendar parts route to `calendar` (invite lane); real files are
+          // kept in memory, bounded, for the media-describe pipeline.
+          let calendar: string | undefined;
+          const attachments: NonNullable<InboxMessage['attachments']> = [];
+          for (const a of parsed.attachments || []) {
+            const ctype = String(a.contentType || '').toLowerCase();
+            const fname = String(a.filename || '');
+            if (ctype.includes('text/calendar') || /\.ics$/i.test(fname)) {
+              if (!calendar && a.content && a.content.length <= 64 * 1024) calendar = a.content.toString('utf8');
+              continue;
+            }
+            if (!a.content || !a.content.length || a.content.length > 10 * 1024 * 1024) continue;
+            if (attachments.length >= 4) continue;
+            attachments.push({
+              filename: fname || 'attachment',
+              contentType: ctype || 'application/octet-stream',
+              content: a.content,
+              size: a.content.length,
+            });
+          }
           out.push({
             uid: msg.uid,
             seq: msg.seq,
@@ -244,6 +278,8 @@ export async function readInboxWithAccount(
             messageId: parsed.messageId || '',
             snippet: text.replace(/\s+/g, ' ').slice(0, 240),
             text,
+            attachments: attachments.length ? attachments : undefined,
+            calendar,
           });
         }
       } catch (e: any) {

@@ -446,6 +446,75 @@ async function migrate() {
     finished_at ${INT}
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_robot_tasks ON robot_tasks(robot_id, status)`);
+  // Owner pings: one row per (draft → commander channel/address) notification, so the owner
+  // can approve/dictate the reply from their own chat. resolved_at set when acted on.
+  await q(`CREATE TABLE IF NOT EXISTS robot_notifications(
+    id TEXT PRIMARY KEY,
+    robot_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    draft_id TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    address TEXT NOT NULL,
+    created_at ${INT} NOT NULL,
+    resolved_at ${INT}
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_notif ON robot_notifications(robot_id, channel, address, resolved_at)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_notif_draft ON robot_notifications(draft_id)`);
+  // Proactive routines: a daily/weekly digest of the robot's activity, or a recurring BRIEF
+  // (a build executed on schedule and delivered on a channel). next_run_at advanced BEFORE
+  // firing (the scheduler's double-fire guard).
+  await q(`CREATE TABLE IF NOT EXISTS robot_jobs(
+    id TEXT PRIMARY KEY,
+    robot_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    cadence TEXT NOT NULL,
+    at_time TEXT,
+    weekday ${INT},
+    tz TEXT,
+    prompt TEXT,
+    deliver_to TEXT,
+    enabled ${INT} NOT NULL DEFAULT 1,
+    next_run_at ${INT} NOT NULL,
+    last_run_at ${INT},
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_jobs ON robot_jobs(enabled, next_run_at)`);
+  // Gated ACTIONS a robot may take mid-reply (org-defined HTTPS calls: order lookup, stock
+  // check…). URL/body templates carry {{param}} slots; headers (secrets) AES-encrypted.
+  // mode 'ask' escalates instead of executing; 'auto' executes + logs.
+  await q(`CREATE TABLE IF NOT EXISTS robot_actions(
+    id TEXT PRIMARY KEY,
+    robot_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    method TEXT NOT NULL DEFAULT 'GET',
+    url_template TEXT NOT NULL,
+    headers TEXT,
+    params TEXT,
+    body_template TEXT,
+    mode TEXT NOT NULL DEFAULT 'ask',
+    clean_uses ${INT} NOT NULL DEFAULT 0,
+    enabled ${INT} NOT NULL DEFAULT 1,
+    created_at ${INT} NOT NULL,
+    UNIQUE(robot_id, name)
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_actions ON robot_actions(robot_id, enabled)`);
+  // Full audit of every action execution (§5b invariant: every send/call logged).
+  await q(`CREATE TABLE IF NOT EXISTS robot_action_log(
+    id TEXT PRIMARY KEY,
+    robot_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    action_name TEXT NOT NULL,
+    params TEXT,
+    from_addr TEXT,
+    status ${INT},
+    ok ${INT} NOT NULL DEFAULT 0,
+    ms ${INT},
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_action_log ON robot_action_log(robot_id, created_at)`);
   await q(`CREATE TABLE IF NOT EXISTS users(
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
@@ -671,6 +740,12 @@ async function migrate() {
     `robot_drafts:snooze_until ${INT}`,
     // Which channel a draft's conversation lives on (email/telegram/whatsapp/sms).
     "robot_drafts:channel TEXT NOT NULL DEFAULT 'email'",
+    // iCal REPLY payload prepared by the meeting-invite lane (sent as an attachment).
+    'robot_drafts:ics_reply TEXT',
+    // A commander row doubles as an owner-notification target (escalation pings).
+    `robot_commanders:notify ${INT} NOT NULL DEFAULT 1`,
+    // When a delivered task was sent back for revision (collect-since + timeout anchor).
+    `robot_tasks:revised_at ${INT}`,
   ]) {
     const cut = spec.indexOf(':');
     const table = spec.slice(0, cut);

@@ -6,6 +6,8 @@ import type { RobotChannel, RobotChannelKind } from '../../../../shared/types';
  * engine, drafts, autonomy and locks stay IDENTICAL across channels.
  */
 
+import type { InboundAttachment } from '../media';
+
 /** One inbound message, normalized. `from` is the channel-native reply address
  *  (Telegram chat id, WhatsApp number, SMS number) — the draft's to_addr LOCKS to it. */
 export interface ChannelInbound {
@@ -15,6 +17,8 @@ export interface ChannelInbound {
   fromName: string | null;
   text: string;
   ts: number;
+  /** Media the sender attached (downloaded to temp; the handler describes + cleans up). */
+  attachments?: InboundAttachment[];
 }
 
 /** The decrypted secret set for a channel (kind-specific keys; never leaves the server). */

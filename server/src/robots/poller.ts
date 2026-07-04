@@ -1,13 +1,20 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { getRobotEmailAccount } from '../email/accounts';
 import { readInboxForRobot, sendEmailForRobot, withTimeout, type InboxMessage } from '../email/client';
 import type { Robot } from '../../../shared/types';
+import { classifyMime, cleanupAttachments, describeAttachments, mediaTmpDir, type InboundAttachment } from './media';
+import { buildIcsReply, describeWhen, parseIcs } from './ics';
 import { createDraft, draftExistsFor, listActiveRobots, listActiveRules, markDraftStatus, markPolled, wakeSnoozedDrafts } from './store';
-import { draftReply } from './reply';
+import { draftReplyWithActions } from './actions';
 import { listChannels, withSecrets } from './channels/store';
 import { ADAPTERS, handleChannelInbound } from './channels/inbound';
 import { replyExtrasFor } from './personas';
 import { tryCommand, watchRobotTasks } from './tasks';
-import { getRobot } from './store';
+import { notifyOwnersOfDraft, tryResolveNotification } from './notify';
+import { getRobot, getDraft } from './store';
+import { runDueJobs } from './jobs';
 
 /**
  * The inbound poller: for each ACTIVE robot, read recent unread mail and produce a
@@ -160,8 +167,46 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
         sum.drafted++;
         continue;
       }
+      // Owner-approval lane: "APPROVE"/"ignore"/direction resolving an outstanding ping.
+      if (await tryResolveNotification(robot, 'email', msg.from, msg.fromName || null, msg.text || msg.snippet || '', msg.messageId || null)) {
+        sum.drafted++;
+        continue;
+      }
     } catch (e: any) {
       console.error(`[robot ${robot.id}] command lane failed:`, e?.message ?? e);
+    }
+
+    // Attached files → temp → the describe pipeline (vision/extraction) so the reply and
+    // the console both see what was sent.
+    let attachmentNotes: string[] = [];
+    let tmpAtts: InboundAttachment[] = [];
+    if (msg.attachments?.length) {
+      try {
+        tmpAtts = msg.attachments.map((a) => {
+          const dest = path.join(mediaTmpDir(), `${randomUUID()}-${a.filename.replace(/[^\w.\-]+/g, '_')}`);
+          fs.writeFileSync(dest, a.content);
+          return { kind: classifyMime(a.contentType, a.filename), name: a.filename, path: dest, mime: a.contentType };
+        });
+        const mac = new AbortController();
+        const mtimer = setTimeout(() => mac.abort(), DRAFT_TIMEOUT_MS);
+        try {
+          attachmentNotes = await describeAttachments(tmpAtts, mac.signal);
+        } finally {
+          clearTimeout(mtimer);
+        }
+      } catch (e: any) {
+        console.error(`[robot ${robot.id}] attachment processing failed:`, e?.message ?? e);
+      } finally {
+        cleanupAttachments(tmpAtts);
+      }
+    }
+
+    // Meeting-invite lane (personal assistant): a text/calendar REQUEST gets a real
+    // accept/decline decision + a prepared iCal REPLY that rides along when the draft sends.
+    let invite: ReturnType<typeof parseIcs> = null;
+    if (msg.calendar && robot.role === 'personal_assistant') {
+      invite = parseIcs(msg.calendar);
+      if (invite && invite.method !== 'REQUEST' && invite.method !== 'CANCEL') invite = null;
     }
 
     const ac = new AbortController();
@@ -169,8 +214,23 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
     let outcome;
     try {
       const rules = await listActiveRules(robot.id).catch(() => []);
-      const extras = await replyExtrasFor(robot, robot.orgId, msg.text || msg.snippet || '').catch(() => ({}));
-      outcome = await draftReply(robot, msg, ac.signal, rules, extras);
+      const retrievalText = [msg.text || msg.snippet || '', ...attachmentNotes].join('\n');
+      const extras = await replyExtrasFor(robot, robot.orgId, retrievalText, {
+        channel: 'email',
+        fromAddr: msg.from,
+      }).catch(() => ({}));
+      outcome = await draftReplyWithActions(robot, msg, ac.signal, rules, {
+        ...extras,
+        attachmentNotes: attachmentNotes.length ? attachmentNotes : undefined,
+        meeting: invite
+          ? {
+              summary: invite.summary || '(no title)',
+              when: describeWhen(invite),
+              organizer: invite.organizerEmail || msg.from,
+              cancelled: invite.method === 'CANCEL',
+            }
+          : undefined,
+      });
     } catch (e: any) {
       sum.error = `draft failed: ${e?.message ?? e}`;
       console.error(`[robot ${robot.id}] draft failed:`, e?.message ?? e);
@@ -180,6 +240,18 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
     }
 
     const primary = outcome.primary;
+    // A decided invite gets its RFC5546 REPLY prepared now; it attaches whenever the draft
+    // sends (auto below, console approve, or remote APPROVE). Ambiguous → normal escalation.
+    let icsReply: string | null = null;
+    if (invite && invite.method === 'REQUEST' && !primary.escalate && (primary.meeting === 'accept' || primary.meeting === 'decline')) {
+      const account = await getRobotEmailAccount(robot.id).catch(() => null);
+      if (account?.fromEmail) {
+        icsReply = buildIcsReply(invite, account.fromEmail, primary.meeting === 'accept' ? 'ACCEPTED' : 'DECLINED');
+      }
+    }
+    const storedBody = [msg.text || msg.snippet || '', ...(attachmentNotes.length ? ['', '— attachments —', ...attachmentNotes] : [])]
+      .join('\n')
+      .trim();
     const draft = await createDraft({
       robotId: robot.id,
       orgId: robot.orgId,
@@ -188,7 +260,7 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
       inboundName: msg.fromName || null,
       inboundSubject: msg.subject || null,
       inboundSnippet: msg.snippet || null,
-      inboundBody: msg.text || msg.snippet || null,
+      inboundBody: storedBody || null,
       toAddr: msg.from, // LOCKED to the inbound sender
       subject: reSubject(msg.subject),
       draftText: primary.text,
@@ -197,11 +269,13 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
       altModel: outcome.alt?.model ?? null,
       escalated: primary.escalate,
       escalationReason: primary.escalate ? primary.reason : null,
+      icsReply,
     });
     sum.drafted++;
     if (primary.escalate) sum.escalated++;
 
     // Auto mode: send a clean (non-escalated) draft right away, locked to the sender.
+    let autoSent = false;
     if (robot.autonomy === 'auto' && !primary.escalate && primary.text) {
       try {
         await sendEmailForRobot(robot.id, {
@@ -210,14 +284,21 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
           text: primary.text,
           inReplyTo: msg.messageId || undefined,
           references: msg.messageId || undefined,
+          icsReply: draft.icsReply || undefined,
         });
         await markDraftStatus(draft.id, robot.orgId, 'sent', Date.now());
         sum.sent++;
+        autoSent = true;
       } catch (e: any) {
         sum.error = `auto-send failed: ${e?.message ?? e}`;
         console.error(`[robot ${robot.id}] auto-send failed:`, e?.message ?? e);
         // Leave it pending so a human can send it.
       }
+    }
+    // Ping the owner about anything still needing them (never about a reply that went out).
+    if (!autoSent) {
+      const fresh = await getDraft(draft.id).catch(() => null);
+      if (fresh) await notifyOwnersOfDraft(robot, fresh);
     }
   }
 
@@ -248,6 +329,7 @@ async function processRobot(robot: Robot): Promise<void> {
 export async function tick(): Promise<void> {
   await wakeSnoozedDrafts().catch(() => {}); // return any due snoozed items to "needs you"
   await watchRobotTasks(getRobot).catch((e) => console.error('[robot-tasks]', (e as any)?.message ?? e));
+  await runDueJobs(getRobot).catch((e) => console.error('[robot-jobs]', (e as any)?.message ?? e));
   let robots: Robot[];
   try {
     robots = await listActiveRobots();

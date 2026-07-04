@@ -634,6 +634,9 @@ export interface RobotConfig {
   dept?: string;
   mandate?: string;
   triggers?: string[];
+  /** Owner pings to notify-enabled commanders: escalations only (default), everything
+   *  awaiting approval, or off. */
+  notify?: 'escalations' | 'all' | 'off';
 }
 
 // ---- Robot channels (beyond email: chat/SMS auto-responders) ----
@@ -687,7 +690,8 @@ export interface RobotKbDoc {
 }
 
 /** A trusted commander identity — the OWNER's own address on a channel. Only messages
- *  from a listed commander can trigger builds or name delivery destinations. */
+ *  from a listed commander can trigger builds or name delivery destinations; a commander
+ *  row also doubles as an owner-NOTIFICATION target (escalation pings) when notify is on. */
 export interface RobotCommander {
   id: string;
   robotId: string;
@@ -695,7 +699,67 @@ export interface RobotCommander {
   channel: RobotDraftChannel;
   address: string;
   label: string | null;
+  /** Receive owner pings (escalations / approvals) at this address. */
+  notify: boolean;
   createdAt: number;
+}
+
+/** A proactive routine: a scheduled DIGEST of the robot's activity, or a recurring BRIEF
+ *  (a build run on schedule and delivered on a channel). */
+export type RobotJobKind = 'digest' | 'brief';
+export interface RobotJob {
+  id: string;
+  robotId: string;
+  orgId: string;
+  kind: RobotJobKind;
+  cadence: 'daily' | 'weekly' | 'interval';
+  atTime: string | null; // "HH:MM" for daily/weekly
+  weekday: number | null; // 0-6 for weekly
+  tz: string | null;
+  intervalMs?: number | null;
+  prompt: string | null; // the brief for kind='brief'
+  deliverTo: { channel: RobotDraftChannel; address: string }[];
+  enabled: boolean;
+  nextRunAt: number;
+  lastRunAt: number | null;
+  createdAt: number;
+}
+
+/** An org-defined HTTPS action the robot may take mid-reply (order lookup, stock check…).
+ *  'ask' escalates for approval; 'auto' executes (logged + rate-capped). */
+export interface RobotAction {
+  id: string;
+  robotId: string;
+  orgId: string;
+  name: string;
+  description: string;
+  method: 'GET' | 'POST';
+  urlTemplate: string;
+  /** Declared parameters the model may fill ({{name}} slots). */
+  params: { name: string; description: string }[];
+  bodyTemplate: string | null;
+  mode: 'ask' | 'auto';
+  cleanUses: number;
+  enabled: boolean;
+  hasHeaders: boolean;
+  createdAt: number;
+}
+
+/** Aggregated per-robot performance stats (derived server-side; content never leaves). */
+export interface RobotStats {
+  total: number;
+  sent: number;
+  escalated: number;
+  pending: number;
+  dismissed: number;
+  /** sent / (sent + escalated) — how much it handles without a human. */
+  deflectionRate: number | null;
+  medianResponseMs: number | null;
+  byChannel: Record<string, number>;
+  /** Last 14 days, oldest first: [epochDay, drafted, sent]. */
+  byDay: [number, number, number][];
+  tasks: { delivered: number; error: number; running: number };
+  actions: { calls: number; failures: number };
 }
 
 export type RobotTaskStatus = 'running' | 'delivering' | 'delivered' | 'error';
@@ -713,6 +777,8 @@ export interface RobotTask {
   artifacts: string[];
   error: string | null;
   createdAt: number;
+  /** When a delivered task was sent back for a revision (deliver-only-newer anchor). */
+  revisedAt: number | null;
   finishedAt: number | null;
 }
 
@@ -748,6 +814,8 @@ export interface RobotDraft {
   inboundBody: string | null;
   /** Which channel this conversation lives on (send dispatches accordingly). */
   channel: RobotDraftChannel;
+  /** Meeting-invite lane: a prepared iCal METHOD:REPLY, attached when the draft sends. */
+  icsReply?: string | null;
   /** When snoozed, the epoch ms it returns to "needs you". */
   snoozeUntil?: number | null;
   toAddr: string;

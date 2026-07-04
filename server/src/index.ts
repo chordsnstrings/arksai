@@ -10,6 +10,7 @@ import { startAnalyticsDigest } from './analytics/digest';
 import { warmBackgroundRemoval } from './agent/productShot';
 import { startRobotPoller } from './robots/poller';
 import { installCommandHook } from './robots/tasks';
+import { installNotifyHooks } from './robots/notify';
 import { startBuildReaper } from './build/androidBuild';
 import { loadBuildRuntime } from './build/runtime';
 import { loadByteplusRuntime } from './agent/byteplusRuntime';
@@ -37,6 +38,7 @@ async function main() {
   attachWsUpgradeProxy(app.server, (slug) => deploymentRegistry.runningPort(slug));
   startScheduler();
   installCommandHook(); // trusted-commander build lane (channels → tryCommand)
+  installNotifyHooks(); // owner pings + remote APPROVE/dictate resolution
   startRobotPoller(); // inbound mail + channels → robot draft replies / build tasks
   startDeploymentJanitor(); // 24h-preview auto-cleanup
   startDeploymentHealthMonitor(); // restart any published app whose process died (self-healing)

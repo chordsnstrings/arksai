@@ -2390,6 +2390,16 @@ button { font-family: inherit; cursor: pointer; }
 .rb-persona-row select, .rb-persona-row input { font: inherit; font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
 .rb-persona-row input { flex: 1 1 180px; min-width: 0; }
 
+/* ---- robot performance strip (30-day stats) ---- */
+.rb-perf { margin-bottom: 14px; }
+.rb-perf-grid { display: flex; flex-wrap: wrap; align-items: stretch; gap: 14px 22px; }
+.rb-perf-stat { display: flex; flex-direction: column; gap: 1px; min-width: 74px; }
+.rb-perf-stat strong { font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.rb-perf-stat span { font-family: var(--label); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); }
+.rb-perf-bars { display: flex; align-items: flex-end; gap: 3px; height: 40px; margin-left: auto; min-width: 120px; }
+.rb-perf-bar { flex: 1 0 5px; max-width: 9px; background: var(--accent, #7a8a99); border-radius: 2px 2px 0 0; min-height: 3px; }
+.rb-perf-channels { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
 /* ---- responder secondary actions (snooze/archive/forward) ---- */
 .rb-resp-more { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .rb-mini-btn { font-family: var(--label); font-size: 12px; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 7px; padding: 5px 11px; cursor: pointer; }

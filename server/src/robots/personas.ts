@@ -215,13 +215,17 @@ export function selectKnowledge(
 
 // ---- the one-call resolver the poller/routes use ----
 
-/** Resolve a robot's reply extras: persona voice/signature + retrieved knowledge slices. */
+import { buildHistoryLines, listThreadDrafts } from './store';
+
+/** Resolve a robot's reply extras: persona voice/signature + retrieved knowledge slices +
+ *  (when a thread address is given) this sender's own conversation history. */
 export async function replyExtrasFor(
   robot: { id: string; config?: { personaId?: string } | null },
   orgId: string,
   messageText: string,
-): Promise<{ personaVoice?: string; personaSignature?: string; knowledgeSnippets?: string[] }> {
-  const out: { personaVoice?: string; personaSignature?: string; knowledgeSnippets?: string[] } = {};
+  thread?: { channel: 'email' | 'telegram' | 'whatsapp' | 'sms'; fromAddr: string },
+): Promise<{ personaVoice?: string; personaSignature?: string; knowledgeSnippets?: string[]; history?: string[] }> {
+  const out: { personaVoice?: string; personaSignature?: string; knowledgeSnippets?: string[]; history?: string[] } = {};
   const pid = robot.config?.personaId;
   if (pid) {
     const p = await getPersona(pid, orgId).catch(() => null);
@@ -234,6 +238,13 @@ export async function replyExtrasFor(
   if (docs.length) {
     const snippets = selectKnowledge(docs, messageText);
     if (snippets.length) out.knowledgeSnippets = snippets;
+  }
+  if (thread?.fromAddr) {
+    const prior = await listThreadDrafts(robot.id, thread.channel, thread.fromAddr).catch(() => []);
+    if (prior.length) {
+      const lines = buildHistoryLines(prior);
+      if (lines.length) out.history = lines;
+    }
   }
   return out;
 }

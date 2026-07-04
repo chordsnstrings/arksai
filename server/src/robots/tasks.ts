@@ -9,11 +9,9 @@ import { bus } from '../events/bus';
 import * as manager from '../sessions/manager';
 import { generateTextM3 } from '../engines/minimax';
 import { config } from '../config';
-import { sendEmailForRobot } from '../email/client';
-import { withSecrets } from './channels/store';
-import { ADAPTERS, setCommandHook } from './channels/inbound';
+import { setCommandHook } from './channels/inbound';
 import { createDraft, markDraftStatus } from './store';
-import { mintRobotFileToken } from '../routes/robotFiles';
+import { sendOnChannel, sendFileOnChannel } from './outbound';
 import { AUTO_MODEL } from '../../../shared/types';
 
 /**
@@ -47,6 +45,7 @@ function rowToCommander(r: any): RobotCommander {
     channel: r.channel,
     address: r.address,
     label: r.label ?? null,
+    notify: r.notify == null ? true : !!Number(r.notify),
     createdAt: Number(r.created_at),
   };
 }
@@ -62,11 +61,12 @@ export async function addCommander(
   channel: RobotDraftChannel,
   address: string,
   label: string | null,
+  notify = true,
 ): Promise<RobotCommander> {
   const id = randomUUID();
   await q(
-    'INSERT INTO robot_commanders(id, robot_id, org_id, channel, address, label, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-    [id, robotId, orgId, channel, address.trim(), label, Date.now()],
+    'INSERT INTO robot_commanders(id, robot_id, org_id, channel, address, label, notify, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+    [id, robotId, orgId, channel, address.trim(), label, notify ? 1 : 0, Date.now()],
   );
   return rowToCommander((await qOne('SELECT * FROM robot_commanders WHERE id = $1', [id]))!);
 }
@@ -108,6 +108,7 @@ function rowToTask(r: any): RobotTask {
     artifacts: parseJson(r.artifacts, []),
     error: r.error ?? null,
     createdAt: Number(r.created_at),
+    revisedAt: r.revised_at != null ? Number(r.revised_at) : null,
     finishedAt: r.finished_at != null ? Number(r.finished_at) : null,
   };
 }
@@ -153,11 +154,15 @@ async function markTask(id: string, patch: { status?: string; artifacts?: string
 // ---- command classification ----
 
 export interface Command {
-  action: 'chat' | 'build';
+  action: 'chat' | 'build' | 'revise';
   mode: 'code' | 'report';
   brief: string;
   deliverTo: { channel: RobotDraftChannel; address: string }[];
 }
+
+/** Deterministic commander CONTROLS — no model involved, so they always work. */
+export const STATUS_RE = /^\s*(status|progress|update|how('?s| is)\s+(it|the|my)\s*(build|task|going)?( going)?)\s*\??\s*$/i;
+export const CANCEL_RE = /^\s*(cancel|stop|abort|kill)(\s+(it|that|the\s+build|the\s+task))?\s*[.!]?\s*$/i;
 
 /** Cheap prefilter: only messages that plausibly ask to CREATE something reach the model. */
 export const BUILD_HINT_RE =
@@ -174,7 +179,7 @@ export function parseCommandJson(raw: string): Command | null {
   if (start < 0 || end <= start) return null;
   try {
     const o = JSON.parse(s.slice(start, end + 1));
-    const action = o.action === 'build' ? 'build' : 'chat';
+    const action = o.action === 'build' ? 'build' : o.action === 'revise' ? 'revise' : 'chat';
     const mode = o.mode === 'report' ? 'report' : 'code';
     const brief = typeof o.brief === 'string' ? o.brief.trim() : '';
     const rawTargets = Array.isArray(o.deliver_to) ? o.deliver_to : Array.isArray(o.deliverTo) ? o.deliverTo : [];
@@ -184,7 +189,7 @@ export function parseCommandJson(raw: string): Command | null {
         address: typeof t?.address === 'string' ? t.address.trim() : '',
       }))
       .filter((t: any) => t.channel && t.address) as Command['deliverTo'];
-    if (action === 'build' && !brief) return null;
+    if ((action === 'build' || action === 'revise') && !brief) return null;
     return { action, mode, brief, deliverTo };
   } catch {
     return null;
@@ -194,10 +199,13 @@ export function parseCommandJson(raw: string): Command | null {
 const CLASSIFY_SYSTEM =
   'You triage a message the OWNER sent to their assistant robot. Decide whether they are asking the ' +
   'robot to BUILD/CREATE a concrete deliverable (a website, web app, document, report, presentation/deck, ' +
-  'spreadsheet, PDF, dashboard, flyer…) or just chatting/asking a question.\n' +
-  'Respond with STRICT JSON only: {"action":"chat"|"build","mode":"code"|"report",' +
+  'spreadsheet, PDF, dashboard, flyer…), to REVISE the thing it recently delivered, or just ' +
+  'chatting/asking a question.\n' +
+  'Respond with STRICT JSON only: {"action":"chat"|"build"|"revise","mode":"code"|"report",' +
   '"brief":string,"deliver_to":[{"channel":"email"|"whatsapp"|"telegram"|"sms","address":string}]}.\n' +
-  '- action="build" ONLY for a concrete creation request; questions, chit-chat, status checks → "chat".\n' +
+  '- action="build" ONLY for a concrete NEW creation request; questions, chit-chat, status checks → "chat".\n' +
+  '- action="revise" ONLY when a recently delivered build is mentioned below AND the owner is asking to ' +
+  'change/fix/adjust THAT thing ("make the header blue", "add a pricing section"). No recent build → never "revise".\n' +
   '- mode: "report" for a designed PDF report/deck; "code" for everything else (websites, apps, ' +
   'documents, spreadsheets — the builder routes further itself).\n' +
   '- brief: a complete, self-contained instruction for the builder (carry over every requirement, ' +
@@ -205,60 +213,33 @@ const CLASSIFY_SYSTEM =
   '- deliver_to: ONLY destinations the owner EXPLICITLY named in this message (an email address, a ' +
   'WhatsApp/phone number). If they named none, return []. Never invent an address.';
 
-/** Classify a commander message. Fail-CLOSED to 'chat' (a build never starts on a guess). */
-export async function classifyCommand(text: string, signal: AbortSignal): Promise<Command> {
+/** Classify a commander message. Fail-CLOSED to 'chat' (a build never starts on a guess).
+ *  `lastDelivered` (a recently delivered task's brief) unlocks the 'revise' action. */
+export async function classifyCommand(text: string, signal: AbortSignal, lastDelivered?: string): Promise<Command> {
   const fallback: Command = { action: 'chat', mode: 'code', brief: '', deliverTo: [] };
-  if (!BUILD_HINT_RE.test(text)) return fallback;
+  if (!BUILD_HINT_RE.test(text) && !(lastDelivered && REVISE_HINT_RE.test(text))) return fallback;
   if (!config.minimaxApiKey) return fallback;
   try {
-    const r = await generateTextM3(`Owner's message:\n"""${text.slice(0, 4000)}"""`, signal, {
+    const context = lastDelivered
+      ? `Recently delivered build (revisable): """${lastDelivered.slice(0, 600)}"""\n\n`
+      : 'No recent build exists — "revise" is not available.\n\n';
+    const r = await generateTextM3(`${context}Owner's message:\n"""${text.slice(0, 4000)}"""`, signal, {
       system: CLASSIFY_SYSTEM,
       maxTokens: 800,
     });
     if (!r.ok || !r.text) return fallback;
-    return parseCommandJson(r.text) ?? fallback;
+    const cmd = parseCommandJson(r.text) ?? fallback;
+    // A 'revise' without a revisable task can't execute — treat as chat (fail closed).
+    if (cmd.action === 'revise' && !lastDelivered) return { ...cmd, action: 'chat' };
+    return cmd;
   } catch {
     return fallback;
   }
 }
 
-// ---- channel-agnostic outbound (ack / progress / delivery text) ----
-
-async function sendOnChannel(robot: Robot, channel: RobotDraftChannel, to: string, text: string): Promise<void> {
-  if (channel === 'email') {
-    await sendEmailForRobot(robot.id, { to, subject: 'Your robot', text });
-    return;
-  }
-  const ch = await withSecrets(robot.id, channel);
-  if (!ch) throw new Error(`${channel} is not connected for this robot`);
-  await ADAPTERS[channel].send(ch, to, text);
-}
-
-async function sendFileOnChannel(robot: Robot, channel: RobotDraftChannel, to: string, abs: string, caption: string): Promise<void> {
-  if (channel === 'email') {
-    await sendEmailForRobot(robot.id, {
-      to,
-      subject: caption || `Your file: ${path.basename(abs)}`,
-      text: caption || 'Here is the file you asked for.',
-      attachments: [{ filename: path.basename(abs), path: abs }],
-    });
-    return;
-  }
-  const ch = await withSecrets(robot.id, channel);
-  if (!ch) throw new Error(`${channel} is not connected for this robot`);
-  const adapter = ADAPTERS[channel];
-  if (channel === 'telegram' && adapter.sendFile) {
-    await adapter.sendFile(ch, to, abs, caption);
-    return;
-  }
-  // WhatsApp needs a public link; SMS can only carry a link.
-  const url = `${config.publicBaseUrl.replace(/\/$/, '')}/api/robot-file/${mintRobotFileToken(abs)}`;
-  if (channel === 'whatsapp' && adapter.sendFile) {
-    await adapter.sendFile(ch, to, url, caption);
-    return;
-  }
-  await adapter.send(ch, to, `${caption ? caption + ' ' : ''}${path.basename(abs)}: ${url} (link valid ~1h)`);
-}
+/** Loose prefilter for revision phrasing (only consulted when a delivered task exists). */
+export const REVISE_HINT_RE =
+  /\b(change|revise|adjust|tweak|instead|swap|replace|rename|redo|fix|update|add|remove|bigger|smaller|darker|lighter|blue|red|green|color|colour|title|header|footer|section|page)\b/i;
 
 // ---- start a task ----
 
@@ -365,12 +346,20 @@ async function publishedUrlFor(sessionId: string): Promise<string | null> {
 
 // ---- the watcher (poller tick) ----
 
+/** Routine-fired tasks have no human commander to message (their targets carry delivery). */
+export const isRoutineCommander = (addr: string): boolean => addr.startsWith('routine:');
+
 async function finishTask(task: RobotTask, robot: Robot): Promise<void> {
   await markTask(task.id, { status: 'delivering' });
   const dir = repoDir(task.sessionId);
-  const files = collectDeliverables(dir, task.createdAt - 5000);
+  // After a revision, deliver only what the revision changed — not the original files again.
+  const files = collectDeliverables(dir, (task.revisedAt ?? task.createdAt) - 5000);
   const url = await publishedUrlFor(task.sessionId);
-  const targets = task.deliverTo.length ? task.deliverTo : [{ channel: task.channel, address: task.commander }];
+  const targets = task.deliverTo.length
+    ? task.deliverTo
+    : isRoutineCommander(task.commander)
+      ? []
+      : [{ channel: task.channel, address: task.commander }];
   const artifacts: string[] = files.map((f) => path.basename(f));
   if (url) artifacts.unshift(url);
 
@@ -393,7 +382,11 @@ async function finishTask(task: RobotTask, robot: Robot): Promise<void> {
     }
   }
   // Tell the commander when a third-party delivery failed (they'd otherwise assume it landed).
-  if (deliveryError && !(targets.length === 1 && targets[0].address === task.commander && targets[0].channel === task.channel)) {
+  if (
+    deliveryError &&
+    !isRoutineCommander(task.commander) &&
+    !(targets.length === 1 && targets[0].address === task.commander && targets[0].channel === task.channel)
+  ) {
     await sendOnChannel(robot, task.channel, task.commander, `Heads up — ${deliveryError}`).catch(() => {});
   }
   await markTask(task.id, {
@@ -426,24 +419,26 @@ export async function watchRobotTasks(getRobotById: (id: string) => Promise<Robo
         continue;
       }
       if (session.status === 'running') {
-        if (Date.now() - task.createdAt > TASK_MAX_MS) {
+        if (Date.now() - (task.revisedAt ?? task.createdAt) > TASK_MAX_MS) {
           try {
             manager.interrupt(task.sessionId);
           } catch {
             /* already stopped */
           }
           await markTask(task.id, { status: 'error', error: 'timed out', finishedAt: Date.now() });
-          await sendOnChannel(robot, task.channel, task.commander,
-            'Sorry — that build ran too long and I stopped it. You can open the session in ArksAI to continue it.',
-          ).catch(() => {});
+          if (!isRoutineCommander(task.commander))
+            await sendOnChannel(robot, task.channel, task.commander,
+              'Sorry — that build ran too long and I stopped it. You can open the session in ArksAI to continue it.',
+            ).catch(() => {});
         }
         continue;
       }
       if (session.status === 'error') {
         await markTask(task.id, { status: 'error', error: 'build failed', finishedAt: Date.now() });
-        await sendOnChannel(robot, task.channel, task.commander,
-          'Sorry — the build hit an error and could not finish. The session is saved in ArksAI if you want to look.',
-        ).catch(() => {});
+        if (!isRoutineCommander(task.commander))
+          await sendOnChannel(robot, task.channel, task.commander,
+            'Sorry — the build hit an error and could not finish. The session is saved in ArksAI if you want to look.',
+          ).catch(() => {});
         continue;
       }
       // idle / done → collect + deliver.
@@ -461,6 +456,26 @@ export async function watchRobotTasks(getRobotById: (id: string) => Promise<Robo
  * was started (or a helpful command-lane response was sent) — the caller then SKIPS the
  * normal reply lane. Non-commanders and plain chat always return false.
  */
+const REVISABLE_WINDOW_MS = Number(process.env.ROBOT_REVISE_WINDOW_MS || String(6 * 60 * 60_000)) || 6 * 60 * 60_000;
+
+async function latestTask(robotId: string): Promise<RobotTask | null> {
+  const r = await qOne('SELECT * FROM robot_tasks WHERE robot_id = $1 ORDER BY created_at DESC LIMIT 1', [robotId]);
+  return r ? rowToTask(r) : null;
+}
+
+/** The most recent DELIVERED task still inside the revision window. */
+async function latestRevisable(robotId: string): Promise<RobotTask | null> {
+  const t = await latestTask(robotId);
+  if (!t || t.status !== 'delivered') return null;
+  const anchor = t.finishedAt ?? t.createdAt;
+  return Date.now() - anchor <= REVISABLE_WINDOW_MS ? t : null;
+}
+
+function fmtAge(ms: number): string {
+  const m = Math.round(ms / 60_000);
+  return m < 60 ? `${m}m` : `${Math.round(m / 6) / 10}h`;
+}
+
 export async function tryCommand(
   robot: Robot,
   channel: RobotDraftChannel,
@@ -470,45 +485,109 @@ export async function tryCommand(
   inboundMessageId: string | null,
 ): Promise<boolean> {
   if (!(await isCommander(robot.id, channel, from))) return false;
+
+  // Receipt drafts are marked 'sent' immediately — they're the audit trail of the command
+  // lane (and the message-id dedupe so an unread email / provider retry can't re-trigger),
+  // never something awaiting approval in Needs You.
+  const receipt = async (draftText: string) => {
+    try {
+      const d = await createDraft({
+        robotId: robot.id, orgId: robot.orgId, inboundMessageId, inboundFrom: from, inboundName: fromName,
+        inboundSubject: null, inboundSnippet: text.slice(0, 160), inboundBody: text, toAddr: from,
+        subject: '', draftText, modelUsed: 'command-lane', escalated: false,
+        channel: channel === 'email' ? 'email' : channel,
+      });
+      await markDraftStatus(d.id, robot.orgId, 'sent', Date.now());
+    } catch {
+      /* audit best-effort */
+    }
+  };
+  const say = async (t: string) => {
+    await sendOnChannel(robot, channel, from, t).catch((e) => console.error('[robot-task say]', e?.message ?? e));
+    await receipt(t);
+  };
+
+  // ---- deterministic CONTROLS (no model — always work) ----
+  if (STATUS_RE.test(text)) {
+    const t = await latestTask(robot.id);
+    if (!t) await say('Nothing is building right now — send me a brief whenever you like.');
+    else if (t.status === 'running' || t.status === 'delivering') {
+      const since = fmtAge(Date.now() - (t.revisedAt ?? t.createdAt));
+      await say(`Still on it — "${t.request.slice(0, 90)}" has been building for ${since}. I'll deliver the moment it's done.`);
+    } else if (t.status === 'delivered') {
+      await say(`The last build ("${t.request.slice(0, 90)}") was delivered ${fmtAge(Date.now() - (t.finishedAt ?? t.createdAt))} ago${t.artifacts.length ? ` — ${t.artifacts.slice(0, 3).join(', ')}` : ''}. Nothing is running now.`);
+    } else {
+      await say(`The last build hit a problem (${t.error || 'failed'}) and nothing is running now.`);
+    }
+    return true;
+  }
+  if (CANCEL_RE.test(text)) {
+    const t = await latestTask(robot.id);
+    if (t && (t.status === 'running' || t.status === 'delivering')) {
+      try {
+        manager.interrupt(t.sessionId);
+      } catch {
+        /* already stopped */
+      }
+      await markTask(t.id, { status: 'error', error: 'cancelled by you', finishedAt: Date.now() });
+      await say('Cancelled ✓ — I stopped that build.');
+    } else {
+      await say('Nothing is building right now, so there was nothing to cancel.');
+    }
+    return true;
+  }
+
+  // ---- classify (build / revise / chat) with the revisable-task context ----
+  const revisable = await latestRevisable(robot.id);
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), CLASSIFY_TIMEOUT_MS);
   let cmd: Command;
   try {
-    cmd = await classifyCommand(text, ac.signal);
+    cmd = await classifyCommand(text, ac.signal, revisable?.request);
   } finally {
     clearTimeout(timer);
   }
-  if (cmd.action !== 'build') return false;
-
-  // Receipt draft (status 'sent'): dedupes the inbound id so an unread email / provider retry
-  // can never re-trigger the build, and the console feed shows what the robot did.
-  let ack: string;
-  // Receipt drafts are marked 'sent' immediately — they're the audit trail of the command
-  // lane (and the Message-ID dedupe), not something awaiting approval in Needs You.
-  const receipt = async (draftText: string) => {
-    const d = await createDraft({
-      robotId: robot.id, orgId: robot.orgId, inboundMessageId, inboundFrom: from, inboundName: fromName,
-      inboundSubject: null, inboundSnippet: text.slice(0, 160), inboundBody: text, toAddr: from,
-      subject: '', draftText, modelUsed: 'command-lane', escalated: false,
-      channel: channel === 'email' ? 'email' : channel,
-    });
-    await markDraftStatus(d.id, robot.orgId, 'sent', Date.now());
-  };
+  if (cmd.action !== 'build' && cmd.action !== 'revise') return false;
 
   if ((await runningTaskCount(robot.id)) > 0) {
-    ack = "I'm still working on your previous build — send this again once it's delivered. (One build at a time.)";
-    await sendOnChannel(robot, channel, from, ack).catch(() => {});
-    await receipt(ack).catch(() => {});
+    await say("I'm still working on your previous build — send this again once it's delivered. (One build at a time.)");
     return true;
+  }
+
+  // ---- revise: re-enter the SAME session, deliver only what changes ----
+  if (cmd.action === 'revise' && revisable) {
+    const session = await store.getSession(revisable.sessionId).catch(() => null);
+    if (session) {
+      const now = Date.now();
+      await q(
+        `UPDATE robot_tasks SET status='running', finished_at=NULL, revised_at=$1, error=NULL,
+         deliver_to=$2, request = $3 WHERE id = $4`,
+        [
+          now,
+          JSON.stringify(cmd.deliverTo.length ? cmd.deliverTo : revisable.deliverTo),
+          `${revisable.request}\n↻ revision: ${cmd.brief}`.slice(0, 4000),
+          revisable.id,
+        ],
+      );
+      const prompt =
+        `Revise the build you just delivered: ${cmd.brief}\n\n` +
+        'Apply the change with targeted edits (do not rebuild from scratch). This revision was requested ' +
+        'remotely — no user is present to answer questions; proceed on sensible assumptions and finish ' +
+        'with the updated deliverable produced.';
+      await store.appendTimeline(session.id, { kind: 'user', id: randomUUID(), text: prompt, ts: now } as any);
+      await manager.startRun(session.id, prompt);
+      await say(`On it — revising that now ("${cmd.brief.slice(0, 90)}"). I'll deliver the update when it's done.`);
+      return true;
+    }
+    // The session is gone (cleaned up) — fall through to a fresh build carrying both briefs.
+    cmd = { ...cmd, action: 'build', brief: `${revisable.request}\n\nNow with this change: ${cmd.brief}` };
   }
 
   const task = await startTask(robot, channel, from, cmd);
   const where = cmd.deliverTo.length
     ? cmd.deliverTo.map((t) => `${t.channel} ${t.address}`).join(' + ')
     : 'right here';
-  ack = `On it — building that now. I'll deliver it to ${where} when it's done (usually a few minutes).`;
-  await sendOnChannel(robot, channel, from, ack).catch((e) => console.error('[robot-task ack]', e?.message ?? e));
-  await receipt(`${ack}\n(task ${task.id})`).catch(() => {});
+  await say(`On it — building that now. I'll deliver it to ${where} when it's done (usually a few minutes). (task ${task.id})`);
   return true;
 }
 

@@ -60,6 +60,10 @@ import {
 import { extractText } from '../lib/extract';
 import { sanitizeFilename } from './upload';
 import { addCommander, deleteCommander, listCommanders, listTasks } from '../robots/tasks';
+import { deliverDraft } from '../robots/outbound';
+import { createJob, deleteJob, listJobs } from '../robots/jobs';
+import { deleteAction, listActions, upsertAction } from '../robots/actions';
+import { robotStats } from '../robots/analytics';
 
 /**
  * Robots + drafts API, org-scoped. Any member of the org (or the operator) can manage
@@ -308,7 +312,14 @@ export function registerRobotRoutes(app: FastifyInstance) {
     if (!DRAFT_CHANNELS.includes(channel) || !address) {
       return reply.code(400).send({ error: 'A commander needs a channel (email/telegram/whatsapp/sms) and an address.' });
     }
-    const commander = await addCommander(robot.id, orgId(req), channel as any, address, b.label ? String(b.label) : null);
+    const commander = await addCommander(
+      robot.id,
+      orgId(req),
+      channel as any,
+      address,
+      b.label ? String(b.label) : null,
+      b.notify !== false,
+    );
     return { commander };
   });
   app.delete('/api/orgs/:id/robots/:rid/commanders/:cid', async (req, reply) => {
@@ -323,6 +334,86 @@ export function registerRobotRoutes(app: FastifyInstance) {
     const robot = await getRobot((req.params as any).rid, orgId(req));
     if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
     return { tasks: await listTasks(robot.id, orgId(req)) };
+  });
+
+  // ---- proactive routines (digest / scheduled brief) ----
+  app.get('/api/orgs/:id/robots/:rid/jobs', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    return { jobs: await listJobs(robot.id, orgId(req)) };
+  });
+  app.post('/api/orgs/:id/robots/:rid/jobs', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const b = (req.body as any) || {};
+    const kind = b.kind === 'brief' ? 'brief' : b.kind === 'digest' ? 'digest' : null;
+    const atTime = String(b.atTime ?? '').trim();
+    if (!kind || !/^\d{1,2}:\d{2}$/.test(atTime)) {
+      return reply.code(400).send({ error: 'A routine needs a kind (digest/brief) and a time (HH:MM).' });
+    }
+    if (kind === 'brief' && !String(b.prompt ?? '').trim()) {
+      return reply.code(400).send({ error: 'A scheduled brief needs the build instruction.' });
+    }
+    const job = await createJob(robot.id, orgId(req), {
+      kind,
+      cadence: b.cadence === 'weekly' ? 'weekly' : 'daily',
+      atTime,
+      weekday: b.cadence === 'weekly' ? Math.min(6, Math.max(0, Number(b.weekday) || 0)) : null,
+      tz: b.tz ? String(b.tz) : null,
+      prompt: b.prompt ? String(b.prompt).slice(0, 4000) : null,
+      deliverTo: Array.isArray(b.deliverTo) ? b.deliverTo : [],
+    });
+    return { job };
+  });
+  app.delete('/api/orgs/:id/robots/:rid/jobs/:jobId', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    await deleteJob((req.params as any).jobId, orgId(req));
+    return { ok: true };
+  });
+
+  // ---- gated actions (org-defined HTTPS lookups) ----
+  app.get('/api/orgs/:id/robots/:rid/actions', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    return { actions: await listActions(robot.id, orgId(req)) };
+  });
+  app.put('/api/orgs/:id/robots/:rid/actions', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const b = (req.body as any) || {};
+    try {
+      const action = await upsertAction(robot.id, orgId(req), {
+        name: String(b.name ?? ''),
+        description: String(b.description ?? ''),
+        method: b.method === 'POST' ? 'POST' : 'GET',
+        urlTemplate: String(b.urlTemplate ?? ''),
+        headers: b.headers && typeof b.headers === 'object' ? b.headers : undefined,
+        params: Array.isArray(b.params) ? b.params : [],
+        bodyTemplate: b.bodyTemplate ? String(b.bodyTemplate) : null,
+        mode: b.mode === 'auto' ? 'auto' : 'ask',
+        enabled: b.enabled !== false,
+      });
+      return { action };
+    } catch (e: any) {
+      return reply.code(400).send({ error: e?.message ?? String(e) });
+    }
+  });
+  app.delete('/api/orgs/:id/robots/:rid/actions/:actionId', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    await deleteAction((req.params as any).actionId, orgId(req));
+    return { ok: true };
+  });
+
+  // ---- per-robot performance stats (metadata only) ----
+  app.get('/api/orgs/:id/robots/:rid/stats', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    return { stats: await robotStats(robot.id) };
   });
 
   // ---- personas (org-level, reusable voices) ----
@@ -483,21 +574,7 @@ export function registerRobotRoutes(app: FastifyInstance) {
     if (draft.status === 'sent') return reply.code(409).send({ error: 'Already sent.' });
     const text = String((req.body as any)?.text ?? draft.draftText);
     try {
-      if (draft.channel && draft.channel !== 'email') {
-        const adapter = ADAPTERS[draft.channel];
-        const ch = adapter ? await withSecrets(draft.robotId, draft.channel) : null;
-        if (!adapter || !ch) return reply.code(400).send({ error: 'That channel is no longer connected for this robot.' });
-        await adapter.send(ch, draft.toAddr /* LOCKED */, text);
-      } else {
-        await sendEmailForRobot(draft.robotId, {
-          to: draft.toAddr, // LOCKED
-          subject: draft.subject,
-          text,
-          inReplyTo: draft.inboundMessageId || undefined,
-          references: draft.inboundMessageId || undefined,
-        });
-      }
-      await markDraftStatus(draft.id, orgId(req), 'sent', Date.now());
+      await deliverDraft(draft, text); // locked recipient + channel dispatch + ics attach + marks sent
       return { ok: true };
     } catch (e: any) {
       return reply.code(502).send({ error: `Send failed: ${e?.message ?? e}` });

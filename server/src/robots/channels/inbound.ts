@@ -1,12 +1,12 @@
 import type { Robot, RobotChannelKind } from '../../../../shared/types';
 import type { InboxMessage } from '../../email/client';
 import { createDraft, draftExistsFor, listActiveRules, markDraftStatus } from '../store';
-import { draftReply } from '../reply';
+import { draftReplyWithActions } from '../actions';
 import { replyExtrasFor } from '../personas';
+import { cleanupAttachments, describeAttachments } from '../media';
 import type { ChannelAdapter, ChannelInbound, ChannelWithSecrets } from './types';
-import { telegramAdapter } from './telegram';
-import { whatsappAdapter } from './whatsapp';
-import { smsAdapter } from './sms';
+import { ADAPTERS } from './registry';
+export { ADAPTERS } from './registry';
 
 /**
  * The channel-agnostic inbound handler — the email poll loop's per-message body, reused for
@@ -14,12 +14,6 @@ import { smsAdapter } from './sms';
  * inbound sender, `ask` leaves the draft pending, `auto` sends immediately via the adapter,
  * escalations never auto-send.
  */
-
-export const ADAPTERS: Record<RobotChannelKind, ChannelAdapter> = {
-  telegram: telegramAdapter,
-  whatsapp: whatsappAdapter,
-  sms: smsAdapter,
-};
 
 const DRAFT_TIMEOUT_MS = Number(process.env.ROBOT_DRAFT_TIMEOUT_MS || '90000') || 90_000;
 
@@ -30,6 +24,31 @@ export type CommandHook = (robot: Robot, ch: ChannelWithSecrets, msg: ChannelInb
 let commandHook: CommandHook | null = null;
 export function setCommandHook(h: CommandHook | null): void {
   commandHook = h;
+}
+
+/** Owner-notification resolution hook (robots/notify.ts) — runs AFTER the command lane, so
+ *  "build me X" still wins over an outstanding ping, but "APPROVE" resolves the ping. */
+export type ResolveHook = (
+  robot: Robot,
+  channel: RobotChannelKind,
+  from: string,
+  fromName: string | null,
+  text: string,
+  messageId: string | null,
+) => Promise<boolean>;
+let resolveHook: ResolveHook | null = null;
+export function setResolveHook(h: ResolveHook | null): void {
+  resolveHook = h;
+}
+
+/** Draft-created hook (robots/notify.ts) — pings the owner about a draft that needs them. */
+export type NotifyHook = (robot: Robot, draftId: string) => Promise<void>;
+let notifyHook: NotifyHook | null = null;
+export function setNotifyHook(h: NotifyHook | null): void {
+  notifyHook = h;
+}
+export function fireNotifyHook(robot: Robot, draftId: string): void {
+  if (notifyHook) void notifyHook(robot, draftId).catch(() => {});
 }
 
 export interface InboundSummary {
@@ -66,7 +85,8 @@ export async function handleChannelInbound(
   const sum: InboundSummary = { drafted: 0, sent: 0, escalated: 0, skipped: 0, commands: 0 };
   const kind = ch.channel.kind;
   try {
-    if (!msg.from || !msg.text.trim()) {
+    // A message may be attachment-only (a photo with no caption) — still handled.
+    if (!msg.from || (!msg.text.trim() && !msg.attachments?.length)) {
       sum.skipped++;
       return sum;
     }
@@ -81,14 +101,43 @@ export async function handleChannelInbound(
       sum.commands++;
       return sum;
     }
+    // Owner-approval lane: "APPROVE" / "ignore" / direction on an outstanding ping.
+    if (resolveHook && (await resolveHook(robot, kind, msg.from, msg.fromName, msg.text, msg.id || null))) {
+      sum.commands++;
+      return sum;
+    }
+
+    // Describe any attached media (vision for photos, extraction for docs) BEFORE drafting,
+    // and fold the notes into the stored body so the console responder sees them too.
+    let attachmentNotes: string[] = [];
+    if (msg.attachments?.length) {
+      const mac = new AbortController();
+      const mtimer = setTimeout(() => mac.abort(), DRAFT_TIMEOUT_MS);
+      try {
+        attachmentNotes = await describeAttachments(msg.attachments, mac.signal);
+      } finally {
+        clearTimeout(mtimer);
+        cleanupAttachments(msg.attachments);
+      }
+    }
+    const storedBody = [msg.text, ...(attachmentNotes.length ? ['', '— attachments —', ...attachmentNotes] : [])]
+      .join('\n')
+      .trim();
+    const retrievalText = [msg.text, ...attachmentNotes].join('\n');
 
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), DRAFT_TIMEOUT_MS);
     let outcome;
     try {
       const rules = await listActiveRules(robot.id).catch(() => []);
-      const extras = await replyExtrasFor(robot, robot.orgId, msg.text).catch(() => ({}));
-      outcome = await draftReply(robot, toInboxMessage(msg), ac.signal, rules, { ...extras, channel: kind });
+      const extras = await replyExtrasFor(robot, robot.orgId, retrievalText, { channel: kind, fromAddr: msg.from }).catch(
+        () => ({}),
+      );
+      outcome = await draftReplyWithActions(robot, toInboxMessage(msg), ac.signal, rules, {
+        ...extras,
+        channel: kind,
+        attachmentNotes: attachmentNotes.length ? attachmentNotes : undefined,
+      });
     } finally {
       clearTimeout(timer);
     }
@@ -101,8 +150,8 @@ export async function handleChannelInbound(
       inboundFrom: msg.from,
       inboundName: msg.fromName,
       inboundSubject: null,
-      inboundSnippet: msg.text.slice(0, 160),
-      inboundBody: msg.text,
+      inboundSnippet: (msg.text || attachmentNotes[0] || '').slice(0, 160),
+      inboundBody: storedBody,
       toAddr: msg.from, // LOCKED to the inbound sender
       subject: '',
       draftText: primary.text,
@@ -116,17 +165,21 @@ export async function handleChannelInbound(
     sum.drafted++;
     if (primary.escalate) sum.escalated++;
 
+    let autoSent = false;
     if (robot.autonomy === 'auto' && !primary.escalate && primary.text) {
       try {
         await ADAPTERS[kind].send(ch, msg.from, primary.text);
         await markDraftStatus(draft.id, robot.orgId, 'sent', Date.now());
         sum.sent++;
+        autoSent = true;
       } catch (e: any) {
         sum.error = `auto-send failed: ${e?.message ?? e}`;
         console.error(`[robot ${robot.id}] ${kind} auto-send failed:`, sum.error);
         // Leave it pending so a human can send it.
       }
     }
+    // Ping the owner about anything still needing them (never about a reply that went out).
+    if (!autoSent) fireNotifyHook(robot, draft.id);
   } catch (e: any) {
     sum.error = e?.message ?? String(e);
     console.error(`[robot ${robot.id}] ${kind} inbound failed:`, sum.error);
