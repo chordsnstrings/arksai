@@ -45,6 +45,16 @@ export interface PubUser {
   name: string | null;
   isSuperadmin: boolean;
 }
+/** A motion style pack served by /api/motion/styles for the video Style Picker. */
+export interface MotionStyleSummary {
+  id: string;
+  name: string;
+  vibe: string;
+  bestFor: string;
+  accent: string;
+  previewUrl: string;
+}
+
 /** A tested visual direction (summary) served by /api/design/directions for the Design studio. */
 export interface DesignDirectionSummary {
   id: string;
@@ -235,6 +245,9 @@ export const api = {
   // Design studio: the tested visual-direction library (read-only summaries).
   getDesignDirections: () =>
     request<{ directions: DesignDirectionSummary[] }>('/api/design/directions').then((r) => r.directions),
+  // Motion style packs (video Style Picker) — previews are real engine-rendered frames.
+  getMotionStyles: () =>
+    request<{ styles: MotionStyleSummary[] }>('/api/motion/styles').then((r) => r.styles),
   listSessions: () => request<SessionMeta[]>('/api/sessions'),
   createSession: (body: CreateSessionRequest) =>
     request<SessionMeta>('/api/sessions', { method: 'POST', body: JSON.stringify(body) }),

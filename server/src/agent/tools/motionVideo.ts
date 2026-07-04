@@ -94,12 +94,17 @@ export function latestMotionId(repoDir: string): string | null {
   }
 }
 
-/** Ensure the motion-kit runtime exists in the workspace (scenes link it relatively). */
+/** Ensure the motion-kit runtime exists in the workspace (scenes link it relatively).
+ *  Files only — the kit dir also holds previews/ (style-picker thumbnails), which the
+ *  workspace doesn't need and copyFileSync would choke on. */
 function ensureMotionKit(repoDir: string): void {
   const src = path.join(repoRoot, 'server', 'assets', 'motion-kit');
   const dest = path.join(repoDir, 'motion-kit');
   fs.mkdirSync(dest, { recursive: true });
-  for (const f of fs.readdirSync(src)) fs.copyFileSync(path.join(src, f), path.join(dest, f));
+  for (const f of fs.readdirSync(src)) {
+    const abs = path.join(src, f);
+    if (fs.statSync(abs).isFile()) fs.copyFileSync(abs, path.join(dest, f));
+  }
 }
 
 async function ttsScene(m: MotionManifest, s: MotionScene, repoDir: string, signal: AbortSignal, addCost: (u: number) => void): Promise<void> {

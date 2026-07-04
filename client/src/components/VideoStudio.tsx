@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { MotionStylePicker } from './MotionStylePicker';
 import { useStore } from '../state/sessionStore';
 import { VideoCard } from './VideoCard';
 import { PresetIcon } from './VideoPresetIcon';
@@ -386,6 +387,10 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
                 placeholder="e.g. How to reduce LDL cholesterol — the 5 evidence-based moves, friendly and practical"
               />
             </label>
+            <div className="aw-field">
+              <span className="aw-label">Style <em>(real frames from each style's engine)</em></span>
+              <MotionStylePicker value={explainStyle} onChange={setExplainStyle} />
+            </div>
             <div className="aw-row">
               <label className="aw-field">
                 <span className="aw-label">Length</span>
@@ -403,15 +408,6 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
                   <option value="9:16">9:16 · Reels/TikTok</option>
                   <option value="1:1">1:1 · square</option>
                   <option value="4:5">4:5 · feed</option>
-                </select>
-              </label>
-              <label className="aw-field">
-                <span className="aw-label">Style</span>
-                <select value={explainStyle} onChange={(e) => setExplainStyle(e.target.value)}>
-                  <option value="clean">Clean · house style</option>
-                  <option value="nutshell">Nutshell · neon science (Kurzgesagt-like)</option>
-                  <option value="broadcast">Broadcast · bold infographic</option>
-                  <option value="vox">Vox · annotated evidence</option>
                 </select>
               </label>
               <label className="aw-field">

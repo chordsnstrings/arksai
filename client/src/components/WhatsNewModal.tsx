@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-04.39';
+export const WHATS_NEW_VERSION = '2026-07-04.40';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Explainer videos now come in signature styles',
-    body: 'Pick a look for your video: Nutshell (neon flat-vector science on cosmic backdrops, with an animated mascot), Broadcast (bright, bold infographic storytelling with shouting stat callouts), Vox (annotated-evidence editorial — plates, yellow boxed labels, highlighter sweeps), or the house Clean style. Available in the Video studio and by just asking ("make it Kurzgesagt-style").',
-  },
-  {
-    title: 'Everything moves now',
-    body: 'A new micro-animation doctrine means no frozen frames: every element enters smoothly and settles into a gentle idle — drifts, breathes, sways — numbers tick up, highlights sweep, lines draw. Plus ~1,800 full-color illustration props (food, organs, planets, characters) joined the asset library.',
+    title: 'Pick your video style visually',
+    body: 'The Video studio\'s Explainer now shows the four styles as picture cards — each thumbnail is a real frame rendered by that style\'s engine, so what you pick is exactly what you get: Clean, Nutshell (neon science), Broadcast (bold infographic), or Vox (annotated evidence). New styles will appear here automatically as they ship.',
   },
 ];
 

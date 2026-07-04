@@ -64,3 +64,24 @@ test('design studio sessions: a design.* task key is accepted and round-trips', 
   const { expertiseFor } = await import('../src/agent/expertise');
   assert.equal(expertiseFor('design.landing'), null);
 });
+
+test('motion styles: catalog served with real preview frames, auth-gated', async () => {
+  const anon = await app.inject({ url: '/api/motion/styles' });
+  assert.equal(anon.statusCode, 401);
+  const cookie = await opCookie();
+  const r = await app.inject({ url: '/api/motion/styles', headers: { cookie } });
+  assert.equal(r.statusCode, 200);
+  const { styles } = r.json();
+  assert.equal(styles.length, 4);
+  assert.deepEqual(styles.map((s: any) => s.id).sort(), ['broadcast', 'clean', 'nutshell', 'vox']);
+  for (const s of styles) {
+    for (const k of ['name', 'vibe', 'bestFor', 'accent', 'previewUrl']) assert.ok(s[k], `${s.id}.${k}`);
+    const img = await app.inject({ url: s.previewUrl, headers: { cookie } });
+    assert.equal(img.statusCode, 200, `${s.id} preview exists`);
+    assert.match(String(img.headers['content-type']), /image\/jpeg/);
+    assert.ok(img.rawPayload.length > 5_000, `${s.id} preview is a real frame`);
+  }
+  // unknown id → 404, traversal-safe
+  const bad = await app.inject({ url: '/api/motion/styles/..%2F..%2Fmotion/preview.jpg', headers: { cookie } });
+  assert.notEqual(bad.statusCode, 200);
+});
