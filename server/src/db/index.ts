@@ -371,6 +371,81 @@ async function migrate() {
     created_at ${INT} NOT NULL
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_robot_fwd ON robot_forward_allowlist(org_id)`);
+  // Robot CHANNELS beyond email (telegram/whatsapp/sms): one row per robot × kind. Secrets
+  // (bot token / access token / API password) AES-256-GCM encrypted in `secrets`; `meta` holds
+  // the non-secret settings (phone number id, sender id, hook key…); `state` is adapter
+  // runtime state (e.g. the Telegram getUpdates offset).
+  await q(`CREATE TABLE IF NOT EXISTS robot_channels(
+    id TEXT PRIMARY KEY,
+    robot_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    label TEXT,
+    secrets TEXT,
+    meta TEXT,
+    state TEXT,
+    enabled ${INT} NOT NULL DEFAULT 1,
+    verified_at ${INT},
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL,
+    UNIQUE(robot_id, kind)
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_channels ON robot_channels(org_id, kind, enabled)`);
+  // Reusable org-level personas a robot can speak as (picked via robot config.personaId).
+  await q(`CREATE TABLE IF NOT EXISTS robot_personas(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    voice TEXT NOT NULL,
+    language TEXT,
+    signature TEXT,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_personas ON robot_personas(org_id)`);
+  // Per-robot knowledge documents (extracted text) — retrieval picks only the RELEVANT
+  // slices into a reply's context, preserving the §5c data-minimization.
+  await q(`CREATE TABLE IF NOT EXISTS robot_kb_docs(
+    id TEXT PRIMARY KEY,
+    robot_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_kb ON robot_kb_docs(robot_id)`);
+  // Trusted COMMANDERS — the owner's own addresses per channel. Only a message from a listed
+  // commander can trigger a build or name a delivery destination (the trifecta-safe gate for
+  // the "text the robot → it builds and delivers" bridge).
+  await q(`CREATE TABLE IF NOT EXISTS robot_commanders(
+    id TEXT PRIMARY KEY,
+    robot_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    address TEXT NOT NULL,
+    label TEXT,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_cmd ON robot_commanders(robot_id, channel)`);
+  // Builds a robot runs on a commander's instruction — each owns a real session; the poller
+  // watches running tasks and delivers the artifacts back on the channel when the run ends.
+  await q(`CREATE TABLE IF NOT EXISTS robot_tasks(
+    id TEXT PRIMARY KEY,
+    robot_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    commander TEXT NOT NULL,
+    request TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running',
+    deliver_to TEXT,
+    artifacts TEXT,
+    error TEXT,
+    created_at ${INT} NOT NULL,
+    finished_at ${INT}
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_robot_tasks ON robot_tasks(robot_id, status)`);
   await q(`CREATE TABLE IF NOT EXISTS users(
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
@@ -594,6 +669,8 @@ async function migrate() {
     "robots:type TEXT NOT NULL DEFAULT 'email'",
     'robot_drafts:inbound_body TEXT',
     `robot_drafts:snooze_until ${INT}`,
+    // Which channel a draft's conversation lives on (email/telegram/whatsapp/sms).
+    "robot_drafts:channel TEXT NOT NULL DEFAULT 'email'",
   ]) {
     const cut = spec.indexOf(':');
     const table = spec.slice(0, cut);

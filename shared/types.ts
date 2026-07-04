@@ -621,6 +621,8 @@ export type RobotModel = 'arksai-max' | 'deepseek-v4' | 'compare';
 export interface RobotConfig {
   /** Free-text persona / tone instructions for the robot. */
   persona?: string;
+  /** A reusable org persona this robot speaks as (robot_personas.id). Free-text `persona` wins. */
+  personaId?: string;
   /** Knowledge the robot can ground replies in (product info, policies, FAQ, your prefs). */
   knowledge?: string;
   /** Topics that must escalate to a human instead of being answered autonomously. */
@@ -632,6 +634,86 @@ export interface RobotConfig {
   dept?: string;
   mandate?: string;
   triggers?: string[];
+}
+
+// ---- Robot channels (beyond email: chat/SMS auto-responders) ----
+export type RobotChannelKind = 'telegram' | 'whatsapp' | 'sms';
+/** Where a draft/conversation lives — email plus the chat/SMS channels. */
+export type RobotDraftChannel = 'email' | RobotChannelKind;
+
+/** A connected messaging channel for one robot. Secrets (bot token / access token / API
+ *  password) are AES-256-GCM encrypted at rest and WRITE-ONLY over the API — the client
+ *  only ever sees `hasSecrets` + the non-secret meta. */
+export interface RobotChannel {
+  id: string;
+  robotId: string;
+  orgId: string;
+  kind: RobotChannelKind;
+  label: string | null;
+  /** Non-secret, kind-specific settings (safe to show):
+   *  telegram: botUsername; whatsapp: phoneNumberId, verifyToken;
+   *  sms: provider ('smsala'), senderId, channelNumber, hookKey (inbound URL key). */
+  meta: Record<string, string>;
+  enabled: boolean;
+  hasSecrets: boolean;
+  verifiedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** An org-level reusable persona a robot can speak as. */
+export interface RobotPersona {
+  id: string;
+  orgId: string;
+  name: string;
+  description: string | null;
+  /** The voice/tone/behavior text folded into the reply prompt. */
+  voice: string;
+  language: string | null;
+  signature: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** One knowledge document a robot grounds its replies in (extracted text). */
+export interface RobotKbDoc {
+  id: string;
+  robotId: string;
+  orgId: string;
+  name: string;
+  /** Extracted text size (chars) — the text itself stays server-side. */
+  chars: number;
+  createdAt: number;
+}
+
+/** A trusted commander identity — the OWNER's own address on a channel. Only messages
+ *  from a listed commander can trigger builds or name delivery destinations. */
+export interface RobotCommander {
+  id: string;
+  robotId: string;
+  orgId: string;
+  channel: RobotDraftChannel;
+  address: string;
+  label: string | null;
+  createdAt: number;
+}
+
+export type RobotTaskStatus = 'running' | 'delivering' | 'delivered' | 'error';
+/** A build the robot is running on a commander's instruction (spawns a real session). */
+export interface RobotTask {
+  id: string;
+  robotId: string;
+  orgId: string;
+  channel: RobotDraftChannel;
+  commander: string;
+  request: string;
+  sessionId: string;
+  status: RobotTaskStatus;
+  deliverTo: { channel: RobotDraftChannel; address: string }[];
+  artifacts: string[];
+  error: string | null;
+  createdAt: number;
+  finishedAt: number | null;
 }
 
 export interface Robot {
@@ -664,6 +746,8 @@ export interface RobotDraft {
   inboundSnippet: string | null;
   /** Full inbound body (for the responder); snippet stays for the compact feed. */
   inboundBody: string | null;
+  /** Which channel this conversation lives on (send dispatches accordingly). */
+  channel: RobotDraftChannel;
   /** When snoozed, the epoch ms it returns to "needs you". */
   snoozeUntil?: number | null;
   toAddr: string;

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-03.32';
+export const WHATS_NEW_VERSION = '2026-07-04.33';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Word documents — bilingual Arabic, done properly',
-    body: 'Arabic anywhere in a document — a heading, a whole section, or one clause inside an English sentence — is now typeset in a real embedded Arabic face with correct right-to-left direction and right alignment. Bilingual UAE contracts, police reports and notarised documents finally read like they came from a law firm, in Word itself, on any machine.',
+    title: 'Robots now answer on WhatsApp, Telegram and SMS',
+    body: 'Connect a channel in a robot\'s settings and the same assistant that handles its email now replies there too — grounded in its knowledge, escalating to you when unsure, always replying only to the person who wrote in. Telegram takes two minutes (just a bot token); WhatsApp uses the official Cloud API; SMS runs on SMSALA including two-way replies.',
   },
   {
-    title: 'Documents with real structure',
-    body: 'Long documents now carry proper furniture: an auto-updating Contents page, running headers with the document title, "Page X of Y" footers, a logo on the cover, shaded key-finding callout boxes, embedded images with captions, and landscape mode for wide material. Every document is also re-opened and checked after writing, so a broken file can never be delivered silently.',
+    title: 'Text your robot — it builds and delivers',
+    body: 'Add your own number or chat as a "commander", then message the robot: "make me a landing page for the new offer and send it to sales@acme.com." It confirms, builds the real thing with ArksAI, and delivers the finished files or live link right back on WhatsApp, Telegram, SMS or email — to you or to the address you named. Only your listed addresses can order builds; customers just get replies.',
+  },
+  {
+    title: 'Personas and a knowledge base for every robot',
+    body: 'Create reusable voices — a warm concierge, formal legal counsel, an Arabic-first support agent — and assign one to any robot. Upload price lists, policies and FAQs to its knowledge base: each answer draws only on the parts relevant to that question, and anything not covered is flagged to you instead of guessed.',
   },
 ];
 

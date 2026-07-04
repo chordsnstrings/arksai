@@ -20,9 +20,15 @@ import type {
   ProcessInfo,
   Project,
   Robot,
+  RobotChannel,
+  RobotChannelKind,
+  RobotCommander,
   RobotConfig,
   RobotDraft,
+  RobotKbDoc,
+  RobotPersona,
   RobotRule,
+  RobotTask,
   ProjectFile,
   Schedule,
   CreateScheduleRequest,
@@ -433,10 +439,62 @@ export const api = {
     request<{ robots: Robot[] }>(`/api/orgs/${orgId}/robots`).then((r) => r.robots),
   createRobot: (orgId: string, body: CreateRobotRequest) =>
     request<{ robot: Robot }>(`/api/orgs/${orgId}/robots`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.robot),
+  getRobot: (orgId: string, rid: string) =>
+    request<{ robot: Robot }>(`/api/orgs/${orgId}/robots/${rid}`).then((r) => r.robot),
   updateRobot: (orgId: string, rid: string, patch: Partial<Robot> & { config?: RobotConfig }) =>
     request<{ robot: Robot }>(`/api/orgs/${orgId}/robots/${rid}`, { method: 'PUT', body: JSON.stringify(patch) }).then((r) => r.robot),
   deleteRobot: (orgId: string, rid: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}`, { method: 'DELETE' }),
+  // ---- robot channels (telegram / whatsapp / sms), personas, knowledge, commanders, tasks ----
+  listRobotChannels: (orgId: string, rid: string) =>
+    request<{ channels: RobotChannel[] }>(`/api/orgs/${orgId}/robots/${rid}/channels`).then((r) => r.channels),
+  saveRobotChannel: (orgId: string, rid: string, kind: RobotChannelKind, body: Record<string, unknown>) =>
+    request<{ channel: RobotChannel }>(`/api/orgs/${orgId}/robots/${rid}/channels/${kind}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }).then((r) => r.channel),
+  testRobotChannel: (orgId: string, rid: string, kind: RobotChannelKind) =>
+    request<{ result: { ok: boolean; detail: string } }>(`/api/orgs/${orgId}/robots/${rid}/channels/${kind}/test`, {
+      method: 'POST',
+    }).then((r) => r.result),
+  deleteRobotChannel: (orgId: string, rid: string, kind: RobotChannelKind) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/channels/${kind}`, { method: 'DELETE' }),
+  listPersonas: (orgId: string) =>
+    request<{ personas: RobotPersona[] }>(`/api/orgs/${orgId}/personas`).then((r) => r.personas),
+  createPersona: (orgId: string, body: { name: string; voice: string; description?: string; language?: string; signature?: string }) =>
+    request<{ persona: RobotPersona }>(`/api/orgs/${orgId}/personas`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.persona),
+  updatePersona: (orgId: string, pid: string, body: Partial<{ name: string; voice: string; description: string | null; language: string | null; signature: string | null }>) =>
+    request<{ persona: RobotPersona }>(`/api/orgs/${orgId}/personas/${pid}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.persona),
+  deletePersona: (orgId: string, pid: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/personas/${pid}`, { method: 'DELETE' }),
+  listRobotKb: (orgId: string, rid: string) =>
+    request<{ docs: RobotKbDoc[] }>(`/api/orgs/${orgId}/robots/${rid}/kb`).then((r) => r.docs),
+  addRobotKbText: (orgId: string, rid: string, name: string, text: string) =>
+    request<{ docs: RobotKbDoc[] }>(`/api/orgs/${orgId}/robots/${rid}/kb`, {
+      method: 'POST',
+      body: JSON.stringify({ name, text }),
+    }).then((r) => r.docs),
+  uploadRobotKbFiles: async (orgId: string, rid: string, files: File[]): Promise<RobotKbDoc[]> => {
+    const form = new FormData();
+    for (const f of files) form.append('file', f, f.name);
+    const res = await fetch(`/api/orgs/${orgId}/robots/${rid}/kb`, { method: 'POST', body: form, credentials: 'include' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || `Upload failed (${res.status})`);
+    return data.docs;
+  },
+  deleteRobotKbDoc: (orgId: string, rid: string, docId: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/kb/${docId}`, { method: 'DELETE' }),
+  listCommanders: (orgId: string, rid: string) =>
+    request<{ commanders: RobotCommander[] }>(`/api/orgs/${orgId}/robots/${rid}/commanders`).then((r) => r.commanders),
+  addCommander: (orgId: string, rid: string, body: { channel: string; address: string; label?: string }) =>
+    request<{ commander: RobotCommander }>(`/api/orgs/${orgId}/robots/${rid}/commanders`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }).then((r) => r.commander),
+  deleteCommander: (orgId: string, rid: string, cid: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/commanders/${cid}`, { method: 'DELETE' }),
+  listRobotTasks: (orgId: string, rid: string) =>
+    request<{ tasks: RobotTask[] }>(`/api/orgs/${orgId}/robots/${rid}/tasks`).then((r) => r.tasks),
   listRules: (orgId: string, rid: string) =>
     request<{ rules: RobotRule[] }>(`/api/orgs/${orgId}/robots/${rid}/rules`).then((r) => r.rules),
   createRule: (orgId: string, rid: string, pattern: string, instruction: string) =>

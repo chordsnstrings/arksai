@@ -27,6 +27,8 @@ import { registerAnalyticsRoutes } from './routes/analytics';
 import { registerFeedbackRoutes } from './routes/feedback';
 import { registerEmailRoutes } from './routes/email';
 import { registerRobotRoutes } from './routes/robots';
+import { registerRobotHookRoutes } from './routes/robotHooks';
+import { registerRobotFileRoutes } from './routes/robotFiles';
 import { registerConnectorRoutes } from './routes/connectors';
 import { registerGithubRoutes } from './routes/github';
 import { registerGoogleConnectRoutes } from './routes/googleConnect';
@@ -42,8 +44,11 @@ export async function buildApp() {
   // Tolerate empty JSON bodies (e.g. DELETE/POST with no payload) instead of
   // returning 400 — the default parser errors on an empty body. Malformed JSON
   // is a CLIENT error → return 400 (a bad request), not a 500 (looks like we broke).
-  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     const s = (body as string).trim();
+    // Stash the raw bytes for webhook signature checks (Meta's X-Hub-Signature-256 is an
+    // HMAC of the exact raw body — a re-serialized JSON.stringify would not verify).
+    (req as any).rawBody = body as string;
     if (!s) return done(null, undefined);
     try {
       done(null, JSON.parse(s));
@@ -110,6 +115,8 @@ export async function buildApp() {
   registerFeedbackRoutes(app);
   registerEmailRoutes(app);
   registerRobotRoutes(app);
+  registerRobotHookRoutes(app);
+  registerRobotFileRoutes(app);
   registerConnectorRoutes(app);
   registerGithubRoutes(app);
   registerGoogleConnectRoutes(app);

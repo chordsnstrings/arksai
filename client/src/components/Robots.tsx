@@ -14,6 +14,7 @@ import { useRobots } from '../state/robotsStore';
 import { useStore } from '../state/sessionStore';
 import { confirmDialog } from '../state/confirmStore';
 import { EmailSettings } from './EmailSettings';
+import { ChannelsPanel, CommandersPanel, KnowledgePanel, PersonaPanel, TasksPanel } from './RobotChannels';
 import { api } from '../api/client';
 import { useEscClose } from '../hooks/useEscClose';
 import { ROBOT_TYPES, robotType } from '../lib/robotTypes';
@@ -918,6 +919,26 @@ function RobotSettings({ robot, orgId, onBack, onRemoved }: { robot: Robot; orgI
           </p>
           {orgId && <EmailSettings orgId={orgId} robotId={robot.id} />}
         </section>
+
+        {orgId && (
+          <>
+            <section className="rb-panel rb-span">
+              <ChannelsPanel orgId={orgId} robotId={robot.id} />
+            </section>
+            <section className="rb-panel">
+              <PersonaPanel orgId={orgId} robotId={robot.id} />
+            </section>
+            <section className="rb-panel">
+              <KnowledgePanel orgId={orgId} robotId={robot.id} />
+            </section>
+            <section className="rb-panel rb-span">
+              <CommandersPanel orgId={orgId} robotId={robot.id} />
+            </section>
+            <section className="rb-panel rb-span">
+              <TasksPanel orgId={orgId} robotId={robot.id} />
+            </section>
+          </>
+        )}
       </div>
     </div>
   );

@@ -2372,6 +2372,24 @@ button { font-family: inherit; cursor: pointer; }
 .rb-rule-x { flex: 0 0 auto; font-family: var(--label); font-size: 12px; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
 .rb-rule-x:hover { color: var(--red, #c0502f); border-color: var(--red, #c0502f); }
 
+/* Mobile: a grid item's min-content (wide inputs, hook URLs, the email form) must never
+   force the settings panels past the viewport — clamp items + form controls. */
+.rb-office-grid > * { min-width: 0; }
+.rb-panel input, .rb-panel textarea, .rb-panel select { max-width: 100%; box-sizing: border-box; }
+
+/* ---- robot channels / persona / knowledge / commanders (the multichannel arc) ---- */
+.rb-chan { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: var(--bg-elev); }
+.rb-chan-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.rb-chan-head strong { font-family: var(--label); font-size: 13.5px; letter-spacing: .02em; }
+.rb-chan-grid { display: flex; flex-direction: column; gap: 7px; margin: 8px 0 4px; }
+.rb-chan-grid input, .rb-chan-grid textarea { font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
+.rb-chan-grid input:focus, .rb-chan-grid textarea:focus { outline: none; border-color: var(--accent, #666); }
+.rb-hook { font-size: 12px; color: var(--text-muted); padding: 7px 10px; background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; overflow-wrap: anywhere; }
+.rb-hook code { font-family: var(--mono); font-size: 11.5px; color: var(--text); }
+.rb-persona-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rb-persona-row select, .rb-persona-row input { font: inherit; font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
+.rb-persona-row input { flex: 1 1 180px; min-width: 0; }
+
 /* ---- responder secondary actions (snooze/archive/forward) ---- */
 .rb-resp-more { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .rb-mini-btn { font-family: var(--label); font-size: 12px; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 7px; padding: 5px 11px; cursor: pointer; }

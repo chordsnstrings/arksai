@@ -70,6 +70,7 @@ function rowToDraft(r: any): RobotDraft {
     escalated: !!Number(r.escalated),
     escalationReason: r.escalation_reason ?? null,
     status: r.status,
+    channel: r.channel || 'email',
     createdAt: Number(r.created_at),
     sentAt: r.sent_at != null ? Number(r.sent_at) : null,
   };
@@ -183,6 +184,8 @@ export interface NewDraft {
   altModel?: string | null;
   escalated?: boolean;
   escalationReason?: string | null;
+  /** Which channel the conversation lives on (send dispatches by this). Default email. */
+  channel?: RobotDraft['channel'];
 }
 
 export async function createDraft(d: NewDraft): Promise<RobotDraft> {
@@ -192,8 +195,8 @@ export async function createDraft(d: NewDraft): Promise<RobotDraft> {
     `INSERT INTO robot_drafts(
        id, robot_id, org_id, inbound_message_id, inbound_from, inbound_name, inbound_subject,
        inbound_snippet, inbound_body, to_addr, subject, draft_text, model_used, alt_text, alt_model,
-       escalated, escalation_reason, status, created_at, sent_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+       escalated, escalation_reason, status, created_at, sent_at, channel)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
     [
       id,
       d.robotId,
@@ -215,6 +218,7 @@ export async function createDraft(d: NewDraft): Promise<RobotDraft> {
       d.escalated ? 'escalated' : 'pending',
       now,
       null,
+      d.channel ?? 'email',
     ],
   );
   return (await getDraft(id))!;

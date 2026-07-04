@@ -151,16 +151,28 @@ export const useRobots = create<RobotsState>((set, get) => ({
     const apiPatch: any = {};
     if (patch.name != null) apiPatch.name = patch.name;
     if (patch.autonomy != null) apiPatch.autonomy = toApiAutonomy(patch.autonomy);
-    if (patch.mandate != null || patch.triggers != null) {
-      const cur = get().robots.find((r) => r.id === id);
-      apiPatch.config = {
-        dept: cur?.role,
-        mandate: patch.mandate ?? cur?.mandate ?? '',
-        persona: patch.mandate ?? cur?.mandate ?? '',
-        triggers: patch.triggers ?? cur?.triggers ?? ['event'],
-      };
+    if (patch.mandate == null && patch.triggers == null) {
+      api.updateRobot(orgId, id, apiPatch).catch(() => {});
+      return;
     }
-    api.updateRobot(orgId, id, apiPatch).catch(() => {});
+    // Config writes MERGE over the stored backend config (read-merge-write) — a mandate edit
+    // must never clobber knowledge/escalateOn/signature/personaId saved by other panels.
+    void (async () => {
+      try {
+        const backend = await api.getRobot(orgId, id);
+        const cur = get().robots.find((r) => r.id === id);
+        apiPatch.config = {
+          ...(backend.config || {}),
+          dept: cur?.role,
+          mandate: patch.mandate ?? cur?.mandate ?? '',
+          persona: patch.mandate ?? cur?.mandate ?? '',
+          triggers: patch.triggers ?? cur?.triggers ?? ['event'],
+        };
+        await api.updateRobot(orgId, id, apiPatch);
+      } catch {
+        /* offline — the optimistic UI keeps the edit visible */
+      }
+    })();
   },
 
   remove: (id) => {

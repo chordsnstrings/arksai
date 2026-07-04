@@ -33,6 +33,33 @@ import {
   upsertRobotEmailAccount,
   type EmailAccount,
 } from '../email/accounts';
+import {
+  deleteChannel,
+  listChannels,
+  markChannelVerified,
+  upsertChannel,
+  withSecrets,
+} from '../robots/channels/store';
+import { ADAPTERS } from '../robots/channels/inbound';
+import type { RobotChannelKind } from '../../../shared/types';
+import { randomBytes } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import {
+  addKbDoc,
+  createPersona,
+  deleteKbDoc,
+  deletePersona,
+  listKbDocs,
+  listPersonas,
+  replyExtrasFor,
+  updatePersona,
+} from '../robots/personas';
+import { extractText } from '../lib/extract';
+import { sanitizeFilename } from './upload';
+import { addCommander, deleteCommander, listCommanders, listTasks } from '../robots/tasks';
 
 /**
  * Robots + drafts API, org-scoped. Any member of the org (or the operator) can manage
@@ -185,6 +212,211 @@ export function registerRobotRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // ---- per-robot messaging channels (telegram / whatsapp / sms) ----
+  const CHANNEL_KINDS: RobotChannelKind[] = ['telegram', 'whatsapp', 'sms'];
+  const channelKind = (req: FastifyRequest): RobotChannelKind | null => {
+    const k = (req.params as any).kind;
+    return CHANNEL_KINDS.includes(k) ? (k as RobotChannelKind) : null;
+  };
+
+  app.get('/api/orgs/:id/robots/:rid/channels', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    return { channels: await listChannels(robot.id, orgId(req)) };
+  });
+
+  // Connect/update a channel. Secrets are WRITE-ONLY: an omitted/empty secret keeps the
+  // stored value; reads never return them. Kind-specific required fields are validated here.
+  app.put('/api/orgs/:id/robots/:rid/channels/:kind', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const kind = channelKind(req);
+    if (!kind) return reply.code(400).send({ error: 'Unknown channel kind.' });
+    const b = (req.body as any) || {};
+    const secrets: Record<string, string> = {};
+    const meta: Record<string, string> = {};
+    if (kind === 'telegram') {
+      if (b.botToken) secrets.botToken = String(b.botToken);
+    } else if (kind === 'whatsapp') {
+      if (b.accessToken) secrets.accessToken = String(b.accessToken);
+      if (b.appSecret) secrets.appSecret = String(b.appSecret);
+      if (b.phoneNumberId) meta.phoneNumberId = String(b.phoneNumberId).trim();
+      if (b.verifyToken) meta.verifyToken = String(b.verifyToken).trim();
+    } else {
+      if (b.apiId) secrets.apiId = String(b.apiId);
+      if (b.apiPassword) secrets.apiPassword = String(b.apiPassword);
+      if (b.senderId) meta.senderId = String(b.senderId).trim();
+      if (b.channelNumber) meta.channelNumber = String(b.channelNumber).trim();
+      meta.provider = 'smsala';
+    }
+    const existing = (await listChannels(robot.id)).find((c) => c.kind === kind);
+    // SMS + WhatsApp inbound arrive on PUBLIC webhook routes — a per-channel random key in
+    // the URL is the gate (SMSALA signs nothing). Minted once, shown in the console.
+    if (!existing?.meta?.hookKey) meta.hookKey = randomBytes(18).toString('base64url');
+    const channel = await upsertChannel(robot.id, orgId(req), kind, {
+      label: b.label !== undefined ? (b.label ? String(b.label) : null) : undefined,
+      secrets,
+      meta,
+      enabled: b.enabled !== false,
+    });
+    return { channel };
+  });
+
+  // Test the channel's credentials live (getMe / graph / balance) and stamp verified.
+  app.post('/api/orgs/:id/robots/:rid/channels/:kind/test', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const kind = channelKind(req);
+    if (!kind) return reply.code(400).send({ error: 'Unknown channel kind.' });
+    const ch = await withSecrets(robot.id, kind);
+    if (!ch) return reply.code(404).send({ error: 'That channel is not connected yet.' });
+    const adapter = ADAPTERS[kind];
+    if (!adapter) return reply.code(400).send({ error: 'That channel type is not available yet.' });
+    const result = await adapter.verify(ch);
+    if (result.ok) await markChannelVerified(robot.id, kind).catch(() => {});
+    return { result };
+  });
+
+  app.delete('/api/orgs/:id/robots/:rid/channels/:kind', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const kind = channelKind(req);
+    if (!kind) return reply.code(400).send({ error: 'Unknown channel kind.' });
+    await deleteChannel(robot.id, orgId(req), kind);
+    return { ok: true };
+  });
+
+  // ---- commanders (the owner's own addresses that may issue build commands) ----
+  const DRAFT_CHANNELS = ['email', 'telegram', 'whatsapp', 'sms'];
+  app.get('/api/orgs/:id/robots/:rid/commanders', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    return { commanders: await listCommanders(robot.id, orgId(req)) };
+  });
+  app.post('/api/orgs/:id/robots/:rid/commanders', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const b = (req.body as any) || {};
+    const channel = String(b.channel ?? '').trim();
+    const address = String(b.address ?? '').trim();
+    if (!DRAFT_CHANNELS.includes(channel) || !address) {
+      return reply.code(400).send({ error: 'A commander needs a channel (email/telegram/whatsapp/sms) and an address.' });
+    }
+    const commander = await addCommander(robot.id, orgId(req), channel as any, address, b.label ? String(b.label) : null);
+    return { commander };
+  });
+  app.delete('/api/orgs/:id/robots/:rid/commanders/:cid', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    await deleteCommander((req.params as any).cid, orgId(req));
+    return { ok: true };
+  });
+
+  // ---- build tasks the robot ran on command (audit feed) ----
+  app.get('/api/orgs/:id/robots/:rid/tasks', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    return { tasks: await listTasks(robot.id, orgId(req)) };
+  });
+
+  // ---- personas (org-level, reusable voices) ----
+  app.get('/api/orgs/:id/personas', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    return { personas: await listPersonas(orgId(req)) };
+  });
+  app.post('/api/orgs/:id/personas', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const b = (req.body as any) || {};
+    const name = String(b.name ?? '').trim();
+    const voice = String(b.voice ?? '').trim();
+    if (!name || !voice) return reply.code(400).send({ error: 'A persona needs a name and its voice/tone text.' });
+    const persona = await createPersona(orgId(req), {
+      name,
+      voice,
+      description: b.description ? String(b.description) : null,
+      language: b.language ? String(b.language) : null,
+      signature: b.signature ? String(b.signature) : null,
+    });
+    return { persona };
+  });
+  app.put('/api/orgs/:id/personas/:pid', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const b = (req.body as any) || {};
+    const persona = await updatePersona((req.params as any).pid, orgId(req), {
+      name: b.name != null ? String(b.name) : undefined,
+      voice: b.voice != null ? String(b.voice) : undefined,
+      description: b.description !== undefined ? (b.description ? String(b.description) : null) : undefined,
+      language: b.language !== undefined ? (b.language ? String(b.language) : null) : undefined,
+      signature: b.signature !== undefined ? (b.signature ? String(b.signature) : null) : undefined,
+    });
+    if (!persona) return reply.code(404).send({ error: 'Unknown persona.' });
+    return { persona };
+  });
+  app.delete('/api/orgs/:id/personas/:pid', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    await deletePersona((req.params as any).pid, orgId(req));
+    return { ok: true };
+  });
+
+  // ---- per-robot knowledge base ----
+  app.get('/api/orgs/:id/robots/:rid/kb', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    return { docs: await listKbDocs(robot.id, orgId(req)) };
+  });
+
+  // Add knowledge: JSON {name, text} for pasted text, OR multipart file upload
+  // (txt/md/csv/pdf/docx — extracted server-side).
+  app.post('/api/orgs/:id/robots/:rid/kb', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    try {
+      if (req.isMultipart?.()) {
+        const added: any[] = [];
+        for await (const part of (req as any).files()) {
+          const safe = sanitizeFilename(part.filename);
+          const tmp = path.join(os.tmpdir(), `kb-${Date.now()}-${safe}`);
+          await pipeline(part.file, fs.createWriteStream(tmp));
+          try {
+            const ext = path.extname(safe).toLowerCase();
+            let text: string | null = null;
+            if (['.txt', '.md', '.csv'].includes(ext)) text = fs.readFileSync(tmp, 'utf8');
+            else text = await extractText(tmp);
+            if (!text || text.startsWith('[extraction failed')) {
+              return reply.code(400).send({ error: `Could not read ${safe} — upload txt/md/csv/pdf/docx or paste the text.` });
+            }
+            added.push(await addKbDoc(robot.id, orgId(req), safe, text));
+          } finally {
+            fs.rmSync(tmp, { force: true });
+          }
+        }
+        if (!added.length) return reply.code(400).send({ error: 'No files received.' });
+        return { docs: added };
+      }
+      const b = (req.body as any) || {};
+      const name = String(b.name ?? '').trim() || 'Pasted notes';
+      const text = String(b.text ?? '').trim();
+      if (!text) return reply.code(400).send({ error: 'Provide the knowledge text (or upload a file).' });
+      return { docs: [await addKbDoc(robot.id, orgId(req), name, text)] };
+    } catch (e: any) {
+      return reply.code(400).send({ error: e?.message ?? String(e) });
+    }
+  });
+
+  app.delete('/api/orgs/:id/robots/:rid/kb/:docId', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    await deleteKbDoc((req.params as any).docId, orgId(req));
+    return { ok: true };
+  });
+
   // Generate a draft from a SAMPLE inbound message — onboarding preview + the
   // M3-vs-DeepSeek bake-off, without waiting for real mail to arrive.
   app.post('/api/orgs/:id/robots/:rid/preview', async (req, reply) => {
@@ -203,7 +435,8 @@ export function registerRobotRoutes(app: FastifyInstance) {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 90_000);
     try {
-      const outcome = await draftReply(robot, sample, ac.signal);
+      const extras = await replyExtrasFor(robot, orgId(req), sample.text || '').catch(() => ({}));
+      const outcome = await draftReply(robot, sample, ac.signal, undefined, extras);
       return { outcome };
     } catch (e: any) {
       return reply.code(502).send({ error: `Draft failed: ${e?.message ?? e}` });
@@ -242,6 +475,7 @@ export function registerRobotRoutes(app: FastifyInstance) {
 
   // Approve & send. Recipient + subject come from the STORED draft (locked), never
   // from the request body — only the (optionally edited) text is taken from the client.
+  // Dispatches by the draft's channel: email → SMTP, chat/SMS → the channel adapter.
   app.post('/api/orgs/:id/drafts/:did/send', async (req, reply) => {
     if (!(await guard(req, reply))) return undefined;
     const draft = await getDraft((req.params as any).did, orgId(req));
@@ -249,13 +483,20 @@ export function registerRobotRoutes(app: FastifyInstance) {
     if (draft.status === 'sent') return reply.code(409).send({ error: 'Already sent.' });
     const text = String((req.body as any)?.text ?? draft.draftText);
     try {
-      await sendEmailForRobot(draft.robotId, {
-        to: draft.toAddr, // LOCKED
-        subject: draft.subject,
-        text,
-        inReplyTo: draft.inboundMessageId || undefined,
-        references: draft.inboundMessageId || undefined,
-      });
+      if (draft.channel && draft.channel !== 'email') {
+        const adapter = ADAPTERS[draft.channel];
+        const ch = adapter ? await withSecrets(draft.robotId, draft.channel) : null;
+        if (!adapter || !ch) return reply.code(400).send({ error: 'That channel is no longer connected for this robot.' });
+        await adapter.send(ch, draft.toAddr /* LOCKED */, text);
+      } else {
+        await sendEmailForRobot(draft.robotId, {
+          to: draft.toAddr, // LOCKED
+          subject: draft.subject,
+          text,
+          inReplyTo: draft.inboundMessageId || undefined,
+          references: draft.inboundMessageId || undefined,
+        });
+      }
       await markDraftStatus(draft.id, orgId(req), 'sent', Date.now());
       return { ok: true };
     } catch (e: any) {

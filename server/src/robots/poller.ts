@@ -3,6 +3,11 @@ import { readInboxForRobot, sendEmailForRobot, withTimeout, type InboxMessage } 
 import type { Robot } from '../../../shared/types';
 import { createDraft, draftExistsFor, listActiveRobots, listActiveRules, markDraftStatus, markPolled, wakeSnoozedDrafts } from './store';
 import { draftReply } from './reply';
+import { listChannels, withSecrets } from './channels/store';
+import { ADAPTERS, handleChannelInbound } from './channels/inbound';
+import { replyExtrasFor } from './personas';
+import { tryCommand, watchRobotTasks } from './tasks';
+import { getRobot } from './store';
 
 /**
  * The inbound poller: for each ACTIVE robot, read recent unread mail and produce a
@@ -42,6 +47,43 @@ export interface PollSummary {
   skippedReasons?: { alreadyHandled: number; fromSelf: number; noSender: number };
   reason?: string; // why nothing happened (mailbox not ready / no new mail / all handled)
   error?: string; // a real failure (read/draft/send)
+  /** Per-connected-channel results (telegram etc.) from the same pass. */
+  channels?: { kind: string; read: number; drafted: number; sent: number; commands: number; error?: string }[];
+}
+
+/** Poll every connected POLL-based channel (Telegram) for one robot. Never throws. */
+export async function pollRobotChannelsOnce(robot: Robot): Promise<NonNullable<PollSummary['channels']>> {
+  const results: NonNullable<PollSummary['channels']> = [];
+  let channels;
+  try {
+    channels = await listChannels(robot.id);
+  } catch {
+    return results;
+  }
+  for (const c of channels) {
+    if (!c.enabled) continue;
+    const adapter = ADAPTERS[c.kind];
+    if (!adapter?.fetchInbound) continue; // webhook-based channels push, not poll
+    const entry = { kind: c.kind, read: 0, drafted: 0, sent: 0, commands: 0 } as NonNullable<PollSummary['channels']>[number];
+    try {
+      const ch = await withSecrets(robot.id, c.kind);
+      if (!ch) continue;
+      const inbound = await withTimeout(adapter.fetchInbound(ch), READ_TIMEOUT_MS, `${c.kind} read`);
+      entry.read = inbound.length;
+      for (const msg of inbound) {
+        const sum = await handleChannelInbound(robot, ch, msg);
+        entry.drafted += sum.drafted;
+        entry.sent += sum.sent;
+        entry.commands += sum.commands;
+        if (sum.error) entry.error = sum.error;
+      }
+    } catch (e: any) {
+      entry.error = e?.message ?? String(e);
+      console.error(`[robot ${robot.id}] ${c.kind} poll failed:`, entry.error);
+    }
+    results.push(entry);
+  }
+  return results;
 }
 
 const READ_TIMEOUT_MS = Number(process.env.ROBOT_READ_TIMEOUT_MS || '25000') || 25_000;
@@ -50,10 +92,27 @@ const READ_TIMEOUT_MS = Number(process.env.ROBOT_READ_TIMEOUT_MS || '25000') || 
 export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
   const sum: PollSummary = { robotId: robot.id, read: 0, drafted: 0, sent: 0, escalated: 0, skipped: 0 };
 
+  // Chat/SMS channels poll independently of the mailbox — a Telegram-only robot works
+  // with no email account at all.
+  const channels = await pollRobotChannelsOnce(robot);
+  if (channels.length) sum.channels = channels;
+  const doneChannels = async () => {
+    if (channels.length) await markPolled(robot.id).catch(() => {});
+  };
+
   const account = await getRobotEmailAccount(robot.id);
-  if (!account) return { ...sum, reason: 'No mailbox is connected for this robot.' };
-  if (!account.enabled) return { ...sum, reason: 'This robot’s mailbox is disabled.' };
-  if (!account.imapHost) return { ...sum, reason: 'No IMAP (inbound) settings are configured.' };
+  if (!account) {
+    await doneChannels();
+    return { ...sum, reason: channels.length ? undefined : 'No mailbox is connected for this robot.' };
+  }
+  if (!account.enabled) {
+    await doneChannels();
+    return { ...sum, reason: 'This robot’s mailbox is disabled.' };
+  }
+  if (!account.imapHost) {
+    await doneChannels();
+    return { ...sum, reason: 'No IMAP (inbound) settings are configured.' };
+  }
 
   let messages: InboxMessage[];
   try {
@@ -92,12 +151,26 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
       continue;
     }
 
+    // Commander lane: the owner's own address may be issuing a BUILD command ("make me a
+    // website and send it to X"). Handled entirely inside tryCommand (ack + task + receipt);
+    // everyone else — and plain commander chat — falls through to the normal reply below.
+    try {
+      const commandText = [msg.subject, msg.text || msg.snippet].filter(Boolean).join('\n');
+      if (await tryCommand(robot, 'email', msg.from, msg.fromName || null, commandText, msg.messageId || null)) {
+        sum.drafted++;
+        continue;
+      }
+    } catch (e: any) {
+      console.error(`[robot ${robot.id}] command lane failed:`, e?.message ?? e);
+    }
+
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), DRAFT_TIMEOUT_MS);
     let outcome;
     try {
       const rules = await listActiveRules(robot.id).catch(() => []);
-      outcome = await draftReply(robot, msg, ac.signal, rules);
+      const extras = await replyExtrasFor(robot, robot.orgId, msg.text || msg.snippet || '').catch(() => ({}));
+      outcome = await draftReply(robot, msg, ac.signal, rules, extras);
     } catch (e: any) {
       sum.error = `draft failed: ${e?.message ?? e}`;
       console.error(`[robot ${robot.id}] draft failed:`, e?.message ?? e);
@@ -174,6 +247,7 @@ async function processRobot(robot: Robot): Promise<void> {
 
 export async function tick(): Promise<void> {
   await wakeSnoozedDrafts().catch(() => {}); // return any due snoozed items to "needs you"
+  await watchRobotTasks(getRobot).catch((e) => console.error('[robot-tasks]', (e as any)?.message ?? e));
   let robots: Robot[];
   try {
     robots = await listActiveRobots();

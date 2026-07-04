@@ -9,6 +9,7 @@ import { startScheduler } from './schedule/scheduler';
 import { startAnalyticsDigest } from './analytics/digest';
 import { warmBackgroundRemoval } from './agent/productShot';
 import { startRobotPoller } from './robots/poller';
+import { installCommandHook } from './robots/tasks';
 import { startBuildReaper } from './build/androidBuild';
 import { loadBuildRuntime } from './build/runtime';
 import { loadByteplusRuntime } from './agent/byteplusRuntime';
@@ -35,7 +36,8 @@ async function main() {
   // default realtime transport; this makes real-WS apps work at their published URL too.
   attachWsUpgradeProxy(app.server, (slug) => deploymentRegistry.runningPort(slug));
   startScheduler();
-  startRobotPoller(); // inbound mail → robot draft replies (Stage 2)
+  installCommandHook(); // trusted-commander build lane (channels → tryCommand)
+  startRobotPoller(); // inbound mail + channels → robot draft replies / build tasks
   startDeploymentJanitor(); // 24h-preview auto-cleanup
   startDeploymentHealthMonitor(); // restart any published app whose process died (self-healing)
   startAnalyticsDigest(); // periodic platform metric snapshots (+ optional webhook)
