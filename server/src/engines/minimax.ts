@@ -319,24 +319,36 @@ export async function synthesizeSpeechBuffer(
     return { ok: false, error: 'MiniMax T2A needs MINIMAX_API_KEY plus a GroupId (env MINIMAX_GROUP_ID, or set it via Admin providers).' };
   }
   try {
-    const res = await fetch(`${base()}/t2a_v2?GroupId=${encodeURIComponent(minimaxGroupId())}`, {
-      method: 'POST',
-      headers: authHeaders(),
-      signal,
-      body: JSON.stringify({
-        model: config.minimaxTtsModel,
-        text,
-        stream: false,
-        voice_setting: { voice_id: opts.voiceId || 'male-qn-qingse', speed: opts.speed ?? 1.0, vol: 1.0, pitch: 0 },
-        audio_setting: { format: 'mp3', sample_rate: 32000, bitrate: 128000 },
-      }),
-    });
-    const data: any = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${JSON.stringify(data).slice(0, 300)}` };
-    // T2A v2 returns the audio as a hex string in data.audio (non-streaming).
-    const hex: string | undefined = data?.data?.audio;
-    if (!hex) return { ok: false, error: `no audio in response: ${JSON.stringify(data).slice(0, 300)}` };
-    return { ok: true, buffer: Buffer.from(hex, 'hex') };
+    // Live finding (2026-07-04): with the operator's account UID as GroupId the endpoint
+    // answered 1004 "token not match group" — a subscription (sk-cp) key carries its own
+    // group. So: try WITH the configured GroupId first, and on a group-mismatch retry the
+    // plain URL (no query) once — whichever succeeds is the shape for this key.
+    const urls = [`${base()}/t2a_v2?GroupId=${encodeURIComponent(minimaxGroupId())}`, `${base()}/t2a_v2`];
+    let lastErr = '';
+    for (const url of urls) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: authHeaders(),
+        signal,
+        body: JSON.stringify({
+          model: config.minimaxTtsModel,
+          text,
+          stream: false,
+          voice_setting: { voice_id: opts.voiceId || 'male-qn-qingse', speed: opts.speed ?? 1.0, vol: 1.0, pitch: 0 },
+          audio_setting: { format: 'mp3', sample_rate: 32000, bitrate: 128000 },
+        }),
+      });
+      const data: any = await res.json().catch(() => ({}));
+      // T2A v2 returns the audio as a hex string in data.audio (non-streaming).
+      const hex: string | undefined = data?.data?.audio;
+      if (res.ok && hex) return { ok: true, buffer: Buffer.from(hex, 'hex') };
+      lastErr = res.ok
+        ? `no audio in response: ${JSON.stringify(data).slice(0, 300)}`
+        : `HTTP ${res.status}: ${JSON.stringify(data).slice(0, 300)}`;
+      // Only a group mismatch justifies the plain-URL retry; anything else is final.
+      if (!/not match group|1004/.test(lastErr)) break;
+    }
+    return { ok: false, error: lastErr };
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) };
   }
