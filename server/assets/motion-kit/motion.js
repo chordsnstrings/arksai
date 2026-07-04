@@ -96,6 +96,38 @@
     return true;
   };
 
+  /**
+   * Seeded particle scatter — the sanctioned way to fill a sky/field with dots
+   * DETERMINISTICALLY (Math.random would differ between the render and the QC
+   * spot-frame reload). Runs once at load; each dot is one animated element, so
+   * respect the budget: count ≤ 150 keeps capture fast.
+   *   __mgScatter('stars', { count: 120, seed: 7, className: 'mg-dot' })
+   */
+  window.__mgScatter = function (hostId, opts) {
+    var host = document.getElementById(hostId);
+    if (!host) return;
+    var o = opts || {};
+    var count = Math.min(150, o.count || 100);
+    var seed = (o.seed || 42) >>> 0;
+    function rnd() {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    }
+    var f = document.createDocumentFragment();
+    for (var i = 0; i < count; i++) {
+      var d = document.createElement('div');
+      d.className = o.className || 'mg-dot';
+      d.style.left = (rnd() * 100).toFixed(2) + 'vw';
+      d.style.top = (rnd() * 100).toFixed(2) + 'vh';
+      d.style.setProperty('--sz', (1 + rnd() * 3).toFixed(1) + 'px');
+      d.style.setProperty('--dur', (2.5 + rnd() * 4).toFixed(2) + 's');
+      d.style.setProperty('--at', '-' + (rnd() * 6).toFixed(2) + 's'); // negative delay = phase offset
+      d.style.setProperty('--o0', (0.1 + rnd() * 0.3).toFixed(2));
+      f.appendChild(d);
+    }
+    host.appendChild(f);
+  };
+
   window.__motionReady = true;
   if (document.readyState === 'complete') pauseAll();
   else window.addEventListener('load', pauseAll);

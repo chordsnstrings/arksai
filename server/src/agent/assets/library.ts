@@ -16,7 +16,7 @@
  * Loaded LAZILY on first use (the JSONs are MBs — don't tax boot).
  */
 
-export type AssetKind = 'icon' | 'logo';
+export type AssetKind = 'icon' | 'logo' | 'prop';
 
 export interface AssetEntry {
   /** Stable id, e.g. "lucide:heart-pulse" or "brand:stripe". */
@@ -100,13 +100,19 @@ const tokenize = (s: string): string[] =>
     .split(' ')
     .filter((t) => t.length > 1);
 
-/** Phosphor ships 5 weights per glyph; healthicons ships size/negative variants. Keep the
- *  useful two per family so search results aren't 5 duplicates of the same idea. */
+/** Phosphor ships 5 weights per glyph; healthicons ships size/negative variants; the color
+ *  emoji sets ship 5 skin tones + duo variants. Keep the useful base per family so search
+ *  results aren't 5 duplicates of the same idea. */
 function keepVariant(set: string, name: string): boolean {
   if (set === 'ph') return !/-(bold|duotone|light|thin)$/.test(name);
   if (set === 'healthicons') return !/-24px$/.test(name) && !/-negative$/.test(name);
+  if (set === 'fluent-emoji-flat') return !/-(dark|light|medium|medium-dark|medium-light)$/.test(name);
+  if (set === 'streamline-kameleon-color') return !name.endsWith('-duo');
   return true;
 }
+
+/** Full-color illustration sets — materialized VERBATIM (never recolored). */
+const COLOR_SETS = new Set(['fluent-emoji-flat', 'streamline-kameleon-color']);
 
 function load(): LoadedSets {
   if (loaded) return loaded;
@@ -114,7 +120,7 @@ function load(): LoadedSets {
   const iconify: Record<string, IconifyJson> = {};
   const brands = new Map<string, { title: string; hex: string; path: string }>();
 
-  for (const set of ['lucide', 'tabler', 'ph', 'healthicons']) {
+  for (const set of ['lucide', 'tabler', 'ph', 'healthicons', 'fluent-emoji-flat', 'streamline-kameleon-color']) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const json: IconifyJson = require(`@iconify-json/${set}/icons.json`);
     iconify[set] = json;
@@ -128,7 +134,13 @@ function load(): LoadedSets {
       if (!keepVariant(set, name)) continue;
       const terms = [...tokenize(name)];
       for (const a of aliasesByParent.get(name) ?? []) terms.push(...tokenize(a));
-      entries.push({ id: `${set}:${name}`, set, name, kind: 'icon', terms: [...new Set(terms)] });
+      entries.push({
+        id: `${set}:${name}`,
+        set,
+        name,
+        kind: COLOR_SETS.has(set) ? 'prop' : 'icon',
+        terms: [...new Set(terms)],
+      });
     }
   }
 
@@ -199,7 +211,7 @@ export function searchAssets(query: string, opts: { kind?: AssetKind | 'any'; li
 
 /** Raw pieces needed to materialize an asset (kept internal to the assets module). */
 export function assetSource(id: string):
-  | { kind: 'icon'; body: string; width: number; height: number; set: string; name: string }
+  | { kind: 'icon' | 'prop'; body: string; width: number; height: number; set: string; name: string }
   | { kind: 'logo'; path: string; hex: string; title: string; slug: string }
   | null {
   const lib = load();
@@ -213,7 +225,7 @@ export function assetSource(id: string):
   const icon = json?.icons[e.name];
   if (!icon) return null;
   return {
-    kind: 'icon',
+    kind: e.kind === 'prop' ? 'prop' : 'icon',
     body: icon.body,
     width: icon.width ?? json.width ?? 24,
     height: icon.height ?? json.height ?? 24,
@@ -223,10 +235,11 @@ export function assetSource(id: string):
 }
 
 /** Library size + license summary (for the tool description / attributions). */
-export function libraryStats(): { total: number; icons: number; logos: number } {
+export function libraryStats(): { total: number; icons: number; logos: number; props: number } {
   const lib = load();
   const logos = lib.entries.filter((e) => e.kind === 'logo').length;
-  return { total: lib.entries.length, icons: lib.entries.length - logos, logos };
+  const props = lib.entries.filter((e) => e.kind === 'prop').length;
+  return { total: lib.entries.length, icons: lib.entries.length - logos - props, logos, props };
 }
 
 export const ATTRIBUTIONS_MD = `# Vendored asset library — licenses & attribution
@@ -239,6 +252,9 @@ All assets are self-hosted (no network, no keys) and open-licensed:
 - **Health Icons** — MIT (code) / CC0 (art). https://healthicons.org
 - **Simple Icons** — CC0 1.0. https://simpleicons.org — brand marks remain trademarks of
   their respective owners; use them to REFER to the brand, never to imply endorsement.
+- **Fluent Emoji** (flat) — MIT License. © Microsoft — https://github.com/microsoft/fluentui-emoji
+- **Streamline Kameleon** (color) — CC BY 4.0. © Streamline — https://www.streamlinehq.com
+  (attribution: "Illustrations by Streamline" — this file satisfies it for generated videos).
 
 Icon sets are consumed via the Iconify JSON packages (@iconify-json/*).
 `;

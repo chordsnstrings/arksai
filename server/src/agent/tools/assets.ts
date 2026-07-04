@@ -13,9 +13,11 @@ import { fetchPublicBuffer } from '../../lib/web';
 export const searchAssetsTool: ToolDef = {
   name: 'search_assets',
   description:
-    'Search the OFFLINE vendored vector-asset library (~20,000 open-licensed assets: Lucide/' +
-    'Tabler/Phosphor line icons, Health Icons medical set, and ~3,400 REAL brand logos from ' +
-    'Simple Icons with official brand colors) and write the ones you pick into the workspace ' +
+    'Search the OFFLINE vendored vector-asset library (~18,000 open-licensed assets: Lucide/' +
+    'Tabler/Phosphor line icons, Health Icons medical set, ~3,400 REAL brand logos (official ' +
+    'colors), and ~1,800 FULL-COLOR PROPS (kind:\'prop\' — flat colorful food/objects/organs/' +
+    'planets/characters from Fluent Emoji + Streamline illustrations; perfect for motion-video ' +
+    'scenes; their colors are part of the asset — never recolored) and write your picks into the workspace ' +
     'as ready SVG files. THE RULE: NEVER hand-draw an icon path, guess a slug, or hotlink an ' +
     'icon CDN — search here first (synonyms work: "money", "exercise", "cholesterol"…). ' +
     'Search with a SHORT concept query (1-3 words), then pass the chosen ids in `materialize` ' +
@@ -26,7 +28,7 @@ export const searchAssetsTool: ToolDef = {
     type: 'object',
     properties: {
       query: { type: 'string', description: 'Short concept query, e.g. "heart health", "credit card", "stripe logo".' },
-      kind: { type: 'string', enum: ['icon', 'logo', 'any'], description: 'Filter by asset kind (default any).' },
+      kind: { type: 'string', enum: ['icon', 'logo', 'prop', 'any'], description: 'Filter by asset kind (default any). prop = full-color illustrations.' },
       limit: { type: 'number', description: 'Max results to list (default 12, max 40).' },
       materialize: {
         type: 'array',
@@ -43,7 +45,7 @@ export const searchAssetsTool: ToolDef = {
   async run(args, ctx) {
     const query = String(args.query ?? '').trim();
     if (!query) return 'Error: pass a short concept query, e.g. "heart health".';
-    const kind = args.kind === 'icon' || args.kind === 'logo' ? args.kind : 'any';
+    const kind = args.kind === 'icon' || args.kind === 'logo' || args.kind === 'prop' ? args.kind : 'any';
     const hits = searchAssets(query, { kind, limit: Number(args.limit) || 12 });
 
     let out = '';
@@ -63,7 +65,7 @@ export const searchAssetsTool: ToolDef = {
     }
     out += `Matches for "${query}" (pass ids via materialize to write files):\n`;
     out += hits
-      .map((h) => `- ${h.id} — ${h.name}${h.kind === 'logo' ? ` [brand logo${h.brandHex ? ' ' + h.brandHex : ''}]` : ` [${h.set}]`}`)
+      .map((h) => `- ${h.id} — ${h.name}${h.kind === 'logo' ? ` [brand logo${h.brandHex ? ' ' + h.brandHex : ''}]` : h.kind === 'prop' ? ' [color prop]' : ` [${h.set}]`}`)
       .join('\n');
     return out;
   },

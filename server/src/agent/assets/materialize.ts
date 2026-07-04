@@ -19,13 +19,21 @@ export interface MaterializedAsset {
   /** Repo-relative path of the written SVG, e.g. "assets/lucide-heart-pulse.svg". */
   relPath: string;
   name: string;
-  kind: 'icon' | 'logo';
+  kind: 'icon' | 'logo' | 'prop';
 }
 
-export function buildAssetSvg(id: string, opts: { color?: string; size?: number } = {}): { svg: string; name: string; kind: 'icon' | 'logo' } | null {
+export function buildAssetSvg(id: string, opts: { color?: string; size?: number } = {}): { svg: string; name: string; kind: 'icon' | 'logo' | 'prop' } | null {
   const src = assetSource(id);
   if (!src) return null;
   const size = Math.max(8, Math.min(2048, Math.round(opts.size ?? 96)));
+  if (src.kind === 'prop') {
+    // Full-color illustration — its palette IS the asset; never recolor.
+    const svg =
+      `<!-- ${src.set}:${src.name} — vendored full-color asset (see assets/ATTRIBUTIONS.md) -->\n` +
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${src.width} ${src.height}" width="${size}" height="${size}">` +
+      `${src.body}</svg>`;
+    return { svg, name: src.name, kind: 'prop' };
+  }
   if (src.kind === 'logo') {
     const fill = opts.color || src.hex;
     const svg =

@@ -143,6 +143,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [explainLength, setExplainLength] = useState('60s');
   const [explainVoice, setExplainVoice] = useState('Wise_Woman');
   const [explainMusic, setExplainMusic] = useState(true);
+  const [explainStyle, setExplainStyle] = useState('clean');
 
   // Story mode: the sequence description + cast stills + a total-length hint.
   const [storyText, setStoryText] = useState('');
@@ -202,6 +203,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       `Create a NARRATED MOTION-GRAPHICS EXPLAINER VIDEO with the render_motion_video tool (vector icons + animated text — NOT filmed video; do not use generate_video/generate_video_story).`,
       `Topic/brief: ${explainText.trim()}`,
       `Target length: about ${explainLength} of narration. Dimension: ${ratio}. Narrator voice_id: "${explainVoice}".`,
+      `STYLE PACK: "${explainStyle}" — author every scene in this pack per motion-kit/MOTION.md and pass style:"${explainStyle}" to render_motion_video.`,
       explainMusic ? 'Add a quiet instrumental music bed that fits the subject (the tool ducks it under the voice).' : 'No music bed.',
       '',
       'Do the WHOLE thing autonomously, then show me the finished video:',
@@ -401,6 +403,15 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
                   <option value="9:16">9:16 · Reels/TikTok</option>
                   <option value="1:1">1:1 · square</option>
                   <option value="4:5">4:5 · feed</option>
+                </select>
+              </label>
+              <label className="aw-field">
+                <span className="aw-label">Style</span>
+                <select value={explainStyle} onChange={(e) => setExplainStyle(e.target.value)}>
+                  <option value="clean">Clean · house style</option>
+                  <option value="nutshell">Nutshell · neon science (Kurzgesagt-like)</option>
+                  <option value="broadcast">Broadcast · bold infographic</option>
+                  <option value="vox">Vox · annotated evidence</option>
                 </select>
               </label>
               <label className="aw-field">

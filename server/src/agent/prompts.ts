@@ -141,7 +141,7 @@ function minimaxSlice(): string {
     filmed-video tools: generate_video/generate_video_story are ONLY for photographic/filmed
     footage the user explicitly wants. Workflow is in the tool description: write the script,
     pull every icon/logo via search_assets (≈20,000 vendored vector assets + real brand marks —
-    never hand-draw), author each scene as a motion-kit HTML page with strong scene-to-scene CONTRAST (alternating grounds + rotating compositions per MOTION.md), then call the tool; it voices,
+    never hand-draw), author each scene as a motion-kit HTML page in ONE STYLE PACK (nutshell neon-science / broadcast bold-infographic / vox annotated-evidence / clean — see MOTION.md; pass style to the tool) with strong scene-to-scene CONTRAST and micro-animation on everything (nothing static), then call the tool; it voices,
     times, captures, QCs and assembles autonomously — fix any named defect and retake just that
     scene.
   • search_assets — the offline vector-asset library (icons, medical/health set, real brand

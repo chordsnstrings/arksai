@@ -138,3 +138,31 @@ test('scene contrast doctrine: kit grounds + MOTION.md rule + tool/prompt steeri
   assert.match(tool, /varietyCheck/);
   assert.match(tool, /SCENE-CONTRAST REVIEW/);
 });
+
+test('style packs: kit classes + MOTION.md specs + tool style param + color props (operator 2026-07-04)', async () => {
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  for (const cls of ['.mg-ground-space', '.mg-ground-stage', '.mg-ground-studio', '.mg-bird', '.mg-callout', '.mg-tag', '.mg-label-vox', '.mg-highlight', '.mg-kenburns', '.mg-connector', '.mg-breathe', '.mg-sway', '.mg-hill', '.mg-dot', '.mg-glow'])
+    assert.ok(css.includes(cls), `motion.css has ${cls}`);
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  assert.match(md, /NOTHING IS EVER STATIC/);
+  assert.match(md, /STYLE PACKS/);
+  for (const pack of ['`nutshell`', '`broadcast`', '`vox`']) assert.ok(md.includes(pack), `MOTION.md documents ${pack}`);
+  const js = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.js'), 'utf8');
+  assert.match(js, /__mgScatter/);
+  assert.doesNotMatch(js, /Math\.random\s*\(/); // seeded PRNG only (the comment may NAME it)
+  // tool carries the style param + steering
+  const params: any = renderMotionVideoTool.parameters;
+  assert.deepEqual(params.properties.style.enum, ['clean', 'nutshell', 'broadcast', 'vox']);
+  assert.match(renderMotionVideoTool.description, /NOTHING IS EVER STATIC/);
+  // color props indexed + materialized verbatim
+  const stats = libraryStats() as any;
+  assert.ok(stats.props > 1500, `props indexed: ${stats.props}`);
+  const hit = searchAssets('avocado', { kind: 'prop' as any, limit: 2 })[0];
+  assert.equal(hit.id, 'fluent-emoji-flat:avocado');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-prop-'));
+  const r = materializeAssets(dir, ['fluent-emoji-flat:avocado'], { color: '#ff0000' });
+  const svg = fs.readFileSync(path.join(dir, r.written[0].relPath), 'utf8');
+  assert.doesNotMatch(svg, /#ff0000/); // full-color asset is NEVER recolored
+  assert.match(svg, /full-color asset/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

@@ -45,8 +45,11 @@ interface MotionScene {
   clip?: string; // repo-relative scene mp4
 }
 
+type MotionStyle = 'clean' | 'nutshell' | 'broadcast' | 'vox';
+
 interface MotionManifest {
   id: string;
+  style: MotionStyle;
   aspect: string;
   width: number;
   height: number;
@@ -121,7 +124,7 @@ async function qcScene(m: MotionManifest, s: MotionScene, repoDir: string, htmlA
       await captureSpotFrame(htmlAbs, { width: m.width, height: m.height, durationMs: s.durationMs!, atMs: s.durationMs! * frac, outAbs: spot }, signal);
       const v = await analyzeImage(
         fileToDataUrl(spot),
-        `Frame from scene ${s.id} of a narrated motion-graphics explainer (narration: "${s.narration.slice(0, 140)}"). ` +
+        `Frame from scene ${s.id} of a narrated motion-graphics explainer in the "${m.style ?? 'clean'}" style (narration: "${s.narration.slice(0, 140)}"). ` +
           'Answer "OK" if the frame is clean, or list concrete problems, one per line: unreadable/clipped/overflowing text, ' +
           'elements overlapping illegibly, a blank/empty frame, broken layout, or content that contradicts the narration.',
         signal,
@@ -219,7 +222,7 @@ async function varietyCheck(m: MotionManifest, repoDir: string, signal: AbortSig
     if (!ok || !fs.existsSync(sheet)) return null;
     const v = await analyzeImage(
       fileToDataUrl(sheet),
-      `These are the scenes of one motion-graphics video, in order. Judge SCENE-TO-SCENE CONTRAST: do consecutive ` +
+      `These are the scenes of one motion-graphics video (style pack: ${m.style ?? 'clean'}), in order. Judge SCENE-TO-SCENE CONTRAST: do consecutive ` +
         `scenes vary in ground (light/dark/accent) AND composition (centered vs split vs giant-number vs grid), reading ` +
         `as real cuts? Answer "OK" if the sequence has clear visual variety, otherwise name the adjacent scene numbers ` +
         `that look like the same slide re-worded and what to vary (one line each, at most 3 lines).`,
@@ -291,7 +294,7 @@ function describe(m: MotionManifest): string {
     next = `\nShow the video to the user. Revisions: edit a scene file and retake it by number — never re-render the whole video for one scene.`;
   }
   return (
-    `Motion video ${m.stitched ? 'assembled' : 'partially rendered'} (id ${m.id}, ${m.width}x${m.height}@${m.fps}fps, total ${total}` +
+    `Motion video ${m.stitched ? 'assembled' : 'partially rendered'} (id ${m.id}, style ${m.style ?? 'clean'}, ${m.width}x${m.height}@${m.fps}fps, total ${total}` +
     `${m.musicFile ? ', scored' : ''}):\n${rows}\n\nFinal file: ${m.stitched ?? '(not assembled)'}\n${next}`
   );
 }
@@ -310,7 +313,11 @@ export const renderMotionVideoTool: ToolDef = {
     '(3) write each scene as a self-contained HTML file using the motion-kit (this tool installs ' +
     'motion-kit/ + read motion-kit/MOTION.md first; link motion-kit/motion.css + motion.js with ' +
     'RELATIVE paths, entrances in the first 1.5-3s, no wall-clock JS, theme via --mg-* vars — one ' +
-    'identity across scenes). SCENE CONTRAST is required: alternate grounds (.mg-ground-dark / ' +
+    'identity across scenes). Pick ONE STYLE PACK per video (style param + MOTION.md: nutshell / ' +
+    'broadcast / vox / clean) and author every scene in it. NOTHING IS EVER STATIC: every element ' +
+    'gets an entrance that settles into an ambient idle (.mg-float/.mg-breathe/.mg-sway/.mg-bob) or ' +
+    'rides a camera move — smooth easings, staggered groups, ticking numbers, sweeping highlights. ' +
+    'SCENE CONTRAST is required: alternate grounds (.mg-ground-dark / ' +
     '.mg-ground-accent vs light) and rotate compositions (centered hero, .mg-split, .mg-hero-stat ' +
     'giant number, icon grid, .mg-band) — consecutive scenes must read as a real CUT, never the ' +
     'same slide re-worded (see MOTION.md); (4) call this tool with the scenes IN ORDER. It synthesizes the ' +
@@ -342,6 +349,12 @@ export const renderMotionVideoTool: ToolDef = {
         description: `Narrator voice. One of: ${MOTION_VOICES.map((v) => `"${v.id}" (${v.note})`).join(', ')}.`,
       },
       speed: { type: 'number', description: 'Narration speed 0.8-1.2 (default 1).' },
+      style: {
+        type: 'string',
+        enum: ['clean', 'nutshell', 'broadcast', 'vox'],
+        description:
+          'The STYLE PACK the scenes were authored in (see motion-kit/MOTION.md): nutshell = neon flat vector on cosmic grounds (Kurzgesagt-inspired); broadcast = bright stage + shouting callout labels (Infographics-inspired); vox = annotated-evidence plates + yellow boxed labels; clean = the house style (default). The pack you name here MUST match how you wrote the scene HTML.',
+      },
       music: { type: 'string', description: 'Optional instrumental music-bed brief (auto-ducked under the voice).' },
       motion_id: { type: 'string', description: 'An existing motion video id (for retakes; default = the latest).' },
       retake_scene: { type: 'number', description: 'Re-render ONLY this scene id (after editing its HTML), then reassemble.' },
@@ -398,8 +411,10 @@ export const renderMotionVideoTool: ToolDef = {
       // fps derives from a rough total estimate: ~155 words/min narration + holds.
       const words = scenes.reduce((a, s) => a + s.narration.split(/\s+/).filter(Boolean).length, 0);
       const estMs = (words / 155) * 60_000 + scenes.length * 900;
+      const style: MotionStyle = ['nutshell', 'broadcast', 'vox'].includes(String(args.style)) ? (args.style as MotionStyle) : 'clean';
       m = {
         id: String(Date.now()),
+        style,
         aspect,
         width: dim.w,
         height: dim.h,
