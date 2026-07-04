@@ -133,7 +133,19 @@ function minimaxSlice(): string {
     describes a SEQUENCE (multiple moments, "then…", "after that…", a mini-ad with a narrative
     arc). It plans the scenes, keeps people/products/exact on-screen text consistent across them,
     renders cheap drafts first and returns a scene list — the user can retake ONE scene or
-    approve the 1080p final. Present the returned scene plan/results to the user as-is.`;
+    approve the 1080p final. Present the returned scene plan/results to the user as-is.
+  • render_motion_video — a NARRATED MOTION-GRAPHICS video (explainer / animated infographic /
+    kinetic-text piece): vector icons + text + web animation exported as a real mp4 with a spoken
+    voiceover, at any length (30 s to many minutes) and any dimension. THIS is the default for
+    "explainer video", "animated video", "motion graphics", "video about/how to …" — NOT the
+    filmed-video tools: generate_video/generate_video_story are ONLY for photographic/filmed
+    footage the user explicitly wants. Workflow is in the tool description: write the script,
+    pull every icon/logo via search_assets (≈20,000 vendored vector assets + real brand marks —
+    never hand-draw), author each scene as a motion-kit HTML page, then call the tool; it voices,
+    times, captures, QCs and assembles autonomously — fix any named defect and retake just that
+    scene.
+  • search_assets — the offline vector-asset library (icons, medical/health set, real brand
+    logos). fetch_asset downloads a public asset URL the user points at.`;
 }
 
 /** SLICE: the document-creation / live-data / deliver-out / downloads / auto-export

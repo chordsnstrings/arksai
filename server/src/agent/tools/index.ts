@@ -18,6 +18,8 @@ import { verifyTool } from './verify';
 import { generateMusicTool, extendMusicTool, generateLyricsTool, coverAudioTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
 import { generateVideoStoryTool } from './videoStoryTool';
+import { searchAssetsTool, fetchAssetTool } from './assets';
+import { renderMotionVideoTool } from './motionVideo';
 import { generateCreativeTool } from './creative';
 import { generateLogoTool } from './logo';
 import { renderReportTool } from './report';
@@ -72,6 +74,9 @@ export const ALL_TOOLS: ToolDef[] = [
   textToSpeechTool,
   generateVideoTool,
   generateVideoStoryTool,
+  searchAssetsTool,
+  fetchAssetTool,
+  renderMotionVideoTool,
   bashTool,
   bashBackgroundTool,
   bashOutputTool,

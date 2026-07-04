@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-04.37';
+export const WHATS_NEW_VERSION = '2026-07-04.38';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'New: the Design studio',
-    body: 'A dedicated design space — 🎨 Design in the sidebar. Tell it what you\'re making (a website, landing page, pitch deck, one-pager, social creative or document), pick a visual style from 40 tested directions — or your own brand — attach a logo, and send. It designs, shows the result beside the conversation, and you refine by just talking.',
+    title: 'New: narrated motion-graphics videos — no film crew, no video model',
+    body: 'Ask for an explainer video ("make a 1-minute video on how to reduce cholesterol") and ArksAI writes the script, designs animated scenes from crisp vector icons and text, records a real voiceover, times every scene to the narration, quality-checks the frames, and delivers a finished mp4 — 30 seconds to many minutes, YouTube/Reels/square formats. Also a new "Explainer" option in the Video studio.',
   },
   {
-    title: 'Designs calibrated to the job',
-    body: 'The design engine now reads what a request calls for: a memo or internal tool gets clean, quiet craft (no forced flashy hero), while a landing page or brand site gets the full art-directed treatment. Plus sharper interface copy and true dual light/dark theming in built apps.',
+    title: 'A 16,000-piece asset library, built in',
+    body: 'The agent now searches ~16,000 vendored vector assets offline — Lucide/Tabler/Phosphor icons, a full medical set, and 3,400+ real brand logos in their official colors — so the right visual appears at the right moment, recolored to your brand. It can also fetch any public asset URL you point it at, safely.',
   },
 ];
 

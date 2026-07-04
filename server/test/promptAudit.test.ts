@@ -296,3 +296,13 @@ test('doctrine: CODE prompt offers the token-level dual-theme pattern for theme 
   assert.match(p, /\[data-theme="dark"\] AND \[data-theme="light"\]/);
   assert.match(p, /COPY IS CRAFT/);
 });
+
+// Motion-graphics steering: explainers route to render_motion_video, never Seedance.
+// (grep-level: the capability slice only renders when the MiniMax key is set.)
+test('motion: the capability slice routes explainers to render_motion_video with the asset rule', () => {
+  const s = SRC('agent/prompts.ts');
+  assert.match(s, /render_motion_video — a NARRATED MOTION-GRAPHICS video/);
+  assert.match(s, /never hand-draw/);
+  assert.match(s, /ONLY for photographic\/filmed/);
+  assert.match(s, /search_assets — the offline vector-asset library/);
+});

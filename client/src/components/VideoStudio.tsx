@@ -22,7 +22,7 @@ type ModelChoice = 'auto' | 'arksai-video-15' | 'arksai-video-20';
 type Pick2 = { file: File; url: string };
 /** What kind of video: a free-form scene, a product ad from the product's photo, or a
  *  multi-scene STORY planned + stitched into one film. */
-type StudioKind = 'scene' | 'product' | 'story';
+type StudioKind = 'scene' | 'product' | 'story' | 'explainer';
 
 /** One beat of a multi-shot sequence: a camera motion + what we see during it. Seedance 2.0
  *  natively supports sequenced motion in one continuous clip (aerial → zoom in → pull out);
@@ -138,6 +138,12 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
+  // Explainer mode (motion graphics): topic/brief + target length + voice + music.
+  const [explainText, setExplainText] = useState('');
+  const [explainLength, setExplainLength] = useState('60s');
+  const [explainVoice, setExplainVoice] = useState('Wise_Woman');
+  const [explainMusic, setExplainMusic] = useState(true);
+
   // Story mode: the sequence description + cast stills + a total-length hint.
   const [storyText, setStoryText] = useState('');
   const [castPhotos, setCastPhotos] = useState<Pick2[]>([]);
@@ -149,7 +155,9 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       ? productName.trim().length > 1 && !busy
       : kind === 'story'
         ? storyText.trim().length > 14 && !busy
-        : scene.trim().length > 5 && !busy;
+        : kind === 'explainer'
+          ? explainText.trim().length > 9 && !busy
+          : scene.trim().length > 5 && !busy;
 
   /** Compile the ordered beats into a timed shot sequence (empty when fewer than 2 beats). */
   function beatsBlock(): string {
@@ -185,6 +193,24 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       'Present the returned scene plan and results to me as-is (scene list included). The first pass is a cheap stitched DRAFT — after I approve, call it again with final:true; if I want one scene changed, use retake_scene + retake_note.',
     ];
     return lines.filter(Boolean).join('\n');
+  }
+
+  /** The explainer brief — drives render_motion_video: the agent writes the script, pulls
+   *  assets, authors the motion-kit scenes, and the tool voices + renders autonomously. */
+  function explainerBrief(): string {
+    return [
+      `Create a NARRATED MOTION-GRAPHICS EXPLAINER VIDEO with the render_motion_video tool (vector icons + animated text — NOT filmed video; do not use generate_video/generate_video_story).`,
+      `Topic/brief: ${explainText.trim()}`,
+      `Target length: about ${explainLength} of narration. Dimension: ${ratio}. Narrator voice_id: "${explainVoice}".`,
+      explainMusic ? 'Add a quiet instrumental music bed that fits the subject (the tool ducks it under the voice).' : 'No music bed.',
+      '',
+      'Do the WHOLE thing autonomously, then show me the finished video:',
+      '1. Write the narration script; split it into scenes (one idea per scene, ~2 short sentences each).',
+      '2. Read motion-kit/MOTION.md. Get every icon/logo via search_assets (never hand-draw), charts via render_chart.',
+      '3. Author each scene as a self-contained motion-kit HTML page — one consistent visual identity (--mg-* theme vars) across all scenes.',
+      '4. Call render_motion_video with the scenes in order; if it reports a scene defect, fix that scene file and retake JUST that scene.',
+      'Facts in the narration must be accurate and non-controversial; keep any health/finance content evidence-based with a one-line "educational, not professional advice" closing scene.',
+    ].filter(Boolean).join('\n');
   }
 
   /** The product-ad brief — drives generate_video's product mode with the exact parameters,
@@ -298,6 +324,8 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       } else if (kind === 'story') {
         const castPaths = await up(castPhotos);
         msg = storyBrief({ castPaths });
+      } else if (kind === 'explainer') {
+        msg = explainerBrief();
       } else {
         const startPath = (await up(startFrame))[0];
         const endPath = (await up(endFrame))[0];
@@ -339,10 +367,60 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             <button className={`aw-seg ${kind === 'story' ? 'on' : ''}`} onClick={() => setKind('story')} type="button">
               <strong>Story</strong><span>multiple scenes, one film</span>
             </button>
+            <button className={`aw-seg ${kind === 'explainer' ? 'on' : ''}`} onClick={() => { setKind('explainer'); setRatio('16:9'); }} type="button">
+              <strong>Explainer</strong><span>narrated motion graphics</span>
+            </button>
           </div>
         </div>
 
-        {kind === 'story' ? (
+        {kind === 'explainer' ? (
+          <>
+            <label className="aw-field">
+              <span className="aw-label">What should the video explain? <em>(topic or a full brief — the agent writes the script)</em></span>
+              <textarea
+                value={explainText}
+                onChange={(e) => setExplainText(e.target.value)}
+                rows={4}
+                placeholder="e.g. How to reduce LDL cholesterol — the 5 evidence-based moves, friendly and practical"
+              />
+            </label>
+            <div className="aw-row">
+              <label className="aw-field">
+                <span className="aw-label">Length</span>
+                <select value={explainLength} onChange={(e) => setExplainLength(e.target.value)}>
+                  <option value="30s">~30 seconds</option>
+                  <option value="60s">~1 minute</option>
+                  <option value="2-3 minutes">2–3 minutes</option>
+                  <option value="5-7 minutes">5–7 minutes</option>
+                </select>
+              </label>
+              <label className="aw-field">
+                <span className="aw-label">Format</span>
+                <select value={ratio} onChange={(e) => setRatio(e.target.value)}>
+                  <option value="16:9">16:9 · YouTube</option>
+                  <option value="9:16">9:16 · Reels/TikTok</option>
+                  <option value="1:1">1:1 · square</option>
+                  <option value="4:5">4:5 · feed</option>
+                </select>
+              </label>
+              <label className="aw-field">
+                <span className="aw-label">Narrator</span>
+                <select value={explainVoice} onChange={(e) => setExplainVoice(e.target.value)}>
+                  <option value="Wise_Woman">Warm female (default)</option>
+                  <option value="Deep_Voice_Man">Authoritative male</option>
+                  <option value="Calm_Woman">Calm female</option>
+                  <option value="Friendly_Person">Friendly, upbeat</option>
+                  <option value="Patient_Man">Measured male</option>
+                </select>
+              </label>
+              <label className="aw-field aw-check">
+                <input type="checkbox" checked={explainMusic} onChange={(e) => setExplainMusic(e.target.checked)} />
+                <span className="aw-label">Music bed</span>
+              </label>
+            </div>
+            <p className="aw-hint">Vector motion graphics with a real voiceover — crisp text, brand colors, no film footage. Longer videos render for several minutes; the finished video appears in the chat.</p>
+          </>
+        ) : kind === 'story' ? (
           <>
             <div className="aw-step">1 · The story</div>
             <label className="aw-field">

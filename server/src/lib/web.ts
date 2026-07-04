@@ -59,11 +59,13 @@ export async function assertPublicUrl(rawUrl: string): Promise<URL> {
   return url;
 }
 
-export async function fetchPublic(
+/** Shared SSRF-safe fetch core: manual redirects re-validated per hop, byte-capped body. */
+async function fetchPublicRaw(
   rawUrl: string,
   signal: AbortSignal,
-  init: RequestInit = {},
-): Promise<{ status: number; contentType: string; body: string }> {
+  init: RequestInit,
+  maxBytes: number,
+): Promise<{ status: number; contentType: string; buf: Buffer; truncated: boolean }> {
   let url = await assertPublicUrl(rawUrl);
   const ctrl = new AbortController();
   const onAbort = () => ctrl.abort();
@@ -93,6 +95,7 @@ export async function fetchPublic(
     const contentType = res.headers.get('content-type') ?? '';
     const reader = res.body?.getReader();
     let received = 0;
+    let truncated = false;
     const chunks: Uint8Array[] = [];
     if (reader) {
       for (;;) {
@@ -100,18 +103,45 @@ export async function fetchPublic(
         if (done) break;
         received += value.length;
         chunks.push(value);
-        if (received > MAX_BYTES) {
+        if (received > maxBytes) {
+          truncated = true;
           await reader.cancel();
           break;
         }
       }
     }
     const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
-    return { status: res.status, contentType, body: buf.toString('utf8') };
+    return { status: res.status, contentType, buf, truncated };
   } finally {
     clearTimeout(timer);
     signal.removeEventListener('abort', onAbort);
   }
+}
+
+export async function fetchPublic(
+  rawUrl: string,
+  signal: AbortSignal,
+  init: RequestInit = {},
+): Promise<{ status: number; contentType: string; body: string }> {
+  const r = await fetchPublicRaw(rawUrl, signal, init, MAX_BYTES);
+  return { status: r.status, contentType: r.contentType, body: r.buf.toString('utf8') };
+}
+
+const MAX_ASSET_BYTES = 15_000_000;
+
+/**
+ * Binary-safe public fetch for ASSETS (images/SVG/fonts/audio) — fetchPublic decodes to
+ * utf8 which corrupts binaries; this preserves the bytes. Same SSRF guard, 15MB cap
+ * (a hit past the cap is an ERROR, never a silently-truncated file).
+ */
+export async function fetchPublicBuffer(
+  rawUrl: string,
+  signal: AbortSignal,
+  init: RequestInit = {},
+): Promise<{ status: number; contentType: string; buffer: Buffer }> {
+  const r = await fetchPublicRaw(rawUrl, signal, init, MAX_ASSET_BYTES);
+  if (r.truncated) throw new Error('Asset exceeds the 15MB download cap');
+  return { status: r.status, contentType: r.contentType, buffer: r.buf };
 }
 
 /** Crude but dependency-free HTML → readable text. */
