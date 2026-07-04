@@ -96,30 +96,38 @@ export async function handleChannelInbound(
       return sum;
     }
 
-    // Commander lane first: a trusted owner message may be a build command (Phase 4 hook).
-    if (commandHook && (await commandHook(robot, ch, msg))) {
-      sum.commands++;
-      return sum;
-    }
-    // Owner-approval lane: "APPROVE" / "ignore" / direction on an outstanding ping.
-    if (resolveHook && (await resolveHook(robot, kind, msg.from, msg.fromName, msg.text, msg.id || null))) {
-      sum.commands++;
-      return sum;
-    }
-
-    // Describe any attached media (vision for photos, extraction for docs) BEFORE drafting,
-    // and fold the notes into the stored body so the console responder sees them too.
+    // Describe any attached media FIRST (vision for photos, extraction for docs,
+    // TRANSCRIPTION for voice notes) — a spoken "build me a landing page" must reach the
+    // command lane exactly like a typed one. Notes also fold into the stored body so the
+    // console responder sees what was sent.
     let attachmentNotes: string[] = [];
+    let voiceText = '';
     if (msg.attachments?.length) {
       const mac = new AbortController();
       const mtimer = setTimeout(() => mac.abort(), DRAFT_TIMEOUT_MS);
       try {
-        attachmentNotes = await describeAttachments(msg.attachments, mac.signal);
+        const digest = await describeAttachments(msg.attachments, mac.signal);
+        attachmentNotes = digest.notes;
+        voiceText = digest.voiceText;
       } finally {
         clearTimeout(mtimer);
         cleanupAttachments(msg.attachments);
       }
     }
+    // What the sender effectively SAID: typed text + spoken words.
+    const laneText = [msg.text, voiceText].filter(Boolean).join('\n').trim();
+
+    // Commander lane first: a trusted owner message (typed or spoken) may be a build command.
+    if (laneText && commandHook && (await commandHook(robot, ch, { ...msg, text: laneText }))) {
+      sum.commands++;
+      return sum;
+    }
+    // Owner-approval lane: "APPROVE" / "ignore" / direction on an outstanding ping.
+    if (laneText && resolveHook && (await resolveHook(robot, kind, msg.from, msg.fromName, laneText, msg.id || null))) {
+      sum.commands++;
+      return sum;
+    }
+
     const storedBody = [msg.text, ...(attachmentNotes.length ? ['', '— attachments —', ...attachmentNotes] : [])]
       .join('\n')
       .trim();

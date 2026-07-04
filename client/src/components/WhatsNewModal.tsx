@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-04.34';
+export const WHATS_NEW_VERSION = '2026-07-04.35';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'When something needs a human, the robot messages your own Telegram, WhatsApp or email with the customer\'s question and its proposed reply — answer APPROVE to send, IGNORE to drop, or just tell it how to respond. You can also ask "status", say "cancel", or after a delivery say "make the header blue" — it revises the same build and sends only what changed.',
   },
   {
-    title: 'Robots that remember, see and read',
-    body: 'Each robot now remembers each customer\'s own conversation (never anyone else\'s), looks at photos people send (order numbers, error screens, products), reads PDF and Word attachments, and — for the personal assistant — answers real calendar invites with a genuine accept/decline the organizer\'s calendar understands.',
+    title: 'Robots that remember, see, read — and now listen',
+    body: 'Each robot remembers each customer\'s own conversation (never anyone else\'s), looks at photos people send, reads PDF and Word attachments, answers real calendar invites — and now transcribes voice notes in their original language. Speak a command instead of typing it: a voice note saying "build me a landing page and send it to sales@…" works exactly like the typed message.',
   },
   {
     title: 'Routines, live lookups, and a performance report',

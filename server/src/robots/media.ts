@@ -4,6 +4,7 @@ import path from 'node:path';
 import { config } from '../config';
 import { analyzeImage } from '../engines/minimax';
 import { extractText } from '../lib/extract';
+import { transcribeAudio } from './voice';
 
 /**
  * Inbound attachment handling for robot channels — a customer sends a photo of a broken
@@ -44,18 +45,32 @@ export function classifyMime(mime: string, name: string): InboundAttachment['kin
 // Injectable deps so tests run without egress / heavy parsers.
 let visionFn: typeof analyzeImage = analyzeImage;
 let extractFn: typeof extractText = extractText;
-export function __setMediaDeps(deps: { vision?: typeof analyzeImage; extract?: typeof extractText }): void {
+let transcribeFn: typeof transcribeAudio = transcribeAudio;
+export function __setMediaDeps(deps: {
+  vision?: typeof analyzeImage;
+  extract?: typeof extractText;
+  transcribe?: typeof transcribeAudio;
+}): void {
   if (deps.vision) visionFn = deps.vision;
   if (deps.extract) extractFn = deps.extract;
+  if (deps.transcribe) transcribeFn = deps.transcribe;
 }
 
 function dataUrl(abs: string, mime: string): string {
   return `data:${mime || 'image/jpeg'};base64,${fs.readFileSync(abs).toString('base64')}`;
 }
 
+export interface AttachmentDigest {
+  /** One line per file for the reply/console context. */
+  notes: string[];
+  /** Concatenated voice-note transcripts — feeds the COMMAND lane so spoken orders work. */
+  voiceText: string;
+}
+
 /** Describe each attachment for the reply context. Never throws; one line per file. */
-export async function describeAttachments(atts: InboundAttachment[], signal: AbortSignal): Promise<string[]> {
+export async function describeAttachments(atts: InboundAttachment[], signal: AbortSignal): Promise<AttachmentDigest> {
   const notes: string[] = [];
+  const transcripts: string[] = [];
   for (const a of atts.slice(0, MAX_ATTACHMENTS)) {
     try {
       const st = fs.existsSync(a.path) ? fs.statSync(a.path) : null;
@@ -92,9 +107,17 @@ export async function describeAttachments(atts: InboundAttachment[], signal: Abo
         continue;
       }
       if (a.kind === 'audio') {
-        notes.push(
-          `voice note "${a.name}" — you cannot listen to audio yet; warmly ask the sender to type the key points.`,
-        );
+        const t = await transcribeFn(a.path, signal);
+        if (t.ok && t.text) {
+          notes.push(`voice note "${a.name}" (transcribed): "${t.text.slice(0, 1200)}"`);
+          transcripts.push(t.text);
+        } else if (t.ok && t.noSpeech) {
+          notes.push(`voice note "${a.name}" — it contained no clear speech (silence/noise); ask them to re-record or type it.`);
+        } else {
+          notes.push(
+            `voice note "${a.name}" — it could not be transcribed right now; warmly ask the sender to type the key points.`,
+          );
+        }
         continue;
       }
       // Documents: txt/md/csv read directly; pdf/docx via the extractor.
@@ -115,7 +138,7 @@ export async function describeAttachments(atts: InboundAttachment[], signal: Abo
   if (atts.length > MAX_ATTACHMENTS) {
     notes.push(`(+${atts.length - MAX_ATTACHMENTS} more attachment(s) not processed — one message can carry at most ${MAX_ATTACHMENTS})`);
   }
-  return notes;
+  return { notes, voiceText: transcripts.join('\n').trim() };
 }
 
 /** Best-effort temp cleanup after a message is fully handled. */

@@ -190,7 +190,9 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
         const mac = new AbortController();
         const mtimer = setTimeout(() => mac.abort(), DRAFT_TIMEOUT_MS);
         try {
-          attachmentNotes = await describeAttachments(tmpAtts, mac.signal);
+          // Voice notes are transcribed too (email rarely carries them, but the digest
+          // shape is shared) — the transcript lands in the notes for the reply context.
+          attachmentNotes = (await describeAttachments(tmpAtts, mac.signal)).notes;
         } finally {
           clearTimeout(mtimer);
         }

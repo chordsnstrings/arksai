@@ -161,15 +161,18 @@ test('notify: remote APPROVE sends the locked draft; IGNORE dismisses; strangers
 
 // ---- #4 media ----
 
-test('media: describeAttachments — docs extracted, audio honest, oversize + missing handled', async () => {
+test('media: describeAttachments — docs extracted, voice transcribed, oversize + missing handled', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'med-'));
   const txt = path.join(dir, 'notes.txt');
   fs.writeFileSync(txt, 'Order 4412 was damaged in transit. Requesting replacement.');
   const big = path.join(dir, 'big.pdf');
   fs.writeFileSync(big, Buffer.alloc(11 * 1024 * 1024));
-  media.__setMediaDeps({ extract: async () => 'EXTRACTED PDF TEXT' });
+  media.__setMediaDeps({
+    extract: async () => 'EXTRACTED PDF TEXT',
+    transcribe: async () => ({ ok: true, text: 'please build me a landing page for the new offer' }),
+  });
   const ac = new AbortController();
-  const notes = await media.describeAttachments(
+  const { notes, voiceText } = await media.describeAttachments(
     [
       { kind: 'document', name: 'notes.txt', path: txt, mime: 'text/plain' },
       { kind: 'audio', name: 'voice.ogg', path: txt, mime: 'audio/ogg' },
@@ -179,10 +182,53 @@ test('media: describeAttachments — docs extracted, audio honest, oversize + mi
     ac.signal,
   );
   assert.match(notes[0], /Order 4412/);
-  assert.match(notes[1], /cannot listen|type the key points/);
+  assert.match(notes[1], /transcribed.*landing page/);
+  assert.equal(voiceText, 'please build me a landing page for the new offer'); // feeds the command lane
   assert.match(notes[2], /too large/);
   assert.match(notes[3], /\(\+1 more attachment/); // cap note (MAX=3 → 4th collapses)
+
+  // Transcription unavailable → the honest ask-them-to-type note; no-speech → its own note.
+  media.__setMediaDeps({ transcribe: async () => ({ ok: false, error: 'no engine' }) });
+  const fail = await media.describeAttachments([{ kind: 'audio', name: 'v.ogg', path: txt, mime: 'audio/ogg' }], ac.signal);
+  assert.match(fail.notes[0], /could not be transcribed|type the key points/);
+  assert.equal(fail.voiceText, '');
+  media.__setMediaDeps({ transcribe: async () => ({ ok: true, text: '', noSpeech: true }) });
+  const quiet = await media.describeAttachments([{ kind: 'audio', name: 'v.ogg', path: txt, mime: 'audio/ogg' }], ac.signal);
+  assert.match(quiet.notes[0], /no clear speech/);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('voice: transcribeAudio — no key fails closed; mocked ARK round-trip + no-speech marker', async () => {
+  const voice = await import('../src/robots/voice');
+  const ac = new AbortController();
+  // No ARK key in tests → honest unavailability, never a throw.
+  const off = await voice.transcribeAudio('/nonexistent.ogg', ac.signal);
+  assert.equal(off.ok, false);
+
+  // With a key + mocked fetch: mp3 input skips ffmpeg, round-trips the transcript.
+  const { config } = await import('../src/config');
+  (config as any).byteplusApiKey = 'test-key';
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'asr-'));
+  const mp3 = path.join(dir, 'note.mp3');
+  fs.writeFileSync(mp3, Buffer.from('fake-mp3-bytes'));
+  try {
+    voice.__setVoiceFetch((async (_url: any, init: any) => {
+      const body = JSON.parse(init.body);
+      assert.equal(body.messages[0].content[0].type, 'input_audio'); // the probe-validated shape
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'مرحبا، ابنِ لي موقعاً' } }] }) } as any;
+    }) as typeof fetch);
+    const r = await voice.transcribeAudio(mp3, ac.signal);
+    assert.equal(r.ok, true);
+    assert.match(r.text || '', /مرحبا/); // language preserved
+
+    voice.__setVoiceFetch((async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '[no speech]' } }] }) })) as any);
+    const quiet = await voice.transcribeAudio(mp3, ac.signal);
+    assert.equal(quiet.ok, true);
+    assert.equal(quiet.noSpeech, true);
+  } finally {
+    (config as any).byteplusApiKey = '';
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('media: classifyMime routes images/audio/docs', () => {
