@@ -38,6 +38,10 @@ export function complexityTier(task: string, mode: SessionMode): Tier {
   if (EASY.test(t)) score -= 1;
   if (mode === 'code') score += 1;
   else if (mode === 'chat') score -= 1;
+  // Motion-graphics production = authoring MANY designed scene files + a long tool workflow.
+  // Seen live 2026-07-04: Swift claimed it wrote the scene files without writing them, then
+  // looped the failing render call — this work needs the heavy lane (M3).
+  if (/\b(motion graphics|explainer video|animated (video|explainer|infographic)|render_motion_video)\b/.test(t)) score += 4;
 
   if (score <= 0) return 'light';
   if (score >= 3) return 'heavy';

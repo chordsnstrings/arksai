@@ -96,3 +96,30 @@ test('assets: every indexed id resolves to a real source (no dangling manifest e
     }
   }
 });
+
+// Live-failure locks (2026-07-04): missing scene files fail EARLY with a write-first
+// instruction, and motion briefs route to the heavy lane (Swift looped on this live).
+import { renderMotionVideoTool } from '../src/agent/tools/motionVideo';
+import { complexityTier } from '../src/agent/router';
+
+test('motion tool: unwritten scene files fail early with an unambiguous write-first error', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-motion-'));
+  const ctx: any = { repoDir: dir, signal: new AbortController().signal, addCost: () => {}, session: {}, mode: 'chat' };
+  // bypass availability (TTS unkeyed in tests) — run() is what we're testing
+  const out = await renderMotionVideoTool.run(
+    { scenes: [{ title: 'Intro', narration: 'Hello', html_file: 'scenes/01-intro.html' }] },
+    ctx,
+  );
+  assert.match(out, /STOP — you have NOT created the scene files yet/);
+  assert.match(out, /scenes\/01-intro\.html/);
+  assert.match(out, /write_file/);
+  // no manifest was created for the doomed call
+  assert.ok(!fs.existsSync(path.join(dir, 'videos')), 'no manifest dir for a files-missing call');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('router: motion-graphics/explainer briefs go to the heavy lane', () => {
+  assert.equal(complexityTier('Create a narrated motion graphics explainer video about LDL', 'chat'), 'heavy');
+  assert.equal(complexityTier('make me an explainer video on our onboarding', 'chat'), 'heavy');
+  assert.equal(complexityTier('what is LDL?', 'chat'), 'light');
+});

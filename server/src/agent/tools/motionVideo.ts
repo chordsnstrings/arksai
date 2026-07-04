@@ -240,6 +240,9 @@ export const renderMotionVideoTool: ToolDef = {
   description:
     'Render a NARRATED MOTION-GRAPHICS video (mp4) from scene pages you author — vector icons, ' +
     'text and web animation, NO video model (crisp text, any length, per-scene retakes). ' +
+    'THIS TOOL DOES NOT WRITE THE SCENE FILES: you must CREATE every html_file with write_file ' +
+    'BEFORE calling it (it fails immediately if any listed file does not exist — never retry ' +
+    'without writing the files first). ' +
     'WORKFLOW (autonomous): (1) write the narration script and split it into scenes — one idea ' +
     'per scene, ~2 short sentences each (a 60s video ≈ 6-8 scenes; a 7-min explainer ≈ 25-40); ' +
     '(2) get every icon/logo via search_assets and charts via render_chart — NEVER hand-draw; ' +
@@ -303,6 +306,21 @@ export const renderMotionVideoTool: ToolDef = {
       if (!list.length)
         return 'Error: pass scenes:[{title, narration, html_file}, …] in order (author the scene HTML files with the motion-kit first — read motion-kit/MOTION.md).';
       if (list.length > 60) return 'Error: 60 scenes max per video.';
+      // FAIL EARLY when the scene files were never written (the #1 misuse, seen live: the
+      // model lists file paths it never created, then loops the identical call). No
+      // manifest, no TTS — one unambiguous instruction instead of a per-scene table.
+      const missing = list
+        .map((s: any) => String(s?.html_file ?? ''))
+        .filter((f: string) => !f || !fs.existsSync(path.resolve(ctx.repoDir, f)));
+      if (missing.length) {
+        return (
+          `STOP — you have NOT created the scene files yet. This tool does not write them for you.\n` +
+          `Missing: ${missing.join(', ')}\n` +
+          `Create EACH file now with write_file (a full motion-kit HTML page per scene — read motion-kit/MOTION.md ` +
+          `for the skeleton), verify they exist, and only THEN call render_motion_video again. ` +
+          `Calling again without writing the files will fail exactly the same way.`
+        );
+      }
       const aspect = String(args.aspect_ratio ?? '16:9');
       const dim = DIMENSION_PRESETS[aspect] ?? DIMENSION_PRESETS['16:9'];
       const scenes: MotionScene[] = list.map((s: any, i: number) => ({
