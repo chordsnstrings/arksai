@@ -26,6 +26,8 @@ export interface ScaffoldCtx {
   readAsset: (rel: string) => string | null;
   accent?: string;
   accent2?: string;
+  /** 9:16/4:5 output — scaffolds switch to full-height stacked compositions. */
+  portrait?: boolean;
 }
 
 export interface ScaffoldResult {
@@ -45,13 +47,22 @@ const esc = (s: unknown): string =>
  */
 const atFrac = (f: number) => `calc(var(--scene-s, 8) * ${f}s)`;
 
+/** Display size that scales with the SHORT edge: Xvh in landscape, width-bounded in portrait. */
+const dsize = (vh: number) => `min(${vh}vh, ${(vh * 1.15).toFixed(1)}vw)`;
+
 const words = (s: unknown): number => String(s ?? '').trim().split(/\s+/).filter(Boolean).length;
 
 /** Validate a text slot against its word ceiling; empty is allowed when optional. */
 function cap(problems: string[], slot: string, value: unknown, max: number, required = false): string {
-  const t = String(value ?? '').trim();
+  // normalize: collapse whitespace + restore the space after sentence punctuation
+  // (live typo: "Real science.Use with care."), and screen structural meta-words.
+  const t = String(value ?? '').trim().replace(/\s+/g, ' ').replace(/([.!?])(?=[A-Za-z])/g, '$1 ');
   if (!t) {
     if (required) problems.push(`slot "${slot}" is required`);
+    return '';
+  }
+  if (/^(hook|scene ?\d*|placeholder|todo|tbd|lorem)$/i.test(t)) {
+    problems.push(`slot "${slot}" is the structural word "${t}" — slots carry REAL content, never planning labels`);
     return '';
   }
   if (words(t) > max) problems.push(`slot "${slot}" exceeds the ${max}-word ceiling (${words(t)} words) — on-screen text is keywords, not sentences`);
@@ -78,7 +89,7 @@ export function groundClass(style: MotionStyleId, ground: string | undefined, sc
     light: home[style],
     home: home[style],
     dark: 'mg-ground-dark',
-    accent: style === 'broadcast' ? 'mg-ground-dark' : 'mg-ground-accent',
+    accent: style === 'broadcast' || style === 'vox' ? 'mg-ground-dark' : 'mg-ground-accent',
     space: 'mg-ground-space',
     stage: 'mg-ground-stage',
     studio: 'mg-ground-studio',
@@ -94,7 +105,9 @@ export function groundClass(style: MotionStyleId, ground: string | undefined, sc
       ? ['mg-ground-space', 'mg-ground-dark', 'mg-ground-space', 'mg-ground-accent']
       : style === 'nordic'
         ? ['mg-ground-night', 'mg-ground-paper', 'mg-ground-dark', 'mg-ground-paper']
-        : ['mg-ground-dark', home[style], style === 'broadcast' ? 'mg-ground-dark' : 'mg-ground-accent', home[style]];
+        : style === 'vox'
+          ? ['mg-ground-dark', 'mg-ground-studio', 'mg-ground-dark', 'mg-ground-studio']
+          : ['mg-ground-dark', home[style], style === 'broadcast' ? 'mg-ground-dark' : 'mg-ground-accent', home[style]];
   return rhythm[sceneIndex % rhythm.length];
 }
 
@@ -150,7 +163,7 @@ function richLines(text: string, baseVh: number, startAt = 0.12): string {
     .map((l, i) => {
       const scale = Math.min(1.65, Math.max(0.72, maxLen / Math.max(l.length, 1)));
       const size = (baseVh * scale).toFixed(1);
-      return `<span class="mg-mask" style="display:block;"><span class="mg-rise" style="--at:${(startAt + i * 0.13).toFixed(2)}s;font-size:${size}vh;line-height:1.02;display:inline-block;">${esc(l)}</span></span>`;
+      return `<span class="mg-mask" style="display:block;"><span class="mg-rise" style="--at:${(startAt + i * 0.13).toFixed(2)}s;font-size:min(${size}vh, ${(Number(size) * 1.15).toFixed(1)}vw);line-height:1.02;display:inline-block;">${esc(l)}</span></span>`;
     })
     .join('\n');
 }
@@ -185,7 +198,7 @@ function shell(
 <link rel="stylesheet" href="${k}motion-kit/motion.css">
 <style>:root{${theme}}${opts.extraCss ?? ''}</style>
 </head><body>
-<div class="mg-scene ${opts.ground}">
+<div class="mg-scene ${opts.ground}${ctx.portrait ? ' mg-portrait' : ''}">
   <div class="mg-wash"></div>
   ${opts.bg ?? ''}
   <div class="${opts.cam ?? camera(ctx)}" style="position:absolute;inset:0;">
@@ -222,7 +235,7 @@ const hookQuestion: Builder = (slots, ctx) => {
     : { bg: '', script: '' };
   const echo = echoWord(question);
   const body = `
-  <div class="mg-fill" style="position:relative;z-index:2;display:flex;align-items:center;">
+  <div class="mg-fill" style="position:relative;z-index:2;display:flex;align-items:center;${ctx.portrait ? 'padding-top:6vh;' : ''}">
     ${kicker ? `<div class="mg-vert mg-fade" style="--at:.05s;position:absolute;left:3.2vw;top:8vh;">${esc(kicker)}</div>` : ''}
     <div class="mg-col" style="align-items:flex-start;text-align:left;gap:2.2vh;margin-left:11vw;max-width:72vw;">
       <h1 class="mg-title" style="font-size:1px;">${richLines(question, 9.4, 0.12)}</h1>
@@ -254,10 +267,10 @@ const heroStat: Builder = (slots, ctx) => {
   const body = `
   <div class="mg-safe mg-fill" style="display:flex;flex-direction:column;justify-content:center;align-items:flex-start;position:relative;z-index:1;padding-left:10vw;">
     ${kicker ? `<div class="mg-rulelabel mg-reveal" style="--at:.06s">${esc(kicker)}</div>` : ''}
-    <div class="mg-stress" style="--at:${atFrac(0.7)}"><div class="mg-stat mg-pop" style="--at:.25s;font-size:32vh;line-height:.85;letter-spacing:-0.035em;">${esc(slots.prefix ?? '')}<span data-count-to="${value}" data-count-from="${from}" data-count-start-frac="0.2" data-count-dur="1300" data-count-decimals="${decimals}">${from}</span>${esc(slots.suffix ?? '')}</div></div>
+    <div class="mg-stress" style="--at:${atFrac(0.7)}"><div class="mg-stat mg-pop" style="--at:.25s;font-size:${dsize(30)};line-height:.85;letter-spacing:-0.035em;">${esc(slots.prefix ?? '')}<span data-count-to="${value}" data-count-from="${from}" data-count-start-frac="0.2" data-count-dur="1300" data-count-decimals="${decimals}">${from}</span>${esc(slots.suffix ?? '')}</div></div>
     <div class="mg-lag" style="--at:${atFrac(0.42)};font-family:var(--mg-font-display);font-size:4.2vh;font-weight:600;margin-left:1vw;">${esc(label)}</div>
   </div>`;
-  const bg = `<div class="mg-echo mg-outline mg-depth-bg" style="right:-8vw;top:-8vh;font-size:52vh;font-family:var(--mg-font-data);">${esc(shown)}</div>`;
+  const bg = `<div class="mg-echo mg-outline mg-depth-bg" style="right:-8vw;top:-8vh;font-size:${dsize(48)};font-family:var(--mg-font-data);">${esc(shown)}</div>`;
   return { problems, html: shell(ctx, { ground, body, bg }) };
 };
 
@@ -286,8 +299,8 @@ const splitCompare: Builder = (slots, ctx) => {
   const body = `
   <div class="mg-safe mg-col mg-fill" style="display:flex;justify-content:center;gap:4vh;">
     ${title ? `<div style="display:flex;flex-direction:column;align-items:center;"><h2 class="mg-title mg-reveal" style="--at:.05s;font-size:5.6vh;">${esc(title)}</h2></div>` : ''}
-    <div style="display:flex;align-items:stretch;justify-content:center;gap:3vw;max-width:82vw;margin:0 auto;width:100%;position:relative;">
-      <div class="mg-echo mg-outline" style="left:50%;top:50%;transform:translate(-50%,-52%);font-size:42vh;z-index:0;">VS</div>
+    <div style="display:flex;flex-direction:${ctx.portrait ? 'column' : 'row'};align-items:stretch;justify-content:center;gap:${ctx.portrait ? '2.5vh' : '3vw'};max-width:${ctx.portrait ? '88vw' : '82vw'};margin:0 auto;width:100%;position:relative;">
+      <div class="mg-echo mg-outline" style="left:50%;top:50%;transform:translate(-50%,-52%);font-size:${dsize(38)};z-index:0;">VS</div>
       ${card(L, 'mg-slide-l', 0.12)}
       <div class="mg-pop" style="--at:${atFrac(0.36)};align-self:center;font-family:var(--mg-font-data);font-weight:800;font-size:3.4vh;background:var(--mg-ink);color:var(--mg-bg);border-radius:50%;width:9vh;height:9vh;display:flex;align-items:center;justify-content:center;flex:none;">VS</div>
       ${card(R, 'mg-slide-r', 0.44)}
@@ -311,7 +324,7 @@ const processSteps: Builder = (slots, ctx) => {
   if (problems.length) return { problems };
   const ground = groundClass(ctx.style, slots.ground ?? 'light', ctx.sceneIndex);
   const body = `
-  <div class="mg-safe mg-fill mg-split" style="align-items:center;">
+  <div class="mg-safe mg-fill ${ctx.portrait ? 'mg-col' : 'mg-split'}" style="align-items:${ctx.portrait ? 'stretch' : 'center'};${ctx.portrait ? 'display:flex;justify-content:space-evenly;' : ''}">
     <div class="mg-col mg-left" style="align-items:flex-start;text-align:left;">
       ${kicker ? `<div class="mg-kicker mg-reveal" style="--at:.05s">${esc(kicker)}</div>` : ''}
       <h1 class="mg-title" style="font-size:6.4vh;">${maskLines(title, 'mg-title', 0.15)}</h1>
@@ -374,17 +387,18 @@ const callout: Builder = (slots, ctx) => {
   const subjectLabel = cap(problems, 'subjectLabel', slots.subjectLabel, 4);
   const subject = inlineSvg(ctx, slots.subject, problems, 'subject');
   if (problems.length) return { problems };
-  const tone = slots.tone === 'danger' ? ' danger' : slots.tone === 'money' ? ' money' : '';
+  const tone = ctx.style === 'nordic' ? '' : slots.tone === 'danger' ? ' danger' : slots.tone === 'money' ? ' money' : '';
+  const calloutCls = ctx.style === 'nordic' ? 'mg-label-vox ink' : 'mg-callout';
   const ground = groundClass(ctx.style, slots.ground ?? 'home', ctx.sceneIndex);
   const body = `
-  <div class="mg-safe mg-fill mg-split" style="align-items:center;">
+  <div class="mg-safe mg-fill ${ctx.portrait ? 'mg-col mg-center' : 'mg-split'}" style="align-items:center;${ctx.portrait ? 'display:flex;justify-content:space-evenly;' : ''}">
     <div style="position:relative;display:flex;justify-content:center;">
-      <div class="mg-bob" style="--at:-1s;width:38vh;height:38vh;"><div class="mg-pop mg-contact" style="--at:.15s;width:100%;height:100%;">${subject}</div></div>
+      <div class="mg-bob" style="--at:-1s;width:${dsize(34)};height:${dsize(34)};"><div class="mg-pop mg-contact" style="--at:.15s;width:100%;height:100%;">${subject}</div></div>
       ${subjectLabel ? `<div class="mg-tag" style="left:12%;top:6%;--at:${atFrac(0.3)}">${esc(subjectLabel)}</div>` : ''}
     </div>
     <div class="mg-col" style="align-items:flex-start;gap:2.4vh;">
       ${kicker ? `<div class="mg-kicker mg-reveal" style="--at:.1s">${esc(kicker)}</div>` : ''}
-      <div class="mg-callout${tone}" style="--at:${atFrac(0.42)};">${big ? `<span class="big"><span data-count-to="${Number(big) || 0}" data-count-start-frac="0.5" data-count-dur="1000">0</span></span>` : ''}${esc(text)}</div>
+      <div class="${calloutCls}${tone}" style="--at:${atFrac(0.42)};">${big ? `<span class="big"><span data-count-to="${Number(big) || 0}" data-count-start-frac="0.5" data-count-dur="1000">0</span></span>` : ''}${esc(text)}</div>
     </div>
   </div>`;
   return { problems, html: shell(ctx, { ground, body }) };
@@ -393,6 +407,9 @@ const callout: Builder = (slots, ctx) => {
 /** The nutshell mascot acts a beat — comedy/empathy carrier. */
 const characterBeat: Builder = (slots, ctx) => {
   const problems: string[] = [];
+  if (ctx.style !== 'nutshell') {
+    return { problems: [`character-beat (the mascot) is a NUTSHELL-only device — in ${ctx.style}, use hero-stat, quote-punch or annotated-plate instead (pack fidelity)`] };
+  }
   const line = cap(problems, 'line', slots.line, 12, true);
   const prop = inlineSvg(ctx, slots.prop, [], 'prop');
   if (problems.length) return { problems };
@@ -432,8 +449,8 @@ const chartInsight: Builder = (slots, ctx) => {
   }
   const ground = groundClass(ctx.style, slots.ground ?? 'light', ctx.sceneIndex);
   const body = `
-  <div class="mg-safe mg-fill mg-split" style="align-items:center;">
-    <div class="mg-reveal mg-band" style="--at:.15s;padding:3vh 2vw;display:flex;align-items:center;justify-content:center;">
+  <div class="mg-safe mg-fill ${ctx.portrait ? 'mg-col' : 'mg-split'}" style="align-items:center;${ctx.portrait ? 'display:flex;justify-content:space-evenly;' : ''}">
+    <div class="mg-reveal mg-band" style="--at:.15s;padding:3vh 2vw;display:flex;align-items:center;justify-content:center;${ctx.portrait ? 'width:100%;' : ''}">
       <div style="width:100%;max-height:64vh;">${chart}</div>
     </div>
     <div class="mg-col mg-left" style="align-items:flex-start;text-align:left;gap:2.4vh;">
@@ -508,11 +525,11 @@ const endPunch: Builder = (slots, ctx) => {
   <div class="mg-safe mg-center mg-col mg-fill" style="display:flex;gap:1vh;position:relative;z-index:1;">
     <h1 class="mg-title" style="font-size:7vh;display:flex;flex-direction:column;align-items:center;gap:.4vh;">
       <span class="mg-words" style="--at:.1s;--wstag:.07s;">${esc(ws.join(' '))}</span>
-      <span class="mg-mask" style="display:block;"><span class="mg-rise mg-key" style="--at:${(0.3 + ws.length * 0.07).toFixed(2)}s;color:${ground === 'mg-ground-accent' ? '#fff' : 'var(--mg-accent)'};font-size:17vh;line-height:.9;letter-spacing:-0.02em;display:inline-block;">${esc(last)}</span></span>
+      <span class="mg-mask" style="display:block;"><span class="mg-rise mg-key" style="--at:${(0.3 + ws.length * 0.07).toFixed(2)}s;color:${ground === 'mg-ground-accent' ? '#fff' : 'var(--mg-accent)'};font-size:${dsize(16)};line-height:.9;letter-spacing:-0.02em;display:inline-block;">${esc(last)}</span></span>
     </h1>
     ${sub ? `<div class="mg-rulelabel mg-lag" style="--at:${atFrac(0.5)};color:inherit;opacity:.8;">${esc(sub)}</div>` : ''}
   </div>
-  <div class="mg-echo mg-outline mg-depth-bg" style="left:-5vw;bottom:-7vh;font-size:36vh;">${esc(last)}</div>`;
+  <div class="mg-echo mg-outline mg-depth-bg" style="left:-5vw;bottom:-7vh;font-size:${dsize(34)};">${esc(last)}</div>`;
   return { problems, html: shell(ctx, { ground, body, cam: 'mg-cam-in', exit: 'mg-exit-scale' }) };
 };
 

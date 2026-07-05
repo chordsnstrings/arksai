@@ -47,6 +47,7 @@ function ctx(style: ScaffoldCtx['style'], sceneIndex = 0): ScaffoldCtx {
 test('scaffolds: every archetype renders for every style pack with the craft baked in', () => {
   for (const id of SCAFFOLD_IDS) {
     for (const style of ['clean', 'nutshell', 'broadcast', 'vox', 'nordic'] as const) {
+      if (id === 'character-beat' && style !== 'nutshell') continue; // pack fidelity: mascot is nutshell-only
       const r = materializeScaffold({ id, slots: MINIMAL_SLOTS[id] }, ctx(style, 2));
       assert.deepEqual(r.problems, [], `${id}/${style}: ${r.problems.join('; ')}`);
       const html = r.html!;
@@ -306,10 +307,10 @@ test('typography-as-set: kit primitives + scaffold compositions are not slide-li
   const hook = materializeScaffold({ id: 'hook-question', slots: { kicker: 'THE QUESTION', question: 'Pay off debt, or invest the difference?' } }, ctx('vox', 0)).html!;
   assert.match(hook, /mg-vert/, 'vertical kicker rail');
   assert.match(hook, /mg-echo mg-outline/, 'outlined background echo word');
-  const sizes = [...hook.matchAll(/font-size:(\d+(?:\.\d+)?)vh/g)].map((m) => Number(m[1]));
+  const sizes = [...hook.matchAll(/font-size:(?:min\()?(\d+(?:\.\d+)?)vh/g)].map((m) => Number(m[1]));
   assert.ok(Math.max(...sizes) / Math.min(...sizes.filter((s) => s > 1)) >= 3, `scale contrast ≥3x (${sizes.join(',')})`);
   const stat = materializeScaffold({ id: 'hero-stat', slots: MINIMAL_SLOTS['hero-stat'] }, ctx('clean', 1)).html!;
-  assert.match(stat, /font-size:32vh/, 'the stat is enormous');
+  assert.match(stat, /font-size:min\(30vh, 34\.5vw\)/, 'the stat is enormous and width-bounded');
   assert.match(stat, /mg-echo mg-outline/);
   const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
   assert.match(md, /TYPOGRAPHY IS THE SET/);
@@ -348,4 +349,50 @@ test('render semaphore: concurrent renders serialize FIFO, never overlap, always
   await assert.rejects(() => withRenderSlot(async () => { throw new Error('boom'); }), /boom/);
   const after = await withRenderSlot(async () => 'recovered');
   assert.equal(after, 'recovered');
+});
+
+// ---------------- geometry gate + portrait + pack fidelity (operator audit 2026-07-05) ----------------
+
+import { auditSceneGeometry } from '../src/agent/motion/capture';
+
+test('geometry gate: clipped labels and structural meta-words are caught in the DOM', { timeout: 60_000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-geom-'));
+  fs.mkdirSync(path.join(dir, 'motion-kit'), { recursive: true });
+  for (const f of ['motion.css', 'motion.js']) fs.copyFileSync(path.join(__dirname, '../assets/motion-kit', f), path.join(dir, 'motion-kit', f));
+  fs.writeFileSync(
+    path.join(dir, 'bad.html'),
+    `<!doctype html><html><head><link rel="stylesheet" href="motion-kit/motion.css"></head><body>
+     <div class="mg-scene"><div class="mg-breathe" style="position:absolute;left:92%;top:20%;width:300px;font-size:30px;">CLIPS OFF THE EDGE</div>
+     <div style="position:absolute;left:10%;top:60%;font-size:24px;">HOOK</div>
+     <div class="mg-echo mg-outline" style="right:-5vw;bottom:-5vh;font-size:200px;">echo ok</div></div>
+     <script src="motion-kit/motion.js"></script></body></html>`,
+  );
+  const offenders = await auditSceneGeometry(path.join(dir, 'bad.html'), { width: 1080, height: 1920, durationMs: 4000 }, new AbortController().signal);
+  assert.ok(offenders.some((o) => o.includes('CLIPS OFF THE EDGE')), `clip caught: ${offenders.join(' | ')}`);
+  assert.ok(offenders.some((o) => o.includes('meta-word')), 'HOOK label caught');
+  assert.ok(!offenders.some((o) => o.includes('echo ok')), 'sanctioned echo bleed is allowed');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('portrait scaffolds: full-height stacked composition + width-bounded display sizes', () => {
+  const p = materializeScaffold({ id: 'hero-stat', slots: MINIMAL_SLOTS['hero-stat'] }, { ...ctx('clean', 1), portrait: true }).html!;
+  assert.match(p, /mg-portrait/);
+  assert.match(p, /min\(30vh, 34\.5vw\)/, 'stat is width-bounded in portrait');
+  const sc = materializeScaffold({ id: 'split-compare', slots: MINIMAL_SLOTS['split-compare'] }, { ...ctx('clean', 1), portrait: true }).html!;
+  assert.match(sc, /flex-direction:column/, 'compare stacks vertically in portrait');
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  assert.match(css, /\.mg-portrait \.mg-split \{ grid-template-columns: 1fr/);
+});
+
+test('pack fidelity: character-beat is nutshell-only, vox never gets an accent ground, slot text is normalized', () => {
+  const bird = materializeScaffold({ id: 'character-beat', slots: MINIMAL_SLOTS['character-beat'] }, ctx('vox', 1));
+  assert.ok(bird.problems.some((p) => p.includes('NUTSHELL-only')), bird.problems.join());
+  assert.equal(groundClass('vox', 'accent', 0), 'mg-ground-dark', 'vox yellow can never be a full ground');
+  assert.equal(groundClass('vox', undefined, 2), 'mg-ground-dark');
+  const fixed = materializeScaffold({ id: 'end-punch', slots: { line: 'Real science.Use with care' } }, ctx('clean', 3)).html!;
+  assert.match(fixed, /science\. Use/, 'sentence spacing restored');
+  const meta = materializeScaffold({ id: 'hook-question', slots: { question: 'hook' } }, ctx('clean', 0));
+  assert.ok(meta.problems.some((p) => p.includes('structural word')), meta.problems.join());
+  const nordicCallout = materializeScaffold({ id: 'callout', slots: MINIMAL_SLOTS['callout'] }, ctx('nordic', 1)).html!;
+  assert.match(nordicCallout, /mg-label-vox ink/, 'nordic callouts are ink labels, never broadcast yellow');
 });

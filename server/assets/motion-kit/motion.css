@@ -518,3 +518,15 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
 /* Blinking block caret for the typewriter (steps, deterministic). */
 .kt-caret::after { content: ''; display: inline-block; width: 0.5ch; height: 1em; margin-left: 0.12ch; background: var(--mg-accent); vertical-align: text-bottom; animation: ktCaret 1.06s steps(2, jump-none) infinite; }
 @keyframes ktCaret { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+
+/* ---------- PORTRAIT (9:16 / 4:5) — full-height composition, no dead slabs ---------- */
+.mg-portrait .mg-safe { padding: 7vh 7vw; }
+.mg-portrait.mg-ground-floor { background: linear-gradient(180deg, var(--mg-bg) 0%, color-mix(in srgb, var(--mg-ink) 3%, var(--mg-bg)) 82%, color-mix(in srgb, var(--mg-ink) 9%, var(--mg-bg)) 82.2%, color-mix(in srgb, var(--mg-ink) 6%, var(--mg-bg)) 100%); }
+.mg-portrait .mg-ground-stage, .mg-portrait.mg-ground-stage { background: linear-gradient(180deg, #f6f9fc 0%, #e6edf5 82%, #d7e0ea 82.2%, #cfd9e4 100%); }
+.mg-portrait .mg-split { grid-template-columns: 1fr; gap: 3vh; height: auto; }
+.mg-portrait .mg-hero-stat .mg-stat { font-size: min(24vh, 27vw); }
+.mg-portrait .mg-sub { max-width: 26ch; }
+.mg-portrait .mg-title { font-size: min(7.4vh, 8.5vw); }
+.mg-portrait .mg-prop-hero { width: 44vw; height: 44vw; }
+.mg-portrait .mg-label-vox { max-width: 78vw; }
+.mg-portrait .mg-callout { max-width: 80vw; }

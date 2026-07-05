@@ -6,7 +6,7 @@ import { config, repoRoot } from '../../config';
 import { synthesizeSpeechBuffer, ttsAvailable, analyzeImage, fileToDataUrl } from '../../engines/minimax';
 import { generateMusic } from '../../engines/suno';
 import { stitchClips, stitchClipsSegmented, mixMusicBed, applyFadeOut, probeDuration, ffmpegAvailable } from '../videoStitch';
-import { captureScene, captureSpotFrame, auditSceneHtml } from '../motion/capture';
+import { captureScene, captureSpotFrame, auditSceneHtml, auditSceneGeometry } from '../motion/capture';
 import { encodeSceneVideo, pickFps, DIMENSION_PRESETS, frameName, frameCount } from '../motion/encode';
 import { materializeScaffold, workspaceAssetReader, SCAFFOLD_IDS, SCAFFOLD_DOC } from '../motion/scaffolds';
 import { auditSceneMotion, auditFrameFill, isPacingMonotone, hookProblems } from '../motion/qc';
@@ -173,7 +173,7 @@ async function qcScene(m: MotionManifest, s: MotionScene, repoDir: string, htmlA
   for (let idx = 0; idx < times.length; idx++) {
     const atMs = times[idx];
     const spot = path.join(repoDir, dirName(m.id), `.qc-${s.id}-${idx}.jpg`);
-    const position = idx === 0 ? 'EARLY (~1s in — the HEADLINE and primary anchor must have landed; secondary labels/counters arrive later BY DESIGN, so do NOT flag sparseness or a mid-count number here)' : idx === 1 ? 'MID (fully assembled — judge fill and composition on THIS frame)' : 'LATE (still assembled; exits have not started; counters show final values)';
+    const position = idx === 0 ? 'EARLY (~1s in — the HEADLINE and primary anchor must have landed; secondary labels/counters arrive later BY DESIGN, so do NOT flag sparseness or a mid-count number here — but DO flag a frame with no headline/anchor at all)' : idx === 1 ? 'MID (fully assembled — judge fill and composition on THIS frame)' : 'LATE (still assembled; exits have not started; counters show final values)';
     try {
       await captureSpotFrame(htmlAbs, { width: m.width, height: m.height, durationMs: s.durationMs!, atMs, outAbs: spot }, signal);
       const v = await analyzeImage(
@@ -221,6 +221,16 @@ async function renderScene(
   } else {
     s.audioFile = undefined;
     s.durationMs = Math.max(s.minMs ?? 0, 2000) + (s.extraTailMs ?? 0);
+  }
+
+  // DETERMINISTIC GEOMETRY GATE: content crossing the frame edge (or structural
+  // meta-words on screen) fails BEFORE any frame is captured — vision QC can't see geometry.
+  const geometry = await auditSceneGeometry(htmlAbs, { width: m.width, height: m.height, durationMs: s.durationMs }, signal);
+  if (geometry.length) {
+    throw new Error(
+      `scene ${s.id} layout is broken: ${geometry.join(' | ')}. Keep ALL content inside the ${m.width}x${m.height} frame ` +
+        `(only echo/texture type may bleed) and never render structural labels.`,
+    );
   }
 
   const framesDir = path.join(repoDir, dirName(m.id), `frames-${s.id}`);
@@ -493,7 +503,12 @@ export const renderMotionVideoTool: ToolDef = {
       accent_2: { type: 'string', description: 'Optional secondary accent hex.' },
       music: { type: 'string', description: 'Optional instrumental music-bed brief (auto-ducked under the voice).' },
       motion_id: { type: 'string', description: 'An existing motion video id (for retakes; default = the latest).' },
-      retake_scene: { type: 'number', description: 'Re-render ONLY this scene id (after editing its HTML), then reassemble.' },
+      retake_scene: { type: 'number', description: 'Re-render ONLY this scene id, then reassemble. To CHANGE a scaffold scene\'s content, pass a fresh top-level scaffold:{id,slots} with it — otherwise the existing scene HTML is re-rendered as-is.' },
+      scaffold: {
+        type: 'object',
+        description: 'With retake_scene: a fresh scaffold spec {id, slots} that REPLACES that scene before re-rendering.',
+        properties: { id: { type: 'string' }, slots: { type: 'object' } },
+      },
     },
     required: [],
   },
@@ -550,9 +565,11 @@ export const renderMotionVideoTool: ToolDef = {
       // (live lesson: heavy agents write ~140s of narration against a 60s brief).
       const targetSeconds = Number(args.target_seconds) > 0 ? Math.min(3600, Number(args.target_seconds)) : undefined;
       const totalWords = list.reduce((a: number, s: any) => a + wordsOf(String(s?.narration ?? '')), 0);
-      const estS = totalWords / WPS + list.length * 0.95;
+      // Short punchy sentences synthesize slower than flowing narration (live: 15s briefs → 19-21s).
+      const wps = targetSeconds && targetSeconds <= 30 ? 2.0 : WPS;
+      const estS = totalWords / wps + list.length * 0.95;
       if (targetSeconds && estS > targetSeconds * 1.25) {
-        const budget = Math.round(targetSeconds * WPS);
+        const budget = Math.round(targetSeconds * wps);
         return (
           `Error: the narration is ~${Math.round(estS)}s of speech against a ${targetSeconds}s target (${totalWords} words; ` +
           `budget ≈ ${budget} words TOTAL across all scenes). Cut the script — one idea per sentence, drop whole beats, ` +
@@ -571,8 +588,14 @@ export const renderMotionVideoTool: ToolDef = {
       const readAsset = workspaceAssetReader(ctx.repoDir);
       const rendered: { idx: number; html: string }[] = [];
       const scaffoldProblems: string[] = [];
+      let lastPlate = '';
       list.forEach((s: any, i: number) => {
         if (!s?.scaffold?.id) return;
+        const plate = String(s.scaffold?.slots?.plate ?? '').trim();
+        if (plate && plate === lastPlate) {
+          scaffoldProblems.push(`scene ${i + 1}: reuses the SAME plate photo as the previous scene — two adjacent scenes on one image read as a frozen shot; use a different photo or a different scaffold`);
+        }
+        if (plate) lastPlate = plate; else if (s.scaffold?.id !== 'annotated-plate') lastPlate = '';
         const r = materializeScaffold(s.scaffold, {
           style,
           kitPrefix: '../../',
@@ -580,6 +603,7 @@ export const renderMotionVideoTool: ToolDef = {
           readAsset,
           accent,
           accent2,
+          portrait: dim.h > dim.w,
         });
         if (r.problems.length) scaffoldProblems.push(`scene ${i + 1} (${s.scaffold.id}): ${r.problems.join('; ')}`);
         else rendered.push({ idx: i, html: r.html! });
@@ -636,6 +660,27 @@ export const renderMotionVideoTool: ToolDef = {
 
     const targets = retake != null ? m.scenes.filter((s) => s.id === retake) : m.scenes.filter((s) => s.status !== 'ok');
     if (retake != null && !targets.length) return `Error: scene ${retake} not found in motion ${m.id}.`;
+
+    // RETAKE WITH NEW CONTENT (live bug 2026-07-05: a scaffold spec passed with retake_scene
+    // was silently ignored — the tool re-rendered the same broken HTML twice): a top-level
+    // `scaffold` re-materializes the scene file before the retake renders it.
+    if (retake != null && (args as any).scaffold?.id) {
+      const t = targets[0];
+      const r = materializeScaffold((args as any).scaffold, {
+        style: m.style ?? 'clean',
+        kitPrefix: '../../',
+        sceneIndex: retake - 1,
+        readAsset: workspaceAssetReader(ctx.repoDir),
+        portrait: m.height > m.width,
+      });
+      if (r.problems.length) return `Error: retake scaffold problems — ${r.problems.join('; ')}`;
+      const rel = `${dirName(m.id)}/scene-${retake}.html`;
+      fs.writeFileSync(path.join(ctx.repoDir, rel), r.html!);
+      t.htmlFile = rel;
+      t.scaffoldId = String((args as any).scaffold.id);
+      t.status = 'pending';
+      saveManifest(ctx.repoDir, m);
+    }
 
     // Everything heavy runs inside the ONE-render-at-a-time slot.
     return withRenderSlot(async (queuedMs) => {

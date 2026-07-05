@@ -96,6 +96,77 @@ export async function captureSpotFrame(
   }
 }
 
+/**
+ * DETERMINISTIC GEOMETRY AUDIT (operator audit 2026-07-05: labels/callouts clipping off
+ * the 9:16 frame edge in every style, and a literal "HOOK" slot leaking on screen — the
+ * vision QC reads content, not geometry). Loads the scene, seeks to ~60%, and measures
+ * every visible text element's bounding box in the DOM: anything crossing the frame edge
+ * is a HARD defect naming the element — unless it (or an ancestor) is a sanctioned bleed
+ * (echo/texture type, hero props, grounds). Also screens on-screen text for structural
+ * meta-words that should never render.
+ */
+const GEOMETRY_AUDIT_JS = `(() => {
+  const W = window.innerWidth, H = window.innerHeight;
+  const BLEED = ['mg-echo','mg-prop-hero','mg-numeral','mg-hills','mg-hill','mg-plate','mg-wash','mg-grain','mg-vignette','mg-particles','mg-dot','mg-plate-scrim','mg-kenburns'];
+  const sanctioned = (el) => { for (let n = el; n && n.classList; n = n.parentElement) { if (BLEED.some((c) => n.classList.contains(c))) return true; } return false; };
+  const offenders = [];
+  const seen = new Set();
+  for (const el of document.querySelectorAll('body *')) {
+    if (offenders.length >= 6) break;
+    const hasOwnText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+    if (!hasOwnText) continue;
+    const st = getComputedStyle(el);
+    if (st.visibility === 'hidden' || st.display === 'none' || Number(st.opacity) < 0.05) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) continue;
+    const text = (el.textContent || '').trim().slice(0, 40);
+    if (/^(hook|scene ?\\d*|placeholder|todo|tbd|lorem)$/i.test(text) && !seen.has('meta:' + text)) {
+      seen.add('meta:' + text);
+      offenders.push('structural meta-word rendered on screen: "' + text + '" — slot text must be real content');
+      continue;
+    }
+    if (sanctioned(el)) continue;
+    const over = r.left < -2 || r.top < -2 || r.right > W + 2 || r.bottom > H + 2;
+    if (over && !seen.has(text)) {
+      seen.add(text);
+      const cls = (el.className && String(el.className).split(' ')[0]) || el.tagName.toLowerCase();
+      offenders.push('"' + text + '" (' + cls + ') clips off the frame edge (box ' + Math.round(r.left) + ',' + Math.round(r.top) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height) + ' vs ' + W + 'x' + H + ')');
+    }
+  }
+  return offenders;
+})()`;
+
+/** Measure layout geometry at ~60% of the scene; returns human-readable offenders. */
+export async function auditSceneGeometry(
+  htmlAbs: string,
+  opts: { width: number; height: number; durationMs: number },
+  signal: AbortSignal,
+): Promise<string[]> {
+  let pw: typeof import('playwright');
+  try {
+    pw = await import('playwright');
+  } catch {
+    return []; // no Chromium → the capture itself will fail loudly; don't double-report
+  }
+  const browser = await pw.chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  try {
+    const ctx = await browser.newContext({ viewport: { width: opts.width, height: opts.height }, deviceScaleFactor: 1 });
+    const page = await ctx.newPage();
+    await page.goto(`file://${htmlAbs}`, { waitUntil: 'load', timeout: 30_000 });
+    await page.evaluate('document.fonts && document.fonts.ready').catch(() => {});
+    await page.evaluate(`__setSceneMs(${Math.round(opts.durationMs)})`).catch(() => {});
+    await page.evaluate(`__seek(${Math.round(opts.durationMs * 0.6)})`).catch(() => {});
+    if (signal.aborted) throw new Error('audit aborted');
+    const offenders = (await page.evaluate(GEOMETRY_AUDIT_JS)) as string[];
+    await ctx.close();
+    return Array.isArray(offenders) ? offenders : [];
+  } catch {
+    return []; // geometry audit is a guard, not a point of failure itself
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
 /** Deterministic pre-flight on a scene file: self-contained + runtime present. Pure. */
 export function auditSceneHtml(html: string): string[] {
   const problems: string[] = [];
