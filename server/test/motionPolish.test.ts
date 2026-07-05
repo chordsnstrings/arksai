@@ -376,12 +376,14 @@ test('geometry gate: clipped labels and structural meta-words are caught in the 
     `<!doctype html><html><head><link rel="stylesheet" href="motion-kit/motion.css"></head><body>
      <div class="mg-scene"><div class="mg-breathe" style="position:absolute;left:92%;top:20%;width:300px;font-size:30px;">CLIPS OFF THE EDGE</div>
      <div style="position:absolute;left:10%;top:60%;font-size:24px;">HOOK</div>
+     <div style="position:absolute;left:10%;top:70%;font-size:24px;">It *borrows* energy</div>
      <div class="mg-echo mg-outline" style="right:-5vw;bottom:-5vh;font-size:200px;">echo ok</div></div>
      <script src="motion-kit/motion.js"></script></body></html>`,
   );
   const offenders = await auditSceneGeometry(path.join(dir, 'bad.html'), { width: 1080, height: 1920, durationMs: 4000 }, new AbortController().signal);
   assert.ok(offenders.some((o) => o.includes('CLIPS OFF THE EDGE')), `clip caught: ${offenders.join(' | ')}`);
   assert.ok(offenders.some((o) => o.includes('meta-word')), 'HOOK label caught');
+  assert.ok(offenders.some((o) => o.includes('asterisk')), 'literal *emphasis* markup caught');
   assert.ok(!offenders.some((o) => o.includes('echo ok')), 'sanctioned echo bleed is allowed');
   fs.rmSync(dir, { recursive: true, force: true });
 });

@@ -125,6 +125,11 @@ const GEOMETRY_AUDIT_JS = `(() => {
       offenders.push('structural meta-word rendered on screen: "' + text + '" — slot text must be real content');
       continue;
     }
+    if (/\\*[^*]{1,40}\\*/.test(text) && !seen.has('emph:' + text)) {
+      seen.add('emph:' + text);
+      offenders.push('literal *asterisk* emphasis markup rendered on screen: "' + text + '" — the markup only works in SCAFFOLD slots; in bespoke HTML use <span class="mg-emph"> or remove the asterisks');
+      continue;
+    }
     if (sanctioned(el)) continue;
     const over = r.left < -2 || r.top < -2 || r.right > W + 2 || r.bottom > H + 2;
     if (over && !seen.has(text)) {
