@@ -27,9 +27,11 @@ export function framesToVideoCmd(
     : `-f lavfi -t ${opts.durationS.toFixed(3)} -i anullsrc=r=44100:cl=stereo`;
   return (
     `ffmpeg -v error -framerate ${fps} -i ${q(pattern)} ${audio} ` +
-    // -shortest with a narration input; the silence input is already cut to length.
+    // Narration is PADDED with silence to the exact scene length (the old -shortest left
+    // the audio track ending at the last spoken word — the concatenated video then had
+    // audio shorter than picture, and the music-bed mix died with it before the ending).
     `-c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -r ${fps} ` +
-    `-c:a aac -b:a 160k -ar 44100 -ac 2 ${opts.audioIn ? '-shortest ' : ''}` +
+    `-c:a aac -b:a 160k -ar 44100 -ac 2 ${opts.audioIn ? `-af "apad=whole_dur=${opts.durationS.toFixed(3)}" ` : ''}` +
     `-movflags +faststart -y ${q(out)}`
   );
 }

@@ -47,7 +47,10 @@ test('musicBedCmd: bed loops quietly under the story; duck adds sidechain compre
   const plain = musicBedCmd('/story.mp4', '/bed.mp3', '/out.mp4');
   assert.match(plain, /aloop=loop=-1/);
   assert.match(plain, /volume=0\.3/);
-  assert.match(plain, /amix=inputs=2:duration=first/);
+  // duration=longest + -shortest: the looping bed runs to the END of the video even if
+  // the voice track is shorter — the music carries the outro (operator 2026-07-05)
+  assert.match(plain, /amix=inputs=2:duration=longest/);
+  assert.match(plain, /-shortest/);
   assert.match(plain, /-c:v copy/);
   assert.ok(!plain.includes('sidechaincompress'));
   const ducked = musicBedCmd('/story.mp4', '/bed.mp3', '/out.mp4', { duck: true });

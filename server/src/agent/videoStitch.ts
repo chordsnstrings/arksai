@@ -76,9 +76,12 @@ export function xfadeCmd(
  */
 export function musicBedCmd(videoIn: string, bedIn: string, out: string, opts: { duck?: boolean; bedVolume?: number } = {}): string {
   const vol = Math.max(0.1, Math.min(1, opts.bedVolume ?? 0.3));
+  // duration=longest (not first): if the voice track runs shorter than the picture, the
+  // looping bed keeps playing to the END of the video (-shortest cuts at the video stream)
+  // — the music carries the outro instead of dying with the narration.
   const filter = opts.duck
-    ? `[1:a]volume=${vol},aloop=loop=-1:size=2e9[bed];[bed][0:a]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=400[dk];[0:a][dk]amix=inputs=2:duration=first:dropout_transition=2[a]`
-    : `[1:a]volume=${vol},aloop=loop=-1:size=2e9[bed];[0:a][bed]amix=inputs=2:duration=first:dropout_transition=2[a]`;
+    ? `[1:a]volume=${vol},aloop=loop=-1:size=2e9[bed];[bed][0:a]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=400[dk];[0:a][dk]amix=inputs=2:duration=longest:dropout_transition=2[a]`
+    : `[1:a]volume=${vol},aloop=loop=-1:size=2e9[bed];[0:a][bed]amix=inputs=2:duration=longest:dropout_transition=2[a]`;
   return `ffmpeg -v error -i ${q(videoIn)} -i ${q(bedIn)} -filter_complex "${filter}" -map 0:v -map "[a]" -c:v copy -c:a aac -shortest -y ${q(out)}`;
 }
 

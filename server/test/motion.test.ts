@@ -20,7 +20,11 @@ test('encode: frames→video with narration re-encodes uniformly (aac 44.1k ster
   assert.match(cmd, /-c:v libx264/);
   assert.match(cmd, /-pix_fmt yuv420p/);
   assert.match(cmd, /-c:a aac -b:a 160k -ar 44100 -ac 2/);
-  assert.match(cmd, /-shortest/);
+  // narration is padded to the exact scene length — an audio track that ends at the last
+  // spoken word made the concatenated audio shorter than the picture, killing the music
+  // bed before the ending (operator 2026-07-05)
+  assert.match(cmd, /apad=whole_dur=6\.200/);
+  assert.doesNotMatch(cmd, /-shortest/);
 });
 
 test('encode: a silent scene gets a generated silence track (concat needs uniform streams)', () => {
