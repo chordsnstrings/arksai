@@ -82,6 +82,27 @@ interface MotionManifest {
   totalMs?: number;
 }
 
+/**
+ * GLOBAL RENDER SEMAPHORE (ops lesson 2026-07-05): two concurrent motion renders — four
+ * Chromium capture contexts plus parallel ffmpeg encodes — thrashed the 4GB droplet into
+ * a ~1min outage. ONE render (capture+encode+assemble) runs at a time server-wide; later
+ * arrivals queue here in FIFO order instead of overloading the box. Cheap validation
+ * (hook gate, word budget, scaffold materialization) stays OUTSIDE the slot.
+ */
+let renderTail: Promise<void> = Promise.resolve();
+export async function withRenderSlot<T>(fn: (queuedMs: number) => Promise<T>): Promise<T> {
+  const prev = renderTail;
+  let release!: () => void;
+  renderTail = new Promise<void>((resolve) => (release = resolve));
+  const t0 = Date.now();
+  try {
+    await prev; // strict FIFO — never times out: renders are bounded and abort releases via finally
+    return await fn(Date.now() - t0);
+  } finally {
+    release();
+  }
+}
+
 const dirName = (id: string) => `videos/motion-${id}`;
 const manifestPath = (repoDir: string, id: string) => path.join(repoDir, dirName(id), 'manifest.json');
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
@@ -616,41 +637,47 @@ export const renderMotionVideoTool: ToolDef = {
     const targets = retake != null ? m.scenes.filter((s) => s.id === retake) : m.scenes.filter((s) => s.status !== 'ok');
     if (retake != null && !targets.length) return `Error: scene ${retake} not found in motion ${m.id}.`;
 
-    // Render with modest parallelism (2 Chromium contexts) — scenes are independent.
-    const queue = [...targets];
-    const failures: string[] = [];
-    const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
-      for (;;) {
-        const s = queue.shift();
-        if (!s) return;
-        try {
-          await renderScene(m!, s, ctx.repoDir, ctx.signal, ctx.addCost);
-        } catch (e: any) {
-          s.status = 'failed';
-          s.error = String(e?.message ?? e).slice(0, 240);
-          failures.push(`scene ${s.id}: ${s.error}`);
-        }
-        saveManifest(ctx.repoDir, m!);
-      }
-    });
-    await Promise.all(workers);
+    // Everything heavy runs inside the ONE-render-at-a-time slot.
+    return withRenderSlot(async (queuedMs) => {
+      if (ctx.signal.aborted) return 'Error: the run was cancelled while this render was queued.';
+      const queuedNote = queuedMs > 5000 ? `(waited ${(queuedMs / 1000).toFixed(0)}s in the render queue behind another video)\n` : '';
 
-    try {
-      await assemble(m, ctx.repoDir, ctx.signal, ctx.addCost);
-    } catch (e: any) {
-      saveManifest(ctx.repoDir, m);
-      return `Error: assembly failed — ${String(e?.message ?? e)}\n${describe(m)}`;
-    }
-    saveManifest(ctx.repoDir, m);
-    // Cross-scene contrast + cut verdict — only on a fresh full render (retakes keep their notes).
-    let variety = '';
-    if (retake == null) {
-      const v = await varietyCheck(m, ctx.repoDir, ctx.signal);
-      if (v)
-        variety =
-          `\n\nSCENE-CONTRAST REVIEW: ${v}\nVary the named scenes' GROUND (.mg-ground-dark / .mg-ground-accent vs light) ` +
-          `and COMPOSITION (see MOTION.md "SCENE CONTRAST"), then retake them.`;
-    }
-    return describe(m) + variety;
+      // Render with modest parallelism (2 Chromium contexts) — scenes are independent.
+      const queue = [...targets];
+      const failures: string[] = [];
+      const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
+        for (;;) {
+          const s = queue.shift();
+          if (!s) return;
+          try {
+            await renderScene(m!, s, ctx.repoDir, ctx.signal, ctx.addCost);
+          } catch (e: any) {
+            s.status = 'failed';
+            s.error = String(e?.message ?? e).slice(0, 240);
+            failures.push(`scene ${s.id}: ${s.error}`);
+          }
+          saveManifest(ctx.repoDir, m!);
+        }
+      });
+      await Promise.all(workers);
+
+      try {
+        await assemble(m!, ctx.repoDir, ctx.signal, ctx.addCost);
+      } catch (e: any) {
+        saveManifest(ctx.repoDir, m!);
+        return `Error: assembly failed — ${String(e?.message ?? e)}\n${describe(m!)}`;
+      }
+      saveManifest(ctx.repoDir, m!);
+      // Cross-scene contrast + cut verdict — only on a fresh full render (retakes keep their notes).
+      let variety = '';
+      if (retake == null) {
+        const v = await varietyCheck(m!, ctx.repoDir, ctx.signal);
+        if (v)
+          variety =
+            `\n\nSCENE-CONTRAST REVIEW: ${v}\nVary the named scenes' GROUND (.mg-ground-dark / .mg-ground-accent vs light) ` +
+            `and COMPOSITION (see MOTION.md "SCENE CONTRAST"), then retake them.`;
+      }
+      return queuedNote + describe(m!) + variety;
+    });
   },
 };

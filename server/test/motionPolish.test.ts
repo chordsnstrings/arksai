@@ -326,3 +326,26 @@ test('nordic pack: grounds, grid, numerals, kinetic-type devices, catalog entry'
   assert.equal(groundClass('nordic', undefined, 1), 'mg-ground-paper');
   assert.equal(groundClass('nordic', 'night', 0), 'mg-ground-night');
 });
+
+// ---------------- render semaphore (ops lesson: 2 concurrent renders = droplet outage) ----------------
+
+import { withRenderSlot } from '../src/agent/tools/motionVideo';
+
+test('render semaphore: concurrent renders serialize FIFO, never overlap, always release', async () => {
+  const events: string[] = [];
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const job = (name: string, ms: number) =>
+    withRenderSlot(async (queuedMs) => {
+      events.push(`${name}-start${queuedMs > 5 ? ':queued' : ''}`);
+      await sleep(ms);
+      events.push(`${name}-end`);
+      return name;
+    });
+  const [a, b, c] = await Promise.all([job('a', 40), job('b', 20), job('c', 10)]);
+  assert.deepEqual([a, b, c], ['a', 'b', 'c']);
+  assert.deepEqual(events, ['a-start', 'a-end', 'b-start:queued', 'b-end', 'c-start:queued', 'c-end'], 'strict FIFO, no overlap');
+  // a failing render releases the slot for the next one
+  await assert.rejects(() => withRenderSlot(async () => { throw new Error('boom'); }), /boom/);
+  const after = await withRenderSlot(async () => 'recovered');
+  assert.equal(after, 'recovered');
+});
