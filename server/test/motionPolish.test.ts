@@ -310,7 +310,7 @@ test('typography-as-set: kit primitives + scaffold compositions are not slide-li
   const sizes = [...hook.matchAll(/font-size:(?:min\()?(\d+(?:\.\d+)?)vh/g)].map((m) => Number(m[1]));
   assert.ok(Math.max(...sizes) / Math.min(...sizes.filter((s) => s > 1)) >= 3, `scale contrast ≥3x (${sizes.join(',')})`);
   const stat = materializeScaffold({ id: 'hero-stat', slots: MINIMAL_SLOTS['hero-stat'] }, ctx('clean', 1)).html!;
-  assert.match(stat, /font-size:min\(30vh, 34\.5vw\)/, 'the stat is enormous and width-bounded');
+  assert.match(stat, /font-size:min\(34vh, 39\.1vw\)/, 'the stat is enormous and width-bounded (landscape)');
   assert.match(stat, /mg-echo mg-outline/);
   const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
   assert.match(md, /TYPOGRAPHY IS THE SET/);
@@ -395,4 +395,67 @@ test('pack fidelity: character-beat is nutshell-only, vox never gets an accent g
   assert.ok(meta.problems.some((p) => p.includes('structural word')), meta.problems.join());
   const nordicCallout = materializeScaffold({ id: 'callout', slots: MINIMAL_SLOTS['callout'] }, ctx('nordic', 1)).html!;
   assert.match(nordicCallout, /mg-label-vox ink/, 'nordic callouts are ink labels, never broadcast yellow');
+});
+
+// ---------------- format system + pack identity + living frame (operator 2026-07-05:
+// "focus on the design part for each, fix it for any size, dynamic movement within frames") ----------------
+
+import { formatOf } from '../src/agent/motion/scaffolds';
+
+test('format system: landscape/square/tall derived from real dimensions, portrait stays a tall alias', () => {
+  assert.equal(formatOf({ width: 1920, height: 1080 } as any), 'landscape');
+  assert.equal(formatOf({ width: 1080, height: 1080 } as any), 'square');
+  assert.equal(formatOf({ width: 1080, height: 1350 } as any), 'square', '4:5 is square-treated, not 9:16-treated');
+  assert.equal(formatOf({ width: 1080, height: 1920 } as any), 'tall');
+  assert.equal(formatOf({ portrait: true } as any), 'tall', 'legacy portrait flag maps to tall');
+  const sq = materializeScaffold({ id: 'hero-stat', slots: MINIMAL_SLOTS['hero-stat'] }, { ...ctx('clean', 1), width: 1080, height: 1080 }).html!;
+  assert.match(sq, /mg-fmt-sq/, 'square scenes carry the square format class');
+  assert.doesNotMatch(sq, /mg-portrait/, 'square is NOT portrait-treated');
+  const tall = materializeScaffold({ id: 'hero-stat', slots: MINIMAL_SLOTS['hero-stat'] }, { ...ctx('clean', 1), width: 1080, height: 1920 }).html!;
+  assert.match(tall, /mg-portrait mg-fmt-tall/);
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  assert.match(css, /\.mg-fmt-sq \.mg-safe/, 'square override block exists');
+});
+
+test('pack identity: every scene carries mg-style-<pack>, accents baked into the kit, agent accent still wins inline', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  for (const s of ['clean', 'nutshell', 'broadcast', 'vox', 'nordic']) assert.ok(css.includes(`.mg-style-${s}`), `pack block .mg-style-${s}`);
+  assert.match(css, /\.mg-style-nutshell \{ --mg-accent: #e30050/);
+  assert.match(css, /\.mg-style-vox\.mg-ground-dark \{ --mg-accent: #ffe600/, 'vox full yellow only on dark grounds');
+  const scene = materializeScaffold({ id: 'hero-stat', slots: MINIMAL_SLOTS['hero-stat'] }, ctx('broadcast', 1)).html!;
+  assert.match(scene, /mg-style-broadcast/);
+  assert.match(scene, /style="--mg-accent:#0a7d5b;"/, 'agent-passed accent is INLINE on the scene element (beats pack class tokens)');
+  const noAccent = materializeScaffold({ id: 'hero-stat', slots: MINIMAL_SLOTS['hero-stat'] }, { ...ctx('nutshell', 1), accent: undefined }).html!;
+  assert.doesNotMatch(noAccent, /mg-scene[^>]*style=/, 'no inline theme when no accent passed — the pack DNA rules');
+  // per-pack card DNA exists
+  for (const sel of ['.mg-style-broadcast .mg-card', '.mg-style-nordic .mg-card', '.mg-style-nutshell .mg-card']) assert.ok(css.includes(sel), sel);
+});
+
+test('living frame: perpetual ambients baked into scaffolds, weak-motion advisory in QC', async () => {
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  assert.match(css, /\.mg-drift \{ animation: mgDriftXY/, 'perpetual drift wrapper');
+  assert.match(css, /\.mg-runline/, 'travelling accent hairline');
+  const stat = materializeScaffold({ id: 'hero-stat', slots: MINIMAL_SLOTS['hero-stat'] }, ctx('clean', 1)).html!;
+  assert.match(stat, /mg-drift/, 'the echo drifts perpetually');
+  assert.match(stat, /mg-runline/, 'a living baseline band fills the lower frame');
+  const compare = materializeScaffold(
+    {
+      id: 'split-compare',
+      slots: {
+        left: { title: 'Pay debt', lines: ['guaranteed 7%'], icon: 'assets/icon.svg' },
+        right: { title: 'Invest', lines: ['average 7%'], icon: 'assets/icon.svg' },
+      },
+    },
+    ctx('clean', 1),
+  ).html!;
+  assert.match(compare, /mg-card/, 'compare uses the pack-skinned card, not a ghost band');
+  assert.match(compare, /mg-bob/, 'icons idle with phase offsets');
+  // callout: the big number is a hero stat ABOVE the label, never concatenated inside it
+  const call = materializeScaffold({ id: 'callout', slots: MINIMAL_SLOTS['callout'] }, ctx('broadcast', 1)).html!;
+  assert.match(call, /mg-stat mg-pop/, 'big number rendered as a stat block');
+  assert.doesNotMatch(call, /<span class="big">/, 'number never concatenated inside the callout box');
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  assert.match(md, /LIVING FRAME/);
+  assert.match(md, /## FORMATS/);
+  assert.match(md, /PACK DNA IS IN THE ENGINE/);
 });

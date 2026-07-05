@@ -172,6 +172,19 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
 }
 /* full-bleed edge rail — an asymmetric anchor so not everything is centered */
 .mg-rail { position: absolute; left: 0; top: 0; bottom: 0; width: 1.2vw; background: var(--mg-accent); }
+/* A REAL card (the audit's washed-out bands read as ghosts): visible surface + edge +
+ * lift, reskinned per pack below — this is where compare/steps/chart frames get their DNA. */
+.mg-card {
+  border-radius: 2.4vh;
+  background: color-mix(in srgb, var(--mg-ink) 6%, var(--mg-bg));
+  border: 1px solid color-mix(in srgb, var(--mg-ink) 16%, transparent);
+  box-shadow: 0 1.4vh 3.4vh color-mix(in srgb, var(--mg-ink) 12%, transparent);
+}
+.mg-ground-dark .mg-card, .mg-ground-space .mg-card, .mg-ground-night .mg-card {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 1.6vh 4vh rgba(0, 0, 0, 0.35);
+}
 
 /* ============================ MICRO-ANIMATION LAYER ============================
  * NOTHING IS EVER STATIC (operator doctrine 2026-07-04): every visible element
@@ -275,7 +288,7 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
 }
 .mg-callout.danger { background: #e33d3d; color: #fff; }
 .mg-callout.money { background: #2ecc71; color: #063; }
-.mg-callout .big { font-size: 5.2vh; }
+.mg-callout .big { font-size: 5.2vh; display: block; margin-bottom: 0.4vh; }
 .mg-tag { /* small arrow label pinned to a subject */
   position: absolute; font-family: var(--mg-font-data); font-size: 2vh; font-weight: 700;
   background: #111; color: #fff; padding: 0.7vh 1.4vh; border-radius: 0.6vh;
@@ -518,6 +531,55 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
 /* Blinking block caret for the typewriter (steps, deterministic). */
 .kt-caret::after { content: ''; display: inline-block; width: 0.5ch; height: 1em; margin-left: 0.12ch; background: var(--mg-accent); vertical-align: text-bottom; animation: ktCaret 1.06s steps(2, jump-none) infinite; }
 @keyframes ktCaret { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+
+/* ============================ PACK IDENTITY (2026-07-05) ============================
+ * "Focus on the design part for EACH" (operator): the audit rendered all five packs
+ * with the SAME default green accent and near-identical frames — pack DNA now lives in
+ * the ENGINE. The shell stamps .mg-style-<pack> on every scene; each pack sets its
+ * accents and display-type voice here. An agent-passed accent still wins (it is written
+ * INLINE on the scene element, which out-cascades these class tokens). */
+.mg-style-clean { --mg-accent: #0a7d5b; --mg-accent-2: #0a5d8b; }
+/* Kurzgesagt voice: neon magenta/cyan on cosmic grounds, heavy geometric sans display. */
+.mg-style-nutshell { --mg-accent: #e30050; --mg-accent-2: #00b8d9; --mg-font-display: 'Inter', -apple-system, sans-serif; }
+.mg-style-nutshell .mg-title, .mg-style-nutshell .mg-giant { font-weight: 800; letter-spacing: -0.02em; }
+/* Infographics-show voice: shouting uppercase sans, danger-red + amber coding. */
+.mg-style-broadcast { --mg-accent: #e8483f; --mg-accent-2: #f0a500; --mg-font-display: 'Inter', -apple-system, sans-serif; }
+.mg-style-broadcast .mg-title, .mg-style-broadcast .mg-giant { font-weight: 900; text-transform: uppercase; letter-spacing: -0.01em; }
+/* Vox voice: ink + highlighter yellow (full yellow only on dark grounds — it dies on studio gray). */
+.mg-style-vox { --mg-accent: #b58a00; --mg-accent-2: #e33d3d; }
+.mg-style-vox.mg-ground-dark { --mg-accent: #ffe600; }
+/* Nordic voice: paper-ink-red (the paper/night grounds refine it further). */
+.mg-style-nordic { --mg-accent: #e32219; --mg-accent-2: #141414; }
+/* Per-pack card DNA: outlined comic (broadcast), ruled print (nordic), soft glass (nutshell). */
+.mg-style-broadcast .mg-card { border: 0.45vh solid var(--mg-ink); border-radius: 1.2vh; box-shadow: 0.8vh 0.8vh 0 color-mix(in srgb, var(--mg-ink) 82%, transparent); }
+.mg-style-nordic .mg-card { border-radius: 0; border: 2px solid var(--mg-ink); box-shadow: none; background: transparent; }
+.mg-style-nutshell .mg-card { border: none; border-radius: 3vh; background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 1.8vh 4.5vh rgba(0, 0, 0, 0.38); }
+
+/* ============================ LIVING FRAME (2026-07-05) ============================
+ * "Ensure there's dynamic movement within the frames" (operator): between the entrance
+ * and the exit, a frame must keep breathing — the audit measured camera-only stretches.
+ * Perpetual, phase-offset ambient motion; always on a WRAPPER (animation shorthand
+ * collides with entrances on the same element). */
+@keyframes mgDriftXY {
+  from { transform: translate(calc(var(--dx, 1.2vw) * -1), var(--dy, 0.8vh)); }
+  to { transform: translate(var(--dx, 1.2vw), calc(var(--dy, 0.8vh) * -1)); }
+}
+.mg-drift { animation: mgDriftXY var(--ddur, 9s) ease-in-out infinite alternate; }
+/* A hairline whose accent segment slowly travels — quiet life for empty lower bands. */
+.mg-runline { position: relative; height: 2px; background: color-mix(in srgb, var(--mg-ink) 16%, transparent); overflow: hidden; }
+@keyframes mgRun { from { left: 0; } to { left: 82%; } }
+.mg-runline::after { content: ''; position: absolute; top: -1px; bottom: -1px; width: 18%; background: var(--mg-accent); animation: mgRun 4.8s ease-in-out infinite alternate; }
+
+/* ---------- SQUARE (1:1 / 4:5) — row layouts survive, everything tightens ---------- */
+.mg-fmt-sq .mg-safe { padding: 6vh 6vw; }
+.mg-fmt-sq .mg-title { font-size: min(7vh, 8vw); }
+.mg-fmt-sq .mg-sub { max-width: 30ch; }
+.mg-fmt-sq .mg-prop-hero { width: 46vmin; height: 46vmin; }
+.mg-fmt-sq .mg-label-vox { max-width: 82vw; }
+.mg-fmt-sq .mg-callout { max-width: 84vw; }
+.mg-fmt-sq .mg-split { grid-template-columns: 1fr 1fr; gap: 3vw; }
+.mg-fmt-sq.mg-ground-floor { background: linear-gradient(180deg, var(--mg-bg) 0%, color-mix(in srgb, var(--mg-ink) 3%, var(--mg-bg)) 74%, color-mix(in srgb, var(--mg-ink) 9%, var(--mg-bg)) 74.2%, color-mix(in srgb, var(--mg-ink) 6%, var(--mg-bg)) 100%); }
+.mg-fmt-sq.mg-ground-stage { background: linear-gradient(180deg, #f6f9fc 0%, #e6edf5 74%, #d7e0ea 74.2%, #cfd9e4 100%); }
 
 /* ---------- PORTRAIT (9:16 / 4:5) — full-height composition, no dead slabs ---------- */
 .mg-portrait .mg-safe { padding: 7vh 7vw; }

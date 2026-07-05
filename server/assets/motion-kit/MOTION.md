@@ -94,6 +94,14 @@ on a label/shadow so it trails its owner, `.mg-squash` on landings, `.mg-stress`
 when the narration stresses an element. Before finishing a scene, scan it: anything that
 would sit pixel-frozen for more than a second needs an idle or a camera.
 
+LIVING FRAME (the mid-scene bar): a camera move alone reads as a slide with a slow zoom —
+the QC flags weak mid-scene motion. Between the entrance and the exit the frame must keep
+breathing: wrap the background echo in `.mg-drift` (perpetual slow translate; tune
+`--ddur/--dx/--dy`), put `.mg-bob` on icons/chips (phase-offset with negative delays),
+`.mg-shimmer` on labels/attributions, and a `.mg-runline` (a hairline whose accent segment
+slowly travels) across an empty lower band. Scaffolds bake all of this in — bespoke
+`html_file` scenes must add it themselves.
+
 ## TYPOGRAPHY IS THE SET (never slide-like)
 A uniform-size centered text stack reads as a slide. Every scene's type is COMPOSED:
 - SCALE CONTRAST ≥3×: one element set huge (`.mg-giant`, a 25-32vh stat, a 15vh+ key
@@ -128,9 +136,21 @@ A uniform-size centered text stack reads as a slide. Every scene's type is COMPO
   change); for an object-carry/match cut, place the shared element at the SAME coordinates
   in the last frame of scene N and the first frame of scene N+1.
 
+## FORMATS (the same scene must be DESIGNED at any size)
+The engine stamps a format class on every scaffold scene: landscape (16:9), `.mg-fmt-sq`
+(1:1 and 4:5 — row layouts survive but everything tightens: shorter margins, `vmin`-bound
+props, floor lines drop lower), `.mg-portrait`/`.mg-fmt-tall` (9:16 — full-height stacked
+compositions, `space-evenly`, width-bounded display sizes). Bespoke `html_file` scenes:
+never assume 16:9 — size display type with `min(Xvh, Yvw)`, stack columns when the frame
+is taller than wide, and keep text inside `.mg-safe` at every aspect.
+
 ## STYLE PACKS (pick ONE per video — it governs every scene)
 State the chosen style in scene 1's comment. Each pack has its own ground set, components
 and motion doctrine; SCENE CONTRAST still applies within the pack's grounds.
+PACK DNA IS IN THE ENGINE: every scaffold scene carries `.mg-style-<pack>` — accents,
+display-type voice (nutshell heavy sans, broadcast shouting uppercase, vox/nordic/clean
+editorial serif) and card treatments (broadcast comic-outlined, nordic ruled print,
+nutshell soft glass) apply automatically; a passed `accent` still overrides.
 
 ### `nutshell` — premium science-explainer (Kurzgesagt-inspired)
 - GROUNDS: `.mg-ground-space` (cosmic gradient) alternated with `.mg-ground-dark` and one

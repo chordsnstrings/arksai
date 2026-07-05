@@ -249,6 +249,15 @@ async function renderScene(
             `every element needs an ambient idle (.mg-breathe/.mg-float/.mg-bob) or a camera move (.mg-cam-in/-out/-drift on the stage wrapper). See MOTION.md "NOTHING IS EVER STATIC".`,
         );
       }
+      // LIVING-FRAME advisory (2026-07-05): above the hard floor but camera-only — the
+      // frame reads as a slide with a slow zoom. Scaffolds bake ambient drift in; bespoke
+      // scenes get told what to add.
+      if (motion?.weak && !motion.static) {
+        s.qcDefects = [
+          ...(s.qcDefects ?? []),
+          `mid-scene motion is weak (max frame diff ${motion.maxDiff.toFixed(2)} — camera-only): add living-frame ambients — a drifting .mg-echo (wrap in .mg-drift), .mg-bob on icons/chips, a .mg-runline band, .mg-shimmer on labels`,
+        ];
+      }
     }
     // Frame-fill audit (advisory): a mostly-empty mid frame is the "student project" tell.
     const midFrame = path.join(framesDir, frameName(Math.floor(frameCount(s.durationMs, m.fps) / 2)));
@@ -604,6 +613,8 @@ export const renderMotionVideoTool: ToolDef = {
           accent,
           accent2,
           portrait: dim.h > dim.w,
+          width: dim.w,
+          height: dim.h,
         });
         if (r.problems.length) scaffoldProblems.push(`scene ${i + 1} (${s.scaffold.id}): ${r.problems.join('; ')}`);
         else rendered.push({ idx: i, html: r.html! });
@@ -672,6 +683,8 @@ export const renderMotionVideoTool: ToolDef = {
         sceneIndex: retake - 1,
         readAsset: workspaceAssetReader(ctx.repoDir),
         portrait: m.height > m.width,
+        width: m.width,
+        height: m.height,
       });
       if (r.problems.length) return `Error: retake scaffold problems — ${r.problems.join('; ')}`;
       const rel = `${dirName(m.id)}/scene-${retake}.html`;

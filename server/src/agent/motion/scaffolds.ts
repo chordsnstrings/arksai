@@ -26,8 +26,27 @@ export interface ScaffoldCtx {
   readAsset: (rel: string) => string | null;
   accent?: string;
   accent2?: string;
-  /** 9:16/4:5 output — scaffolds switch to full-height stacked compositions. */
+  /** DEPRECATED alias for a tall format — prefer width/height. */
   portrait?: boolean;
+  /** Output pixels — drives the FORMAT system (landscape/square/tall compositions). */
+  width?: number;
+  height?: number;
+}
+
+/**
+ * FORMAT system (operator 2026-07-05: "fix it for any size"): the binary portrait flag
+ * left 1:1 with landscape compositions and 4:5 with 9:16-tuned ones. Three real formats:
+ * landscape (16:9), square (1:1 and 4:5 — row layouts survive, tightened), tall (9:16 —
+ * full-height stacked). Every scaffold branches on this, and the shell stamps a format
+ * class so motion.css can tune sizes per format.
+ */
+export type FrameFormat = 'landscape' | 'square' | 'tall';
+export function formatOf(ctx: ScaffoldCtx): FrameFormat {
+  if (ctx.width && ctx.height) {
+    const r = ctx.height / ctx.width;
+    return r < 0.95 ? 'landscape' : r <= 1.34 ? 'square' : 'tall';
+  }
+  return ctx.portrait ? 'tall' : 'landscape';
 }
 
 export interface ScaffoldResult {
@@ -49,6 +68,18 @@ const atFrac = (f: number) => `calc(var(--scene-s, 8) * ${f}s)`;
 
 /** Display size that scales with the SHORT edge: Xvh in landscape, width-bounded in portrait. */
 const dsize = (vh: number) => `min(${vh}vh, ${(vh * 1.15).toFixed(1)}vw)`;
+
+/**
+ * LIVING-FRAME wrappers (operator 2026-07-05: "ensure there's dynamic movement within the
+ * frames" — the audit measured mid-scene motion at ~1.0 YAVG, i.e. camera-only). Perpetual
+ * ambient motion goes on a WRAPPER (the `animation` shorthand collides on one element).
+ */
+const drift = (inner: string, opts: { dur?: number; dx?: string; dy?: string; at?: string } = {}) =>
+  `<div class="mg-drift" style="--ddur:${opts.dur ?? 9}s;${opts.dx ? `--dx:${opts.dx};` : ''}${opts.dy ? `--dy:${opts.dy};` : ''}animation-delay:${opts.at ?? '-3s'};">${inner}</div>`;
+
+/** A bottom hairline with a slowly travelling accent segment — fills a dead lower band with quiet life. */
+const runline = (at = 0.3) =>
+  `<div class="mg-fade" style="--at:${atFrac(at)};position:absolute;left:8vw;right:8vw;bottom:6.5vh;z-index:1;"><div class="mg-runline"></div></div>`;
 
 const words = (s: unknown): number => String(s ?? '').trim().split(/\s+/).filter(Boolean).length;
 
@@ -188,17 +219,21 @@ function shell(
   },
 ): string {
   const k = ctx.kitPrefix;
+  // Agent-passed accents go INLINE on the scene element so they beat the pack/ground
+  // class tokens (element-level classes out-cascade a :root declaration).
   const theme = [
     ctx.accent ? `--mg-accent:${esc(ctx.accent)};` : '',
     ctx.accent2 ? `--mg-accent-2:${esc(ctx.accent2)};` : '',
   ].join('');
+  const fmt = formatOf(ctx);
+  const fmtCls = fmt === 'tall' ? ' mg-portrait mg-fmt-tall' : fmt === 'square' ? ' mg-fmt-sq' : '';
   const exitCls = opts.exit === 'none' ? '' : ` ${opts.exit ?? 'mg-exit-up'}`;
   return `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="${k}fonts/fonts.css">
 <link rel="stylesheet" href="${k}motion-kit/motion.css">
-<style>:root{${theme}}${opts.extraCss ?? ''}</style>
+<style>${opts.extraCss ?? ''}</style>
 </head><body>
-<div class="mg-scene ${opts.ground}${ctx.portrait ? ' mg-portrait' : ''}">
+<div class="mg-scene ${opts.ground} mg-style-${ctx.style}${fmtCls}"${theme ? ` style="${theme}"` : ''}>
   <div class="mg-wash"></div>
   ${opts.bg ?? ''}
   <div class="${opts.cam ?? camera(ctx)}" style="position:absolute;inset:0;">
@@ -234,16 +269,18 @@ const hookQuestion: Builder = (slots, ctx) => {
     ? { bg: '<div class="mg-particles" id="mg-stars"></div>', script: `<script>__mgScatter('mg-stars',{count:110,seed:${7 + ctx.sceneIndex}})</script>` }
     : { bg: '', script: '' };
   const echo = echoWord(question);
+  const fmt = formatOf(ctx);
+  const marginL = fmt === 'landscape' ? '11vw' : '9vw';
   const body = `
-  <div class="mg-fill" style="position:relative;z-index:2;display:flex;align-items:center;${ctx.portrait ? 'padding-top:6vh;' : ''}">
-    ${kicker ? `<div class="mg-vert mg-fade" style="--at:.05s;position:absolute;left:3.2vw;top:8vh;">${esc(kicker)}</div>` : ''}
-    <div class="mg-col" style="align-items:flex-start;text-align:left;gap:2.2vh;margin-left:11vw;max-width:72vw;">
+  <div class="mg-fill" style="position:relative;z-index:2;display:flex;align-items:center;${fmt === 'tall' ? 'padding-top:6vh;' : ''}">
+    ${kicker ? `<div class="mg-vert mg-fade mg-shimmer" style="--at:.05s;position:absolute;left:3.2vw;top:8vh;">${esc(kicker)}</div>` : ''}
+    <div class="mg-col" style="align-items:flex-start;text-align:left;gap:2.2vh;margin-left:${marginL};max-width:${fmt === 'landscape' ? '72vw' : '82vw'};">
       <h1 class="mg-title" style="font-size:1px;">${richLines(question, 9.4, 0.12)}</h1>
       ${sub ? `<div class="mg-rulelabel mg-lag" style="--at:${atFrac(0.26)}">${esc(sub)}</div>` : ''}
     </div>
   </div>`;
   const bg = `${stars.bg}
-  ${echo ? `<div class="mg-echo mg-outline mg-depth-bg" style="right:-6vw;bottom:-5vh;font-size:34vh;">${esc(echo)}</div>` : ''}
+  ${echo ? `<div class="mg-echo mg-outline" style="right:-6vw;bottom:-5vh;font-size:${dsize(34)};">${drift(`<span style="display:inline-block;">${esc(echo)}</span>`, { dur: 11, dx: '1.6vw', dy: '1vh' })}</div>` : ''}
   ${
     prop
       ? `<div class="mg-prop-hero br mg-depth-fg" style="z-index:1;"><div class="mg-breathe" style="--at:-1.2s;width:100%;height:100%;">${prop}</div></div>`
@@ -264,14 +301,17 @@ const heroStat: Builder = (slots, ctx) => {
   if (problems.length) return { problems };
   const ground = groundClass(ctx.style, slots.ground, ctx.sceneIndex);
   const shown = `${slots.prefix ?? ''}${value}${slots.suffix ?? ''}`;
+  const fmt = formatOf(ctx);
+  const statSize = fmt === 'landscape' ? dsize(34) : dsize(30);
   const body = `
-  <div class="mg-safe mg-fill" style="display:flex;flex-direction:column;justify-content:center;align-items:flex-start;position:relative;z-index:1;padding-left:10vw;">
+  <div class="mg-safe mg-fill" style="display:flex;flex-direction:column;justify-content:center;align-items:flex-start;position:relative;z-index:1;padding-left:${fmt === 'landscape' ? '10vw' : '8vw'};">
     ${kicker ? `<div class="mg-rulelabel mg-reveal" style="--at:.06s">${esc(kicker)}</div>` : ''}
-    <div class="mg-stress" style="--at:${atFrac(0.7)}"><div class="mg-stat mg-pop" style="--at:.25s;font-size:${dsize(30)};line-height:.85;letter-spacing:-0.035em;">${esc(slots.prefix ?? '')}<span data-count-to="${value}" data-count-from="${from}" data-count-start-frac="0.2" data-count-dur="1300" data-count-decimals="${decimals}">${from}</span>${esc(slots.suffix ?? '')}</div></div>
+    <div class="mg-stress" style="--at:${atFrac(0.7)}"><div class="mg-stat mg-pop" style="--at:.25s;font-size:${statSize};line-height:.85;letter-spacing:-0.035em;">${esc(slots.prefix ?? '')}<span data-count-to="${value}" data-count-from="${from}" data-count-start-frac="0.2" data-count-dur="1300" data-count-decimals="${decimals}">${from}</span>${esc(slots.suffix ?? '')}</div></div>
+    <div class="mg-bar" style="--at:${atFrac(0.45)};height:1vh;width:${fmt === 'landscape' ? '22vw' : '34vw'};background:var(--mg-accent);border-radius:0.5vh;margin:1.6vh 0 0.4vh;"></div>
     <div class="mg-lag" style="--at:${atFrac(0.42)};font-family:var(--mg-font-display);font-size:4.2vh;font-weight:600;margin-left:1vw;">${esc(label)}</div>
   </div>`;
-  const bg = `<div class="mg-echo mg-outline mg-depth-bg" style="right:-8vw;top:-8vh;font-size:${dsize(48)};font-family:var(--mg-font-data);">${esc(shown)}</div>`;
-  return { problems, html: shell(ctx, { ground, body, bg }) };
+  const bg = `<div class="mg-echo mg-outline" style="right:-8vw;top:-8vh;font-size:${dsize(48)};font-family:var(--mg-font-data);">${drift(`<span style="display:inline-block;">${esc(shown)}</span>`, { dur: 10, dx: '1.4vw', dy: '1.2vh' })}</div>`;
+  return { problems, html: shell(ctx, { ground, body: body + runline(0.55), bg }) };
 };
 
 /** A vs B comparison — slide-in halves, late verdict pop. */
@@ -288,24 +328,26 @@ const splitCompare: Builder = (slots, ctx) => {
   const R = side(slots.right, 'right');
   if (problems.length) return { problems };
   const ground = groundClass(ctx.style, slots.ground ?? 'light', ctx.sceneIndex);
-  const card = (s: { title: string; lines: string[]; icon: string }, cls: string, at: number) => `
-    <div class="${cls} mg-band" style="--at:${at}s;display:flex;flex-direction:column;gap:2.2vh;align-items:center;text-align:center;padding:4vh 2.5vw;flex:1;">
-      ${s.icon ? `<div class="mg-breathe" style="--at:-${(at + 1).toFixed(1)}s"><div class="mg-chip mg-contact" style="width:15vh;height:15vh;">${s.icon}</div></div>` : ''}
-      <div style="font-family:var(--mg-font-display);font-size:5.4vh;font-weight:600;">${esc(s.title)}</div>
-      <div class="mg-col mg-stagger" style="--at:${(at + 0.35).toFixed(2)}s;gap:1.2vh;">
-        ${s.lines.map((l) => `<div class="mg-label mg-reveal" style="font-size:3vh;">${esc(l)}</div>`).join('\n')}
+  const fmt = formatOf(ctx);
+  const stackedCards = fmt === 'tall';
+  const card = (s: { title: string; lines: string[]; icon: string }, cls: string, at: number, phase: number) => `
+    <div class="${cls} mg-card" style="--at:${at}s;display:flex;flex-direction:column;gap:2.2vh;align-items:center;justify-content:center;text-align:center;padding:${stackedCards ? '3.4vh 4vw' : '4.5vh 2.5vw'};flex:1;">
+      ${s.icon ? `<div class="mg-bob" style="--at:${-phase.toFixed(1)}s;animation-duration:4.4s;"><div class="mg-chip mg-contact" style="width:${dsize(14)};height:${dsize(14)};">${s.icon}</div></div>` : ''}
+      <div style="font-family:var(--mg-font-display);font-size:${dsize(5.8)};font-weight:700;">${esc(s.title)}</div>
+      <div class="mg-col mg-stagger" style="--at:${(at + 0.35).toFixed(2)}s;gap:1.3vh;">
+        ${s.lines.map((l) => `<div class="mg-reveal" style="font-size:${dsize(3.3)};font-weight:500;">${esc(l)}</div>`).join('\n')}
       </div>
     </div>`;
   const body = `
-  <div class="mg-safe mg-col mg-fill" style="display:flex;justify-content:center;gap:4vh;">
-    ${title ? `<div style="display:flex;flex-direction:column;align-items:center;"><h2 class="mg-title mg-reveal" style="--at:.05s;font-size:5.6vh;">${esc(title)}</h2></div>` : ''}
-    <div style="display:flex;flex-direction:${ctx.portrait ? 'column' : 'row'};align-items:stretch;justify-content:center;gap:${ctx.portrait ? '2.5vh' : '3vw'};max-width:${ctx.portrait ? '88vw' : '82vw'};margin:0 auto;width:100%;position:relative;">
+  <div class="mg-safe mg-col mg-fill" style="display:flex;justify-content:center;gap:${stackedCards ? '2.6vh' : '4vh'};">
+    ${title ? `<div style="display:flex;flex-direction:column;align-items:center;"><h2 class="mg-title mg-reveal" style="--at:.05s;font-size:${dsize(6)};">${esc(title)}</h2></div>` : ''}
+    <div style="display:flex;flex-direction:${stackedCards ? 'column' : 'row'};align-items:stretch;justify-content:center;gap:${stackedCards ? '2.5vh' : '2.5vw'};max-width:${fmt === 'landscape' ? '84vw' : '90vw'};margin:0 auto;width:100%;position:relative;${stackedCards ? '' : 'flex:1;max-height:56vh;'}">
       <div class="mg-echo mg-outline" style="left:50%;top:50%;transform:translate(-50%,-52%);font-size:${dsize(38)};z-index:0;">VS</div>
-      ${card(L, 'mg-slide-l', 0.12)}
-      <div class="mg-pop" style="--at:${atFrac(0.36)};align-self:center;font-family:var(--mg-font-data);font-weight:800;font-size:3.4vh;background:var(--mg-ink);color:var(--mg-bg);border-radius:50%;width:9vh;height:9vh;display:flex;align-items:center;justify-content:center;flex:none;">VS</div>
-      ${card(R, 'mg-slide-r', 0.44)}
+      ${card(L, 'mg-slide-l', 0.12, 1)}
+      <div class="mg-pulse mg-pop" style="--at:${atFrac(0.36)};align-self:center;font-family:var(--mg-font-data);font-weight:800;font-size:3.4vh;background:var(--mg-ink);color:var(--mg-bg);border-radius:50%;width:9vh;height:9vh;display:flex;align-items:center;justify-content:center;flex:none;z-index:1;">VS</div>
+      ${card(R, 'mg-slide-r', 0.44, 3)}
     </div>
-    ${verdict ? `<div style="display:flex;justify-content:center;"><div class="${ctx.style === 'vox' || ctx.style === 'broadcast' ? 'mg-label-vox' : 'mg-key'}" style="--at:${atFrac(0.74)};font-size:3.4vh;">${esc(verdict)}</div></div>` : ''}
+    ${verdict ? `<div style="display:flex;justify-content:center;"><div class="${ctx.style === 'vox' || ctx.style === 'broadcast' ? 'mg-label-vox' : 'mg-key'}" style="--at:${atFrac(0.74)};font-size:3.6vh;">${esc(verdict)}</div></div>` : ''}
   </div>`;
   return { problems, html: shell(ctx, { ground, body }) };
 };
@@ -323,20 +365,22 @@ const processSteps: Builder = (slots, ctx) => {
   }));
   if (problems.length) return { problems };
   const ground = groundClass(ctx.style, slots.ground ?? 'light', ctx.sceneIndex);
+  const psFmt = formatOf(ctx);
+  const psStacked = psFmt === 'tall';
   const body = `
-  <div class="mg-safe mg-fill ${ctx.portrait ? 'mg-col' : 'mg-split'}" style="align-items:${ctx.portrait ? 'stretch' : 'center'};${ctx.portrait ? 'display:flex;justify-content:space-evenly;' : ''}">
+  <div class="mg-safe mg-fill ${psStacked ? 'mg-col' : 'mg-split'}" style="align-items:${psStacked ? 'stretch' : 'center'};${psStacked ? 'display:flex;justify-content:space-evenly;' : ''}">
     <div class="mg-col mg-left" style="align-items:flex-start;text-align:left;">
       ${kicker ? `<div class="mg-kicker mg-reveal" style="--at:.05s">${esc(kicker)}</div>` : ''}
-      <h1 class="mg-title" style="font-size:6.4vh;">${maskLines(title, 'mg-title', 0.15)}</h1>
+      <h1 class="mg-title" style="font-size:${dsize(6.6)};">${maskLines(title, 'mg-title', 0.15)}</h1>
     </div>
     <div class="mg-col mg-stagger" style="--at:${atFrac(0.14)};--stagger:calc(var(--scene-s, 8) * 0.11s);gap:2.2vh;">
       ${items
         .map(
           (s, i) => `
-      <div class="mg-band mg-slide-r mg-row" style="gap:2vw;align-items:center;margin-left:${(i * 2.4).toFixed(1)}vw;">
-        <div class="mg-kicker" style="font-size:3vh;min-width:4.5vh;">${i + 1}</div>
-        ${s.icon ? `<div class="mg-chip" style="width:8vh;height:8vh;">${s.icon}</div>` : ''}
-        <div style="font-size:3.1vh;font-weight:600;">${esc(s.label)}</div>
+      <div class="mg-card mg-slide-r mg-row" style="gap:2vw;align-items:center;margin-left:${(i * 2.4).toFixed(1)}vw;padding:2vh 2.6vw;">
+        <div class="mg-kicker" style="font-size:3.2vh;min-width:4.5vh;">${i + 1}</div>
+        ${s.icon ? `<div class="mg-bob" style="--at:-${(i * 1.3 + 0.5).toFixed(1)}s;animation-duration:4.6s;"><div class="mg-chip" style="width:${dsize(8)};height:${dsize(8)};">${s.icon}</div></div>` : ''}
+        <div style="font-size:${dsize(3.3)};font-weight:600;">${esc(s.label)}</div>
       </div>`,
         )
         .join('\n')}
@@ -390,18 +434,25 @@ const callout: Builder = (slots, ctx) => {
   const tone = ctx.style === 'nordic' ? '' : slots.tone === 'danger' ? ' danger' : slots.tone === 'money' ? ' money' : '';
   const calloutCls = ctx.style === 'nordic' ? 'mg-label-vox ink' : 'mg-callout';
   const ground = groundClass(ctx.style, slots.ground ?? 'home', ctx.sceneIndex);
+  const fmt = formatOf(ctx);
+  const stacked = fmt === 'tall';
+  // The big number is a HERO STAT above the boxed label, never inline inside it (the
+  // audit's worst frames: a giant icon dwarfing a tiny box reading "28HEAT KILLS…").
   const body = `
-  <div class="mg-safe mg-fill ${ctx.portrait ? 'mg-col mg-center' : 'mg-split'}" style="align-items:center;${ctx.portrait ? 'display:flex;justify-content:space-evenly;' : ''}">
+  <div class="mg-safe mg-fill ${stacked ? 'mg-col mg-center' : 'mg-split'}" style="align-items:center;${stacked ? 'display:flex;justify-content:space-evenly;' : ''}">
     <div style="position:relative;display:flex;justify-content:center;">
-      <div class="mg-bob" style="--at:-1s;width:${dsize(34)};height:${dsize(34)};"><div class="mg-pop mg-contact" style="--at:.15s;width:100%;height:100%;">${subject}</div></div>
+      <div class="mg-bob" style="--at:-1s;width:${dsize(26)};height:${dsize(26)};"><div class="mg-pop mg-contact" style="--at:.15s;width:100%;height:100%;">${subject}</div></div>
       ${subjectLabel ? `<div class="mg-tag" style="left:12%;top:6%;--at:${atFrac(0.3)}">${esc(subjectLabel)}</div>` : ''}
     </div>
-    <div class="mg-col" style="align-items:flex-start;gap:2.4vh;">
+    <div class="mg-col" style="align-items:${stacked ? 'center' : 'flex-start'};gap:2.2vh;${stacked ? 'text-align:center;' : ''}">
       ${kicker ? `<div class="mg-kicker mg-reveal" style="--at:.1s">${esc(kicker)}</div>` : ''}
-      <div class="${calloutCls}${tone}" style="--at:${atFrac(0.42)};">${big ? `<span class="big"><span data-count-to="${Number(big) || 0}" data-count-start-frac="0.5" data-count-dur="1000">0</span></span>` : ''}${esc(text)}</div>
+      ${big ? `<div class="mg-stress" style="--at:${atFrac(0.72)}"><div class="mg-stat mg-pop" style="--at:${atFrac(0.34)};font-size:${dsize(17)};line-height:.9;"><span data-count-to="${Number(big) || 0}" data-count-start-frac="0.34" data-count-dur="1100">0</span></div></div>` : ''}
+      <div class="${calloutCls}${tone}" style="--at:${atFrac(0.5)};font-size:${dsize(3.4)};">${esc(text)}</div>
     </div>
   </div>`;
-  return { problems, html: shell(ctx, { ground, body }) };
+  const echo = big || echoWord(text);
+  const bg = echo ? `<div class="mg-echo mg-outline" style="left:-5vw;bottom:-6vh;font-size:${dsize(36)};font-family:var(--mg-font-data);">${drift(`<span style="display:inline-block;">${esc(echo)}</span>`, { dur: 12, dx: '1.2vw', dy: '0.9vh' })}</div>` : '';
+  return { problems, html: shell(ctx, { ground, body: body + (stacked ? '' : runline(0.6)), bg }) };
 };
 
 /** The nutshell mascot acts a beat — comedy/empathy carrier. */
@@ -448,14 +499,17 @@ const chartInsight: Builder = (slots, ctx) => {
     insightHtml = `${esc(insight.slice(0, idx))}<span class="${ctx.style === 'vox' ? 'mg-highlight' : 'mg-mark'}" style="--at:${atFrac(0.66)}">${esc(insight.slice(idx, idx + hi.length))}</span>${esc(insight.slice(idx + hi.length))}`;
   }
   const ground = groundClass(ctx.style, slots.ground ?? 'light', ctx.sceneIndex);
+  const ciFmt = formatOf(ctx);
+  const ciStacked = ciFmt === 'tall';
   const body = `
-  <div class="mg-safe mg-fill ${ctx.portrait ? 'mg-col' : 'mg-split'}" style="align-items:center;${ctx.portrait ? 'display:flex;justify-content:space-evenly;' : ''}">
-    <div class="mg-reveal mg-band" style="--at:.15s;padding:3vh 2vw;display:flex;align-items:center;justify-content:center;${ctx.portrait ? 'width:100%;' : ''}">
-      <div style="width:100%;max-height:64vh;">${chart}</div>
-    </div>
+  <div class="mg-safe mg-fill ${ciStacked ? 'mg-col' : 'mg-split'}" style="align-items:center;${ciStacked ? 'display:flex;justify-content:space-evenly;' : ''}">
+    ${drift(`<div class="mg-reveal mg-card" style="--at:.15s;padding:3.4vh 2.4vw;display:flex;align-items:center;justify-content:center;${ciStacked ? 'width:100%;' : ''}">
+      <div style="width:100%;max-height:${ciStacked ? '48vh' : '64vh'};">${chart}</div>
+    </div>`, { dur: 12, dx: '0.5vw', dy: '0.6vh' })}
     <div class="mg-col mg-left" style="align-items:flex-start;text-align:left;gap:2.4vh;">
       ${kicker ? `<div class="mg-kicker mg-reveal" style="--at:.05s">${esc(kicker)}</div>` : ''}
-      <h2 style="font-family:var(--mg-font-display);font-size:5.2vh;line-height:1.2;font-weight:600;"><span class="mg-mask"><span class="mg-rise" style="--at:${atFrac(0.32)}">${insightHtml}</span></span></h2>
+      <h2 style="font-family:var(--mg-font-display);font-size:${dsize(5.4)};line-height:1.2;font-weight:600;"><span class="mg-mask"><span class="mg-rise" style="--at:${atFrac(0.32)}">${insightHtml}</span></span></h2>
+      <div class="mg-bar" style="--at:${atFrac(0.5)};height:0.8vh;width:16vw;background:var(--mg-accent);border-radius:0.4vh;"></div>
     </div>
   </div>`;
   return { problems, html: shell(ctx, { ground, body }) };
@@ -471,13 +525,15 @@ const quotePunch: Builder = (slots, ctx) => {
   if (problems.length) return { problems };
   const ground = groundClass(ctx.style, slots.ground ?? 'accent', ctx.sceneIndex);
   const maxLen = Math.max(...texts.map((t) => t.length), 1);
+  const qpEcho = echoWord(texts.join(' '));
   const body = `
-  <div class="mg-safe mg-center mg-col mg-fill" style="display:flex;gap:1.2vh;">
+  <div class="mg-safe mg-center mg-col mg-fill" style="display:flex;gap:1.2vh;position:relative;z-index:1;">
     <h1 class="mg-title" style="font-size:1px;display:flex;flex-direction:column;gap:.6vh;align-items:center;">
-      ${texts.map((t, i) => `<span class="mg-mask"><span class="mg-rise" style="--at:${i === 0 ? '.15s' : atFrac(0.1 + i * 0.16)};font-size:${(8.6 * Math.min(1.6, Math.max(0.72, maxLen / Math.max(t.length, 1)))).toFixed(1)}vh;line-height:1.04;display:inline-block;${i % 2 ? 'font-style:italic;' : ''}">${esc(t)}</span></span>`).join('\n')}
+      ${texts.map((t, i) => `<span class="mg-mask"><span class="mg-rise" style="--at:${i === 0 ? '.15s' : atFrac(0.1 + i * 0.16)};font-size:min(${(8.6 * Math.min(1.6, Math.max(0.72, maxLen / Math.max(t.length, 1)))).toFixed(1)}vh, ${(9.9 * Math.min(1.6, Math.max(0.72, maxLen / Math.max(t.length, 1)))).toFixed(1)}vw);line-height:1.04;display:inline-block;${i % 2 ? 'font-style:italic;' : ''}">${esc(t)}</span></span>`).join('\n')}
     </h1>
-    ${attribution ? `<div class="mg-label mg-lag" style="--at:${atFrac(0.6)};font-size:2.6vh;">${esc(attribution)}</div>` : ''}
-  </div>`;
+    ${attribution ? `<div class="mg-label mg-lag mg-shimmer" style="--at:${atFrac(0.6)};font-size:2.6vh;">${esc(attribution)}</div>` : ''}
+  </div>
+  ${qpEcho ? `<div class="mg-echo mg-outline" style="right:-5vw;top:-6vh;font-size:${dsize(30)};">${drift(`<span style="display:inline-block;">${esc(qpEcho)}</span>`, { dur: 11, dx: '1.3vw', dy: '1vh' })}</div>` : ''}`;
   return { problems, html: shell(ctx, { ground, body }) };
 };
 
@@ -493,23 +549,24 @@ const listRecap: Builder = (slots, ctx) => {
   }));
   if (problems.length) return { problems };
   const ground = groundClass(ctx.style, slots.ground ?? 'dark', ctx.sceneIndex);
+  const lrFmt = formatOf(ctx);
   const body = `
-  <div class="mg-safe mg-col mg-fill" style="display:flex;justify-content:center;gap:2.6vh;max-width:64vw;margin:0 auto;">
+  <div class="mg-safe mg-col mg-fill" style="display:flex;justify-content:center;gap:2.6vh;max-width:${lrFmt === 'landscape' ? '64vw' : '84vw'};margin:0 auto;">
     ${title ? `<div class="mg-kicker mg-reveal" style="--at:.05s;font-size:2.6vh;">${esc(title)}</div>` : ''}
     <div class="mg-col mg-stagger" style="--at:${atFrac(0.12)};--stagger:calc(var(--scene-s, 8) * 0.12s);gap:2vh;">
       ${items
         .map(
           (s, i) => `
       <div class="mg-slide-l mg-row" style="gap:2vw;align-items:center;margin-left:${(i * 2.2).toFixed(1)}vw;">
-        <div class="mg-stat" style="font-size:4.6vh;min-width:6vh;">${i + 1}</div>
-        ${s.icon ? `<div class="mg-chip" style="width:8.6vh;height:8.6vh;">${s.icon}</div>` : ''}
-        <div style="font-size:3.4vh;font-weight:600;">${esc(s.label)}</div>
+        <div class="mg-stat" style="font-size:${dsize(4.8)};min-width:6vh;">${i + 1}</div>
+        ${s.icon ? `<div class="mg-bob" style="--at:-${(i * 1.1 + 0.4).toFixed(1)}s;animation-duration:4.8s;"><div class="mg-chip" style="width:${dsize(8.6)};height:${dsize(8.6)};">${s.icon}</div></div>` : ''}
+        <div style="font-size:${dsize(3.5)};font-weight:600;">${esc(s.label)}</div>
       </div>`,
         )
         .join('\n')}
     </div>
   </div>`;
-  return { problems, html: shell(ctx, { ground, body, cam: 'mg-cam-out' }) };
+  return { problems, html: shell(ctx, { ground, body: body + runline(0.5), cam: 'mg-cam-out' }) };
 };
 
 /** The punch-out ending — short, kinetic, pays off the hook. Pair with a short narration. */
@@ -523,13 +580,13 @@ const endPunch: Builder = (slots, ctx) => {
   const last = ws.pop() ?? '';
   const body = `
   <div class="mg-safe mg-center mg-col mg-fill" style="display:flex;gap:1vh;position:relative;z-index:1;">
-    <h1 class="mg-title" style="font-size:7vh;display:flex;flex-direction:column;align-items:center;gap:.4vh;">
+    <h1 class="mg-title" style="font-size:${dsize(7)};display:flex;flex-direction:column;align-items:center;gap:.4vh;">
       <span class="mg-words" style="--at:.1s;--wstag:.07s;">${esc(ws.join(' '))}</span>
-      <span class="mg-mask" style="display:block;"><span class="mg-rise mg-key" style="--at:${(0.3 + ws.length * 0.07).toFixed(2)}s;color:${ground === 'mg-ground-accent' ? '#fff' : 'var(--mg-accent)'};font-size:${dsize(16)};line-height:.9;letter-spacing:-0.02em;display:inline-block;">${esc(last)}</span></span>
+      <span class="mg-mask" style="display:block;"><span class="mg-rise" style="--at:${(0.3 + ws.length * 0.07).toFixed(2)}s;display:inline-block;"><span class="mg-breathe" style="--at:-1.6s;display:inline-block;"><span class="mg-key" style="--at:${(0.32 + ws.length * 0.07).toFixed(2)}s;color:${ground === 'mg-ground-accent' ? '#fff' : 'var(--mg-accent)'};font-size:${dsize(16)};line-height:.9;letter-spacing:-0.02em;">${esc(last)}</span></span></span></span>
     </h1>
     ${sub ? `<div class="mg-rulelabel mg-lag" style="--at:${atFrac(0.5)};color:inherit;opacity:.8;">${esc(sub)}</div>` : ''}
   </div>
-  <div class="mg-echo mg-outline mg-depth-bg" style="left:-5vw;bottom:-7vh;font-size:${dsize(34)};">${esc(last)}</div>`;
+  <div class="mg-echo mg-outline" style="left:-5vw;bottom:-7vh;font-size:${dsize(34)};">${drift(`<span style="display:inline-block;">${esc(last)}</span>`, { dur: 10, dx: '1.5vw', dy: '1vh' })}</div>`;
   return { problems, html: shell(ctx, { ground, body, cam: 'mg-cam-in', exit: 'mg-exit-scale' }) };
 };
 

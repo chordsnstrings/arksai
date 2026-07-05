@@ -60,9 +60,15 @@ export interface StillnessVerdict {
   maxDiff: number;
   sampled: number;
   static: boolean;
+  /** Above the hard floor but reads near-static (camera-only drift) — advisory, not fatal. */
+  weak: boolean;
 }
 
 const STILLNESS_THRESHOLD = 0.18; // YAVG of the diff; alive scenes with a camera move clear this by 5-50×
+// The living-frame doctrine (2026-07-05): scaffold scenes with ambient drift/idles measure
+// 1.5+ mid-scene; below this the frame reads as a slide with a slow zoom. Advisory only —
+// legitimate ultra-restrained scenes (nordic) may sit here by design.
+const WEAK_MOTION_THRESHOLD = 0.6;
 
 /** Measure motion across the captured frames of one scene (frames still on disk). */
 export async function auditSceneMotion(
@@ -89,7 +95,7 @@ export async function auditSceneMotion(
     }
   }
   if (!sampled) return null; // could not measure — never fail a scene on missing evidence
-  return { maxDiff, sampled, static: maxDiff < STILLNESS_THRESHOLD };
+  return { maxDiff, sampled, static: maxDiff < STILLNESS_THRESHOLD, weak: maxDiff < WEAK_MOTION_THRESHOLD };
 }
 
 export interface FillVerdict {
