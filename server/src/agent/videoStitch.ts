@@ -119,6 +119,32 @@ export async function burnCaptions(videoAbs: string, outAbs: string, text: strin
   }
 }
 
+/**
+ * ENDING polish (operator 2026-07-05: "ending is pretty abrupt"): fade the final
+ * `fadeS` seconds of video to black AND ramp the audio down, so a video (and its music
+ * bed) lands instead of stopping mid-note. One re-encode of the assembled file.
+ */
+export function fadeOutCmd(videoIn: string, out: string, durS: number, fadeS = 0.9): string {
+  const st = Math.max(0, durS - fadeS).toFixed(3);
+  const f = fadeS.toFixed(3);
+  return (
+    `ffmpeg -v error -i ${q(videoIn)} -vf "fade=t=out:st=${st}:d=${f}" -af "afade=t=out:st=${st}:d=${f}" ` +
+    `-c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a aac -b:a 160k -movflags +faststart -y ${q(out)}`
+  );
+}
+
+/** Apply the ending fade; false (and no output) on failure — callers keep the plain file. */
+export async function applyFadeOut(videoAbs: string, outAbs: string, fadeS = 0.9, signal?: AbortSignal): Promise<boolean> {
+  try {
+    const durS = await probeDuration(videoAbs, path.dirname(videoAbs), signal);
+    if (!durS) return false;
+    await run(fadeOutCmd(videoAbs, outAbs, durS, fadeS), path.dirname(outAbs), signal);
+    return fs.existsSync(outAbs) && fs.statSync(outAbs).size > 10_000;
+  } catch {
+    return false;
+  }
+}
+
 /** Extract the FIRST frame (continuity QC compares it against the previous scene's last). */
 export function firstFrameCmd(clip: string, outJpg: string): string {
   return `ffmpeg -v error -i ${q(clip)} -frames:v 1 -y ${q(outJpg)}`;

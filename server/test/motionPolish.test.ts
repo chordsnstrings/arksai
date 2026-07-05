@@ -271,3 +271,30 @@ test('polish doctrine locks: kit v2 classes, MOTION.md hook/pacing/transitions, 
   assert.ok(params.properties.scenes.items.properties.scaffold, 'scenes accept scaffold specs');
   assert.deepEqual(params.properties.scenes.items.properties.transition.enum, ['cut', 'dip', 'dip-white', 'dissolve', 'wipe', 'slide', 'circle']);
 });
+
+// ---------------- narration-sync + ending fixes (operator 2026-07-05 #2) ----------------
+
+import { fadeOutCmd } from '../src/agent/videoStitch';
+
+test('ending: fade-out command ramps video+audio over the final ~0.9s', () => {
+  const cmd = fadeOutCmd('/v.mp4', '/out.mp4', 73.4, 0.9);
+  assert.match(cmd, /fade=t=out:st=72\.500:d=0\.900/);
+  assert.match(cmd, /afade=t=out:st=72\.500:d=0\.900/);
+  const tool = fs.readFileSync(path.join(__dirname, '../src/agent/tools/motionVideo.ts'), 'utf8');
+  assert.match(tool, /finishWithFade/);
+  assert.match(tool, /extraTailMs: i === list\.length - 1/, 'the final scene breathes before the fade');
+});
+
+test('narration sync: scaffold secondary reveals are PROPORTIONAL to the scene duration', () => {
+  const stat = materializeScaffold({ id: 'hero-stat', slots: MINIMAL_SLOTS['hero-stat'] }, ctx('clean', 1)).html!;
+  assert.match(stat, /data-count-start-frac="0\.2"/, 'counter starts as a fraction of the narration');
+  assert.match(stat, /calc\(var\(--scene-s, 8\) \* 0\.42s\)/, 'label lands mid-narration');
+  const steps = materializeScaffold({ id: 'process-steps', slots: MINIMAL_SLOTS['process-steps'] }, ctx('clean', 1)).html!;
+  assert.match(steps, /--stagger:calc\(var\(--scene-s, 8\) \* 0\.11s\)/, 'steps spread across the scene');
+  const js = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.js'), 'utf8');
+  assert.match(js, /data-count-start-frac/);
+  assert.match(js, /data-tw-start-frac/);
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  assert.match(md, /THE ENDING LANDS/);
+  assert.match(md, /PROPORTIONALLY across the scene/);
+});

@@ -5,7 +5,7 @@ import { resolveInWorkspace, type ToolDef } from './common';
 import { config, repoRoot } from '../../config';
 import { synthesizeSpeechBuffer, ttsAvailable, analyzeImage, fileToDataUrl } from '../../engines/minimax';
 import { generateMusic } from '../../engines/suno';
-import { stitchClips, stitchClipsSegmented, mixMusicBed, probeDuration, ffmpegAvailable } from '../videoStitch';
+import { stitchClips, stitchClipsSegmented, mixMusicBed, applyFadeOut, probeDuration, ffmpegAvailable } from '../videoStitch';
 import { captureScene, captureSpotFrame, auditSceneHtml } from '../motion/capture';
 import { encodeSceneVideo, pickFps, DIMENSION_PRESETS, frameName, frameCount } from '../motion/encode';
 import { materializeScaffold, workspaceAssetReader, SCAFFOLD_IDS, SCAFFOLD_DOC } from '../motion/scaffolds';
@@ -54,6 +54,7 @@ interface MotionScene {
   narrationHash?: string;
   durationMs?: number;
   minMs?: number;
+  extraTailMs?: number; // the FINAL scene breathes before the fade-out
   status: 'pending' | 'ok' | 'failed';
   error?: string;
   qcDefects?: string[];
@@ -194,10 +195,10 @@ async function renderScene(
     await ttsScene(m, s, repoDir, signal, addCost);
     const audioS = await probeDuration(path.join(repoDir, s.audioFile!), repoDir, signal);
     if (!audioS) throw new Error(`scene ${s.id}: could not measure the narration audio`);
-    s.durationMs = Math.max(Math.round(audioS * 1000) + m.holdLeadMs + m.holdTailMs, s.minMs ?? 0);
+    s.durationMs = Math.max(Math.round(audioS * 1000) + m.holdLeadMs + m.holdTailMs + (s.extraTailMs ?? 0), s.minMs ?? 0);
   } else {
     s.audioFile = undefined;
-    s.durationMs = Math.max(s.minMs ?? 0, 2000);
+    s.durationMs = Math.max(s.minMs ?? 0, 2000) + (s.extraTailMs ?? 0);
   }
 
   const framesDir = path.join(repoDir, dirName(m.id), `frames-${s.id}`);
@@ -334,12 +335,19 @@ async function assemble(m: MotionManifest, repoDir: string, signal: AbortSignal,
     if (m.musicFile) {
       const scored = path.join(repoDir, `${dirName(m.id)}/explainer-scored.mp4`);
       if (await mixMusicBed(outAbs, path.join(repoDir, m.musicFile), scored, { duck: true, signal })) {
-        m.stitched = `${dirName(m.id)}/explainer-scored.mp4`;
+        m.stitched = (await finishWithFade(scored, repoDir, m.id, signal)) ?? `${dirName(m.id)}/explainer-scored.mp4`;
         return;
       }
     }
   }
-  m.stitched = outRel;
+  m.stitched = (await finishWithFade(outAbs, repoDir, m.id, signal)) ?? outRel;
+}
+
+/** The ending lands, never stops: fade the last ~0.9s of video+audio to black. */
+async function finishWithFade(videoAbs: string, repoDir: string, id: string, signal: AbortSignal): Promise<string | null> {
+  const rel = `${dirName(id)}/explainer-final.mp4`;
+  const ok = await applyFadeOut(videoAbs, path.join(repoDir, rel), 0.9, signal);
+  return ok ? rel : null;
 }
 
 function describe(m: MotionManifest): string {
@@ -573,6 +581,7 @@ export const renderMotionVideoTool: ToolDef = {
         scaffoldId: s?.scaffold?.id ? String(s.scaffold.id) : undefined,
         transition: TRANSITION_KINDS[String(s?.transition ?? '')] ? String(s.transition) : undefined,
         minMs: s.min_ms ? Math.min(30_000, Math.max(0, Number(s.min_ms))) : undefined,
+        extraTailMs: i === list.length - 1 ? 800 : undefined, // the ending breathes, then fades
         status: 'pending',
       }));
       // fps derives from a rough total estimate: ~145 words/min narration + holds.

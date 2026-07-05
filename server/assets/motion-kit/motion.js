@@ -42,13 +42,21 @@
     root.style.setProperty('--scene-s', String(ms / 1000));
   };
 
+  // Proportional start times: data-*-frac attributes resolve against the scene duration,
+  // so a reveal lands mid-narration regardless of how long the narration turned out to be.
+  function startOf(el, fracAttr, fixedAttr) {
+    var fr = el.getAttribute(fracAttr);
+    if (fr != null) return parseFloat(fr) * (window.__sceneMs || 8000);
+    return parseFloat(el.getAttribute(fixedAttr) || '0');
+  }
+
   // Typewriter: remember each element's full text once, then slice by time.
   function typewriter(ms) {
     var els = document.querySelectorAll('[data-typewriter]');
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
       if (el.__mgFull === undefined) el.__mgFull = el.textContent || '';
-      var start = parseFloat(el.getAttribute('data-tw-start') || '0');
+      var start = startOf(el, 'data-tw-start-frac', 'data-tw-start');
       var cps = parseFloat(el.getAttribute('data-tw-cps') || '24'); // chars per second
       var shown = Math.max(0, Math.floor(((ms - start) / 1000) * cps));
       el.textContent = el.__mgFull.slice(0, Math.min(el.__mgFull.length, shown));
@@ -62,7 +70,7 @@
       var el = els[i];
       var to = parseFloat(el.getAttribute('data-count-to') || '0');
       var from = parseFloat(el.getAttribute('data-count-from') || '0');
-      var start = parseFloat(el.getAttribute('data-count-start') || '0');
+      var start = startOf(el, 'data-count-start-frac', 'data-count-start');
       var dur = Math.max(1, parseFloat(el.getAttribute('data-count-dur') || '1200'));
       var dec = parseInt(el.getAttribute('data-count-decimals') || '0', 10);
       var p = Math.min(1, Math.max(0, (ms - start) / dur));
