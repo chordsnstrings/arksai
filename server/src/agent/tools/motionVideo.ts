@@ -152,7 +152,7 @@ async function qcScene(m: MotionManifest, s: MotionScene, repoDir: string, htmlA
   for (let idx = 0; idx < times.length; idx++) {
     const atMs = times[idx];
     const spot = path.join(repoDir, dirName(m.id), `.qc-${s.id}-${idx}.jpg`);
-    const position = idx === 0 ? 'EARLY (~1s in — the scene must already read composed: headline landed, no half-assembled layout)' : idx === 1 ? 'MID (fully assembled)' : 'LATE (still assembled; exits have not started)';
+    const position = idx === 0 ? 'EARLY (~1s in — the HEADLINE and primary anchor must have landed; secondary labels/counters arrive later BY DESIGN, so do NOT flag sparseness or a mid-count number here)' : idx === 1 ? 'MID (fully assembled — judge fill and composition on THIS frame)' : 'LATE (still assembled; exits have not started; counters show final values)';
     try {
       await captureSpotFrame(htmlAbs, { width: m.width, height: m.height, durationMs: s.durationMs!, atMs, outAbs: spot }, signal);
       const v = await analyzeImage(
