@@ -161,6 +161,7 @@ async function qcScene(m: MotionManifest, s: MotionScene, repoDir: string, htmlA
           'Grade it like a senior motion-design director against the media-house bar. Answer "OK" if clean, or list concrete problems, one per line (max 3): ' +
           'unreadable/clipped/overflowing text or low-contrast kicker; an icon that does NOT depict its adjacent label (name both); ' +
           'a mostly-empty or half-assembled frame; floating icon-on-flat-background with no ground/depth; ' +
+          'slide-like typography (uniform text sizes in one centered stack — demand scale contrast and creative placement); ' +
           'more than ~12 words on screen; content contradicting the narration.',
         signal,
       );

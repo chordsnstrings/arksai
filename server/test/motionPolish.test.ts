@@ -298,3 +298,19 @@ test('narration sync: scaffold secondary reveals are PROPORTIONAL to the scene d
   assert.match(md, /THE ENDING LANDS/);
   assert.match(md, /PROPORTIONALLY across the scene/);
 });
+
+test('typography-as-set: kit primitives + scaffold compositions are not slide-like', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  for (const cls of ['.mg-giant', '.mg-outline', '.mg-echo', '.mg-vert', '.mg-rulelabel', '.mg-tilt-l'])
+    assert.ok(css.includes(cls), `motion.css has ${cls}`);
+  const hook = materializeScaffold({ id: 'hook-question', slots: { kicker: 'THE QUESTION', question: 'Pay off debt, or invest the difference?' } }, ctx('vox', 0)).html!;
+  assert.match(hook, /mg-vert/, 'vertical kicker rail');
+  assert.match(hook, /mg-echo mg-outline/, 'outlined background echo word');
+  const sizes = [...hook.matchAll(/font-size:(\d+(?:\.\d+)?)vh/g)].map((m) => Number(m[1]));
+  assert.ok(Math.max(...sizes) / Math.min(...sizes.filter((s) => s > 1)) >= 3, `scale contrast ≥3x (${sizes.join(',')})`);
+  const stat = materializeScaffold({ id: 'hero-stat', slots: MINIMAL_SLOTS['hero-stat'] }, ctx('clean', 1)).html!;
+  assert.match(stat, /font-size:32vh/, 'the stat is enormous');
+  assert.match(stat, /mg-echo mg-outline/);
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  assert.match(md, /TYPOGRAPHY IS THE SET/);
+});

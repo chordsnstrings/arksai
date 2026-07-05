@@ -414,3 +414,40 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
 /* Text-over-plate scrim (raw text over imagery is a student tell). */
 .mg-plate-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 34%, rgba(10, 10, 12, 0.62) 100%); }
 .mg-plate-scrim.top { background: linear-gradient(0deg, transparent 40%, rgba(10, 10, 12, 0.58) 100%); }
+
+/* ============================ TYPOGRAPHY AS SET DESIGN (2026-07-05) ============================
+ * Slide-like type (uniform sizes, one centered stack) is a student tell. These primitives
+ * build typographic SCENES: huge scale contrast (≥3× between display and labels), mixed
+ * sizes inside one headline, outlined echo words as background texture, vertical rails,
+ * type that bleeds off-frame. Tilt/echo carry transforms — wrap, don't stack, with
+ * animated elements. */
+.mg-giant {
+  font-family: var(--mg-font-display); font-weight: 700;
+  font-size: 24vh; line-height: 0.86; letter-spacing: -0.03em; text-wrap: balance;
+}
+/* Outlined (hollow) type — echo words, background numbers. */
+.mg-outline {
+  -webkit-text-stroke: 0.3vh color-mix(in srgb, var(--mg-ink) 60%, transparent);
+  color: transparent;
+}
+/* A giant background echo word/number: texture, not content. Bleeds off-frame. */
+.mg-echo {
+  position: absolute; z-index: 0; opacity: 0.09; pointer-events: none;
+  white-space: nowrap; font-family: var(--mg-font-display); font-weight: 700;
+  letter-spacing: -0.02em; line-height: 0.8;
+}
+/* Vertical editorial rail label (writing-mode) — an edge anchor, not a slide element. */
+.mg-vert {
+  writing-mode: vertical-rl; text-orientation: mixed;
+  font-family: var(--mg-font-data); font-size: 1.9vh; letter-spacing: 0.34em;
+  text-transform: uppercase; color: var(--mg-muted);
+}
+/* Slight print-shop tilt for stamps/labels (wrapper class — transform conflicts). */
+.mg-tilt-l { transform: rotate(-2.5deg); } .mg-tilt-r { transform: rotate(2deg); }
+/* Hairline rule + tracked caps — the label treatment that isn't a subtitle. */
+.mg-rulelabel {
+  display: inline-flex; align-items: center; gap: 1.4vw;
+  font-family: var(--mg-font-data); font-size: 2.2vh; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--mg-muted);
+}
+.mg-rulelabel::before { content: ''; width: 6vw; height: 1px; background: color-mix(in srgb, var(--mg-ink) 40%, transparent); }

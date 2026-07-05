@@ -94,6 +94,18 @@ on a label/shadow so it trails its owner, `.mg-squash` on landings, `.mg-stress`
 when the narration stresses an element. Before finishing a scene, scan it: anything that
 would sit pixel-frozen for more than a second needs an idle or a camera.
 
+## TYPOGRAPHY IS THE SET (never slide-like)
+A uniform-size centered text stack reads as a slide. Every scene's type is COMPOSED:
+- SCALE CONTRAST ≥3×: one element set huge (`.mg-giant`, a 25-32vh stat, a 15vh+ key
+  word) against small tracked labels (`.mg-rulelabel`, `.mg-vert`). Mixed sizes INSIDE a
+  headline: short lines huge, long lines smaller (scaffolds do this automatically).
+- TEXTURE TYPE: a giant outlined echo word/number in the background (`.mg-echo
+  mg-outline`, ~35-50vh, opacity ≤0.1, bleeding off-frame, drifting on `.mg-depth-bg`).
+- PLACEMENT: off-center blocks, edge anchors (`.mg-vert` vertical rail kickers),
+  staircase indents on lists, a `.mg-tilt-l/r` wrapper on a stamp/label — never
+  everything centered.
+- Type may BLEED off-frame when it's texture; content type stays inside `.mg-safe`.
+
 ## KINETIC TYPE (text performs; it is never merely placed)
 - Titles: masked line rise — `<span class="mg-mask"><span class="mg-rise">Line</span></span>`,
   lines staggered 80–120ms.
