@@ -41,6 +41,7 @@ const TOOL_LABEL: Record<string, string> = {
   generate_video: 'Filming the clip',
   render_motion_video: 'Animating the scenes',
   search_assets: 'Picking the artwork',
+  search_photos: 'Finding real photography',
   fetch_asset: 'Fetching your asset',
   generate_music: 'Composing the track',
   switch_mode: 'Switching gears',

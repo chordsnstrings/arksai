@@ -1,0 +1,273 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { materializeScaffold, SCAFFOLD_IDS, groundClass, type ScaffoldCtx } from '../src/agent/motion/scaffolds';
+import { stillnessPairs, parseSignalstat, isPacingMonotone, hookProblems, frameDiffCmd, cellStdevCmd } from '../src/agent/motion/qc';
+import { xfadeCmd, XFADE_KINDS, stitchClipsSegmented } from '../src/agent/videoStitch';
+import {
+  pexelsSearchUrl,
+  parsePexels,
+  openverseSearchUrl,
+  parseOpenverse,
+  wikimediaSearchUrl,
+  parseWikimedia,
+  searchPhotos,
+  __setPexelsKeyForTest,
+} from '../src/agent/assets/photos';
+import { renderMotionVideoTool } from '../src/agent/tools/motionVideo';
+
+// ---------------- scaffolds: every archetype × every pack materializes ----------------
+
+const MINIMAL_SLOTS: Record<string, any> = {
+  'hook-question': { question: 'Why does your heart attack itself?' },
+  'hero-stat': { value: 142, label: 'the number that matters', suffix: ' mg' },
+  'split-compare': { left: { title: 'Pay debt', lines: ['guaranteed 7%'] }, right: { title: 'Invest', lines: ['average 7%'] }, verdict: 'a dead tie' },
+  'process-steps': { title: 'Three moves that work', steps: [{ label: 'Eat soluble fibre' }, { label: 'Move every day' }] },
+  'annotated-plate': { plate: 'assets/photos/pexels-1.jpg', labels: [{ text: 'THE EVIDENCE', x: '8%', y: '20%' }], headline: 'Where your money goes' },
+  callout: { subject: 'assets/icon.svg', text: 'of your paycheck', big: 37, tone: 'danger' },
+  'character-beat': { line: 'Your liver never stops working', acting: 'look-r' },
+  'chart-insight': { chart: 'assets/chart.svg', insight: 'The drop happens in month three', highlight: 'month three' },
+  'quote-punch': { lines: ['Small changes,', 'compounding daily'] },
+  'list-recap': { title: 'REMEMBER', items: [{ label: 'Fibre first' }, { label: 'Move daily' }, { label: 'Ask your doctor' }] },
+  'end-punch': { line: 'Start with breakfast tomorrow', sub: 'One bowl. That is it.' },
+};
+
+function ctx(style: ScaffoldCtx['style'], sceneIndex = 0): ScaffoldCtx {
+  return {
+    style,
+    kitPrefix: '../../',
+    sceneIndex,
+    readAsset: (rel) => (rel.endsWith('.svg') ? '<svg viewBox="0 0 24 24"><path d="M0 0h24v24"/></svg>' : null),
+    accent: '#0a7d5b',
+  };
+}
+
+test('scaffolds: every archetype renders for every style pack with the craft baked in', () => {
+  for (const id of SCAFFOLD_IDS) {
+    for (const style of ['clean', 'nutshell', 'broadcast', 'vox'] as const) {
+      const r = materializeScaffold({ id, slots: MINIMAL_SLOTS[id] }, ctx(style, 2));
+      assert.deepEqual(r.problems, [], `${id}/${style}: ${r.problems.join('; ')}`);
+      const html = r.html!;
+      assert.match(html, /\.\.\/\.\.\/motion-kit\/motion\.js/, `${id}/${style} links the runtime with the kit prefix`);
+      assert.match(html, /\.\.\/\.\.\/motion-kit\/motion\.css/);
+      assert.match(html, /mg-vignette/, `${id}/${style} carries atmosphere`);
+      assert.match(html, /mg-cam-(in|out|drift)/, `${id}/${style} has a camera move`);
+      assert.match(html, /mg-exit-(up|fade|scale)/, `${id}/${style} has exit choreography`);
+      assert.doesNotMatch(html, /https?:\/\//, `${id}/${style} is self-contained`);
+    }
+  }
+});
+
+test('scaffolds: word ceilings reject walls of text; unknown ids and missing assets fail with guidance', () => {
+  const long = materializeScaffold(
+    { id: 'hook-question', slots: { question: 'This is a very long question that goes on and on and on and definitely exceeds the word ceiling for a hook' } },
+    ctx('clean'),
+  );
+  assert.ok(long.problems.some((p) => p.includes('word ceiling')), long.problems.join());
+  const unknown = materializeScaffold({ id: 'nope', slots: {} }, ctx('clean'));
+  assert.ok(unknown.problems[0].includes('unknown scaffold'));
+  const missingAsset = materializeScaffold({ id: 'callout', slots: { subject: 'assets/never-made.svg', text: 'of everything' } }, {
+    ...ctx('broadcast'),
+    readAsset: () => null,
+  });
+  assert.ok(missingAsset.problems.some((p) => p.includes('search_assets')), missingAsset.problems.join());
+});
+
+test('scaffolds: camera direction and auto-grounds rotate per scene (adjacent contrast by default)', () => {
+  const a = materializeScaffold({ id: 'quote-punch', slots: MINIMAL_SLOTS['quote-punch'], }, ctx('clean', 0)).html!;
+  const b = materializeScaffold({ id: 'quote-punch', slots: MINIMAL_SLOTS['quote-punch'], }, ctx('clean', 1)).html!;
+  const cam = (h: string) => h.match(/mg-cam-(in|out|drift)/)![0];
+  assert.notEqual(cam(a), cam(b), 'adjacent scenes get different camera moves');
+  assert.notEqual(groundClass('clean', undefined, 0), groundClass('clean', undefined, 1));
+  assert.equal(groundClass('nutshell', undefined, 0), 'mg-ground-space');
+  assert.equal(groundClass('vox', 'home', 0), 'mg-ground-studio');
+});
+
+// ---------------- deterministic QC: pure pieces ----------------
+
+test('qc: stillness pairs, signalstat parsing, monotone pacing, hook gate', () => {
+  const pairs = stillnessPairs(9000, 30);
+  assert.equal(pairs.length, 3);
+  for (const [i, j] of pairs) assert.equal(j - i, 15, '0.5s apart at 30fps');
+  assert.equal(parseSignalstat('lavfi.signalstats.YAVG=1.234', 'YAVG'), 1.234);
+  assert.equal(parseSignalstat('no match here', 'YAVG'), null);
+  assert.match(frameDiffCmd('/a.jpg', '/b.jpg'), /blend=all_mode=difference,signalstats/);
+  assert.match(cellStdevCmd('/f.jpg', { w: 640, h: 360, x: 640, y: 0 }), /crop=640:360:640:0/);
+
+  assert.equal(isPacingMonotone([9000, 9100, 8900, 9050]), true, 'uniform scenes = monotone');
+  assert.equal(isPacingMonotone([2000, 9000, 5000, 12000]), false);
+  assert.equal(isPacingMonotone([9000, 9000]), false, 'too few scenes to judge');
+
+  assert.ok(hookProblems('Welcome to our video about cholesterol!'), 'greeting rejected');
+  assert.ok(hookProblems("In this video I'll show you how to lower LDL"), 'topic statement rejected');
+  assert.ok(hookProblems('Today we are going to explore the fascinating world of lipids'), 'throat-clearing rejected');
+  assert.equal(hookProblems('Why does your own bloodstream turn against you?'), null, 'a real hook passes');
+  assert.equal(hookProblems(''), null, 'silent visual hook allowed');
+  assert.ok(hookProblems('This is a very long opening narration that keeps going and going with lots of setup and context and background information before ever getting to any point at all which loses every viewer'), 'over-long hook rejected');
+});
+
+// ---------------- transitions ----------------
+
+test('transitions: xfade kinds are whitelisted, audio fade is bounded (voice-safe), segmented stitch validates seams', async () => {
+  const cmd = xfadeCmd('/a.mp4', '/b.mp4', '/o.mp4', { fadeS: 0.5, offsetS: 7.5, kind: 'smoothup', audioFadeS: 0.5 });
+  assert.match(cmd, /xfade=transition=smoothup:duration=0\.5:offset=7\.5/);
+  assert.match(cmd, /acrossfade=d=0\.5/, 'audio crossfade bounded to the silent holds');
+  const cheesy = xfadeCmd('/a.mp4', '/b.mp4', '/o.mp4', { fadeS: 0.5, offsetS: 7.5, kind: 'pixelize' });
+  assert.match(cheesy, /xfade=transition=fade:/, 'non-whitelisted kind falls back to fade');
+  assert.ok(XFADE_KINDS.includes('fadeblack') && XFADE_KINDS.includes('circleopen'));
+  await assert.rejects(
+    () => stitchClipsSegmented(['/a.mp4', '/b.mp4'], '/tmp/never.mp4', [], {}),
+    /one entry per seam/,
+  );
+});
+
+// ---------------- photos: builders, parsers, provider fallback ----------------
+
+test('photos: request builders + parsers (pexels/openverse/wikimedia)', () => {
+  assert.match(pexelsSearchUrl('salmon', { orientation: 'landscape', perPage: 5 }), /api\.pexels\.com\/v1\/search\?query=salmon&per_page=5&orientation=landscape/);
+  assert.match(pexelsSearchUrl('city', { kind: 'video' }), /api\.pexels\.com\/videos\/search/);
+  const px = parsePexels(
+    { photos: [{ id: 9, width: 4000, height: 3000, url: 'https://www.pexels.com/photo/9/', photographer: 'Jane', src: { large2x: 'https://images.pexels.com/9-l2x.jpg', medium: 'https://images.pexels.com/9-m.jpg' } }] },
+    'photo',
+  );
+  assert.equal(px.length, 1);
+  assert.equal(px[0].id, 'pexels:9');
+  assert.match(px[0].attribution, /Jane/);
+  const ov = parseOpenverse({ results: [{ id: 'abc', url: 'https://x.org/i.jpg', thumbnail: 'https://x.org/t.jpg', width: 2000, height: 1500, creator: 'Bob', license: 'by-sa', attribution: '"i" by Bob is licensed under CC BY-SA' }] });
+  assert.equal(ov[0].provider, 'openverse');
+  assert.equal(ov[0].license, 'BY-SA');
+  const wm = parseWikimedia({ query: { pages: { '1': { pageid: 1, title: 'File:Salmon.jpg', imageinfo: [{ thumburl: 'https://upload.wikimedia.org/salmon-1600.jpg', thumbwidth: 1600, thumbheight: 1000, extmetadata: { LicenseShortName: { value: 'CC BY 2.0' }, Artist: { value: '<a href="#">Ann</a>' } } }] } } } });
+  assert.equal(wm[0].provider, 'wikimedia');
+  assert.match(wm[0].attribution, /Ann/);
+  assert.match(wikimediaSearchUrl('salmon'), /commons\.wikimedia\.org/);
+  assert.match(openverseSearchUrl('salmon'), /license_type=commercial/);
+});
+
+test('photos: provider order — pexels when keyed, keyless CC fallbacks otherwise, honest empty', async () => {
+  const calls: string[] = [];
+  const fetcher = async (url: string, init?: RequestInit) => {
+    calls.push(url);
+    if (url.includes('pexels')) {
+      assert.equal((init?.headers as any)?.Authorization, 'px-test-key', 'pexels gets the auth header');
+      return { status: 200, body: JSON.stringify({ photos: [{ id: 1, width: 3000, height: 2000, photographer: 'P', src: { large: 'https://images.pexels.com/1.jpg' } }] }) };
+    }
+    if (url.includes('openverse')) return { status: 200, body: JSON.stringify({ results: [{ id: 'o1', url: 'https://o.org/1.jpg', width: 1600, height: 1200 }] }) };
+    return { status: 200, body: JSON.stringify({ query: { pages: {} } }) };
+  };
+  __setPexelsKeyForTest('px-test-key');
+  const keyed = await searchPhotos('salmon', { limit: 1 }, fetcher);
+  assert.equal(keyed.candidates[0].provider, 'pexels');
+  __setPexelsKeyForTest('');
+  calls.length = 0;
+  const keyless = await searchPhotos('salmon', { limit: 3 }, fetcher);
+  assert.ok(!calls.some((u) => u.includes('pexels')), 'no pexels call without a key');
+  assert.ok(keyless.candidates.some((c) => c.provider === 'openverse'));
+  const empty = await searchPhotos('salmon', { kind: 'video' }, fetcher); // video needs pexels
+  assert.equal(empty.candidates.length, 0);
+  assert.ok(empty.notes.some((n) => n.includes('Pexels key')), 'honest note about the video gap');
+});
+
+// ---------------- the tool: hook gate, word budget, scaffold flow ----------------
+
+const toolCtx = (dir: string): any => ({ repoDir: dir, signal: new AbortController().signal, addCost: () => {}, session: {}, mode: 'chat' });
+
+test('motion tool: throat-clearing scene-1 narration is rejected before any TTS', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-hook-'));
+  const out = await renderMotionVideoTool.run(
+    { scenes: [{ title: 'Intro', narration: 'Welcome to this video about cholesterol', scaffold: { id: 'hook-question', slots: { question: 'What is LDL?' } } }] },
+    toolCtx(dir),
+  );
+  assert.match(out, /throat-clearing/);
+  assert.match(out, /THE HOOK/);
+  assert.ok(!fs.existsSync(path.join(dir, 'videos')), 'nothing rendered on a rejected hook');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('motion tool: narration overshoot vs target_seconds is caught before synthesis', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-budget-'));
+  const long = Array.from({ length: 120 }, (_, i) => `word${i}`).join(' ');
+  const out = await renderMotionVideoTool.run(
+    {
+      target_seconds: 15,
+      scenes: [
+        { title: 'Hook', narration: 'Why does this fail?', scaffold: { id: 'hook-question', slots: { question: 'Why does this fail?' } } },
+        { title: 'Body', narration: long, scaffold: { id: 'quote-punch', slots: { lines: ['A line'] } } },
+      ],
+    },
+    toolCtx(dir),
+  );
+  assert.match(out, /words? TOTAL|word budget|budget ≈/i);
+  assert.match(out, /15s target/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('motion tool: scaffold slot problems are returned verbatim, nothing written', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-slots-'));
+  const out = await renderMotionVideoTool.run(
+    {
+      scenes: [
+        { title: 'Hook', narration: 'Why do budgets fail?', scaffold: { id: 'hook-question', slots: {} } }, // missing question
+      ],
+    },
+    toolCtx(dir),
+  );
+  assert.match(out, /scaffold slot problems/);
+  assert.match(out, /"question" is required/);
+  assert.ok(!fs.existsSync(path.join(dir, 'videos')), 'no files on bad slots');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('motion tool: a silent scaffold punch beat renders end-to-end (real capture+encode) and passes the motion audit', { timeout: 120_000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-e2e-'));
+  const out = await renderMotionVideoTool.run(
+    {
+      scenes: [
+        {
+          title: 'Punch',
+          narration: '',
+          min_ms: 3400,
+          scaffold: { id: 'end-punch', slots: { line: 'Start with breakfast tomorrow', sub: 'One bowl. That is it.' } },
+        },
+      ],
+      aspect_ratio: '16:9',
+      style: 'clean',
+    },
+    toolCtx(dir),
+  );
+  assert.match(out, /Motion video assembled/, out.slice(0, 400));
+  assert.match(out, /✓/);
+  const sceneHtml = fs.readdirSync(path.join(dir, 'videos')).flatMap((d) => fs.readdirSync(path.join(dir, 'videos', d)));
+  assert.ok(sceneHtml.includes('scene-1.html'), 'scaffold scene was written into the video dir');
+  const html = fs.readFileSync(path.join(dir, 'videos', fs.readdirSync(path.join(dir, 'videos'))[0], 'scene-1.html'), 'utf8');
+  assert.match(html, /mg-exit-scale|mg-exit-up/);
+  const m = JSON.parse(fs.readFileSync(path.join(dir, 'videos', fs.readdirSync(path.join(dir, 'videos'))[0], 'manifest.json'), 'utf8'));
+  assert.equal(m.scenes[0].status, 'ok');
+  assert.ok(fs.existsSync(path.join(dir, m.stitched)), 'final mp4 exists');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// ---------------- doctrine + kit locks ----------------
+
+test('polish doctrine locks: kit v2 classes, MOTION.md hook/pacing/transitions, tool description', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  for (const cls of ['.mg-exit-up', '.mg-exit-fade', '.mg-mask', '.mg-rise', '.mg-words', '.mg-key', '.mg-mark', '.mg-lag', '.mg-squash', '.mg-stress', '.mg-cam-in', '.mg-cam-out', '.mg-cam-drift', '.mg-depth-bg', '.mg-vignette', '.mg-contact', '.mg-prop-hero', '.mg-ground-floor', '.mg-plate-scrim'])
+    assert.ok(css.includes(cls), `motion.css v2 has ${cls}`);
+  assert.match(css, /--mg-ease-out: cubic-bezier\(0\.16, 1, 0\.3, 1\)/);
+  const js = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.js'), 'utf8');
+  assert.match(js, /splitWords/);
+  assert.match(js, /mg-words/);
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  for (const section of ['THE HOOK', 'SCRIPT DOCTRINE', 'PACING & RHYTHM', 'TRANSITIONS', 'SCAFFOLDS FIRST', 'KINETIC TYPE'])
+    assert.ok(md.includes(section), `MOTION.md documents ${section}`);
+  assert.match(md, /BUT or THEREFORE/);
+  assert.match(md, /peak-end|Peak-end/i);
+  const desc = renderMotionVideoTool.description;
+  assert.match(desc, /SCAFFOLDS FIRST/);
+  assert.match(desc, /target_seconds/);
+  assert.match(desc, /HOOK/);
+  const params: any = renderMotionVideoTool.parameters;
+  assert.ok(params.properties.scenes.items.properties.scaffold, 'scenes accept scaffold specs');
+  assert.deepEqual(params.properties.scenes.items.properties.transition.enum, ['cut', 'dip', 'dip-white', 'dissolve', 'wipe', 'slide', 'circle']);
+});

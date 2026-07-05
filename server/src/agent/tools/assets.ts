@@ -122,3 +122,89 @@ export const fetchAssetTool: ToolDef = {
     }
   },
 };
+
+// ---------------------------------------------------------------------------
+// search_photos — REAL photography + stock footage (operator directive 2026-07-05)
+// ---------------------------------------------------------------------------
+import { searchPhotos, downloadPhoto } from '../assets/photos';
+import { config } from '../../config';
+import { analyzeImage } from '../../engines/minimax';
+
+export const searchPhotosTool: ToolDef = {
+  name: 'search_photos',
+  description:
+    'Search REAL stock photography (and stock footage when Pexels is configured) and download the best hit ' +
+    'into assets/photos/. Sources: Pexels (best quality, free-use license, needs the admin-configured key) ' +
+    'with keyless CC fallbacks (Openverse, Wikimedia Commons). Use for photographic PLATES in motion videos ' +
+    '(vox style), report imagery, and any "show the real thing" moment. FALLBACK CHAIN: if no quality photo ' +
+    'comes back, use generate_image (photographic prompt, text-free) instead — a bad stock photo is worse ' +
+    'than a generated one. By default the tool downloads the top candidate (vision-checked when available) ' +
+    'and returns its workspace path; attribution is recorded automatically in assets/photos/ATTRIBUTIONS.md.',
+  parameters: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'What the photo must show, concrete and visual: "salmon fillet on a cutting board", "person running at sunrise".' },
+      kind: { type: 'string', enum: ['photo', 'video'], description: 'photo (default) or a short stock video clip (Pexels key required).' },
+      orientation: { type: 'string', enum: ['landscape', 'portrait', 'square'], description: 'Match the frame you are filling (default landscape).' },
+      download: { type: 'boolean', description: 'Download the best candidate (default true). Pass false to only list candidates.' },
+      count: { type: 'number', description: 'How many candidates to list (default 6, max 12).' },
+    },
+    required: ['query'],
+  },
+  modes: ['chat', 'code'],
+  summarize: (a) => `photos: ${String(a.query ?? '').slice(0, 50)}`,
+  async run(args, ctx) {
+    const query = String(args.query ?? '').trim();
+    if (!query) return 'Error: pass a concrete visual query, e.g. "salmon fillet on a cutting board".';
+    const kind = args.kind === 'video' ? 'video' : 'photo';
+    const { candidates, providersTried, notes } = await searchPhotos(query, {
+      kind,
+      orientation: typeof args.orientation === 'string' ? args.orientation : 'landscape',
+      limit: Number(args.count) || 6,
+    });
+    if (!candidates.length) {
+      return (
+        `No usable ${kind} found for "${query}" (tried: ${providersTried.join(', ') || 'no provider available'}${notes.length ? '; ' + notes.join('; ') : ''}). ` +
+        `FALL BACK NOW: use generate_image with a photographic, text-free prompt describing exactly this subject.`
+      );
+    }
+    let out = `${kind === 'video' ? 'Footage' : 'Photos'} for "${query}" (${providersTried.join('+')}):\n`;
+    out += candidates
+      .map((c, i) => `${i + 1}. [${c.provider}] ${c.width}x${c.height}${c.creator ? ` — ${c.creator}` : ''} (${c.license})`)
+      .join('\n');
+    if (notes.length) out += `\nNotes: ${notes.join('; ')}`;
+
+    if (args.download === false) return out;
+
+    // Download the best candidate; when vision is available, verify quality/subject and
+    // step down the list once or twice rather than shipping a bad plate.
+    const tryList = candidates.slice(0, 3);
+    for (const c of tryList) {
+      try {
+        const dl = await downloadPhoto(c, ctx.repoDir, ctx.signal);
+        if (kind === 'photo' && config.minimaxApiKey) {
+          try {
+            const { fileToDataUrl } = await import('../../engines/minimax');
+            const v = await analyzeImage(
+              fileToDataUrl(path.join(ctx.repoDir, dl.relPath)),
+              `Is this a high-quality photograph clearly showing: ${query}? It will be a full-bleed video plate. Answer "YES" or "NO: <reason>" only.`,
+              ctx.signal,
+            );
+            if (v.ok && v.text && /^\s*no\b/i.test(v.text)) {
+              fs.rmSync(path.join(ctx.repoDir, dl.relPath), { force: true });
+              out += `\nRejected ${c.id} (${v.text.trim().slice(0, 80)}) — trying the next candidate.`;
+              continue;
+            }
+          } catch {
+            /* vision gate is best-effort */
+          }
+        }
+        out += `\n\nDownloaded: ${dl.relPath} (${(dl.bytes / 1024).toFixed(0)}KB) — attribution recorded. Use this path in scene slots/plates.`;
+        return out;
+      } catch (e: any) {
+        out += `\nDownload of ${c.id} failed (${String(e?.message ?? e).slice(0, 80)}) — trying the next candidate.`;
+      }
+    }
+    return out + `\n\nNo candidate survived download/quality checks — use generate_image (photographic, text-free) for this subject instead.`;
+  },
+};

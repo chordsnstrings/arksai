@@ -139,13 +139,22 @@ function minimaxSlice(): string {
     voiceover, at any length (30 s to many minutes) and any dimension. THIS is the default for
     "explainer video", "animated video", "motion graphics", "video about/how to …" — NOT the
     filmed-video tools: generate_video/generate_video_story are ONLY for photographic/filmed
-    footage the user explicitly wants. Workflow is in the tool description: write the script,
-    pull every icon/logo via search_assets (≈20,000 vendored vector assets + real brand marks —
-    never hand-draw), author each scene as a motion-kit HTML page in ONE STYLE PACK (nutshell neon-science / broadcast bold-infographic / vox annotated-evidence / clean — see MOTION.md; pass style to the tool) with strong scene-to-scene CONTRAST and micro-animation on everything (nothing static), then call the tool; it voices,
-    times, captures, QCs and assembles autonomously — fix any named defect and retake just that
-    scene.
+    footage the user explicitly wants. Workflow is in the tool description: write a
+    RETENTION-FIRST script (scene 1 = a HOOK question/claim ≤5s — greetings and "in this
+    video" are rejected; scenes chain BUT/THEREFORE; end on a short punch-out; set
+    target_seconds), pull every icon/logo via search_assets (≈20,000 vendored vector assets
+    + real brand marks — never hand-draw) and real photography via search_photos, then pass
+    scenes as SCAFFOLDS ({scaffold:{id,slots}} — pre-built archetypes carrying the
+    choreography/exits/camera/composition, skinned by ONE STYLE PACK: nutshell neon-science /
+    broadcast bold-infographic / vox annotated-evidence / clean — see MOTION.md; pass style
+    to the tool) with strong scene-to-scene CONTRAST and micro-animation on everything
+    (nothing static; frozen scenes FAIL), then call the tool; it voices, times, captures,
+    audits motion+fill, QCs frames and assembles autonomously — fix any named defect and
+    retake just that scene.
   • search_assets — the offline vector-asset library (icons, medical/health set, real brand
-    logos). fetch_asset downloads a public asset URL the user points at.`;
+    logos). search_photos — REAL stock photography/footage (Pexels + CC fallbacks, auto
+    attribution; fall back to generate_image when no quality photo exists). fetch_asset
+    downloads a public asset URL the user points at.`;
 }
 
 /** SLICE: the document-creation / live-data / deliver-out / downloads / auto-export

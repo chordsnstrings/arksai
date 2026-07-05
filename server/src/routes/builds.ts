@@ -19,6 +19,7 @@ import {
 import { setBuildToken, setSnapshotId, doToken, snapshotId } from '../build/runtime';
 import { setByteplusKey, byteplusConfigured } from '../agent/byteplusRuntime';
 import { setMinimaxGroupId, minimaxGroupId } from '../engines/minimaxRuntime';
+import { setPexelsKey, pexelsKey } from '../agent/assets/photos';
 import { ttsAvailable } from '../engines/minimax';
 import { startBake } from '../build/bake';
 import { config } from '../config';
@@ -81,6 +82,17 @@ export function registerBuildRoutes(app: FastifyInstance) {
     return { ok: true, configured: !!minimaxGroupId(), ttsAvailable: ttsAvailable() };
   });
 
+
+  // Operator only: activate Pexels stock photography/footage for search_photos (encrypted
+  // at rest, no SSH/redeploy). Keyless CC fallbacks work without it; Pexels is the quality source.
+  app.post('/api/admin/providers/pexels', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    const key = String((req.body as any)?.key || '').trim();
+    if (key.length < 20) return reply.code(400).send({ error: 'Provide a Pexels API key (free at pexels.com/api).' });
+    await setPexelsKey(key);
+    return { ok: true, configured: !!pexelsKey() };
+  });
+
   // Operator only: rotate the DigitalOcean API token (encrypted at rest, no SSH/redeploy). Used by
   // the build orchestrator; the master ArksAI droplet is hard-protected from any destructive op.
   app.post('/api/admin/providers/do', async (req, reply) => {
@@ -99,6 +111,7 @@ export function registerBuildRoutes(app: FastifyInstance) {
       byteplus: { label: 'ArksAI Swift (BytePlus/Dola)', configured: byteplusConfigured() },
       digitalocean: { label: 'DigitalOcean API', configured: !!doToken() },
       minimaxGroup: { label: 'MiniMax voice (T2A GroupId)', configured: !!minimaxGroupId(), ttsAvailable: ttsAvailable() },
+      pexels: { label: 'Pexels stock photos/footage', configured: !!pexelsKey() },
       protected: { masterDropletId: config.masterDropletId, masterDropletName: config.masterDropletName },
     };
   });

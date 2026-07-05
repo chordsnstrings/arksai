@@ -16,6 +16,13 @@
   --mg-font-display: 'Source Serif 4', Georgia, serif;
   --mg-font-body: 'Inter', -apple-system, sans-serif;
   --mg-font-data: 'IBM Plex Mono', ui-monospace, monospace;
+  /* MOTION TOKENS (polish doctrine 2026-07-05): every animation uses one of these —
+   * a small enforced system reads studio; per-element custom curves read amateur.
+   * Entrances DECELERATE, exits ACCELERATE, overshoot is for 1-2 focal pops only. */
+  --mg-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --mg-ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --mg-ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --mg-ease-cam: cubic-bezier(0.33, 0, 0.55, 1);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -171,11 +178,13 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
  * carries an entrance that SETTLES INTO an ambient idle, or rides a camera move.
  * These idles are transform/opacity-only, loop seamlessly, and phase-offset via
  * negative --at so siblings never move in lockstep. */
-@keyframes mgBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.016); } }
+/* Idle amplitudes are calibrated to be VISIBLE on video (the 2026-07-05 audit measured
+ * delivered scenes pixel-frozen: 1.6% breathe reads as static after jpeg+h264). */
+@keyframes mgBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.034); } }
 .mg-breathe { animation: mgBreathe 4.2s ease-in-out infinite; animation-delay: var(--at, 0s); }
-@keyframes mgSway { 0%, 100% { transform: rotate(-0.6deg); } 50% { transform: rotate(0.6deg); } }
+@keyframes mgSway { 0%, 100% { transform: rotate(-1deg); } 50% { transform: rotate(1deg); } }
 .mg-sway { animation: mgSway 5.6s ease-in-out infinite; animation-delay: var(--at, 0s); transform-origin: bottom center; }
-@keyframes mgBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.7vh); } }
+@keyframes mgBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.4vh); } }
 .mg-bob { animation: mgBob 3.4s ease-in-out infinite; animation-delay: var(--at, 0s); }
 @keyframes mgShimmer { 0%, 100% { opacity: 0.85; } 50% { opacity: 1; } }
 .mg-shimmer { animation: mgShimmer 2.8s ease-in-out infinite; animation-delay: var(--at, 0s); }
@@ -314,3 +323,94 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
 @keyframes mgConnectorH { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .mg-connector { position: absolute; height: 0.35vh; background: #141413; transform-origin: left center; animation: mgConnectorH 0.5s cubic-bezier(0.6, 0, 0.2, 1) both; animation-delay: var(--at, 0s); }
 .mg-title-serif { font-family: var(--mg-font-display); font-weight: 600; font-size: 6.6vh; line-height: 1.1; text-wrap: balance; }
+
+/* ============================ POLISH LAYER v2 (2026-07-05) ============================
+ * Exit choreography, kinetic typography, secondary motion, eased cameras, depth,
+ * and environment atmosphere. Doctrine: entrances complete within 1.2s, exits run in
+ * the scene's final ~0.4s (nothing ever sits frozen into a cut), one focal motion at
+ * a time, short travel (2-4vh) — long flights read student. */
+
+/* ---------- EXITS (put on a WRAPPER around entering content — the `animation`
+ * shorthand collides if an element carries both an entrance and an exit class).
+ * Timed off the scene tail: they start ~0.38s before the cut and end just before it. */
+@keyframes mgExitUp { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-2.6vh); } }
+@keyframes mgExitFade { from { opacity: 1; } to { opacity: 0; } }
+@keyframes mgExitDown { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(2.2vh); } }
+@keyframes mgExitScale { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.965); } }
+.mg-exit-up   { animation: mgExitUp   0.34s var(--mg-ease-exit) both; animation-delay: calc(var(--scene-s, 8) * 1s - 0.38s); }
+.mg-exit-fade { animation: mgExitFade 0.34s var(--mg-ease-exit) both; animation-delay: calc(var(--scene-s, 8) * 1s - 0.38s); }
+.mg-exit-down { animation: mgExitDown 0.34s var(--mg-ease-exit) both; animation-delay: calc(var(--scene-s, 8) * 1s - 0.38s); }
+.mg-exit-scale{ animation: mgExitScale 0.34s var(--mg-ease-exit) both; animation-delay: calc(var(--scene-s, 8) * 1s - 0.38s); }
+/* hold-through variant for elements that must stay to the cut (persistent tickers): none needed — just omit the exit wrapper. */
+
+/* ---------- KINETIC TYPE — text PERFORMS, it is never merely placed ---------- */
+/* Masked line rise (the premium title default): <span class="mg-mask"><span class="mg-rise">Line</span></span> */
+.mg-mask { display: inline-block; overflow: hidden; vertical-align: bottom; }
+@keyframes mgRise { from { transform: translateY(112%); } to { transform: translateY(0); } }
+.mg-rise { display: inline-block; animation: mgRise 0.62s var(--mg-ease-out) both; animation-delay: var(--at, 0s); }
+/* Word-by-word reveal: put .mg-words on the text element — motion.js splits it into
+ * <span class="w" style="--w:N"> spans at load. Time the group to the spoken phrase via --at;
+ * word cadence via --wstag (default 70ms). */
+@keyframes mgWordUp { from { opacity: 0; transform: translateY(1.6vh); } to { opacity: 1; transform: none; } }
+.mg-words .w {
+  display: inline-block; white-space: pre;
+  animation: mgWordUp 0.32s var(--mg-ease-out) both;
+  animation-delay: calc(var(--at, 0s) + var(--wstag, 0.07s) * var(--w, 0));
+}
+/* Keyword pop — the ONE emphasized word arrives late and lands with overshoot + accent. */
+@keyframes mgKeyPop { from { opacity: 0; transform: scale(0.45); } to { opacity: 1; transform: scale(1); } }
+.mg-key {
+  display: inline-block; color: var(--mg-accent); font-weight: 800;
+  animation: mgKeyPop 0.4s var(--mg-ease-back) both; animation-delay: var(--at, 0.5s);
+}
+/* Accent sweep behind a phrase (brand-colored cousin of the vox highlighter). */
+@keyframes mgMark { from { background-size: 0% 42%; } to { background-size: 100% 42%; } }
+.mg-mark {
+  background-image: linear-gradient(color-mix(in srgb, var(--mg-accent) 32%, transparent), color-mix(in srgb, var(--mg-accent) 32%, transparent));
+  background-repeat: no-repeat; background-position: 0 78%;
+  animation: mgMark 0.5s var(--mg-ease-out) both; animation-delay: var(--at, 0s);
+  padding: 0 0.3vh; box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+
+/* ---------- SECONDARY MOTION (follow-through separates alive from solid-plastic) ---------- */
+/* Lag wrapper: a shadow/label/sub-element trails its owner by ~120ms. */
+.mg-lag { animation: mgFadeUp 0.5s var(--mg-ease-out) both; animation-delay: calc(var(--at, 0s) + 0.12s); }
+/* Landing squash-and-settle for props/blobs (never text): compose after a drop/pop. */
+@keyframes mgSquash { 0% { transform: scale(1, 1); } 35% { transform: scale(1.07, 0.93); } 70% { transform: scale(0.98, 1.03); } 100% { transform: scale(1, 1); } }
+.mg-squash { animation: mgSquash 0.32s ease-out both; animation-delay: var(--at, 0s); transform-origin: bottom center; }
+/* Emphasis pulse — fires ONCE when the narration stresses the element (time via --at). */
+@keyframes mgStress { 0%, 100% { transform: scale(1); } 45% { transform: scale(1.06); } }
+.mg-stress { animation: mgStress 0.34s ease-in-out both; animation-delay: var(--at, 1s); }
+
+/* ---------- CAMERAS v2 (every scene gets ONE; alternate direction scene to scene) ---------- */
+@keyframes mgCamIn { from { transform: scale(1); } to { transform: scale(1.05); } }
+.mg-cam-in { animation: mgCamIn calc(var(--scene-s, 8) * 1s) var(--mg-ease-cam) both; transform-origin: center; }
+@keyframes mgCamOut { from { transform: scale(1.055); } to { transform: scale(1); } }
+.mg-cam-out { animation: mgCamOut calc(var(--scene-s, 8) * 1s) var(--mg-ease-cam) both; transform-origin: center; }
+@keyframes mgCamDrift { from { transform: translateX(0.9vw) scale(1.03); } to { transform: translateX(-0.9vw) scale(1.03); } }
+.mg-cam-drift { animation: mgCamDrift calc(var(--scene-s, 8) * 1s) var(--mg-ease-cam) both; }
+
+/* ---------- DEPTH / PARALLAX (≥2 layers moving at different rates under the camera) ---------- */
+@keyframes mgDriftX { from { transform: translateX(calc(var(--px, -2vw) * -0.5)); } to { transform: translateX(calc(var(--px, -2vw) * 0.5)); } }
+.mg-depth-bg  { --px: -1vw;   animation: mgDriftX calc(var(--scene-s, 8) * 1s) linear both; }
+.mg-depth-mid { --px: -2.2vw; animation: mgDriftX calc(var(--scene-s, 8) * 1s) linear both; }
+.mg-depth-fg  { --px: -4.2vw; animation: mgDriftX calc(var(--scene-s, 8) * 1s) linear both; }
+
+/* ---------- ENVIRONMENT & ATMOSPHERE (a designed frame occupies a PLACE) ---------- */
+/* Clean-pack ground with a floor plane — content stands somewhere, never floats on white. */
+.mg-ground-floor {
+  background: linear-gradient(180deg, var(--mg-bg) 0%, color-mix(in srgb, var(--mg-ink) 3%, var(--mg-bg)) 66%, color-mix(in srgb, var(--mg-ink) 9%, var(--mg-bg)) 66.25%, color-mix(in srgb, var(--mg-ink) 6%, var(--mg-bg)) 100%);
+}
+/* Gentle vignette — the "film frame vs web page" tell. On by default in scaffolds. */
+.mg-vignette { position: fixed; inset: 0; z-index: 30; pointer-events: none; background: radial-gradient(130vw 105vh at 50% 46%, transparent 62%, rgba(0, 0, 0, 0.11) 100%); }
+/* Soft contact shadow under a grounded element. */
+.mg-contact { position: relative; }
+.mg-contact::after { content: ''; position: absolute; left: 12%; right: 12%; bottom: -1.8vh; height: 2.6vh; background: rgba(0, 0, 0, 0.18); border-radius: 50%; filter: blur(8px); z-index: -1; }
+/* Oversized hero prop, edge-bled (cropping 20-35% out of frame is a pro move). */
+.mg-prop-hero { position: absolute; width: 52vh; height: 52vh; z-index: 0; opacity: 0.98; }
+.mg-prop-hero svg, .mg-prop-hero img { width: 100%; height: 100%; }
+.mg-prop-hero.br { right: -9vh; bottom: -11vh; } .mg-prop-hero.tl { left: -9vh; top: -11vh; }
+.mg-prop-hero.bl { left: -9vh; bottom: -11vh; } .mg-prop-hero.tr { right: -9vh; top: -11vh; }
+/* Text-over-plate scrim (raw text over imagery is a student tell). */
+.mg-plate-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 34%, rgba(10, 10, 12, 0.62) 100%); }
+.mg-plate-scrim.top { background: linear-gradient(0deg, transparent 40%, rgba(10, 10, 12, 0.58) 100%); }

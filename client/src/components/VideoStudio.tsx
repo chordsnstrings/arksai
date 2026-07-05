@@ -208,10 +208,10 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       explainMusic ? 'Add a quiet instrumental music bed that fits the subject (the tool ducks it under the voice).' : 'No music bed.',
       '',
       'Do the WHOLE thing autonomously, then show me the finished video:',
-      '1. Write the narration script; split it into scenes (one idea per scene, ~2 short sentences each).',
-      '2. Read motion-kit/MOTION.md. Get every icon/logo via search_assets (never hand-draw), charts via render_chart.',
-      '3. Author each scene as a self-contained motion-kit HTML page — one consistent identity (--mg-* vars) but STRONG scene-to-scene contrast: alternate grounds (.mg-ground-dark/.mg-ground-accent vs light) and rotate compositions per MOTION.md SCENE CONTRAST.',
-      '4. Call render_motion_video with the scenes in order; if it reports a scene defect, fix that scene file and retake JUST that scene.',
+      '1. Write a RETENTION-FIRST script: scene 1 is a HOOK (a question/bold claim/stake — never a title card or "in this video"); scenes chain with BUT/THEREFORE; one idea per scene, ~2 short sentences; vary beat lengths (a couple of short punch beats); END on a short punch-out. Pass target_seconds so the tool checks your word budget.',
+      '2. Read motion-kit/MOTION.md. Get every icon/logo via search_assets (never hand-draw), charts via render_chart, and real photography via search_photos (fall back to generate_image only when no quality photo exists).',
+      '3. Build scenes as SCAFFOLDS ({scaffold:{id,slots}} — hook-question, hero-stat, annotated-plate, split-compare, callout, chart-insight, end-punch…) so the choreography/exits/camera/composition come pre-built; hand-write HTML only for a signature moment. Keep STRONG scene-to-scene contrast (grounds auto-rotate when you omit ground).',
+      '4. Call render_motion_video with the scenes in order (use transition:"dip"/"wipe" only at 1-2 act boundaries); if it reports a scene defect, fix and retake JUST that scene.',
       'Facts in the narration must be accurate and non-controversial; keep any health/finance content evidence-based with a one-line "educational, not professional advice" closing scene.',
     ].filter(Boolean).join('\n');
   }

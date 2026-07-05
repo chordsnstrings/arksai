@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-04.40';
+export const WHATS_NEW_VERSION = '2026-07-05.41';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Pick your video style visually',
-    body: 'The Video studio\'s Explainer now shows the four styles as picture cards — each thumbnail is a real frame rendered by that style\'s engine, so what you pick is exactly what you get: Clean, Nutshell (neon science), Broadcast (bold infographic), or Vox (annotated evidence). New styles will appear here automatically as they ship.',
+    title: 'Explainer videos, to a media-house bar',
+    body: 'Motion videos are now built from professional scene templates — every scene gets real choreography (entrances, exits, camera moves, ambient motion), designed transitions between scenes, and a script engine that opens with a hook and paces for attention. Frozen or empty frames are caught automatically before you ever see them.',
+  },
+  {
+    title: 'Real photography in your videos and reports',
+    body: 'The builder can now search real stock photography (and stock footage) and drop it straight into video scenes and documents — with automatic attribution, and AI-generated imagery as the fallback when no quality photo exists.',
   },
 ];
 

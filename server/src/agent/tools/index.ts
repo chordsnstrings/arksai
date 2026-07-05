@@ -18,7 +18,7 @@ import { verifyTool } from './verify';
 import { generateMusicTool, extendMusicTool, generateLyricsTool, coverAudioTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
 import { generateVideoStoryTool } from './videoStoryTool';
-import { searchAssetsTool, fetchAssetTool } from './assets';
+import { searchAssetsTool, fetchAssetTool, searchPhotosTool } from './assets';
 import { renderMotionVideoTool } from './motionVideo';
 import { generateCreativeTool } from './creative';
 import { generateLogoTool } from './logo';
@@ -76,6 +76,7 @@ export const ALL_TOOLS: ToolDef[] = [
   generateVideoStoryTool,
   searchAssetsTool,
   fetchAssetTool,
+  searchPhotosTool,
   renderMotionVideoTool,
   bashTool,
   bashBackgroundTool,
@@ -147,6 +148,7 @@ const REPORT_TOOLS = new Set([
   'web_fetch',
   'see_image',
   'generate_image',
+  'search_photos',
   'generate_creative',
   'generate_logo',
   'add_fonts',

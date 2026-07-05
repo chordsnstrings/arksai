@@ -128,7 +128,32 @@
     host.appendChild(f);
   };
 
+  /**
+   * Kinetic-type word splitter: any element with class .mg-words gets its text split into
+   * <span class="w" style="--w:N"> spans once at load, so words reveal one by one
+   * (CSS .mg-words .w staggers by --w). Deterministic — pure DOM restructuring at load,
+   * before any seek. Idempotent via a marker property.
+   */
+  function splitWords() {
+    var els = document.querySelectorAll('.mg-words');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.__mgSplit) continue;
+      el.__mgSplit = true;
+      var words = (el.textContent || '').trim().split(/\s+/).filter(Boolean);
+      el.textContent = '';
+      for (var w = 0; w < words.length; w++) {
+        var s = document.createElement('span');
+        s.className = 'w';
+        s.style.setProperty('--w', String(w));
+        s.textContent = words[w] + (w < words.length - 1 ? ' ' : '');
+        el.appendChild(s);
+      }
+    }
+  }
+
   window.__motionReady = true;
+  splitWords();
   if (document.readyState === 'complete') pauseAll();
-  else window.addEventListener('load', pauseAll);
+  else window.addEventListener('load', function () { splitWords(); pauseAll(); });
 })();

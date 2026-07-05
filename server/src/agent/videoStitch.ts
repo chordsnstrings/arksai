@@ -28,16 +28,43 @@ export function concatCmd(listFile: string, out: string): string {
 }
 
 /**
- * A/V transition between exactly two clips (re-encode). `offsetS` = where in clip A the video
- * fade begins (usually A's duration − fade). `kind`: 'fade' cross-dissolve | 'fadeblack' dip.
+ * The xfade transitions that look PROFESSIONAL (polish research 2026-07-05) — the smooth*
+ * family, circle/radial reveals, dips and slides. The cheesy ones (pixelize, dissolve,
+ * squeeze*, hlslice…) are deliberately not offered.
  */
-export function xfadeCmd(a: string, b: string, out: string, opts: { fadeS: number; offsetS: number; kind?: 'fade' | 'fadeblack' }): string {
+export const XFADE_KINDS = [
+  'fade',
+  'fadeblack',
+  'fadewhite',
+  'smoothleft',
+  'smoothright',
+  'smoothup',
+  'circleopen',
+  'radial',
+  'slideleft',
+  'wipeleft',
+] as const;
+export type XfadeKind = (typeof XFADE_KINDS)[number];
+
+/**
+ * A/V transition between exactly two clips (re-encode). `offsetS` = where in clip A the video
+ * fade begins (usually A's duration − fade). `audioFadeS` bounds the audio crossfade — pass
+ * a value ≤ the silent holds around the seam so NARRATION is never crossfaded (motion
+ * pipeline: lead 350ms + tail 600ms of silence make fadeS ≤ 0.6 voice-safe).
+ */
+export function xfadeCmd(
+  a: string,
+  b: string,
+  out: string,
+  opts: { fadeS: number; offsetS: number; kind?: string; audioFadeS?: number },
+): string {
   const f = Math.max(0.2, Math.min(2, opts.fadeS));
   const o = Math.max(0, opts.offsetS);
-  const k = opts.kind === 'fadeblack' ? 'fadeblack' : 'fade';
+  const k: XfadeKind = (XFADE_KINDS as readonly string[]).includes(opts.kind ?? '') ? (opts.kind as XfadeKind) : 'fade';
+  const ad = opts.audioFadeS != null ? Math.max(0.1, Math.min(2, opts.audioFadeS)) : Math.min(2, f * 2);
   return (
     `ffmpeg -v error -i ${q(a)} -i ${q(b)} -filter_complex ` +
-    `"[0:v][1:v]xfade=transition=${k}:duration=${f}:offset=${o}[v];[0:a][1:a]acrossfade=d=${Math.min(2, f * 2)}[a]" ` +
+    `"[0:v][1:v]xfade=transition=${k}:duration=${f}:offset=${o}[v];[0:a][1:a]acrossfade=d=${ad}[a]" ` +
     `-map "[v]" -map "[a]" -c:v libx264 -crf 20 -c:a aac -y ${q(out)}`
   );
 }
@@ -176,6 +203,79 @@ export async function stitchClips(
   if (!fs.existsSync(outAbs) || fs.statSync(outAbs).size < 10_000) {
     throw new Error('stitching produced no usable output');
   }
+}
+
+/**
+ * Segmented stitch for DESIGNED transitions at chosen boundaries (motion polish 2026-07-05):
+ * `boundaries[i]` is the xfade kind between clips i and i+1, or null for a plain cut.
+ * Runs of cut-joined clips are concat'd losslessly into segments first, then segments fold
+ * pairwise through xfade — so a video with one designed act-boundary transition re-encodes
+ * only at that seam. Audio crossfade is bounded to fadeS (voice-safe inside the holds).
+ */
+export async function stitchClipsSegmented(
+  files: string[],
+  outAbs: string,
+  boundaries: (string | null)[],
+  opts: { fadeS?: number; signal?: AbortSignal } = {},
+): Promise<void> {
+  if (files.length === 0) throw new Error('nothing to stitch — no scene clips were produced');
+  if (boundaries.length !== Math.max(0, files.length - 1)) throw new Error('boundaries must have one entry per seam');
+  if (files.length === 1 || boundaries.every((b) => !b)) {
+    return stitchClips(files, outAbs, { transition: 'cut', signal: opts.signal });
+  }
+  const dir = path.dirname(outAbs);
+  fs.mkdirSync(dir, { recursive: true });
+  const fadeS = Math.max(0.3, Math.min(0.6, opts.fadeS ?? 0.5)); // ≤ the 600ms tail hold → narration-safe
+  const temps: string[] = [];
+  try {
+    // 1. Concat runs of cut-joined clips into segments.
+    const segments: string[] = [];
+    const segKinds: string[] = []; // designed transition AFTER each segment (except the last)
+    let run: string[] = [files[0]];
+    for (let i = 0; i < boundaries.length; i++) {
+      if (boundaries[i]) {
+        segments.push(await concatRun(run, dir, temps, opts.signal));
+        segKinds.push(boundaries[i]!);
+        run = [files[i + 1]];
+      } else {
+        run.push(files[i + 1]);
+      }
+    }
+    segments.push(await concatRun(run, dir, temps, opts.signal));
+    // 2. Fold segments through xfade at the designed seams.
+    let acc = segments[0];
+    for (let i = 1; i < segments.length; i++) {
+      const durS = await probeDuration(acc, dir, opts.signal);
+      const step = i === segments.length - 1 ? outAbs : path.join(dir, `.seg-x-${i}-${Math.random().toString(36).slice(2, 8)}.mp4`);
+      if (step !== outAbs) temps.push(step);
+      await run2(xfadeCmd(acc, segments[i], step, { fadeS, offsetS: Math.max(0, durS - fadeS), kind: segKinds[i - 1], audioFadeS: fadeS }), dir, opts.signal);
+      acc = step;
+    }
+  } finally {
+    for (const t of temps) fs.rmSync(t, { force: true });
+  }
+  if (!fs.existsSync(outAbs) || fs.statSync(outAbs).size < 10_000) {
+    throw new Error('stitching produced no usable output');
+  }
+}
+
+async function concatRun(run: string[], dir: string, temps: string[], signal?: AbortSignal): Promise<string> {
+  if (run.length === 1) return run[0];
+  const seg = path.join(dir, `.seg-${temps.length}-${Math.random().toString(36).slice(2, 8)}.mp4`);
+  temps.push(seg);
+  const listFile = `${seg}.txt`;
+  fs.writeFileSync(listFile, buildConcatList(run));
+  try {
+    await run2(concatCmd(listFile, seg), dir, signal);
+  } finally {
+    fs.rmSync(listFile, { force: true });
+  }
+  return seg;
+}
+
+// internal alias — `run` is shadowed by loop variables above
+async function run2(cmd: string, cwd: string, signal?: AbortSignal): Promise<string> {
+  return run(cmd, cwd, signal);
 }
 
 /** Extract a clip's final frame to a JPEG; returns the output path. */

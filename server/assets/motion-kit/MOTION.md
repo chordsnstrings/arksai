@@ -4,31 +4,111 @@ Each scene is ONE self-contained HTML file rendered frame-by-frame by the captur
 The harness owns time: it injects `--scene-ms`/`--scene-s` (derived from the narration
 audio) and steps `window.__seek(ms)` per frame.
 
+## SCAFFOLDS FIRST (how to author at media-house quality)
+Prefer `scaffold: {id, slots}` scene specs over hand-written HTML — the scaffolds carry
+the choreography (entrances ≤1.2s, exits, camera, idles, composition, vignette, safe
+areas) already correct, so you focus on the SCRIPT, the SLOT CONTENT and the ASSET PICKS.
+Available scaffolds (see render_motion_video): `hook-question`, `hero-stat`,
+`split-compare`, `process-steps`, `annotated-plate`, `callout`, `character-beat`,
+`chart-insight`, `quote-punch`, `list-recap`, `end-punch`. Hand-write `html_file` scenes
+only for signature moments a scaffold can't express — everything below then applies to
+YOUR page verbatim.
+
 ## Hard rules (a scene that breaks these renders wrong)
 1. Link `motion.css` + `motion.js` + `fonts/fonts.css` with RELATIVE paths. No external
    http(s) resources anywhere — fully self-contained.
 2. NO wall-clock: no requestAnimationFrame state, no setInterval/setTimeout visuals, no
    `Date.now()`. All motion = CSS animations (the kit's classes or your own keyframes with
    `animation-fill-mode: both`) or `window.__motionHook((ms) => …)` deriving purely from ms.
-3. Time entrances in the first 1.5–3s; ambient/looping motion afterwards — narration length
-   varies, and the scene must look composed at ANY t. For proportional timing use
-   `animation-duration: calc(var(--scene-s) * 1s)`.
+3. Entrances COMPLETE within ~1.2s (headline visible within 0.5s of the cut); ambient
+   idles + one camera move carry the hold; content EXITS in the final ~0.4s (`.mg-exit-up`
+   on the content wrapper — a frame that sits frozen into a cut is a defect). For
+   proportional timing use `animation-duration: calc(var(--scene-s) * 1s)`.
 4. One idea per scene. Fill the frame ~85–100%; safe margins via `.mg-safe`.
 5. Icons/logos come from `search_assets` (inline the materialized SVG) — never hand-drawn
-   paths. Charts come from `render_chart` SVGs (animate bars with `.mg-bar-v`, lines with
-   `.mg-draw`).
+   paths, and the icon must literally depict its label (an apple labeled "butter" kills
+   credibility). Real photography comes from `search_photos` (or generate_image when no
+   quality photo exists). Charts come from `render_chart` SVGs (animate bars with
+   `.mg-bar-v`, lines with `.mg-draw`).
+
+## THE HOOK (scene 1 — non-negotiable)
+55% of viewers are lost in the first 60 seconds; short-form viewers decide in ~3s. Scene 1
+must EARN the rest of the video:
+- ≤5s long, and something MOVES in the first second (never a title card, logo, greeting,
+  or "in this video…" — those narrations are rejected before rendering).
+- The narration's first sentence poses the payoff as a QUESTION, a BOLD CLAIM, a STAKE, or
+  a SHOCKING NUMBER. Templates: "Why does [surprising fact]?" · "[X] isn't [assumed] —
+  it's [surprising]." · "You're doing [common thing] wrong, and it costs you [stake]." ·
+  "[Specific number] — and almost no one knows why." · "Most people think [wrong belief].
+  Watch what actually happens." · "[Option A] or [Option B]? Pick wrong and [consequence]." ·
+  "This is [end result]. Here's how it got there."
+- Tease, don't resolve: the hook opens a loop the FINAL scene pays off. Anticipation, not
+  the answer, is what holds attention (dopamine fires on the predictive cue).
+
+## SCRIPT DOCTRINE (write the narration for retention)
+- 130–160 spoken words/min (≈2.4 words/s). One idea per sentence. Second person,
+  conversational, concrete numbers over vague quantifiers ("37%", never "many").
+- Causal chain: every scene connects to the next with BUT or THEREFORE — never "and then".
+  End scene narrations on incomplete thoughts the next scene resolves.
+- On-screen text NEVER duplicates the narration (redundancy hurts comprehension): 5–12
+  words max on screen, keyword labels not sentences, labels sit NEXT TO what they name.
+- The visual for a thing appears AT THE MOMENT the narration says it: derive `--at` from
+  the word's position — `--at ≈ (chars before the word / total chars) × narration seconds`.
+- Peak-end: engineer ONE emotional peak (the biggest reveal/number/moment) and end on a
+  short punch-out scene (`end-punch`), never a disclaimers wall. The final scene is the
+  SHORTEST scene, not the longest.
+
+## PACING & RHYTHM
+- Scene mix per minute: 1–2 punch beats (1.5–2.5s, silent `min_ms` or ≤6 words), a
+  majority of 3–6s scenes, at most one 7–10s dwell. Uniform scene lengths read as a
+  slideshow — the tool warns when every scene is within ±15% of the median.
+- Something VISIBLY changes at least every ~4 seconds inside a scene (a reveal, a counter,
+  a sweep, a label landing) — one visual event per narration beat: every spoken number or
+  named noun triggers exactly ONE on-screen change; no beat passes with zero change.
+- Micro-arc per scene: enter (≤1.2s, staggered 40–80ms, parent before children) → hold
+  (idles + camera; text stays readable ≥ max(1s per 13 chars, 2s)) → exit (final ~0.4s).
+- After 3–4 dense scenes, one breather beat (single statement, sparse frame).
+- Re-hook cadence: a reveal/tension renewal every ~30–40s (short videos) or every 2–3
+  minutes (long ones) — schedule them in the script before writing scenes.
 
 ## NOTHING IS EVER STATIC (micro-animation doctrine — non-negotiable)
-A held, frozen frame reads as a slideshow, not a video. EVERY visible element must either
+A held, frozen frame reads as a slideshow, not a video — the render FAILS a scene whose
+frames are pixel-static. EVERY visible element must either
 (a) enter with a smooth entrance that SETTLES INTO an ambient idle — `.mg-float` (drift),
-`.mg-breathe` (subtle scale), `.mg-sway` (±0.6°), `.mg-bob`, `.mg-pulse`, `.mg-shimmer` —
-or (b) ride a container motion (`.mg-camera-zoom`/`.mg-camera-pan`/`.mg-kenburns`/parallax).
-Rules of smoothness: transform/opacity ONLY; soft cubic-bezier easings everywhere (linear is
-reserved for camera drift and parallax); entrances 0.5–0.9s with a gentle overshoot for
-emphasis pops; STAGGER every group (`.mg-stagger`, or −ve `--at` offsets so idles never move
-in lockstep); numbers tick (`data-count-to`), lines draw (`.mg-draw`), highlights sweep —
-never appear fully formed. Before finishing a scene, scan it: anything that would sit
-pixel-frozen for more than a second needs an idle or a camera.
+`.mg-breathe` (subtle scale), `.mg-sway` (±1°), `.mg-bob`, `.mg-pulse`, `.mg-shimmer` —
+or (b) ride a camera move: EVERY scene wraps its stage in `.mg-cam-in` / `.mg-cam-out` /
+`.mg-cam-drift` (alternate the direction scene to scene; never two consecutive scenes with
+the same camera). Rules of smoothness: transform/opacity ONLY; the kit's easing tokens
+(`--mg-ease-out` entrances, `--mg-ease-exit` exits, `--mg-ease-back` for 1–2 focal pops)
+— linear is reserved for parallax; entrances 0.3–0.7s traveling SHORT distances (2–4vh —
+long flights read student); STAGGER every group (`.mg-stagger`, or −ve `--at` offsets so
+idles never move in lockstep); numbers tick (`data-count-to`), lines draw (`.mg-draw`),
+highlights sweep — never appear fully formed. Secondary motion sells realism: `.mg-lag`
+on a label/shadow so it trails its owner, `.mg-squash` on landings, `.mg-stress` pulse
+when the narration stresses an element. Before finishing a scene, scan it: anything that
+would sit pixel-frozen for more than a second needs an idle or a camera.
+
+## KINETIC TYPE (text performs; it is never merely placed)
+- Titles: masked line rise — `<span class="mg-mask"><span class="mg-rise">Line</span></span>`,
+  lines staggered 80–120ms.
+- Hook lines / key sentences: `.mg-words` (words reveal one by one — time the group's
+  `--at` to the phrase being SPOKEN).
+- THE key word: `.mg-key` (arrives last, overshoot pop, accent color) or `.mg-mark`
+  (accent sweep) / `.mg-highlight` (vox yellow) timed to the exact spoken word.
+- Numbers: `data-count-to` counters — the value is never shown pre-formed; add `.mg-stress`
+  at the count's end.
+- Max ~8–12 words on screen; display type ≥6vh; labels ≥2.4vh; everything inside `.mg-safe`.
+
+## TRANSITIONS (frame-to-frame polish)
+- The DEFAULT cut is choreographed: outgoing scene exits (`.mg-exit-up` wrapper), incoming
+  headline lands within 0.5s. Cut on narration phrase boundaries (the holds).
+- Designed transitions are reserved for ACT boundaries (idea shifts) — 1–2 per minute max,
+  ONE grammar per video. Set per scene via `transition`: `dip` (dip to black),
+  `dissolve`, `wipe`, `slide`, `circle` — the tool renders them at the seam (narration is
+  never crossfaded; the fade window fits inside the silent holds).
+- Continuity devices: scenes within one act share the ground (the ground change IS the act
+  change); for an object-carry/match cut, place the shared element at the SAME coordinates
+  in the last frame of scene N and the first frame of scene N+1.
 
 ## STYLE PACKS (pick ONE per video — it governs every scene)
 State the chosen style in scene 1's comment. Each pack has its own ground set, components
@@ -61,18 +141,22 @@ and motion doctrine; SCENE CONTRAST still applies within the pack's grounds.
 ### `vox` — annotated-evidence editorial (Vox-inspired)
 - GROUNDS: `.mg-ground-studio` (warm gray photo-studio) as home; `.mg-ground-dark` for
   archival/night beats; occasional full-bleed `.mg-plate` scenes.
-- LOOK: a PLATE (a generate_image photographic/still-life image of a real prop or scene —
-  text-free — or a large flat SVG composition) fills or anchors the frame with
-  `.mg-kenburns`; annotations layer ON TOP: `.mg-label-vox` yellow boxed labels in bold
-  caps (`.num` for big figures, `.ink` for black), `.mg-highlight` highlighter sweeps over
-  key phrases, `.mg-underline` red underlines, `.mg-connector` lines drawing from label to
-  subject; `.mg-title-serif` for editorial headings. Restrained palette: studio gray +
-  yellow #ffe600 + ink + one red.
+- LOOK: a PLATE — a REAL photograph from `search_photos` (or generate_image when no
+  quality photo exists; text-free) — fills or anchors the frame with `.mg-kenburns`;
+  text over a plate sits on `.mg-plate-scrim`; annotations layer ON TOP:
+  `.mg-label-vox` yellow boxed labels in bold caps (`.num` for big figures, `.ink` for
+  black), `.mg-highlight` highlighter sweeps over key phrases, `.mg-underline` red
+  underlines, `.mg-connector` lines drawing from label to subject; `.mg-title-serif` for
+  editorial headings. Restrained palette: studio gray + yellow #ffe600 + ink + one red.
+  The evidence IS the design — a vox scene without a plate or a chart is a defect.
 - MOTION: calm and precise — slow pushes, labels fade-up then hold, highlights sweep as
   the narrator says the words. The annotation IS the animation.
 
 ### default (`clean`) — the house motion-graphics style (what you get with no pack): the
-base kit + SCENE CONTRAST doctrine as documented below.
+base kit + SCENE CONTRAST doctrine as documented below. Give every scene a PLACE:
+`.mg-ground-floor` (floor plane) or a dark/accent ground + `.mg-vignette`; anchor one
+oversized element (`.mg-prop-hero`, edge-bled) or a `.mg-hero-stat`; icons sit in
+`.mg-chip` tiles with `.mg-contact` shadows — never floating alone on flat white.
 
 ## SCENE CONTRAST (non-negotiable — the #1 review failure)
 Consecutive scenes must read as a real CUT, never the same slide re-worded. Across the
@@ -89,13 +173,20 @@ Scale contrast helps too: one scene whose stat fills a quarter of the frame beat
 medium-sized card.
 
 ## Building blocks
-- Stage: `.mg-scene .mg-safe [.mg-center]`, `.mg-row/.mg-col/.mg-grid`, `.mg-wash` backdrop.
+- Stage: `.mg-scene .mg-safe [.mg-center]`, `.mg-row/.mg-col/.mg-grid`, `.mg-wash` backdrop,
+  `.mg-vignette` atmosphere, `.mg-ground-floor` floor plane, `.mg-prop-hero` edge-bled prop.
 - Type: `.mg-kicker` (mono eyebrow), `.mg-title` (serif display), `.mg-sub`, `.mg-stat`
-  (big tabular number), `.mg-label`.
+  (big tabular number), `.mg-label`; kinetic: `.mg-mask`+`.mg-rise`, `.mg-words`, `.mg-key`,
+  `.mg-mark`.
 - Entrances (delay via `--at`, e.g. `style="--at:.6s"`): `.mg-reveal .mg-fade .mg-pop
   .mg-slide-l .mg-slide-r .mg-wipe`; stagger a group with `.mg-stagger` (`--stagger`).
+- Exits (on a wrapper): `.mg-exit-up .mg-exit-fade .mg-exit-down .mg-exit-scale`.
+- Secondary: `.mg-lag` (follow-through), `.mg-squash` (landing), `.mg-stress` (spoken-word
+  pulse), `.mg-contact` (grounding shadow).
 - SVG draw-on: wrap the icon in `.mg-draw` (set `--len` ≈ path length for tight timing).
-- Ambient: `.mg-float .mg-pulse`; camera: `.mg-camera-zoom` / `.mg-camera-pan` on a wrapper.
+- Ambient: `.mg-float .mg-pulse .mg-breathe .mg-bob`; camera: `.mg-cam-in` / `.mg-cam-out` /
+  `.mg-cam-drift` (v2, eased) or `.mg-camera-zoom` / `.mg-camera-pan`; depth:
+  `.mg-depth-bg/.mg-depth-mid/.mg-depth-fg` parallax layers.
 - Data: `.mg-bar` / `.mg-bar-v` growth; counters
   `<span data-count-to="42" data-count-start="800" data-count-dur="1200">0</span>`;
   typewriter `data-typewriter data-tw-start="400" data-tw-cps="24"`.
@@ -108,14 +199,20 @@ medium-sized card.
 <link rel="stylesheet" href="fonts/fonts.css"><link rel="stylesheet" href="motion-kit/motion.css">
 <style>:root{ --mg-accent:#0a7d5b } /* per-video theme + bespoke bits */</style>
 </head><body>
-<div class="mg-scene mg-safe mg-center mg-col">
+<div class="mg-scene mg-ground-floor">
   <div class="mg-wash"></div>
-  <div class="mg-kicker mg-reveal">STEP 1</div>
-  <h1 class="mg-title mg-reveal" style="--at:.25s">Eat more soluble fibre</h1>
-  <div class="mg-row mg-stagger" style="--at:.9s">
-    <div class="mg-chip mg-pop"><!-- inline SVG from search_assets --></div>
-    ...
+  <div class="mg-cam-in mg-fill" style="display:flex">
+    <div class="mg-exit-up mg-safe mg-center mg-col mg-fill" style="display:flex">
+      <div class="mg-kicker mg-reveal">STEP 1</div>
+      <h1 class="mg-title"><span class="mg-mask"><span class="mg-rise">Eat more</span></span>
+        <span class="mg-mask"><span class="mg-rise" style="--at:.12s">soluble <span class="mg-key" style="--at:.5s">fibre</span></span></span></h1>
+      <div class="mg-row mg-stagger" style="--at:.7s">
+        <div class="mg-breathe"><div class="mg-chip mg-pop mg-contact"><!-- inline SVG from search_assets --></div></div>
+        ...
+      </div>
+    </div>
   </div>
+  <div class="mg-vignette"></div>
 </div>
 <script src="motion-kit/motion.js"></script>
 </body></html>

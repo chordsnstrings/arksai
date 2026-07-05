@@ -96,6 +96,9 @@ export const config = {
   // Powers "ArksAI Swift" (Dola-Seed-2.0-pro) as the fast lane for simple builds. DORMANT until
   // ARK_API_KEY is set: with no key, simple builds stay on MiniMax (no behaviour change).
   byteplusApiKey: process.env.ARK_API_KEY || '',
+  // Pexels stock photography/footage (search_photos) — free key from pexels.com/api;
+  // keyless CC fallbacks (Openverse/Wikimedia) keep the tool alive without it.
+  pexelsApiKey: process.env.PEXELS_API_KEY || '',
   byteplusBaseUrl: process.env.BYTEPLUS_BASE_URL || 'https://ark.ap-southeast.bytepluses.com/api/coding/v3',
   // Video (Seedance via ModelArk) runs on the GENERAL endpoint, not the coding plan.
   byteplusVideoBaseUrl: process.env.BYTEPLUS_VIDEO_BASE_URL || 'https://ark.ap-southeast.bytepluses.com/api/v3',
