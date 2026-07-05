@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-05.43';
+export const WHATS_NEW_VERSION = '2026-07-05.44';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Every video style now looks like itself',
-    body: 'Each explainer style carries its own design DNA end to end — its own colours, type voice and card treatments — so a Nutshell video, a Broadcast video and a Nordic video are unmistakably different, at every size.',
+    title: 'The studio look: real photos and cutouts in your videos',
+    body: 'Explainer videos can now be art-directed with real photography — full-bleed color-toned photo scenes, background-removed subject cutouts with sticker or print outlines, collage comparisons — all matched to your chosen style automatically.',
   },
   {
-    title: 'Designed for every frame size',
-    body: 'Vertical Shorts, square and 4:5 social posts now get compositions built for their shape (not a squeezed widescreen layout), and every scene keeps living motion inside the frame — drifting texture, breathing elements, travelling accents — never a frozen slide.',
-  },
-  {
-    title: 'Endings that land like an outro',
-    body: 'Videos with a music bed now finish properly: the narration ends, the music rises and carries the final moment, then fades out gently — the voice is never cut or faded mid-word.',
+    title: 'Real display typography in every style',
+    body: 'Each video style now speaks in its own professional typeface — warm editorial serifs, characterful grotesques, bold broadcast type — self-hosted and guaranteed in every render.',
   },
 ];
 

@@ -148,6 +148,12 @@ export const searchPhotosTool: ToolDef = {
       orientation: { type: 'string', enum: ['landscape', 'portrait', 'square'], description: 'Match the frame you are filling (default landscape).' },
       download: { type: 'boolean', description: 'Download the best candidate (default true). Pass false to only list candidates.' },
       count: { type: 'number', description: 'How many candidates to list (default 6, max 12).' },
+      cutout: {
+        type: 'boolean',
+        description:
+          'ALSO produce a background-removed CUTOUT of the subject (<photo>-cutout.png, transparent) for the studio-collage look — ' +
+          'use it in cutout-hero/cutout-stat/collage-compare scaffold slots or any .mg-cutout composition. Works best on photos with ONE clear subject.',
+      },
     },
     required: ['query'],
   },
@@ -185,9 +191,10 @@ export const searchPhotosTool: ToolDef = {
         if (kind === 'photo' && config.minimaxApiKey) {
           try {
             const { fileToDataUrl } = await import('../../engines/minimax');
+            const wantCutout = args.cutout === true;
             const v = await analyzeImage(
               fileToDataUrl(path.join(ctx.repoDir, dl.relPath)),
-              `Is this a high-quality photograph clearly showing: ${query}? It will be a full-bleed video plate. Answer "YES" or "NO: <reason>" only.`,
+              `Is this a high-quality photograph clearly showing: ${query}?${wantCutout ? ' It must have ONE clear subject separable from its background (it will be cut out).' : ' It will be a full-bleed video plate.'} Answer "YES" or "NO: <reason>" only.`,
               ctx.signal,
             );
             if (v.ok && v.text && /^\s*no\b/i.test(v.text)) {
@@ -200,6 +207,18 @@ export const searchPhotosTool: ToolDef = {
           }
         }
         out += `\n\nDownloaded: ${dl.relPath} (${(dl.bytes / 1024).toFixed(0)}KB) — attribution recorded. Use this path in scene slots/plates.`;
+        // STUDIO CUTOUT (operator 2026-07-05: real photos + cutouts): lift the subject off
+        // its background with the product-ad engine's rembg step — same graceful degrades.
+        if (args.cutout === true && kind === 'photo') {
+          const { isolateProduct } = await import('../productShot');
+          const cutRel = dl.relPath.replace(/\.[a-z]+$/i, '') + '-cutout.png';
+          const iso = await isolateProduct(path.join(ctx.repoDir, dl.relPath), path.join(ctx.repoDir, cutRel), ctx.signal);
+          if (iso.ok) {
+            out += `\nCutout: ${cutRel} (transparent PNG) — use in cutout scaffold slots / .mg-cutout compositions; the original stays available as a plate.`;
+          } else {
+            out += `\nCutout unavailable (${iso.reason}) — use the full photo as a plate (.mg-plate + scrim) instead.`;
+          }
+        }
         return out;
       } catch (e: any) {
         out += `\nDownload of ${c.id} failed (${String(e?.message ?? e).slice(0, 80)}) — trying the next candidate.`;

@@ -538,13 +538,16 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
  * the ENGINE. The shell stamps .mg-style-<pack> on every scene; each pack sets its
  * accents and display-type voice here. An agent-passed accent still wins (it is written
  * INLINE on the scene element, which out-cascades these class tokens). */
-.mg-style-clean { --mg-accent: #0a7d5b; --mg-accent-2: #0a5d8b; }
-/* Kurzgesagt voice: neon magenta/cyan on cosmic grounds, heavy geometric sans display. */
-.mg-style-nutshell { --mg-accent: #e30050; --mg-accent-2: #00b8d9; --mg-font-display: 'Inter', -apple-system, sans-serif; }
-.mg-style-nutshell .mg-title, .mg-style-nutshell .mg-giant { font-weight: 800; letter-spacing: -0.02em; }
-/* Infographics-show voice: shouting uppercase sans, danger-red + amber coding. */
-.mg-style-broadcast { --mg-accent: #e8483f; --mg-accent-2: #f0a500; --mg-font-display: 'Inter', -apple-system, sans-serif; }
-.mg-style-broadcast .mg-title, .mg-style-broadcast .mg-giant { font-weight: 900; text-transform: uppercase; letter-spacing: -0.01em; }
+/* Studio typography (operator 2026-07-05 "hit that studio look"): each pack speaks in a
+ * REAL display face from the bundled font set (fonts/fonts.css is installed into every
+ * motion workspace by the tool) — no more everything-Inter. */
+.mg-style-clean { --mg-accent: #0a7d5b; --mg-accent-2: #0a5d8b; --mg-font-display: 'Fraunces', 'Source Serif 4', Georgia, serif; }
+/* Kurzgesagt voice: neon magenta/cyan on cosmic grounds, characterful heavy grotesque. */
+.mg-style-nutshell { --mg-accent: #e30050; --mg-accent-2: #00b8d9; --mg-font-display: 'Bricolage Grotesque', 'Inter', -apple-system, sans-serif; }
+.mg-style-nutshell .mg-title, .mg-style-nutshell .mg-giant { font-weight: 700; letter-spacing: -0.02em; }
+/* Infographics-show voice: shouting uppercase grotesk, danger-red + amber coding. */
+.mg-style-broadcast { --mg-accent: #e8483f; --mg-accent-2: #f0a500; --mg-font-display: 'Space Grotesk', 'Inter', -apple-system, sans-serif; }
+.mg-style-broadcast .mg-title, .mg-style-broadcast .mg-giant { font-weight: 700; text-transform: uppercase; letter-spacing: -0.01em; }
 /* Vox voice: ink + highlighter yellow (full yellow only on dark grounds — it dies on studio gray). */
 .mg-style-vox { --mg-accent: #b58a00; --mg-accent-2: #e33d3d; }
 .mg-style-vox.mg-ground-dark { --mg-accent: #ffe600; }
@@ -569,6 +572,57 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
 .mg-runline { position: relative; height: 2px; background: color-mix(in srgb, var(--mg-ink) 16%, transparent); overflow: hidden; }
 @keyframes mgRun { from { left: 0; } to { left: 82%; } }
 .mg-runline::after { content: ''; position: absolute; top: -1px; bottom: -1px; width: 18%; background: var(--mg-accent); animation: mgRun 4.8s ease-in-out infinite alternate; }
+
+/* ============================ STUDIO MATERIAL (2026-07-05) ============================
+ * "Real photos, cutouts, typography" (operator): photography is design MATERIAL, never a
+ * raw rectangle. Cutouts get sticker outlines + contact shadows; plates get duotone or
+ * archival treatments; collage props (tape, torn edges, frames) make a frame feel
+ * art-directed. Pair with search_photos {cutout:true} → <photo>-cutout.png. */
+/* A background-removed subject: soft ambient depth + tight contact shadow. */
+.mg-cutout { position: relative; }
+.mg-cutout img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2.2vh 3.4vh rgba(0, 0, 0, 0.35)) drop-shadow(0 0.5vh 0.9vh rgba(0, 0, 0, 0.28)); }
+/* Sticker variant: the die-cut white outline (the collage-explainer signature). */
+.mg-cutout.sticker img {
+  filter: drop-shadow(0.35vh 0 0 #fff) drop-shadow(-0.35vh 0 0 #fff) drop-shadow(0 0.35vh 0 #fff) drop-shadow(0 -0.35vh 0 #fff)
+    drop-shadow(0 2vh 3vh rgba(0, 0, 0, 0.35));
+}
+.mg-cutout.ink img {
+  filter: drop-shadow(0.3vh 0 0 var(--mg-ink)) drop-shadow(-0.3vh 0 0 var(--mg-ink)) drop-shadow(0 0.3vh 0 var(--mg-ink)) drop-shadow(0 -0.3vh 0 var(--mg-ink))
+    drop-shadow(0.9vh 0.9vh 0 color-mix(in srgb, var(--mg-ink) 80%, transparent));
+}
+/* Duotone photo: grayscale base + accent multiply/screen overlays (wrapper on an <img>). */
+.mg-duotone { position: relative; overflow: hidden; }
+.mg-duotone img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.12) brightness(0.96); }
+.mg-duotone::after { content: ''; position: absolute; inset: 0; background: var(--mg-accent); mix-blend-mode: multiply; opacity: 0.72; }
+.mg-duotone::before { content: ''; position: absolute; inset: 0; background: color-mix(in srgb, var(--mg-bg) 88%, var(--mg-accent)); mix-blend-mode: lighten; opacity: 0.18; z-index: 1; }
+/* Archival: warm faded print (vox/nordic documentary beats). */
+.mg-archival img { filter: grayscale(0.35) sepia(0.28) contrast(0.98) brightness(1.02); }
+/* Halftone dot overlay — print texture on a photo or a ground region. */
+.mg-halftone::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.16; mix-blend-mode: multiply;
+  background-image: radial-gradient(color-mix(in srgb, var(--mg-ink) 80%, transparent) 1px, transparent 1.6px);
+  background-size: 0.9vh 0.9vh;
+}
+/* Collage tape strip: absolutely-position on a corner of a photo/card (wrapper-safe). */
+.mg-tape {
+  position: absolute; width: 11vh; height: 3.4vh; background: color-mix(in srgb, #f6ecc8 82%, transparent);
+  box-shadow: 0 0.4vh 1vh rgba(0, 0, 0, 0.14); opacity: 0.9;
+}
+/* Torn-paper edge on a plate/card bottom (deterministic clip polygon). */
+.mg-torn { clip-path: polygon(0 0, 100% 0, 100% 96%, 96% 99%, 90% 96.5%, 83% 99.5%, 76% 97%, 68% 99%, 60% 96.5%, 52% 99.5%, 44% 97%, 36% 99%, 28% 96.5%, 20% 99.5%, 12% 97%, 5% 99%, 0 96.5%); }
+/* Editorial photo frames/crops. */
+.mg-polaroid { background: #fbfaf7; padding: 1.6vh 1.6vh 5.2vh; box-shadow: 0 1.6vh 3.6vh rgba(0, 0, 0, 0.3); }
+.mg-polaroid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mg-crop-circle { border-radius: 50%; overflow: hidden; }
+.mg-crop-circle img { width: 100%; height: 100%; object-fit: cover; }
+.mg-crop-arch { border-radius: 50% 50% 0 0 / 32% 32% 0 0; overflow: hidden; }
+.mg-crop-arch img { width: 100%; height: 100%; object-fit: cover; }
+/* Grain scoped to a photo region (the global .mg-grain covers the whole frame). */
+.mg-photo-grain::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 240px 240px; mix-blend-mode: overlay;
+}
 
 /* ---------- SQUARE (1:1 / 4:5) — row layouts survive, everything tightens ---------- */
 .mg-fmt-sq .mg-safe { padding: 6vh 6vw; }

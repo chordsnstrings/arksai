@@ -107,7 +107,7 @@ export async function captureSpotFrame(
  */
 const GEOMETRY_AUDIT_JS = `(() => {
   const W = window.innerWidth, H = window.innerHeight;
-  const BLEED = ['mg-echo','mg-prop-hero','mg-numeral','mg-hills','mg-hill','mg-plate','mg-wash','mg-grain','mg-vignette','mg-particles','mg-dot','mg-plate-scrim','mg-kenburns'];
+  const BLEED = ['mg-echo','mg-prop-hero','mg-numeral','mg-hills','mg-hill','mg-plate','mg-wash','mg-grain','mg-vignette','mg-particles','mg-dot','mg-plate-scrim','mg-kenburns','mg-cutout','mg-duotone','mg-tape'];
   const sanctioned = (el) => { for (let n = el; n && n.classList; n = n.parentElement) { if (BLEED.some((c) => n.classList.contains(c))) return true; } return false; };
   const offenders = [];
   const seen = new Set();

@@ -10,9 +10,23 @@ the choreography (entrances ≤1.2s, exits, camera, idles, composition, vignette
 areas) already correct, so you focus on the SCRIPT, the SLOT CONTENT and the ASSET PICKS.
 Available scaffolds (see render_motion_video): `hook-question`, `hero-stat`,
 `split-compare`, `process-steps`, `annotated-plate`, `callout`, `character-beat`,
-`chart-insight`, `quote-punch`, `list-recap`, `end-punch`. Hand-write `html_file` scenes
+`chart-insight`, `quote-punch`, `list-recap`, `end-punch`, and the STUDIO photo
+scaffolds `photo-hero`, `cutout-stat`, `collage-compare`. Hand-write `html_file` scenes
 only for signature moments a scaffold can't express — everything below then applies to
 YOUR page verbatim.
+
+## STUDIO MATERIAL (real photos + cutouts — the studio look)
+Photography is design MATERIAL, never a raw stock rectangle. Per video, aim for 1-2
+photo-driven beats: a `photo-hero` (full-bleed duotone/archival plate + giant type), a
+`cutout-stat` or `collage-compare` (background-removed subjects). Get material with
+search_photos — pass `cutout:true` to also produce `<photo>-cutout.png` (transparent
+subject; needs a photo with ONE clear subject). Treatments in the kit: `.mg-cutout`
+(+`.sticker` die-cut white outline on nutshell/broadcast, `.ink` outline on nordic),
+`.mg-duotone` (accent-toned plate), `.mg-archival`, `.mg-halftone`, `.mg-tape`,
+`.mg-torn`, `.mg-polaroid`, `.mg-crop-circle`/`.mg-crop-arch`, `.mg-photo-grain`.
+Rules: every plate gets a treatment or a scrim (raw photo + raw text = student tell);
+cutouts get a shadow or outline and may bleed off-frame; the photo must LITERALLY show
+the narration's subject (the vision gate checks).
 
 ## Hard rules (a scene that breaks these renders wrong)
 1. Link `motion.css` + `motion.js` + `fonts/fonts.css` with RELATIVE paths. No external

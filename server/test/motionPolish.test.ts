@@ -32,6 +32,9 @@ const MINIMAL_SLOTS: Record<string, any> = {
   'quote-punch': { lines: ['Small changes,', 'compounding daily'] },
   'list-recap': { title: 'REMEMBER', items: [{ label: 'Fibre first' }, { label: 'Move daily' }, { label: 'Ask your doctor' }] },
   'end-punch': { line: 'Start with breakfast tomorrow', sub: 'One bowl. That is it.' },
+  'photo-hero': { photo: 'assets/photos/pexels-2.jpg', headline: 'The engine inside you', kicker: 'THE SCIENCE' },
+  'cutout-stat': { cutout: 'assets/photos/pexels-3-cutout.png', value: 42, suffix: '%', label: 'more capacity retained' },
+  'collage-compare': { left: { cutout: 'assets/photos/a-cutout.png', title: 'Cheap' }, right: { cutout: 'assets/photos/b-cutout.png', title: 'Quality' }, verdict: 'Quality wins' },
 };
 
 function ctx(style: ScaffoldCtx['style'], sceneIndex = 0): ScaffoldCtx {
@@ -461,4 +464,52 @@ test('living frame: perpetual ambients baked into scaffolds, weak-motion advisor
   assert.match(md, /LIVING FRAME/);
   assert.match(md, /## FORMATS/);
   assert.match(md, /PACK DNA IS IN THE ENGINE/);
+});
+
+// ---------------- STUDIO LOOK (operator 2026-07-05: "real photos, cut outs, typography") ----------------
+
+test('studio material: cutout/duotone/collage kit + pack display faces + guaranteed fonts', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  for (const cls of ['.mg-cutout', '.mg-cutout.sticker', '.mg-cutout.ink', '.mg-duotone', '.mg-archival', '.mg-halftone', '.mg-tape', '.mg-torn', '.mg-polaroid', '.mg-crop-circle', '.mg-crop-arch', '.mg-photo-grain'])
+    assert.ok(css.includes(cls), `motion.css has ${cls}`);
+  // pack display voices come from the bundled font set, not everything-Inter
+  assert.match(css, /\.mg-style-clean \{[^}]*'Fraunces'/);
+  assert.match(css, /\.mg-style-nutshell \{[^}]*'Bricolage Grotesque'/);
+  assert.match(css, /\.mg-style-broadcast \{[^}]*'Space Grotesk'/);
+  // the tool guarantees fonts/ in the workspace (scenes silently fell back to system fonts)
+  const tool = fs.readFileSync(path.join(__dirname, '../src/agent/tools/motionVideo.ts'), 'utf8');
+  assert.match(tool, /report-fonts/, 'ensureMotionKit installs the bundled fonts');
+  // search_photos produces cutouts via the product-ad isolation step
+  const assets = fs.readFileSync(path.join(__dirname, '../src/agent/tools/assets.ts'), 'utf8');
+  assert.match(assets, /cutout/);
+  assert.match(assets, /isolateProduct/);
+});
+
+test('studio scaffolds: photo-hero/cutout-stat/collage-compare across packs + formats, pack edge treatments', () => {
+  // sticker outline on the playful packs, ink outline on nordic, plain shadow on clean
+  const nut = materializeScaffold({ id: 'cutout-stat', slots: MINIMAL_SLOTS['cutout-stat'] }, ctx('nutshell', 1)).html!;
+  assert.match(nut, /mg-cutout sticker/);
+  const nor = materializeScaffold({ id: 'cutout-stat', slots: MINIMAL_SLOTS['cutout-stat'] }, ctx('nordic', 1)).html!;
+  assert.match(nor, /mg-cutout ink/);
+  const cln = materializeScaffold({ id: 'cutout-stat', slots: MINIMAL_SLOTS['cutout-stat'] }, ctx('clean', 1)).html!;
+  assert.match(cln, /class="mg-pop mg-cutout"/);
+  // photo-hero treats the plate (duotone default) and grains it — never a raw rectangle
+  const hero = materializeScaffold({ id: 'photo-hero', slots: MINIMAL_SLOTS['photo-hero'] }, ctx('vox', 0)).html!;
+  assert.match(hero, /mg-duotone/);
+  assert.match(hero, /mg-photo-grain/);
+  assert.match(hero, /mg-plate-scrim/);
+  // tall format stacks the collage compare
+  const tallC = materializeScaffold({ id: 'collage-compare', slots: MINIMAL_SLOTS['collage-compare'] }, { ...ctx('broadcast', 1), width: 1080, height: 1920 }).html!;
+  assert.match(tallC, /flex-direction:column/);
+  // bad paths fail with guidance
+  const bad = materializeScaffold({ id: 'cutout-stat', slots: { ...MINIMAL_SLOTS['cutout-stat'], cutout: 'assets/icon.svg' } }, ctx('clean', 1));
+  assert.ok(bad.problems.some((p) => p.includes('photo path')), bad.problems.join());
+  // annotated-plate takes a studio treatment
+  const plate = materializeScaffold({ id: 'annotated-plate', slots: { ...MINIMAL_SLOTS['annotated-plate'], treatment: 'archival' } }, ctx('vox', 1)).html!;
+  assert.match(plate, /mg-archival/);
+  // geometry gate sanctions cutout/duotone bleed
+  const cap = fs.readFileSync(path.join(__dirname, '../src/agent/motion/capture.ts'), 'utf8');
+  assert.match(cap, /'mg-cutout','mg-duotone','mg-tape'/);
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  assert.match(md, /STUDIO MATERIAL/);
 });

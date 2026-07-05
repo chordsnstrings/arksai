@@ -145,6 +145,20 @@ function ensureMotionKit(repoDir: string): void {
     const abs = path.join(src, f);
     if (fs.statSync(abs).isFile()) fs.copyFileSync(abs, path.join(dest, f));
   }
+  // STUDIO TYPOGRAPHY guarantee (2026-07-05): scenes link fonts/fonts.css, but nothing
+  // installed it unless the agent happened to call add_fonts — every scene silently fell
+  // back to system fonts. The bundled set (Fraunces/Bricolage/Space Grotesk/…) is what
+  // gives each pack its display voice, so install it with the kit.
+  const fontsSrc = path.join(repoRoot, 'server', 'assets', 'report-fonts');
+  const fontsDest = path.join(repoDir, 'fonts');
+  if (fs.existsSync(fontsSrc)) {
+    fs.mkdirSync(fontsDest, { recursive: true });
+    for (const f of fs.readdirSync(fontsSrc)) {
+      if (!/\.(woff2|css)$/i.test(f)) continue;
+      const to = path.join(fontsDest, f);
+      if (!fs.existsSync(to)) fs.copyFileSync(path.join(fontsSrc, f), to);
+    }
+  }
 }
 
 async function ttsScene(m: MotionManifest, s: MotionScene, repoDir: string, signal: AbortSignal, addCost: (u: number) => void): Promise<void> {
@@ -183,7 +197,9 @@ async function qcScene(m: MotionManifest, s: MotionScene, repoDir: string, htmlA
           'unreadable/clipped/overflowing text or low-contrast kicker; an icon that does NOT depict its adjacent label (name both); ' +
           'a mostly-empty or half-assembled frame; floating icon-on-flat-background with no ground/depth; ' +
           'slide-like typography (uniform text sizes in one centered stack — demand scale contrast and creative placement); ' +
-          'more than ~12 words on screen; content contradicting the narration.',
+          'a RAW untreated photo rectangle (photos need a duotone/archival treatment, a scrim, a frame, or a cutout with shadow/outline — studio look); ' +
+          'more than ~12 words on screen; content contradicting the narration. ' +
+          'If a fix is needed, prefer a targeted scaffold retake (adjust slots / switch scaffold) over rebuilding the scene as bespoke HTML.',
         signal,
       );
       if (v.ok && v.text && !/^\s*ok\b/i.test(v.text)) {

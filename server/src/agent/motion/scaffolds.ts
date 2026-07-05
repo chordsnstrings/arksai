@@ -405,8 +405,10 @@ const annotatedPlate: Builder = (slots, ctx) => {
   }));
   if (problems.length) return { problems };
   const labelCls = ctx.style === 'broadcast' ? 'mg-callout' : ctx.style === 'nordic' ? 'mg-label-vox ink' : 'mg-label-vox';
+  // Studio treatment: duotone/archival wrap so a plate never reads as a raw stock rectangle.
+  const treat = slots.treatment === 'duotone' ? 'mg-duotone' : slots.treatment === 'archival' ? 'mg-archival' : '';
   const bg = `
-  <div class="mg-plate"><div class="mg-kenburns" style="width:100%;height:100%;"><img src="${esc(ctx.kitPrefix + plate)}" alt=""></div></div>
+  <div class="mg-plate"><div class="mg-kenburns${treat ? ' ' + treat : ''}" style="width:100%;height:100%;position:relative;"><img src="${esc(ctx.kitPrefix + plate)}" alt=""></div></div>
   <div class="mg-plate-scrim${slots.scrim === 'top' ? ' top' : ''}"></div>`;
   const body = `
   <div class="mg-fill" style="position:relative;">
@@ -590,6 +592,126 @@ const endPunch: Builder = (slots, ctx) => {
   return { problems, html: shell(ctx, { ground, body, cam: 'mg-cam-in', exit: 'mg-exit-scale' }) };
 };
 
+// ---------------------------------------------------------------------------
+// STUDIO scaffolds (operator 2026-07-05: "real photos, cut outs, typography… ready to be
+// used for any kind of media") — photography as design material in every pack/format.
+// ---------------------------------------------------------------------------
+
+/** Validate a workspace-relative raster path (photo/cutout from search_photos). */
+function imgPath(problems: string[], slot: string, value: unknown, required = false): string {
+  const p = String(value ?? '').trim();
+  if (!p) {
+    if (required) problems.push(`slot "${slot}" is required: a workspace-relative image from search_photos (pass cutout:true there for -cutout.png subjects)`);
+    return '';
+  }
+  if (!/\.(png|jpe?g|webp)$/i.test(p)) {
+    problems.push(`slot "${slot}": expected a workspace-relative photo path (.png/.jpg/.webp), got "${p}"`);
+    return '';
+  }
+  return p;
+}
+
+/** The pack's cutout edge treatment: die-cut sticker (playful packs) or ink outline (print packs). */
+function cutoutCls(style: MotionStyleId): string {
+  if (style === 'nutshell' || style === 'broadcast') return 'mg-cutout sticker';
+  if (style === 'nordic') return 'mg-cutout ink';
+  return 'mg-cutout';
+}
+
+/** Full-bleed treated photo + giant typographic headline — the magazine-cover beat. */
+const photoHero: Builder = (slots, ctx) => {
+  const problems: string[] = [];
+  const photo = imgPath(problems, 'photo', slots.photo, true);
+  const headline = cap(problems, 'headline', slots.headline, 10, true);
+  const kicker = cap(problems, 'kicker', slots.kicker, 5);
+  if (problems.length) return { problems };
+  const treat = slots.treatment === 'plain' ? '' : slots.treatment === 'archival' ? 'mg-archival' : 'mg-duotone';
+  const fmt = formatOf(ctx);
+  // grain is a SIBLING overlay — mg-photo-grain::after would clobber mg-duotone::after
+  // (both pseudo-elements) if stacked on one element.
+  const bg = `
+  <div class="mg-plate"><div class="mg-kenburns" style="width:100%;height:100%;position:relative;"><div${treat ? ` class="${treat}"` : ''} style="width:100%;height:100%;position:relative;"><img src="${esc(ctx.kitPrefix + photo)}" alt="" style="width:100%;height:100%;object-fit:cover;"></div><div class="mg-photo-grain" style="position:absolute;inset:0;"></div></div></div>
+  <div class="mg-plate-scrim"></div>`;
+  const echo = echoWord(headline);
+  const body = `
+  <div class="mg-fill" style="position:relative;z-index:1;display:flex;align-items:flex-end;">
+    <div class="mg-col" style="align-items:flex-start;gap:2vh;margin:0 8vw ${fmt === 'tall' ? '12vh' : '9vh'};max-width:${fmt === 'landscape' ? '70vw' : '84vw'};color:#fff;">
+      ${kicker ? `<div class="mg-rulelabel mg-reveal mg-shimmer" style="--at:.08s;color:rgba(255,255,255,.85);">${esc(kicker)}</div>` : ''}
+      <h1 class="mg-title" style="font-size:1px;color:#fff;">${richLines(headline, fmt === 'landscape' ? 10.5 : 9, 0.15)}</h1>
+    </div>
+  </div>
+  ${echo ? `<div class="mg-echo mg-outline" style="right:-6vw;top:-5vh;font-size:${dsize(30)};-webkit-text-stroke-color:rgba(255,255,255,.5);">${drift(`<span style="display:inline-block;">${esc(echo)}</span>`, { dur: 11, dx: '1.4vw', dy: '1vh' })}</div>` : ''}`;
+  const ground = groundClass(ctx.style, slots.ground ?? 'home', ctx.sceneIndex);
+  return { problems, html: shell(ctx, { ground, body, bg, cam: 'mg-cam-drift', exit: 'mg-exit-fade' }) };
+};
+
+/** Cutout subject + hero numeral — the collage-explainer stat beat. */
+const cutoutStat: Builder = (slots, ctx) => {
+  const problems: string[] = [];
+  const cut = imgPath(problems, 'cutout', slots.cutout, true);
+  const label = cap(problems, 'label', slots.label, 8, true);
+  const kicker = cap(problems, 'kicker', slots.kicker, 6);
+  const value = Number(slots.value);
+  if (!Number.isFinite(value)) problems.push('slot "value" must be a number');
+  if (problems.length) return { problems };
+  const ground = groundClass(ctx.style, slots.ground, ctx.sceneIndex);
+  const fmt = formatOf(ctx);
+  const stacked = fmt === 'tall';
+  const shown = `${slots.prefix ?? ''}${value}${slots.suffix ?? ''}`;
+  const statSize = fmt === 'landscape' ? dsize(26) : dsize(22);
+  const cutSize = stacked ? 'width:min(58vw, 40vh);height:min(58vw, 40vh);' : `width:${dsize(38)};height:${dsize(38)};`;
+  const body = `
+  <div class="mg-safe mg-fill ${stacked ? 'mg-col mg-center' : 'mg-split'}" style="align-items:center;${stacked ? 'display:flex;justify-content:space-evenly;' : ''}">
+    <div class="mg-col" style="align-items:flex-start;gap:1.8vh;${stacked ? 'align-items:center;text-align:center;' : ''}position:relative;z-index:1;">
+      ${kicker ? `<div class="mg-rulelabel mg-reveal" style="--at:.06s">${esc(kicker)}</div>` : ''}
+      <div class="mg-stress" style="--at:${atFrac(0.72)}"><div class="mg-stat mg-pop" style="--at:.22s;font-size:${statSize};line-height:.88;">${esc(slots.prefix ?? '')}<span data-count-to="${value}" data-count-from="0" data-count-start-frac="0.2" data-count-dur="1300">0</span>${esc(slots.suffix ?? '')}</div></div>
+      <div class="mg-bar" style="--at:${atFrac(0.45)};height:0.9vh;width:${stacked ? '30vw' : '18vw'};background:var(--mg-accent);border-radius:0.45vh;"></div>
+      <div class="mg-lag" style="--at:${atFrac(0.42)};font-family:var(--mg-font-display);font-size:${dsize(4)};font-weight:600;">${esc(label)}</div>
+    </div>
+    <div style="display:flex;justify-content:center;position:relative;">
+      ${drift(`<div class="mg-pop ${cutoutCls(ctx.style)}" style="--at:.3s;${cutSize}"><img src="${esc(ctx.kitPrefix + cut)}" alt=""></div>`, { dur: 8, dx: '0.7vw', dy: '1vh' })}
+    </div>
+  </div>`;
+  const bg = `<div class="mg-echo mg-outline" style="left:-6vw;bottom:-8vh;font-size:${dsize(44)};font-family:var(--mg-font-data);">${drift(`<span style="display:inline-block;">${esc(shown)}</span>`, { dur: 12, dx: '1.4vw', dy: '1vh' })}</div>`;
+  return { problems, html: shell(ctx, { ground, body: body + (stacked ? '' : runline(0.55)), bg }) };
+};
+
+/** Two cutout subjects face off — the collage version of split-compare. */
+const collageCompare: Builder = (slots, ctx) => {
+  const problems: string[] = [];
+  const title = cap(problems, 'title', slots.title, 8);
+  const verdict = cap(problems, 'verdict', slots.verdict, 8);
+  const side = (s: any, slot: string) => ({
+    cutout: imgPath(problems, `${slot}.cutout`, s?.cutout, true),
+    title: cap(problems, `${slot}.title`, s?.title, 4, true),
+  });
+  const L = side(slots.left, 'left');
+  const R = side(slots.right, 'right');
+  if (problems.length) return { problems };
+  const ground = groundClass(ctx.style, slots.ground ?? 'light', ctx.sceneIndex);
+  const fmt = formatOf(ctx);
+  const stacked = fmt === 'tall';
+  const labelCls = ctx.style === 'vox' || ctx.style === 'broadcast' ? 'mg-label-vox' : ctx.style === 'nordic' ? 'mg-label-vox ink' : 'mg-key';
+  const cutSize = stacked ? 'width:min(64vw, 30vh);height:min(64vw, 30vh);' : `width:${dsize(30)};height:${dsize(30)};`;
+  const sideCol = (s: { cutout: string; title: string }, cls: string, at: number, phase: number) => `
+    <div class="${cls}" style="--at:${at}s;display:flex;flex-direction:column;align-items:center;gap:2vh;flex:1;position:relative;">
+      ${drift(`<div class="${cutoutCls(ctx.style)}" style="${cutSize}"><img src="${esc(ctx.kitPrefix + s.cutout)}" alt=""></div>`, { dur: 8 + phase, dx: '0.6vw', dy: '0.9vh', at: `-${phase}s` })}
+      <div class="${labelCls}" style="--at:${(at + 0.3).toFixed(2)}s;font-size:${dsize(3.4)};">${esc(s.title)}</div>
+    </div>`;
+  const body = `
+  <div class="mg-safe mg-col mg-fill" style="display:flex;justify-content:center;gap:${stacked ? '2vh' : '3.5vh'};">
+    ${title ? `<div style="display:flex;justify-content:center;"><h2 class="mg-title mg-reveal" style="--at:.05s;font-size:${dsize(5.8)};">${esc(title)}</h2></div>` : ''}
+    <div style="display:flex;flex-direction:${stacked ? 'column' : 'row'};align-items:center;justify-content:center;gap:${stacked ? '2vh' : '2vw'};position:relative;">
+      <div class="mg-echo mg-outline" style="left:50%;top:50%;transform:translate(-50%,-52%);font-size:${dsize(36)};z-index:0;">VS</div>
+      ${sideCol(L, 'mg-slide-l', 0.12, 1)}
+      <div class="mg-pulse mg-pop" style="--at:${atFrac(0.36)};font-family:var(--mg-font-data);font-weight:800;font-size:3.2vh;background:var(--mg-ink);color:var(--mg-bg);border-radius:50%;width:8.5vh;height:8.5vh;display:flex;align-items:center;justify-content:center;flex:none;z-index:1;">VS</div>
+      ${sideCol(R, 'mg-slide-r', 0.4, 3)}
+    </div>
+    ${verdict ? `<div style="display:flex;justify-content:center;"><div class="${ctx.style === 'vox' || ctx.style === 'broadcast' ? 'mg-label-vox' : 'mg-key'}" style="--at:${atFrac(0.74)};font-size:3.4vh;">${esc(verdict)}</div></div>` : ''}
+  </div>`;
+  return { problems, html: shell(ctx, { ground, body }) };
+};
+
 const BUILDERS: Record<string, Builder> = {
   'hook-question': hookQuestion,
   'hero-stat': heroStat,
@@ -602,6 +724,9 @@ const BUILDERS: Record<string, Builder> = {
   'quote-punch': quotePunch,
   'list-recap': listRecap,
   'end-punch': endPunch,
+  'photo-hero': photoHero,
+  'cutout-stat': cutoutStat,
+  'collage-compare': collageCompare,
 };
 
 export const SCAFFOLD_IDS = Object.keys(BUILDERS);
@@ -613,8 +738,11 @@ export const SCAFFOLD_DOC =
   'annotated-plate{plate:img-path, labels?[≤4]:{text≤8w, x?, y?, kind?:num|ink, at?:s}, headline?, scrim?:top} · ' +
   'callout{subject:svg, text≤8w, big?:num, tone?:danger|money, subjectLabel?, kicker?} · character-beat{line≤12w, acting?:hop|flap|look-l|look-r|look-up, prop?:svg} · ' +
   'chart-insight{chart:svg-path, insight≤12w, highlight?:phrase, kicker?} · quote-punch{lines[1-3×8w], attribution?} · ' +
-  'list-recap{items[2-5]:{label≤7w, icon?:svg}, title?} · end-punch{line≤10w, sub?}. ' +
-  'Common slots: ground?:light|dark|accent (auto-rotates for contrast when omitted).';
+  'list-recap{items[2-5]:{label≤7w, icon?:svg}, title?} · end-punch{line≤10w, sub?} · ' +
+  'photo-hero{photo:img-path, headline≤10w, kicker?, treatment?:duotone|archival|plain} · ' +
+  'cutout-stat{cutout:png-path (search_photos cutout:true), value:num, label≤8w, prefix?, suffix?, kicker?} · ' +
+  'collage-compare{left/right:{cutout:png-path, title≤4w}, title?, verdict?}. ' +
+  'Common slots: ground?:light|dark|accent (auto-rotates for contrast when omitted); annotated-plate also takes treatment?:duotone|archival.';
 
 /**
  * Materialize a scaffold spec to a full scene HTML page. Pure given ctx.readAsset.
