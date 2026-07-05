@@ -35,6 +35,12 @@ const MINIMAL_SLOTS: Record<string, any> = {
   'photo-hero': { photo: 'assets/photos/pexels-2.jpg', headline: 'The engine inside you', kicker: 'THE SCIENCE' },
   'cutout-stat': { cutout: 'assets/photos/pexels-3-cutout.png', value: 42, suffix: '%', label: 'more capacity retained' },
   'collage-compare': { left: { cutout: 'assets/photos/a-cutout.png', title: 'Cheap' }, right: { cutout: 'assets/photos/b-cutout.png', title: 'Quality' }, verdict: 'Quality wins' },
+  'bar-chart': { title: 'Where it goes', unit: '%', bars: [{ label: 'Housing', value: 38 }, { label: 'Food', value: 21 }], highlight: 'Housing', insight: 'Housing eats *a third*', source: 'BLS 2025' },
+  'line-chart': { title: 'The climb', points: [100, 118, 131, 155], labels: ['2019', '2025'], insight: 'Up *55 percent*' },
+  'donut-stat': { value: 73, label: 'skip *breakfast* daily', kicker: 'THE SHARE' },
+  'chapter-card': { name: 'The turn', number: '02', kicker: 'PART TWO' },
+  timeline: { title: 'How we got here', events: [{ label: 'First warning', year: '2019' }, { label: 'The spike', year: '2022' }, { label: 'New normal', year: '2025' }] },
+  breath: { line: 'breathe' },
 };
 
 function ctx(style: ScaffoldCtx['style'], sceneIndex = 0): ScaffoldCtx {
@@ -512,4 +518,54 @@ test('studio scaffolds: photo-hero/cutout-stat/collage-compare across packs + fo
   assert.match(cap, /'mg-cutout','mg-duotone','mg-tape'/);
   const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
   assert.match(md, /STUDIO MATERIAL/);
+});
+
+// ---------------- craft arc (research 2026-07-05: animated data, emphasis, shot grammar) ----------------
+
+test('craft: animated charts from data slots — hero-series discipline, counting labels, draw-on lines, donut sync', () => {
+  const bar = materializeScaffold({ id: 'bar-chart', slots: MINIMAL_SLOTS['bar-chart'] }, ctx('vox', 1)).html!;
+  assert.match(bar, /mgc-row hot/, 'exactly one hero bar');
+  assert.equal((bar.match(/mgc-row hot/g) ?? []).length, 1);
+  assert.match(bar, /data-count-to="38"/, 'value labels count');
+  assert.match(bar, /mgc-source/, 'credibility source line');
+  const line = materializeScaffold({ id: 'line-chart', slots: MINIMAL_SLOTS['line-chart'] }, ctx('nordic', 1)).html!;
+  assert.match(line, /pathLength="1000"/, 'line draws without measuring');
+  assert.match(line, /mgc-dot/, 'end dot pops');
+  assert.match(line, /data-count-to="155"/, 'end value counts');
+  const donut = materializeScaffold({ id: 'donut-stat', slots: MINIMAL_SLOTS['donut-stat'] }, ctx('clean', 1)).html!;
+  assert.match(donut, /--off:27\.0/, 'donut sweep = value');
+  assert.match(donut, /data-count-to="73"/);
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  assert.match(css, /--mg-ease-chart/, 'chart easing token');
+  assert.match(css, /\.mgc-donut-fill/);
+});
+
+test('craft: *emphasis* markup, draw-on icons, damped shake, new archetypes, variety advisory', () => {
+  // emphasis renders in the pack treatment, word count ignores the asterisks
+  const stat = materializeScaffold({ id: 'hero-stat', slots: { value: 5, suffix: 'h', label: 'caffeine *half-life* in you' } }, ctx('vox', 1)).html!;
+  assert.match(stat, /<span class="mg-emph"[^>]*>half-life<\/span>/);
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  assert.match(css, /\.mg-style-vox \.mg-emph/, 'vox highlighter emphasis');
+  assert.match(css, /\.mg-style-nordic \.mg-emph/, 'nordic rule emphasis');
+  // stroke icons draw on
+  const call = materializeScaffold({ id: 'callout', slots: { subject: 'assets/icon.svg', text: 'heat kills', tone: 'danger' } }, {
+    ...ctx('broadcast', 1),
+    readAsset: () => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M0 0h24"/></svg>',
+  }).html!;
+  assert.match(call, /mg-draw/, 'stroke icon draws on');
+  assert.match(call, /mg-shake/, 'danger tone gets the damped shake');
+  // new archetypes exist and behave
+  const ch = materializeScaffold({ id: 'chapter-card', slots: MINIMAL_SLOTS['chapter-card'] }, ctx('nordic', 2)).html!;
+  assert.match(ch, /02/);
+  const tl = materializeScaffold({ id: 'timeline', slots: MINIMAL_SLOTS.timeline }, { ...ctx('clean', 1), width: 1080, height: 1920 }).html!;
+  assert.match(tl, /mg-bar-v/, 'tall timeline uses the vertical rail');
+  const br = materializeScaffold({ id: 'breath', slots: MINIMAL_SLOTS.breath }, ctx('vox', 3)).html!;
+  assert.doesNotMatch(br, /mg-title/, 'the breath stays quiet');
+  // same-scaffold neighbours get flagged (advisory) in the tool
+  const tool = fs.readFileSync(path.join(__dirname, '../src/agent/tools/motionVideo.ts'), 'utf8');
+  assert.match(tool, /same scaffold \(/, 'shot-grammar variety advisory');
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  assert.match(md, /## ANIMATED DATA/);
+  assert.match(md, /## EMPHASIS/);
+  assert.match(md, /## SHOT GRAMMAR/);
 });

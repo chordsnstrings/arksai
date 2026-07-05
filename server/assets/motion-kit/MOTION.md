@@ -15,6 +15,31 @@ scaffolds `photo-hero`, `cutout-stat`, `collage-compare`. Hand-write `html_file`
 only for signature moments a scaffold can't express — everything below then applies to
 YOUR page verbatim.
 
+## ANIMATED DATA (charts are built, never pasted)
+Use the chart scaffolds (`bar-chart`, `line-chart`, `donut-stat`) for every data moment —
+they animate like editorial dataviz: staggered bar growth with counting labels (ONE hero
+bar in accent, the rest muted — one chart, one message), SVG line draw-on with an end dot
+and counting end value, donut fills synced to their center count. Pass `source` for the
+small credibility line (fades in last). Numbers COUNT (tabular-nums, ease-out) from a
+meaningful origin. Static `render_chart` SVGs are for reports; in motion, data animates.
+
+## EMPHASIS (which words get the treatment)
+Mark the spoken keyword with *asterisks* in any scaffold text slot — it gets the pack's
+kinetic emphasis (vox highlighter, nordic red rule, broadcast amber, accent sweep
+elsewhere) timed to fire while it is spoken. SELECTION RULES: at most ONE emphasized
+phrase per sentence, roughly every 2nd-3rd sentence — constant emphasis is zero emphasis.
+Emphasize numbers, named entities on first mention, contrast pivots, the payoff noun,
+negations. Never connectives, and never a word already highlighted by the visuals.
+
+## SHOT GRAMMAR (edit like film, not like a template)
+Alternate shot sizes irregularly — WIDE (photo/environment, focal ≤30% of frame), MEDIUM
+(diagram/chart/compare), CLOSE (one giant number or word) — and never two consecutive
+scenes from the same archetype family (data / type / photo / diagram); the tool flags
+same-scaffold neighbours. Insert one `breath` scene (near-empty, quiet) per ~30s after a
+dense stretch; use `chapter-card` (1.5-2.5s via min_ms, silent or 3-4 word narration) only
+at genuine act breaks. Entrance direction follows MEANING: growth rises, decline drops,
+compared things enter from opposite sides.
+
 ## STUDIO MATERIAL (real photos + cutouts — the studio look)
 Photography is design MATERIAL, never a raw stock rectangle. Per video, aim for 1-2
 photo-driven beats: a `photo-hero` (full-bleed duotone/archival plate + giant type), a

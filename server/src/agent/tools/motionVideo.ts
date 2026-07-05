@@ -648,6 +648,15 @@ export const renderMotionVideoTool: ToolDef = {
         sceneFiles.set(r.idx, rel);
       }
 
+      // SHOT-GRAMMAR advisory (craft research 2026-07-05): two consecutive scenes from the
+      // same archetype read as a template loop — flag it (advisory, not fatal).
+      const varietyDefects = new Map<number, string>();
+      list.forEach((s: any, i: number) => {
+        const prev = list[i - 1];
+        if (i > 0 && s?.scaffold?.id && prev?.scaffold?.id === s.scaffold.id) {
+          varietyDefects.set(i, `same scaffold ("${s.scaffold.id}") as the previous scene — vary the archetype (shot grammar: alternate type/data/photo/diagram beats)`);
+        }
+      });
       const scenes: MotionScene[] = list.map((s: any, i: number) => ({
         id: i + 1,
         title: String(s.title ?? `Scene ${i + 1}`).slice(0, 80),
@@ -662,6 +671,7 @@ export const renderMotionVideoTool: ToolDef = {
         // rises to full and carries the ending, then the longer fade lands it. Without music
         // the short breath + quick fade stays.
         extraTailMs: i === list.length - 1 ? (args.music ? 2600 : 800) : undefined,
+        qcDefects: varietyDefects.has(i) ? [varietyDefects.get(i)!] : undefined,
         status: 'pending',
       }));
       // fps derives from a rough total estimate: ~145 words/min narration + holds.

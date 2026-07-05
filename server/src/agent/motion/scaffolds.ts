@@ -92,12 +92,38 @@ function cap(problems: string[], slot: string, value: unknown, max: number, requ
     if (required) problems.push(`slot "${slot}" is required`);
     return '';
   }
-  if (/^(hook|scene ?\d*|placeholder|todo|tbd|lorem)$/i.test(t)) {
-    problems.push(`slot "${slot}" is the structural word "${t}" — slots carry REAL content, never planning labels`);
+  const plain = t.replace(/\*/g, '');
+  if (/^(hook|scene ?\d*|placeholder|todo|tbd|lorem)$/i.test(plain)) {
+    problems.push(`slot "${slot}" is the structural word "${plain}" — slots carry REAL content, never planning labels`);
     return '';
   }
-  if (words(t) > max) problems.push(`slot "${slot}" exceeds the ${max}-word ceiling (${words(t)} words) — on-screen text is keywords, not sentences`);
+  if (words(plain) > max) problems.push(`slot "${slot}" exceeds the ${max}-word ceiling (${words(plain)} words) — on-screen text is keywords, not sentences`);
   return t;
+}
+
+/**
+ * KINETIC EMPHASIS (operator 2026-07-05: "texts that are given emphasis on"): any text
+ * slot may mark a phrase with *asterisks* — it renders in the pack's emphasis treatment
+ * (highlight sweep / rule / shout), firing proportionally while it is being spoken.
+ * The word stays visible with its line; only the effect arrives late.
+ */
+function renderEmph(t: string, at = atFrac(0.55)): string {
+  return t
+    .split(/\*([^*]+)\*/g)
+    .map((seg, i) => (i % 2 ? `<span class="mg-emph" style="--at:${at}">${esc(seg)}</span>` : esc(seg)))
+    .join('');
+}
+
+/**
+ * ANIMATED ICONS (operator 2026-07-05): stroke icons (lucide/tabler/ph are stroke-based)
+ * enter by DRAWING ON (the kit's .mg-draw animates stroke-dashoffset), then settle into
+ * whatever idle the composition gives them. Fill-based icons pass through unchanged —
+ * mgDraw only touches strokes, so they simply appear.
+ */
+function drawIcon(svg: string, at = '0.25s'): string {
+  if (!svg) return svg;
+  const isStroke = /stroke=["'](?:currentColor|#)/i.test(svg) || /fill=["']none["']/i.test(svg);
+  return isStroke ? `<span class="mg-draw" style="--at:${at};display:inline-flex;width:100%;height:100%;">${svg}</span>` : svg;
 }
 
 /** The camera move rotates per scene so adjacent scenes never share one. */
@@ -167,7 +193,7 @@ function maskLines(text: string, cls: string, startAt = 0.1, perLine = 0.12): st
     lines = [ws.slice(0, mid).join(' '), ws.slice(mid).join(' ')];
   }
   return lines
-    .map((l, i) => `<span class="mg-mask"><span class="mg-rise" style="--at:${(startAt + i * perLine).toFixed(2)}s">${esc(l)}</span></span>`)
+    .map((l, i) => `<span class="mg-mask"><span class="mg-rise" style="--at:${(startAt + i * perLine).toFixed(2)}s">${renderEmph(l)}</span></span>`)
     .join(' ');
 }
 
@@ -194,7 +220,7 @@ function richLines(text: string, baseVh: number, startAt = 0.12): string {
     .map((l, i) => {
       const scale = Math.min(1.65, Math.max(0.72, maxLen / Math.max(l.length, 1)));
       const size = (baseVh * scale).toFixed(1);
-      return `<span class="mg-mask" style="display:block;"><span class="mg-rise" style="--at:${(startAt + i * 0.13).toFixed(2)}s;font-size:min(${size}vh, ${(Number(size) * 1.15).toFixed(1)}vw);line-height:1.02;display:inline-block;">${esc(l)}</span></span>`;
+      return `<span class="mg-mask" style="display:block;"><span class="mg-rise" style="--at:${(startAt + i * 0.13).toFixed(2)}s;font-size:min(${size}vh, ${(Number(size) * 1.15).toFixed(1)}vw);line-height:1.02;display:inline-block;">${renderEmph(l)}</span></span>`;
     })
     .join('\n');
 }
@@ -283,7 +309,7 @@ const hookQuestion: Builder = (slots, ctx) => {
   ${echo ? `<div class="mg-echo mg-outline" style="right:-6vw;bottom:-5vh;font-size:${dsize(34)};">${drift(`<span style="display:inline-block;">${esc(echo)}</span>`, { dur: 11, dx: '1.6vw', dy: '1vh' })}</div>` : ''}
   ${
     prop
-      ? `<div class="mg-prop-hero br mg-depth-fg" style="z-index:1;"><div class="mg-breathe" style="--at:-1.2s;width:100%;height:100%;">${prop}</div></div>`
+      ? `<div class="mg-prop-hero br mg-depth-fg" style="z-index:1;"><div class="mg-breathe" style="--at:-1.2s;width:100%;height:100%;">${drawIcon(prop, '0.3s')}</div></div>`
       : ''
   }`;
   return { problems, html: shell(ctx, { ground, body, bg, cam: 'mg-cam-in', afterScript: stars.script, grain: ctx.style === 'nutshell' }) };
@@ -308,7 +334,7 @@ const heroStat: Builder = (slots, ctx) => {
     ${kicker ? `<div class="mg-rulelabel mg-reveal" style="--at:.06s">${esc(kicker)}</div>` : ''}
     <div class="mg-stress" style="--at:${atFrac(0.7)}"><div class="mg-stat mg-pop" style="--at:.25s;font-size:${statSize};line-height:.85;letter-spacing:-0.035em;">${esc(slots.prefix ?? '')}<span data-count-to="${value}" data-count-from="${from}" data-count-start-frac="0.2" data-count-dur="1300" data-count-decimals="${decimals}">${from}</span>${esc(slots.suffix ?? '')}</div></div>
     <div class="mg-bar" style="--at:${atFrac(0.45)};height:1vh;width:${fmt === 'landscape' ? '22vw' : '34vw'};background:var(--mg-accent);border-radius:0.5vh;margin:1.6vh 0 0.4vh;"></div>
-    <div class="mg-lag" style="--at:${atFrac(0.42)};font-family:var(--mg-font-display);font-size:4.2vh;font-weight:600;margin-left:1vw;">${esc(label)}</div>
+    <div class="mg-lag" style="--at:${atFrac(0.42)};font-family:var(--mg-font-display);font-size:4.2vh;font-weight:600;margin-left:1vw;">${renderEmph(label)}</div>
   </div>`;
   const bg = `<div class="mg-echo mg-outline" style="right:-8vw;top:-8vh;font-size:${dsize(48)};font-family:var(--mg-font-data);">${drift(`<span style="display:inline-block;">${esc(shown)}</span>`, { dur: 10, dx: '1.4vw', dy: '1.2vh' })}</div>`;
   return { problems, html: shell(ctx, { ground, body: body + runline(0.55), bg }) };
@@ -332,10 +358,10 @@ const splitCompare: Builder = (slots, ctx) => {
   const stackedCards = fmt === 'tall';
   const card = (s: { title: string; lines: string[]; icon: string }, cls: string, at: number, phase: number) => `
     <div class="${cls} mg-card" style="--at:${at}s;display:flex;flex-direction:column;gap:2.2vh;align-items:center;justify-content:center;text-align:center;padding:${stackedCards ? '3.4vh 4vw' : '4.5vh 2.5vw'};flex:1;">
-      ${s.icon ? `<div class="mg-bob" style="--at:${-phase.toFixed(1)}s;animation-duration:4.4s;"><div class="mg-chip mg-contact" style="width:${dsize(14)};height:${dsize(14)};">${s.icon}</div></div>` : ''}
+      ${s.icon ? `<div class="mg-bob" style="--at:${-phase.toFixed(1)}s;animation-duration:4.4s;"><div class="mg-chip mg-contact" style="width:${dsize(14)};height:${dsize(14)};">${drawIcon(s.icon)}</div></div>` : ''}
       <div style="font-family:var(--mg-font-display);font-size:${dsize(5.8)};font-weight:700;">${esc(s.title)}</div>
       <div class="mg-col mg-stagger" style="--at:${(at + 0.35).toFixed(2)}s;gap:1.3vh;">
-        ${s.lines.map((l) => `<div class="mg-reveal" style="font-size:${dsize(3.3)};font-weight:500;">${esc(l)}</div>`).join('\n')}
+        ${s.lines.map((l) => `<div class="mg-reveal" style="font-size:${dsize(3.3)};font-weight:500;">${renderEmph(l)}</div>`).join('\n')}
       </div>
     </div>`;
   const body = `
@@ -379,8 +405,8 @@ const processSteps: Builder = (slots, ctx) => {
           (s, i) => `
       <div class="mg-card mg-slide-r mg-row" style="gap:2vw;align-items:center;margin-left:${(i * 2.4).toFixed(1)}vw;padding:2vh 2.6vw;">
         <div class="mg-kicker" style="font-size:3.2vh;min-width:4.5vh;">${i + 1}</div>
-        ${s.icon ? `<div class="mg-bob" style="--at:-${(i * 1.3 + 0.5).toFixed(1)}s;animation-duration:4.6s;"><div class="mg-chip" style="width:${dsize(8)};height:${dsize(8)};">${s.icon}</div></div>` : ''}
-        <div style="font-size:${dsize(3.3)};font-weight:600;">${esc(s.label)}</div>
+        ${s.icon ? `<div class="mg-bob" style="--at:-${(i * 1.3 + 0.5).toFixed(1)}s;animation-duration:4.6s;"><div class="mg-chip" style="width:${dsize(8)};height:${dsize(8)};">${drawIcon(s.icon, `${(0.3 + i * 0.25).toFixed(2)}s`)}</div></div>` : ''}
+        <div style="font-size:${dsize(3.3)};font-weight:600;">${renderEmph(s.label)}</div>
       </div>`,
         )
         .join('\n')}
@@ -443,13 +469,13 @@ const callout: Builder = (slots, ctx) => {
   const body = `
   <div class="mg-safe mg-fill ${stacked ? 'mg-col mg-center' : 'mg-split'}" style="align-items:center;${stacked ? 'display:flex;justify-content:space-evenly;' : ''}">
     <div style="position:relative;display:flex;justify-content:center;">
-      <div class="mg-bob" style="--at:-1s;width:${dsize(26)};height:${dsize(26)};"><div class="mg-pop mg-contact" style="--at:.15s;width:100%;height:100%;">${subject}</div></div>
+      <div class="mg-bob" style="--at:-1s;width:${dsize(26)};height:${dsize(26)};"><div class="${slots.tone === 'danger' ? 'mg-shake' : ''}" style="width:100%;height:100%;${slots.tone === 'danger' ? `--at:${atFrac(0.5)};` : ''}"><div class="mg-pop mg-contact" style="--at:.15s;width:100%;height:100%;">${drawIcon(subject, '0.2s')}</div></div></div>
       ${subjectLabel ? `<div class="mg-tag" style="left:12%;top:6%;--at:${atFrac(0.3)}">${esc(subjectLabel)}</div>` : ''}
     </div>
     <div class="mg-col" style="align-items:${stacked ? 'center' : 'flex-start'};gap:2.2vh;${stacked ? 'text-align:center;' : ''}">
       ${kicker ? `<div class="mg-kicker mg-reveal" style="--at:.1s">${esc(kicker)}</div>` : ''}
       ${big ? `<div class="mg-stress" style="--at:${atFrac(0.72)}"><div class="mg-stat mg-pop" style="--at:${atFrac(0.34)};font-size:${dsize(17)};line-height:.9;"><span data-count-to="${Number(big) || 0}" data-count-start-frac="0.34" data-count-dur="1100">0</span></div></div>` : ''}
-      <div class="${calloutCls}${tone}" style="--at:${atFrac(0.5)};font-size:${dsize(3.4)};">${esc(text)}</div>
+      <div class="${calloutCls}${tone}" style="--at:${atFrac(0.5)};font-size:${dsize(3.4)};">${renderEmph(text)}</div>
     </div>
   </div>`;
   const echo = big || echoWord(text);
@@ -531,7 +557,7 @@ const quotePunch: Builder = (slots, ctx) => {
   const body = `
   <div class="mg-safe mg-center mg-col mg-fill" style="display:flex;gap:1.2vh;position:relative;z-index:1;">
     <h1 class="mg-title" style="font-size:1px;display:flex;flex-direction:column;gap:.6vh;align-items:center;">
-      ${texts.map((t, i) => `<span class="mg-mask"><span class="mg-rise" style="--at:${i === 0 ? '.15s' : atFrac(0.1 + i * 0.16)};font-size:min(${(8.6 * Math.min(1.6, Math.max(0.72, maxLen / Math.max(t.length, 1)))).toFixed(1)}vh, ${(9.9 * Math.min(1.6, Math.max(0.72, maxLen / Math.max(t.length, 1)))).toFixed(1)}vw);line-height:1.04;display:inline-block;${i % 2 ? 'font-style:italic;' : ''}">${esc(t)}</span></span>`).join('\n')}
+      ${texts.map((t, i) => `<span class="mg-mask"><span class="mg-rise" style="--at:${i === 0 ? '.15s' : atFrac(0.1 + i * 0.16)};font-size:min(${(8.6 * Math.min(1.6, Math.max(0.72, maxLen / Math.max(t.length, 1)))).toFixed(1)}vh, ${(9.9 * Math.min(1.6, Math.max(0.72, maxLen / Math.max(t.length, 1)))).toFixed(1)}vw);line-height:1.04;display:inline-block;${i % 2 ? 'font-style:italic;' : ''}">${renderEmph(t)}</span></span>`).join('\n')}
     </h1>
     ${attribution ? `<div class="mg-label mg-lag mg-shimmer" style="--at:${atFrac(0.6)};font-size:2.6vh;">${esc(attribution)}</div>` : ''}
   </div>
@@ -561,8 +587,8 @@ const listRecap: Builder = (slots, ctx) => {
           (s, i) => `
       <div class="mg-slide-l mg-row" style="gap:2vw;align-items:center;margin-left:${(i * 2.2).toFixed(1)}vw;">
         <div class="mg-stat" style="font-size:${dsize(4.8)};min-width:6vh;">${i + 1}</div>
-        ${s.icon ? `<div class="mg-bob" style="--at:-${(i * 1.1 + 0.4).toFixed(1)}s;animation-duration:4.8s;"><div class="mg-chip" style="width:${dsize(8.6)};height:${dsize(8.6)};">${s.icon}</div></div>` : ''}
-        <div style="font-size:${dsize(3.5)};font-weight:600;">${esc(s.label)}</div>
+        ${s.icon ? `<div class="mg-bob" style="--at:-${(i * 1.1 + 0.4).toFixed(1)}s;animation-duration:4.8s;"><div class="mg-chip" style="width:${dsize(8.6)};height:${dsize(8.6)};">${drawIcon(s.icon, `${(0.3 + i * 0.25).toFixed(2)}s`)}</div></div>` : ''}
+        <div style="font-size:${dsize(3.5)};font-weight:600;">${renderEmph(s.label)}</div>
       </div>`,
         )
         .join('\n')}
@@ -590,6 +616,232 @@ const endPunch: Builder = (slots, ctx) => {
   </div>
   <div class="mg-echo mg-outline" style="left:-5vw;bottom:-7vh;font-size:${dsize(34)};">${drift(`<span style="display:inline-block;">${esc(last)}</span>`, { dur: 10, dx: '1.5vw', dy: '1vh' })}</div>`;
   return { problems, html: shell(ctx, { ground, body, cam: 'mg-cam-in', exit: 'mg-exit-scale' }) };
+};
+
+// ---------------------------------------------------------------------------
+// SCENE-GRAMMAR archetypes (craft research 2026-07-05, MOTION_CRAFT.md): chapter cards
+// as act-break breathers, timeline scrubs, and the quiet "breath" beat that keeps a
+// dense video from feeling relentless.
+// ---------------------------------------------------------------------------
+
+/** Act-break title card: ghost number + chapter name + a rule that draws. 1.5-2.5s beat. */
+const chapterCard: Builder = (slots, ctx) => {
+  const problems: string[] = [];
+  const name = cap(problems, 'name', slots.name, 5, true);
+  const kicker = cap(problems, 'kicker', slots.kicker, 4);
+  const num = String(slots.number ?? '').trim().slice(0, 4) || String(ctx.sceneIndex + 1).padStart(2, '0');
+  if (problems.length) return { problems };
+  const ground = groundClass(ctx.style, slots.ground ?? 'dark', ctx.sceneIndex);
+  const fmt = formatOf(ctx);
+  const body = `
+  <div class="mg-safe mg-fill" style="display:flex;align-items:center;position:relative;z-index:1;">
+    <div class="mg-col" style="align-items:flex-start;gap:1.6vh;margin-left:${fmt === 'landscape' ? '12vw' : '9vw'};">
+      ${kicker ? `<div class="mg-rulelabel mg-reveal" style="--at:.05s">${esc(kicker)}</div>` : ''}
+      <h1 class="mg-title" style="font-size:${dsize(8.4)};">${maskLines(name, '', 0.14)}</h1>
+      <div class="mg-bar" style="--at:.5s;height:0.5vh;width:${fmt === 'landscape' ? '18vw' : '30vw'};background:var(--mg-accent);"></div>
+    </div>
+  </div>
+  <div class="mg-echo mg-outline" style="right:-4vw;top:-8vh;font-size:${dsize(52)};font-family:var(--mg-font-data);opacity:.12;">${drift(`<span style="display:inline-block;">${esc(num)}</span>`, { dur: 12, dx: '1vw', dy: '1.2vh' })}</div>`;
+  return { problems, html: shell(ctx, { ground, body, cam: 'mg-cam-in', exit: 'mg-exit-fade' }) };
+};
+
+/** Timeline scrub: a progress line draws while dated events pop along it as spoken. */
+const timeline: Builder = (slots, ctx) => {
+  const problems: string[] = [];
+  const title = cap(problems, 'title', slots.title, 8);
+  const kicker = cap(problems, 'kicker', slots.kicker, 5);
+  const list: any[] = Array.isArray(slots.events) ? slots.events.slice(0, 5) : [];
+  if (list.length < 3) problems.push('slot "events" needs 3-5 entries {label≤5w, year?}');
+  const events = list.map((e: any, i: number) => ({
+    label: cap(problems, `events[${i}].label`, e?.label, 5, true),
+    year: String(e?.year ?? '').trim().slice(0, 8),
+  }));
+  if (problems.length) return { problems };
+  const ground = groundClass(ctx.style, slots.ground ?? 'light', ctx.sceneIndex);
+  const fmt = formatOf(ctx);
+  const stacked = fmt === 'tall';
+  const n = events.length;
+  const items = events
+    .map((e, i) => {
+      const at = atFrac(0.14 + (i / Math.max(1, n - 1)) * 0.5);
+      if (stacked) {
+        return `
+        <div class="mg-row" style="gap:2.4vw;align-items:center;">
+          <div class="mg-pop" style="--at:${at};width:2.6vh;height:2.6vh;border-radius:50%;background:var(--mg-accent);flex:none;"></div>
+          <div class="mg-reveal" style="--at:${at};">
+            ${e.year ? `<div class="mg-kicker" style="font-size:2.2vh;">${esc(e.year)}</div>` : ''}
+            <div style="font-size:${dsize(3.4)};font-weight:600;">${renderEmph(e.label)}</div>
+          </div>
+        </div>`;
+      }
+      const above = i % 2 === 0;
+      // endpoint labels shift inward so they never cross the frame edge (geometry gate)
+      const shift = i === 0 ? '-18%' : i === n - 1 ? '-82%' : '-50%';
+      const align = i === 0 ? 'left' : i === n - 1 ? 'right' : 'center';
+      return `
+      <div style="position:absolute;left:${(8 + (i / Math.max(1, n - 1)) * 78).toFixed(1)}%;top:50%;">
+        <div class="mg-pop" style="--at:${at};width:2.6vh;height:2.6vh;border-radius:50%;background:var(--mg-accent);transform:translate(-50%,-50%);"></div>
+        <div class="mg-reveal" style="--at:${at};position:absolute;left:0;${above ? 'bottom:3.4vh;' : 'top:3.4vh;'}transform:translateX(${shift});text-align:${align};width:16vw;min-width:20ch;max-width:24vw;">
+          ${e.year ? `<div class="mg-kicker" style="font-size:2.1vh;">${esc(e.year)}</div>` : ''}
+          <div style="font-size:${dsize(2.9)};font-weight:600;">${renderEmph(e.label)}</div>
+        </div>
+      </div>`;
+    })
+    .join('\n');
+  const rail = stacked
+    ? `<div class="mg-bar-v" style="--at:.2s;position:absolute;left:1.2vh;top:0;bottom:0;width:0.4vh;background:color-mix(in srgb, var(--mg-ink) 22%, transparent);animation-duration:calc(var(--scene-s, 8) * 0.6s);"></div>`
+    : `<div class="mg-bar" style="--at:.2s;position:absolute;left:8%;right:14%;top:50%;height:0.4vh;background:color-mix(in srgb, var(--mg-ink) 22%, transparent);animation-duration:calc(var(--scene-s, 8) * 0.6s);"></div>`;
+  const body = `
+  <div class="mg-safe mg-col mg-fill" style="display:flex;justify-content:center;gap:2.6vh;">
+    ${kicker ? `<div class="mg-rulelabel mg-reveal" style="--at:.05s">${esc(kicker)}</div>` : ''}
+    ${title ? `<h2 class="mg-title" style="font-size:${dsize(5.4)};">${maskLines(title, '', 0.12)}</h2>` : ''}
+    ${stacked ? `<div class="mg-col" style="gap:3.2vh;position:relative;padding-left:1vw;">${rail}${items}</div>` : `<div style="position:relative;flex:1;max-height:46vh;">${rail}${items}</div>`}
+  </div>`;
+  return { problems, html: shell(ctx, { ground, body }) };
+};
+
+/** The breath — a near-empty quiet beat after a dense stretch. Minimal by design. */
+const breath: Builder = (slots, ctx) => {
+  const problems: string[] = [];
+  const line = cap(problems, 'line', slots.line, 6);
+  const prop = inlineSvg(ctx, slots.prop, [], 'prop');
+  if (problems.length) return { problems };
+  const ground = groundClass(ctx.style, slots.ground ?? 'home', ctx.sceneIndex);
+  const body = `
+  <div class="mg-safe mg-center mg-col mg-fill" style="display:flex;gap:3vh;">
+    ${prop ? drift(`<div class="mg-fade mg-breathe" style="--at:.3s;width:${dsize(12)};height:${dsize(12)};">${drawIcon(prop, '0.4s')}</div>`, { dur: 10, dx: '0.6vw', dy: '0.9vh' }) : ''}
+    ${line ? `<div class="mg-rulelabel mg-fade" style="--at:${atFrac(0.3)};">${esc(line)}</div>` : ''}
+  </div>`;
+  return { problems, html: shell(ctx, { ground, body, exit: 'mg-exit-fade' }) };
+};
+
+// ---------------------------------------------------------------------------
+// ANIMATED DATA scaffolds (operator 2026-07-05: "there's no animated charts") — charts
+// are BUILT from data slots and animate like editorial dataviz: staggered bar growth
+// with counting labels, SVG line draw-on, donut fills. Color discipline: ONE highlighted
+// series in the pack accent, the rest muted.
+// ---------------------------------------------------------------------------
+
+/** Horizontal animated bars — the ranking/comparison data moment. */
+const barChart: Builder = (slots, ctx) => {
+  const problems: string[] = [];
+  const kicker = cap(problems, 'kicker', slots.kicker, 5);
+  const title = cap(problems, 'title', slots.title, 8);
+  const insight = cap(problems, 'insight', slots.insight, 10);
+  const unit = String(slots.unit ?? '').trim().slice(0, 8);
+  const list: any[] = Array.isArray(slots.bars) ? slots.bars.slice(0, 6) : [];
+  if (list.length < 2) problems.push('slot "bars" needs 2-6 entries {label, value:num}');
+  const bars = list.map((b: any, i: number) => ({
+    label: cap(problems, `bars[${i}].label`, b?.label, 4, true),
+    value: Number(b?.value),
+  }));
+  bars.forEach((b, i) => { if (!Number.isFinite(b.value)) problems.push(`bars[${i}].value must be a number`); });
+  if (problems.length) return { problems };
+  const maxV = Math.max(...bars.map((b) => Math.abs(b.value)), 1);
+  const hotLabel = String(slots.highlight ?? '').trim().toLowerCase();
+  const hotIdx = hotLabel ? bars.findIndex((b) => b.label.toLowerCase().includes(hotLabel)) : bars.reduce((m, b, i, a) => (b.value > a[m].value ? i : m), 0);
+  const ground = groundClass(ctx.style, slots.ground ?? 'light', ctx.sceneIndex);
+  const fmt = formatOf(ctx);
+  const rows = bars
+    .map((b, i) => {
+      const at = atFrac(0.12 + i * 0.09);
+      const w = Math.max(4, Math.round((Math.abs(b.value) / maxV) * 100));
+      return `
+      <div class="mgc-row${i === hotIdx ? ' hot' : ''}">
+        <div class="mgc-label">${esc(b.label)}</div>
+        <div class="mgc-track" style="margin-right:${fmt === 'landscape' ? '9vw' : '13vw'};">
+          <div class="mgc-fill" style="--at:${at};width:${w}%;">
+            <div class="mgc-val"><span data-count-to="${b.value}" data-count-start-frac="${(0.12 + i * 0.09).toFixed(2)}" data-count-dur="900">0</span>${esc(unit)}</div>
+          </div>
+        </div>
+      </div>`;
+    })
+    .join('\n');
+  const body = `
+  <div class="mg-safe mg-col mg-fill" style="display:flex;justify-content:center;gap:2.4vh;max-width:${fmt === 'landscape' ? '76vw' : '92vw'};margin:0 auto;width:100%;">
+    ${kicker ? `<div class="mg-rulelabel mg-reveal" style="--at:.05s">${esc(kicker)}</div>` : ''}
+    ${title ? `<h2 class="mg-title" style="font-size:${dsize(5.6)};">${maskLines(title, '', 0.12)}</h2>` : ''}
+    <div class="mg-col" style="gap:1.9vh;margin-top:1vh;">${rows}</div>
+    ${insight ? `<div class="mg-lag" style="--at:${atFrac(0.66)};font-family:var(--mg-font-display);font-size:${dsize(3.4)};font-weight:600;">${renderEmph(insight, atFrac(0.78))}</div>` : ''}
+    ${slots.source ? `<div class="mgc-source" style="--at:${atFrac(0.84)}">${esc(String(slots.source).slice(0, 60))}</div>` : ''}
+  </div>`;
+  return { problems, html: shell(ctx, { ground, body: body + runline(0.6) }) };
+};
+
+/** SVG line drawing on with gridlines, end dot, and a counting end value. */
+const lineChart: Builder = (slots, ctx) => {
+  const problems: string[] = [];
+  const kicker = cap(problems, 'kicker', slots.kicker, 5);
+  const title = cap(problems, 'title', slots.title, 8);
+  const insight = cap(problems, 'insight', slots.insight, 12);
+  const unit = String(slots.unit ?? '').trim().slice(0, 8);
+  const pts: number[] = Array.isArray(slots.points) ? slots.points.map(Number).slice(0, 12) : [];
+  if (pts.length < 3 || pts.some((p) => !Number.isFinite(p))) problems.push('slot "points" needs 3-12 numbers (the y-values, in order)');
+  const xl = Array.isArray(slots.labels) ? slots.labels.slice(0, 2).map((l: any) => String(l).slice(0, 14)) : [];
+  if (problems.length) return { problems };
+  const W = 1000, H = 520, PAD = 30;
+  const min = Math.min(...pts), max = Math.max(...pts), span = max - min || 1;
+  const px = (i: number) => PAD + (i / (pts.length - 1)) * (W - PAD * 2);
+  const py = (v: number) => H - PAD - ((v - min) / span) * (H - PAD * 2);
+  const lineD = pts.map((v, i) => `${i ? 'L' : 'M'}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ');
+  const areaD = `${lineD} L${px(pts.length - 1).toFixed(1)},${H - PAD} L${px(0).toFixed(1)},${H - PAD} Z`;
+  const grid = [0.25, 0.5, 0.75].map((f) => `<line class="mgc-grid" x1="${PAD}" x2="${W - PAD}" y1="${(PAD + f * (H - PAD * 2)).toFixed(1)}" y2="${(PAD + f * (H - PAD * 2)).toFixed(1)}"/>`).join('');
+  const last = pts[pts.length - 1];
+  const rising = last >= pts[0];
+  const ground = groundClass(ctx.style, slots.ground ?? 'light', ctx.sceneIndex);
+  const fmt = formatOf(ctx);
+  const body = `
+  <div class="mg-safe mg-col mg-fill" style="display:flex;justify-content:center;gap:2vh;max-width:${fmt === 'landscape' ? '74vw' : '92vw'};margin:0 auto;width:100%;">
+    ${kicker ? `<div class="mg-rulelabel mg-reveal" style="--at:.05s">${esc(kicker)}</div>` : ''}
+    ${title ? `<h2 class="mg-title" style="font-size:${dsize(5.4)};">${maskLines(title, '', 0.12)}</h2>` : ''}
+    <div style="position:relative;width:100%;">
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;overflow:visible;">
+        ${grid}
+        <path class="mgc-area" d="${areaD}"/>
+        <path class="mgc-line" d="${lineD}" pathLength="1000"/>
+        <circle class="mgc-dot" cx="${px(pts.length - 1).toFixed(1)}" cy="${py(last).toFixed(1)}" r="11"/>
+        ${xl[0] ? `<text class="mgc-axis" x="${PAD}" y="${H - 4}">${esc(xl[0])}</text>` : ''}
+        ${xl[1] ? `<text class="mgc-axis" x="${W - PAD}" y="${H - 4}" text-anchor="end">${esc(xl[1])}</text>` : ''}
+      </svg>
+      <div class="mg-pop" style="--at:${atFrac(0.42)};position:absolute;${rising ? 'top:-1vh;' : 'bottom:12%;'}right:0;font-family:var(--mg-font-data);font-variant-numeric:tabular-nums;font-size:${dsize(5.4)};font-weight:700;color:var(--mg-accent);"><span data-count-to="${last}" data-count-start-frac="0.16" data-count-dur="1400">0</span>${esc(unit)}</div>
+    </div>
+    ${insight ? `<div class="mg-lag" style="--at:${atFrac(0.62)};font-family:var(--mg-font-display);font-size:${dsize(3.4)};font-weight:600;">${renderEmph(insight, atFrac(0.76))}</div>` : ''}
+    ${slots.source ? `<div class="mgc-source" style="--at:${atFrac(0.84)}">${esc(String(slots.source).slice(0, 60))}</div>` : ''}
+  </div>`;
+  return { problems, html: shell(ctx, { ground, body }) };
+};
+
+/** Donut/gauge fill with a counting center number — the share/percentage moment. */
+const donutStat: Builder = (slots, ctx) => {
+  const problems: string[] = [];
+  const kicker = cap(problems, 'kicker', slots.kicker, 6);
+  const label = cap(problems, 'label', slots.label, 8, true);
+  const value = Number(slots.value);
+  if (!Number.isFinite(value) || value < 0 || value > 100) problems.push('slot "value" must be a number 0-100 (a share/percentage)');
+  if (problems.length) return { problems };
+  const suffix = String(slots.suffix ?? '%').slice(0, 4);
+  const ground = groundClass(ctx.style, slots.ground, ctx.sceneIndex);
+  const fmt = formatOf(ctx);
+  const stacked = fmt === 'tall';
+  const donut = `
+    <div style="position:relative;width:${stacked ? 'min(60vw, 36vh)' : dsize(36)};height:${stacked ? 'min(60vw, 36vh)' : dsize(36)};">
+      <svg viewBox="0 0 120 120" style="width:100%;height:100%;">
+        <circle class="mgc-donut-track" cx="60" cy="60" r="50" stroke-width="13"/>
+        <circle class="mgc-donut-fill" cx="60" cy="60" r="50" stroke-width="13" pathLength="100" style="--off:${(100 - value).toFixed(1)};--at:${atFrac(0.14)};"/>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+        <div class="mg-stat" style="font-size:${stacked ? 'min(16vw, 9.5vh)' : dsize(9.5)};line-height:1;"><span data-count-to="${value}" data-count-start-frac="0.14" data-count-dur="1300">0</span>${esc(suffix)}</div>
+      </div>
+    </div>`;
+  const body = `
+  <div class="mg-safe mg-fill ${stacked ? 'mg-col mg-center' : 'mg-split'}" style="align-items:center;${stacked ? 'display:flex;justify-content:space-evenly;' : ''}">
+    <div style="display:flex;justify-content:center;">${drift(`<div class="mg-pop" style="--at:.2s;">${donut}</div>`, { dur: 10, dx: '0.5vw', dy: '0.7vh' })}</div>
+    <div class="mg-col" style="align-items:${stacked ? 'center' : 'flex-start'};gap:2vh;${stacked ? 'text-align:center;' : ''}">
+      ${kicker ? `<div class="mg-rulelabel mg-reveal" style="--at:.06s">${esc(kicker)}</div>` : ''}
+      <div class="mg-lag" style="--at:${atFrac(0.4)};font-family:var(--mg-font-display);font-size:${dsize(4.6)};font-weight:600;max-width:${stacked ? '84vw' : '34vw'};">${renderEmph(label, atFrac(0.6))}</div>
+    </div>
+  </div>`;
+  return { problems, html: shell(ctx, { ground, body: body + (stacked ? '' : runline(0.55)) }) };
 };
 
 // ---------------------------------------------------------------------------
@@ -666,7 +918,7 @@ const cutoutStat: Builder = (slots, ctx) => {
       ${kicker ? `<div class="mg-rulelabel mg-reveal" style="--at:.06s">${esc(kicker)}</div>` : ''}
       <div class="mg-stress" style="--at:${atFrac(0.72)}"><div class="mg-stat mg-pop" style="--at:.22s;font-size:${statSize};line-height:.88;">${esc(slots.prefix ?? '')}<span data-count-to="${value}" data-count-from="0" data-count-start-frac="0.2" data-count-dur="1300">0</span>${esc(slots.suffix ?? '')}</div></div>
       <div class="mg-bar" style="--at:${atFrac(0.45)};height:0.9vh;width:${stacked ? '30vw' : '18vw'};background:var(--mg-accent);border-radius:0.45vh;"></div>
-      <div class="mg-lag" style="--at:${atFrac(0.42)};font-family:var(--mg-font-display);font-size:${dsize(4)};font-weight:600;">${esc(label)}</div>
+      <div class="mg-lag" style="--at:${atFrac(0.42)};font-family:var(--mg-font-display);font-size:${dsize(4)};font-weight:600;">${renderEmph(label)}</div>
     </div>
     <div style="display:flex;justify-content:center;position:relative;">
       ${drift(`<div class="mg-pop ${cutoutCls(ctx.style)}" style="--at:.3s;${cutSize}"><img src="${esc(ctx.kitPrefix + cut)}" alt=""></div>`, { dur: 8, dx: '0.7vw', dy: '1vh' })}
@@ -727,6 +979,12 @@ const BUILDERS: Record<string, Builder> = {
   'photo-hero': photoHero,
   'cutout-stat': cutoutStat,
   'collage-compare': collageCompare,
+  'bar-chart': barChart,
+  'line-chart': lineChart,
+  'donut-stat': donutStat,
+  'chapter-card': chapterCard,
+  timeline,
+  breath,
 };
 
 export const SCAFFOLD_IDS = Object.keys(BUILDERS);
@@ -741,8 +999,13 @@ export const SCAFFOLD_DOC =
   'list-recap{items[2-5]:{label≤7w, icon?:svg}, title?} · end-punch{line≤10w, sub?} · ' +
   'photo-hero{photo:img-path, headline≤10w, kicker?, treatment?:duotone|archival|plain} · ' +
   'cutout-stat{cutout:png-path (search_photos cutout:true), value:num, label≤8w, prefix?, suffix?, kicker?} · ' +
-  'collage-compare{left/right:{cutout:png-path, title≤4w}, title?, verdict?}. ' +
-  'Common slots: ground?:light|dark|accent (auto-rotates for contrast when omitted); annotated-plate also takes treatment?:duotone|archival.';
+  'collage-compare{left/right:{cutout:png-path, title≤4w}, title?, verdict?} · ' +
+  'bar-chart{bars[2-6]:{label≤4w, value:num}, title?, kicker?, unit?, highlight?:label, insight?} · ' +
+  'line-chart{points[3-12]:nums, title?, kicker?, labels?[first,last], unit?, insight?} · donut-stat{value:0-100, label≤8w, kicker?, suffix?} · ' +
+  'chapter-card{name≤5w, number?, kicker?} (act break, 1.5-2.5s via min_ms) · timeline{events[3-5]:{label≤5w, year?}, title?, kicker?} · breath{line?≤6w, prop?:svg} (quiet beat after a dense stretch). ' +
+  'Charts also take source? (credibility line, fades in last). ' +
+  'Common slots: ground?:light|dark|accent (auto-rotates for contrast when omitted); annotated-plate also takes treatment?:duotone|archival. ' +
+  'EMPHASIS: mark the spoken keyword in any text slot with *asterisks* — it gets the pack\'s kinetic emphasis timed to the narration.';
 
 /**
  * Materialize a scaffold spec to a full scene HTML page. Pure given ctx.readAsset.

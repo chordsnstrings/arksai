@@ -23,6 +23,8 @@
   --mg-ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
   --mg-ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
   --mg-ease-cam: cubic-bezier(0.33, 0, 0.55, 1);
+  /* data growth: fast attack, long settle (craft research 2026-07-05) */
+  --mg-ease-chart: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -623,6 +625,59 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 240px 240px; mix-blend-mode: overlay;
 }
+
+/* ============================ KINETIC EMPHASIS (2026-07-05) ============================
+ * "Texts that are given emphasis on" (operator): mark a phrase with *asterisks* in any
+ * scaffold text slot and it gets the pack's emphasis treatment, timed to fire while the
+ * word is being SPOKEN (--at, proportional). The word is always visible with its line —
+ * only the EFFECT arrives late (a hole in a sentence reads broken). */
+@keyframes mgEmphSweep { from { background-size: 0% 46%; } to { background-size: 100% 46%; } }
+@keyframes mgEmphPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+.mg-emph {
+  display: inline-block; font-weight: 700;
+  background-image: linear-gradient(color-mix(in srgb, var(--mg-accent) 34%, transparent), color-mix(in srgb, var(--mg-accent) 34%, transparent));
+  background-repeat: no-repeat; background-position: 0 72%; background-size: 0% 46%;
+  padding: 0 0.3vh; box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  animation: mgEmphSweep 0.45s var(--mg-ease-out) both, mgEmphPulse 0.4s ease-in-out;
+  animation-delay: var(--at, 1s), var(--at, 1s);
+}
+/* Pack voices: vox = the yellow highlighter; broadcast = amber shout; nordic = a thin
+ * red rule under the word (restraint); nutshell = neon sweep. */
+.mg-style-vox .mg-emph { background-image: linear-gradient(rgba(255, 230, 0, 0.85), rgba(255, 230, 0, 0.85)); color: #111; }
+.mg-style-vox.mg-ground-dark .mg-emph { color: #111; }
+.mg-style-broadcast .mg-emph { background-image: linear-gradient(color-mix(in srgb, var(--mg-accent-2) 75%, transparent), color-mix(in srgb, var(--mg-accent-2) 75%, transparent)); }
+.mg-style-nordic .mg-emph { background-image: linear-gradient(var(--mg-accent), var(--mg-accent)); background-position: 0 96%; background-size: 0% 0.45vh; }
+@keyframes mgEmphNordic { from { background-size: 0% 0.45vh; } to { background-size: 100% 0.45vh; } }
+.mg-style-nordic .mg-emph { animation-name: mgEmphNordic, mgEmphPulse; }
+
+/* ============================ ANIMATED CHARTS (2026-07-05) ============================
+ * "Animated charts" (operator): charts are BUILT by scaffolds from data slots and animate
+ * like editorial dataviz — staggered bar growth, counting value labels, SVG line draw-on,
+ * donut fills. Color discipline: ONE highlighted series in accent, the rest muted ink. */
+.mgc-row { display: flex; align-items: center; gap: 1.6vw; }
+.mgc-label { font-size: 2.6vh; font-weight: 600; min-width: 15vw; text-align: right; color: var(--mg-muted); }
+.mgc-track { flex: 1; height: 4.6vh; border-radius: 0.9vh; background: color-mix(in srgb, var(--mg-ink) 7%, transparent); position: relative; overflow: visible; }
+.mgc-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0.9vh; background: color-mix(in srgb, var(--mg-ink) 34%, var(--mg-bg)); transform-origin: left center; animation: mgGrowX 0.9s var(--mg-ease-chart) both; animation-delay: var(--at, 0.3s); }
+.mgc-row.hot .mgc-fill { background: var(--mg-accent); }
+.mgc-row.hot .mgc-label { color: var(--mg-ink); font-weight: 700; }
+.mgc-val { position: absolute; left: calc(100% + 1vw); top: 50%; transform: translateY(-50%); font-family: var(--mg-font-data); font-variant-numeric: tabular-nums; font-size: 2.8vh; font-weight: 700; white-space: nowrap; animation: mgFade 0.3s ease both; animation-delay: calc(var(--at, 0.3s) + 0.55s); }
+.mgc-row.hot .mgc-val { color: var(--mg-accent); }
+/* Line chart: SVG with pathLength=1000 → the kit's draw keyframe needs no measuring. */
+.mgc-line { stroke: var(--mg-accent); stroke-width: 0.55vh; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1000; animation: mgDraw calc(var(--scene-s, 8) * 0.42s) var(--mg-ease-cam) both; animation-delay: var(--at, 0.3s); --len: 1000; }
+.mgc-area { fill: var(--mg-accent); opacity: 0; animation: mgcArea 0.7s ease both; animation-delay: calc(var(--at, 0.3s) + var(--scene-s, 8) * 0.34s); }
+@keyframes mgcArea { to { opacity: 0.13; } }
+.mgc-grid { stroke: color-mix(in srgb, var(--mg-ink) 14%, transparent); stroke-width: 1px; }
+.mgc-dot { fill: var(--mg-accent); animation: mgPop 0.4s var(--mg-ease-back) both; animation-delay: calc(var(--at, 0.3s) + var(--scene-s, 8) * 0.38s); transform-box: fill-box; transform-origin: center; }
+.mgc-axis { font-family: var(--mg-font-data); font-size: 2vh; fill: var(--mg-muted); letter-spacing: 0.08em; }
+/* Source/unit credibility line — small caps, lowest emphasis, fades in LAST. */
+.mgc-source { font-family: var(--mg-font-data); font-size: 1.8vh; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mg-muted); opacity: 0.75; animation: mgFade 0.5s ease both; animation-delay: var(--at, 2s); }
+/* Damped shake — danger/error/"no" (each cycle 60% of the previous; constant amplitude reads template). */
+@keyframes mgShake { 0%, 100% { transform: rotate(0); } 12% { transform: rotate(-6deg); } 28% { transform: rotate(5deg); } 46% { transform: rotate(-3.5deg); } 64% { transform: rotate(2deg); } 82% { transform: rotate(-1deg); } }
+.mg-shake { animation: mgShake 0.55s ease-in-out both; animation-delay: var(--at, 0.8s); transform-origin: center 30%; }
+/* Donut/gauge: circle with pathLength=100. */
+@keyframes mgcDonut { from { stroke-dashoffset: 100; } to { stroke-dashoffset: var(--off, 40); } }
+.mgc-donut-track { fill: none; stroke: color-mix(in srgb, var(--mg-ink) 9%, transparent); }
+.mgc-donut-fill { fill: none; stroke: var(--mg-accent); stroke-linecap: round; stroke-dasharray: 100; animation: mgcDonut 1.3s var(--mg-ease-out) both; animation-delay: var(--at, 0.3s); transform: rotate(-90deg); transform-origin: center; transform-box: fill-box; }
 
 /* ---------- SQUARE (1:1 / 4:5) — row layouts survive, everything tightens ---------- */
 .mg-fmt-sq .mg-safe { padding: 6vh 6vw; }
