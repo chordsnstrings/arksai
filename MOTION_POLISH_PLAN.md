@@ -86,7 +86,21 @@ peak-end, Mayer multimedia learning):
   one on-screen change); scene mix per minute ≈ 1–2 punch scenes (1.5–2.5s) + mostly 3–6s +
   ≤1 long dwell; reading hold = max(1s per 13 chars, 2s); density ramps, breather beats.
 
-## The plan — 6 phases
+## Operator additions (2026-07-05)
+
+1. **Scaffolds, not hand-authoring**: "creating scaffolds and abilities that can be plugged
+   in by the ai wherever necessary so that the ai can simply focus on the actual output."
+   The polish must be GUARANTEED by pre-built scene scaffolds (the scaffold_app / UI-kit
+   pattern that fixed web builds) — the authoring model plugs content into archetypes whose
+   choreography, exits, kinetic type, composition, and pack skin are already correct.
+2. **Real photography + footage**: "access to much more assets including photos where
+   necessary or generate when quality photo or video couldn't be found." Stock photo/video
+   search (Pexels when keyed — photo + video search, free 200 req/hr / 20k/mo, attribution
+   = prominent Pexels link; Openverse + Wikimedia Commons as keyless fallbacks) with a
+   vision quality gate, falling back to generate_image / generate_video when no quality
+   result exists.
+
+## The plan — 8 phases
 
 ### Phase 1 — Script & hook doctrine (retention science into the writing)
 - **Hook gate**: MOTION.md + the tool's planning guidance + prompts.ts demand scene 1 =
@@ -131,7 +145,32 @@ peak-end, Mayer multimedia learning):
   Vox pack: `generate_image` plates become a REQUIRED device (the planning step must give
   every vox scene a plate or an explicit visual anchor).
 
-### Phase 3 — Transition system
+### Phase 3 — Scene scaffold system (the AI plugs in content; the system guarantees polish)
+The structural answer to "student project": stop asking the authoring model to hand-write
+choreographed HTML from doctrine. Pre-build the scenes as parameterized archetypes; the
+model supplies CONTENT (script, slot text, asset picks) and the scaffold supplies CRAFT.
+- **Scaffold catalog** (`server/assets/motion-kit/scaffolds/*.html` + a registry in
+  `agent/motion/scaffolds.ts`), each with baked-in enter/hold/exit choreography, camera
+  move, idle motion, composition (ground + depth layers + focal hierarchy + safe areas),
+  and per-pack skinning (clean/nutshell/broadcast/vox tokens):
+  `hook-question` (kinetic opening question, motion in the first second) ·
+  `hero-stat` (oversized counter + settle pulse) · `split-compare` (A vs B) ·
+  `process-steps` (staggered numbered reveals) · `annotated-plate` (photo plate +
+  ken-burns + vox labels/connectors) · `callout` (broadcast callout + tag) ·
+  `character-beat` (nutshell mascot + prop acting) · `chart-insight` (render_chart SVG +
+  drawn highlight) · `quote-punch` (masked-line kinetic quote) · `list-recap` ·
+  `end-punch` (short payoff outro).
+- **Slot-driven materialization**: the scenes array accepts EITHER `html_file` (bespoke,
+  as today — the ~20% escape hatch) OR `scaffold: {id, slots}` (kicker/title/words/
+  items[]/asset ids/plate/numbers/accent) — the tool renders scaffold+slots to the scene
+  HTML deterministically (pure function, unit-testable without Chromium). Slot text is
+  length-validated against the scaffold's word ceilings, so Mayer limits hold mechanically.
+- **Transition-aware**: each scaffold declares its exit signature and handoff anchor
+  coordinates so match-cuts/object-carry work between scaffolds by contract.
+- Doctrine: the planning step maps each narration beat to a scaffold id first; bespoke
+  HTML is for signature moments only. QC gets stricter on bespoke scenes.
+
+### Phase 4 — Transition system
 - **Choreographed cut is the default** (exit + entrance, pure CSS — Phase 2 delivers it).
 - **Per-boundary `transition` field** in the scenes array + manifest:
   `cut | dip | xfade-smooth | slide | circle` → stitch path upgrades from pure concat to
@@ -146,7 +185,7 @@ peak-end, Mayer multimedia learning):
   coordinates on both sides of the cut (the Kurzgesagt signature, pure authoring contract,
   no pipeline change).
 
-### Phase 4 — Pacing engine
+### Phase 5 — Pacing engine
 - **Beat-length variety enforced**: the plan step must produce a scene mix (per minute:
   1–2 punch beats 1.5–2.5s, majority 3–6s narration, ≤1 dwell 7–10s); tool warns when all
   scenes fall within ±15% of the median duration. Punch scenes = silent min_ms beats
@@ -159,7 +198,29 @@ peak-end, Mayer multimedia learning):
 - **Ending**: final scene ≤ median length, one strong motion payoff (e.g. the 142→96
   strike-through grows to hero scale), never a disclaimers wall.
 
-### Phase 5 — QC that can actually see the problems
+### Phase 6 — Photo & footage pipeline (real imagery, generate as fallback)
+- **`search_photos` tool** (provider-pluggable, in `agent/assets/photos.ts`):
+  - **Pexels** (photos + videos) when `PEXELS_API_KEY` is set — header auth, verified
+    limits 200 req/hr / 20k/mo free; admin providers endpoint + encrypted app_settings
+    like the other keys (no redeploy). The QUALITY source; operator grabs a free key at
+    pexels.com/api (2 minutes).
+  - **Openverse + Wikimedia Commons** keyless fallbacks (CC-licensed; quality varies —
+    ranked below Pexels). NOTE: both blocked by the sandbox proxy — validate the request
+    shapes LIVE from the droplet (open egress), the standing MiniMax pattern.
+  - Returns top candidates with thumbnail, dimensions, license, attribution; downloads
+    via the existing SSRF-guarded `fetchPublicBuffer`; every asset logged into
+    ATTRIBUTIONS.md (+ a "Photos: Pexels" credit rule for published videos).
+- **Vision quality gate on candidates**: before a photo enters a scene, one cheap
+  `analyzeImage` pass ("high-quality, on-subject, usable as a full-bleed plate? pick best
+  of 3") — a bad stock photo is worse than none.
+- **Fallback chain, encoded in the doctrine + tool descriptions**: evidence/real-world
+  subject → search_photos first; no quality hit → `generate_image` (photographic prompt,
+  text-free); moving plate → Pexels videos → `generate_video` (Seedance) only when truly
+  necessary (operator's standing preference).
+- The `annotated-plate` scaffold (Phase 3) consumes this directly — vox scenes finally get
+  the real photographic evidence the style is defined by.
+
+### Phase 7 — QC that can actually see the problems
 - **Deterministic motion audit** (would have failed both LDL videos): after capture,
   pixel-diff already-on-disk frames at 40/60/80% (±0.5s pairs); mean diff below threshold
   → hard defect "scene N is static", same severity as a missing file. Cheap (frames exist;
@@ -179,9 +240,11 @@ peak-end, Mayer multimedia learning):
   with an explicit match check; the wrong-icon class of defect (apple = "Butter") gets
   caught at authoring AND at QC.
 
-### Phase 6 — Validation (live, before claiming done)
+### Phase 8 — Validation (live, before claiming done)
 - Unit tests: exit/kinetic primitives in motion.css locks, hook/pacing pre-checks, xfade
-  boundary builder, motion-audit + fill-audit pure functions, spot-frame positions.
+  boundary builder, motion-audit + fill-audit pure functions, spot-frame positions,
+  scaffold materialization (pure: slots → HTML, word-ceiling validation, every scaffold ×
+  every pack renders), photo-provider request builders + attribution records.
 - Sandbox: re-render a 3-scene sample through the full loop; eyeball frames incl. cut
   straddles; verify pixel-diff audit trips on a deliberately static scene.
 - Live on arksai.studio: re-produce the SAME two briefs that failed the operator's bar —
@@ -190,9 +253,11 @@ peak-end, Mayer multimedia learning):
   correct icons, varied pacing, punch-out ending.
 
 ## Sequencing & effort
-Phases 2+3 (kit + transitions) are the visual payload; Phase 1+4 (script/pacing doctrine)
-are prompt/doctrine + small tool params; Phase 5 is the enforcement that makes it stick
-autonomously. Order: 1 → 2 → 3 → 4 → 5 → 6 in one arc; each phase is testable alone.
-No new dependencies, no new APIs — everything runs on the existing capture/encode/QC
-pipeline. Style-pack previews re-render at the end (kit look changes → picker cards must
-not drift).
+Order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8; each phase is testable alone. Phase 2 (kit
+primitives) feeds Phase 3 (scaffolds are assembled FROM the primitives); Phase 3 is the
+architectural centerpiece — it converts every craft rule from "hope the model follows
+doctrine" into "the template already does it," and it's what lets the model focus on the
+actual output. Phase 6 is the only phase touching an external API (Pexels, optional key;
+keyless fallbacks otherwise). Everything else runs on the existing capture/encode/QC
+pipeline with no new dependencies. Style-pack previews re-render at the end (kit look
+changes → picker cards must not drift).
