@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-05.42';
+export const WHATS_NEW_VERSION = '2026-07-05.43';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -25,6 +25,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Designed for every frame size',
     body: 'Vertical Shorts, square and 4:5 social posts now get compositions built for their shape (not a squeezed widescreen layout), and every scene keeps living motion inside the frame — drifting texture, breathing elements, travelling accents — never a frozen slide.',
+  },
+  {
+    title: 'Endings that land like an outro',
+    body: 'Videos with a music bed now finish properly: the narration ends, the music rises and carries the final moment, then fades out gently — the voice is never cut or faded mid-word.',
   },
 ];
 

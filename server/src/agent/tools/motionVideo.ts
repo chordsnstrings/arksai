@@ -376,7 +376,9 @@ async function assemble(m: MotionManifest, repoDir: string, signal: AbortSignal,
     if (m.musicFile) {
       const scored = path.join(repoDir, `${dirName(m.id)}/explainer-scored.mp4`);
       if (await mixMusicBed(outAbs, path.join(repoDir, m.musicFile), scored, { duck: true, signal })) {
-        m.stitched = (await finishWithFade(scored, repoDir, m.id, signal)) ?? `${dirName(m.id)}/explainer-scored.mp4`;
+        // Scored ending: narration is long finished inside the extended tail, so this
+        // longer fade is heard as the MUSIC resolving out — the voice is never faded.
+        m.stitched = (await finishWithFade(scored, repoDir, m.id, signal, 1.8)) ?? `${dirName(m.id)}/explainer-scored.mp4`;
         return;
       }
     }
@@ -384,10 +386,10 @@ async function assemble(m: MotionManifest, repoDir: string, signal: AbortSignal,
   m.stitched = (await finishWithFade(outAbs, repoDir, m.id, signal)) ?? outRel;
 }
 
-/** The ending lands, never stops: fade the last ~0.9s of video+audio to black. */
-async function finishWithFade(videoAbs: string, repoDir: string, id: string, signal: AbortSignal): Promise<string | null> {
+/** The ending lands, never stops: fade the final stretch of video+audio to black. */
+async function finishWithFade(videoAbs: string, repoDir: string, id: string, signal: AbortSignal, fadeS = 0.9): Promise<string | null> {
   const rel = `${dirName(id)}/explainer-final.mp4`;
-  const ok = await applyFadeOut(videoAbs, path.join(repoDir, rel), 0.9, signal);
+  const ok = await applyFadeOut(videoAbs, path.join(repoDir, rel), fadeS, signal);
   return ok ? rel : null;
 }
 
@@ -638,7 +640,12 @@ export const renderMotionVideoTool: ToolDef = {
         scaffoldId: s?.scaffold?.id ? String(s.scaffold.id) : undefined,
         transition: TRANSITION_KINDS[String(s?.transition ?? '')] ? String(s.transition) : undefined,
         minMs: s.min_ms ? Math.min(30_000, Math.max(0, Number(s.min_ms))) : undefined,
-        extraTailMs: i === list.length - 1 ? 800 : undefined, // the ending breathes, then fades
+        // MUSIC OUTRO (operator 2026-07-05: "the background music should be there while the
+        // narration fades out at the last portion"): with a bed, the last scene holds long
+        // enough for the sidechain duck to release after the final spoken word — the music
+        // rises to full and carries the ending, then the longer fade lands it. Without music
+        // the short breath + quick fade stays.
+        extraTailMs: i === list.length - 1 ? (args.music ? 2600 : 800) : undefined,
         status: 'pending',
       }));
       // fps derives from a rough total estimate: ~145 words/min narration + holds.

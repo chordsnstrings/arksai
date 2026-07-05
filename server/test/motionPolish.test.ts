@@ -277,13 +277,16 @@ test('polish doctrine locks: kit v2 classes, MOTION.md hook/pacing/transitions, 
 
 import { fadeOutCmd } from '../src/agent/videoStitch';
 
-test('ending: fade-out command ramps video+audio over the final ~0.9s', () => {
+test('ending: fade-out command ramps video+audio; scored videos get a MUSIC OUTRO', () => {
   const cmd = fadeOutCmd('/v.mp4', '/out.mp4', 73.4, 0.9);
   assert.match(cmd, /fade=t=out:st=72\.500:d=0\.900/);
   assert.match(cmd, /afade=t=out:st=72\.500:d=0\.900/);
   const tool = fs.readFileSync(path.join(__dirname, '../src/agent/tools/motionVideo.ts'), 'utf8');
   assert.match(tool, /finishWithFade/);
-  assert.match(tool, /extraTailMs: i === list\.length - 1/, 'the final scene breathes before the fade');
+  assert.match(tool, /extraTailMs: i === list\.length - 1 \? \(args\.music \? 2600 : 800\)/,
+    'with a music bed the final scene holds long enough for the duck to release — the bed carries the ending');
+  assert.match(tool, /finishWithFade\(scored, repoDir, m\.id, signal, 1\.8\)/,
+    'the scored fade is longer and lands as the MUSIC resolving, never a clipped voice');
 });
 
 test('narration sync: scaffold secondary reveals are PROPORTIONAL to the scene duration', () => {

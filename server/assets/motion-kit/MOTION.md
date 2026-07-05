@@ -71,8 +71,12 @@ must EARN the rest of the video:
   lands roughly as the narration reaches it, never all piled into the first second) →
   exit (final ~0.4s). Scaffolds do this automatically.
 - THE ENDING LANDS, never stops: the final scene gets extra hold and the assembled video
-  fades video+audio out over the last ~0.9s (automatic). Author the last narration line as
-  a closing thought, not a mid-list item.
+  fades out automatically. With a MUSIC bed the ending is a proper outro: the last scene
+  holds ~2.6s past the final spoken word, the ducked bed rises back to full and carries
+  the frame, then music+picture fade out over ~1.8s — the narration itself is never faded
+  or clipped. Without music: a short breath + ~0.9s fade. Author the last narration line
+  as a closing thought, not a mid-list item, and give the final scene visuals that can
+  hold the outro (living ambients, the punch-out word breathing).
 - After 3–4 dense scenes, one breather beat (single statement, sparse frame).
 - Re-hook cadence: a reveal/tension renewal every ~30–40s (short videos) or every 2–3
   minutes (long ones) — schedule them in the script before writing scenes.
