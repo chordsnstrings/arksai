@@ -72,8 +72,8 @@ test('motion styles: catalog served with real preview frames, auth-gated', async
   const r = await app.inject({ url: '/api/motion/styles', headers: { cookie } });
   assert.equal(r.statusCode, 200);
   const { styles } = r.json();
-  assert.equal(styles.length, 4);
-  assert.deepEqual(styles.map((s: any) => s.id).sort(), ['broadcast', 'clean', 'nutshell', 'vox']);
+  assert.equal(styles.length, 5);
+  assert.deepEqual(styles.map((s: any) => s.id).sort(), ['broadcast', 'clean', 'nordic', 'nutshell', 'vox']);
   for (const s of styles) {
     for (const k of ['name', 'vibe', 'bestFor', 'accent', 'previewUrl']) assert.ok(s[k], `${s.id}.${k}`);
     const img = await app.inject({ url: s.previewUrl, headers: { cookie } });

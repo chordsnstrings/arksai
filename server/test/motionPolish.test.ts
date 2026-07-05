@@ -46,7 +46,7 @@ function ctx(style: ScaffoldCtx['style'], sceneIndex = 0): ScaffoldCtx {
 
 test('scaffolds: every archetype renders for every style pack with the craft baked in', () => {
   for (const id of SCAFFOLD_IDS) {
-    for (const style of ['clean', 'nutshell', 'broadcast', 'vox'] as const) {
+    for (const style of ['clean', 'nutshell', 'broadcast', 'vox', 'nordic'] as const) {
       const r = materializeScaffold({ id, slots: MINIMAL_SLOTS[id] }, ctx(style, 2));
       assert.deepEqual(r.problems, [], `${id}/${style}: ${r.problems.join('; ')}`);
       const html = r.html!;
@@ -313,4 +313,16 @@ test('typography-as-set: kit primitives + scaffold compositions are not slide-li
   assert.match(stat, /mg-echo mg-outline/);
   const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
   assert.match(md, /TYPOGRAPHY IS THE SET/);
+});
+
+
+test('nordic pack: grounds, grid, numerals, kinetic-type devices, catalog entry', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  for (const cls of ['.mg-ground-paper', '.mg-ground-night', '.mg-grid12', '.mg-kick-rule', '.mg-numeral', '.mg-hairline', '.kt-stamp', '.kt-swap', '.kt-track-in', '.kt-rail-wipe', '.kt-drop', '.kt-caret'])
+    assert.ok(css.includes(cls), `motion.css has ${cls}`);
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  assert.match(md, /`nordic` — Swiss\/Scandinavian grid editorial/);
+  assert.match(md, /ONE device per scene/);
+  assert.equal(groundClass('nordic', undefined, 1), 'mg-ground-paper');
+  assert.equal(groundClass('nordic', 'night', 0), 'mg-ground-night');
 });

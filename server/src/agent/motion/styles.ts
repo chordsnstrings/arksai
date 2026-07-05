@@ -6,7 +6,7 @@
  */
 
 export interface MotionStyleInfo {
-  id: 'clean' | 'nutshell' | 'broadcast' | 'vox';
+  id: 'clean' | 'nutshell' | 'broadcast' | 'vox' | 'nordic';
   name: string;
   /** One-line vibe shown on the picker card. */
   vibe: string;
@@ -19,6 +19,14 @@ export interface MotionStyleInfo {
 }
 
 export const MOTION_STYLES: MotionStyleInfo[] = [
+  {
+    id: 'nordic',
+    name: 'Nordic',
+    vibe: 'Swiss grid editorial — paper, ink, one red',
+    bestFor: 'brand films, editorial explainers, typography-led pieces',
+    accent: '#e32219',
+    available: true,
+  },
   {
     id: 'clean',
     name: 'Clean',

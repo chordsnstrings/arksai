@@ -14,7 +14,7 @@ import path from 'node:path';
  * so "walls of label text" are mechanically impossible through this path.
  */
 
-export type MotionStyleId = 'clean' | 'nutshell' | 'broadcast' | 'vox';
+export type MotionStyleId = 'clean' | 'nutshell' | 'broadcast' | 'vox' | 'nordic';
 
 export interface ScaffoldCtx {
   style: MotionStyleId;
@@ -72,6 +72,7 @@ export function groundClass(style: MotionStyleId, ground: string | undefined, sc
     nutshell: 'mg-ground-space',
     broadcast: 'mg-ground-stage',
     vox: 'mg-ground-studio',
+    nordic: 'mg-ground-paper',
   };
   const byToken: Record<string, string> = {
     light: home[style],
@@ -82,6 +83,8 @@ export function groundClass(style: MotionStyleId, ground: string | undefined, sc
     stage: 'mg-ground-stage',
     studio: 'mg-ground-studio',
     floor: 'mg-ground-floor',
+    paper: 'mg-ground-paper',
+    night: 'mg-ground-night',
   };
   if (ground && byToken[ground]) return byToken[ground];
   // auto rhythm: index 0 (the hook) lands on the dramatic ground, then alternates so
@@ -89,7 +92,9 @@ export function groundClass(style: MotionStyleId, ground: string | undefined, sc
   const rhythm =
     style === 'nutshell'
       ? ['mg-ground-space', 'mg-ground-dark', 'mg-ground-space', 'mg-ground-accent']
-      : ['mg-ground-dark', home[style], style === 'broadcast' ? 'mg-ground-dark' : 'mg-ground-accent', home[style]];
+      : style === 'nordic'
+        ? ['mg-ground-night', 'mg-ground-paper', 'mg-ground-dark', 'mg-ground-paper']
+        : ['mg-ground-dark', home[style], style === 'broadcast' ? 'mg-ground-dark' : 'mg-ground-accent', home[style]];
   return rhythm[sceneIndex % rhythm.length];
 }
 
@@ -342,7 +347,7 @@ const annotatedPlate: Builder = (slots, ctx) => {
     at: Number.isFinite(Number(l?.at)) ? Number(l.at) : -1, // -1 = proportional default
   }));
   if (problems.length) return { problems };
-  const labelCls = ctx.style === 'broadcast' ? 'mg-callout' : 'mg-label-vox';
+  const labelCls = ctx.style === 'broadcast' ? 'mg-callout' : ctx.style === 'nordic' ? 'mg-label-vox ink' : 'mg-label-vox';
   const bg = `
   <div class="mg-plate"><div class="mg-kenburns" style="width:100%;height:100%;"><img src="${esc(ctx.kitPrefix + plate)}" alt=""></div></div>
   <div class="mg-plate-scrim${slots.scrim === 'top' ? ' top' : ''}"></div>`;

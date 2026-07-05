@@ -170,6 +170,27 @@ and motion doctrine; SCENE CONTRAST still applies within the pack's grounds.
 - MOTION: calm and precise — slow pushes, labels fade-up then hold, highlights sweep as
   the narrator says the words. The annotation IS the animation.
 
+### `nordic` — Swiss/Scandinavian grid editorial (Müller-Brockmann × Form magazine)
+- GROUNDS: `.mg-ground-paper` (warm paper + ink + ONE accent, default red #e32219 —
+  swap for a muted Scandi tone: sage #6f7d6b, dusty blue #5e7387, clay #b0684a) as home;
+  `.mg-ground-night` (#20242b + gold) and `.mg-ground-dark` for contrast beats.
+- LAYOUT LAW: everything on the 12-column grid (`.mg-grid12`); type flush-left
+  ragged-right, NEVER centered (exception: one poster word); max THREE text sizes per
+  frame with ≥5× contrast between display and support; whitespace ≥55%; one message,
+  ≤12 words; accent covers ≤10% of the frame.
+- DEVICES: `.mg-kick-rule` kicker-on-hairline; `.mg-numeral` oversized numerals
+  (40-70vh, `.ghost` at 9% ink, cropping an edge is sanctioned); `.mg-hairline` rules
+  (≤3); ONE `.mg-vert` rotated rail; photos grayscale, grid-obedient, ≤1 per frame;
+  flat geometry only — zero gradients/shadows/rounded cards.
+- KINETIC TYPE (ONE device per scene — restraint IS the style): `.kt-stamp` word-stamp
+  on the speech beat · `.kt-swap`(+`.hold`) giant word swap with HARD cuts ·
+  `.kt-track-in` once per video on the title · `.kt-rail-wipe` for the rail ·
+  `.kt-drop` at most once · `.kt-caret` typewriter caret. Idles stay subtle here
+  (breathe on at most one element) — this pack tolerates less wobble.
+- TYPE ROLES: Inter = the Helvetica role (display 650-700 tight, body 400/1.5);
+  Space Grotesk = kickers/numerals; Source Serif 4 = ledes/pull-quotes (the Berling
+  role); IBM Plex Mono = captions/annotations. Max 2 families per video.
+
 ### default (`clean`) — the house motion-graphics style (what you get with no pack): the
 base kit + SCENE CONTRAST doctrine as documented below. Give every scene a PLACE:
 `.mg-ground-floor` (floor plane) or a dark/accent ground + `.mg-vignette`; anchor one

@@ -451,3 +451,70 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
   text-transform: uppercase; color: var(--mg-muted);
 }
 .mg-rulelabel::before { content: ''; width: 6vw; height: 1px; background: color-mix(in srgb, var(--mg-ink) 40%, transparent); }
+
+/* ============================ STYLE PACK · NORDIC ============================
+ * Swiss International Typographic Style × Scandinavian editorial (research 2026-07-05:
+ * Müller-Brockmann grids, Form-magazine warmth, Bass/Ferro kinetic type). Mathematical
+ * grid, flush-left rag-right, paper+ink+ONE accent (≤10% of frame), whitespace ≥55%,
+ * oversized numerals as architecture, hairline rules, ONE kinetic device per scene.
+ * Deliberately the LOWEST animation-count pack (≤30 animated elements/frame). */
+.mg-ground-paper {
+  --mg-bg: #f2efe9;
+  --mg-ink: #141414;
+  --mg-muted: #6d6a63;
+  --mg-accent: #e32219;
+  background: var(--mg-bg);
+  color: var(--mg-ink);
+}
+.mg-ground-night {
+  --mg-bg: #20242b;
+  --mg-ink: #ede9e0;
+  --mg-muted: #9aa0ab;
+  --mg-accent: #d9a441;
+  background: linear-gradient(180deg, #1c2026, #20242b 60%, #252a32);
+  color: var(--mg-ink);
+}
+/* The 12-column modular grid stage — every element spans whole columns. */
+.mg-grid12 {
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.25vw;
+  padding: 8.9vh 6.25vw; height: 100%; align-content: center;
+}
+/* Kicker on a hairline — the editorial masthead move. */
+.mg-kick-rule {
+  font-family: var(--mg-font-body); font-size: 2vh; font-weight: 500;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--mg-ink);
+  border-top: 2px solid var(--mg-ink); padding-top: 1.2vh;
+}
+/* Oversized numeral as graphic architecture (40-70vh, cropped by an edge is sanctioned). */
+.mg-numeral {
+  font-family: var(--mg-font-body); font-weight: 700; font-variant-numeric: tabular-nums;
+  font-size: 52vh; line-height: 0.82; letter-spacing: -0.04em;
+}
+.mg-numeral.ghost { color: color-mix(in srgb, var(--mg-ink) 9%, var(--mg-bg)); }
+/* Hairline rule as structure (≤3 per frame). */
+.mg-hairline { height: 2px; background: color-mix(in srgb, var(--mg-ink) 34%, transparent); width: 100%; }
+
+/* ---- KINETIC TYPE PATTERNS (one device per scene — restraint IS the style) ---- */
+/* Word-stamp: words land ON the speech beat (~380-400ms/word). Use with .mg-words. */
+@keyframes ktStamp { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: scale(1); } }
+.kt-stamp .w { animation-name: ktStamp; animation-duration: 0.16s; animation-timing-function: ease-out; }
+.kt-stamp { --wstag: 0.38s; }
+/* Giant-swap: one word at a time fills the slot, HARD cuts (tweens read as template).
+ * Pair with .mg-words; set --slot (default .4s). Add .hold to keep the LAST word. */
+.kt-swap { display: grid; justify-items: center; align-items: center; }
+.kt-swap .w { grid-area: 1 / 1; white-space: nowrap; animation-name: ktSwapWord; animation-duration: var(--slot, 0.4s); animation-timing-function: linear; animation-delay: calc(var(--at, 0s) + var(--slot, 0.4s) * var(--w, 0)); }
+@keyframes ktSwapWord { 0% { opacity: 0; } 2% { opacity: 1; } 98% { opacity: 1; } 100% { opacity: 0; } }
+.kt-swap.hold .w:last-child { animation-name: ktSwapHold; }
+@keyframes ktSwapHold { 0% { opacity: 0; } 2% { opacity: 1; } 100% { opacity: 1; } }
+/* Track-in: the Apple-keynote reveal. ONCE per video, on the main title. */
+@keyframes ktTrackIn { from { letter-spacing: 0.35em; opacity: 0; } to { letter-spacing: 0em; opacity: 1; } }
+.kt-track-in { animation: ktTrackIn 0.8s var(--mg-ease-out) both; animation-delay: var(--at, 0s); }
+/* Rail-wipe: the rotated annotation reveals top-down after the cluster settles. */
+@keyframes ktRailWipe { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+.kt-rail-wipe { animation: ktRailWipe 0.5s var(--mg-ease-out) both; animation-delay: var(--at, 0.4s); }
+/* Baseline-drop: ONE physical gag per video, max. */
+@keyframes ktDrop { from { opacity: 0; transform: translateY(-140%); } to { opacity: 1; transform: translateY(0); } }
+.kt-drop { animation: ktDrop 0.45s var(--mg-ease-back) both; animation-delay: var(--at, 0s); display: inline-block; }
+/* Blinking block caret for the typewriter (steps, deterministic). */
+.kt-caret::after { content: ''; display: inline-block; width: 0.5ch; height: 1em; margin-left: 0.12ch; background: var(--mg-accent); vertical-align: text-bottom; animation: ktCaret 1.06s steps(2, jump-none) infinite; }
+@keyframes ktCaret { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }

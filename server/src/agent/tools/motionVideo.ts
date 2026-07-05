@@ -61,7 +61,7 @@ interface MotionScene {
   clip?: string; // repo-relative scene mp4
 }
 
-type MotionStyle = 'clean' | 'nutshell' | 'broadcast' | 'vox';
+type MotionStyle = 'clean' | 'nutshell' | 'broadcast' | 'vox' | 'nordic';
 
 interface MotionManifest {
   id: string;
@@ -464,9 +464,9 @@ export const renderMotionVideoTool: ToolDef = {
       speed: { type: 'number', description: 'Narration speed 0.8-1.2 (default 1).' },
       style: {
         type: 'string',
-        enum: ['clean', 'nutshell', 'broadcast', 'vox'],
+        enum: ['clean', 'nutshell', 'broadcast', 'vox', 'nordic'],
         description:
-          'The STYLE PACK the scenes were authored in (see motion-kit/MOTION.md): nutshell = neon flat vector on cosmic grounds (Kurzgesagt-inspired); broadcast = bright stage + shouting callout labels (Infographics-inspired); vox = annotated-evidence plates + yellow boxed labels; clean = the house style (default). The pack you name here MUST match how you wrote the scene HTML.',
+          'The STYLE PACK the scenes were authored in (see motion-kit/MOTION.md): nutshell = neon flat vector on cosmic grounds (Kurzgesagt-inspired); broadcast = bright stage + shouting callout labels (Infographics-inspired); vox = annotated-evidence plates + yellow boxed labels; nordic = Swiss/Scandinavian grid editorial (paper+ink+one accent, oversized numerals, hairlines, disciplined kinetic type — ONE device per scene); clean = the house style (default). The pack you name here MUST match how you wrote the scene HTML.',
       },
       accent: { type: 'string', description: 'Optional brand accent hex for the scaffold theme (e.g. #0a7d5b).' },
       accent_2: { type: 'string', description: 'Optional secondary accent hex.' },
@@ -541,7 +541,7 @@ export const renderMotionVideoTool: ToolDef = {
 
       const aspect = String(args.aspect_ratio ?? '16:9');
       const dim = DIMENSION_PRESETS[aspect] ?? DIMENSION_PRESETS['16:9'];
-      const style: MotionStyle = ['nutshell', 'broadcast', 'vox'].includes(String(args.style)) ? (args.style as MotionStyle) : 'clean';
+      const style: MotionStyle = ['nutshell', 'broadcast', 'vox', 'nordic'].includes(String(args.style)) ? (args.style as MotionStyle) : 'clean';
       const id = String(Date.now());
       const accent = /^#[0-9a-fA-F]{6}$/.test(String(args.accent ?? '')) ? String(args.accent) : undefined;
       const accent2 = /^#[0-9a-fA-F]{6}$/.test(String(args.accent_2 ?? '')) ? String(args.accent_2) : undefined;

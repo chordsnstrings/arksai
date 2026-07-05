@@ -152,7 +152,7 @@ test('style packs: kit classes + MOTION.md specs + tool style param + color prop
   assert.doesNotMatch(js, /Math\.random\s*\(/); // seeded PRNG only (the comment may NAME it)
   // tool carries the style param + steering
   const params: any = renderMotionVideoTool.parameters;
-  assert.deepEqual(params.properties.style.enum, ['clean', 'nutshell', 'broadcast', 'vox']);
+  assert.deepEqual(params.properties.style.enum, ['clean', 'nutshell', 'broadcast', 'vox', 'nordic']);
   assert.match(renderMotionVideoTool.description, /NOTHING IS EVER STATIC/);
   // color props indexed + materialized verbatim
   const stats = libraryStats() as any;
