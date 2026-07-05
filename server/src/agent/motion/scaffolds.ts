@@ -287,7 +287,7 @@ const splitCompare: Builder = (slots, ctx) => {
       <div class="mg-pop" style="--at:${atFrac(0.36)};align-self:center;font-family:var(--mg-font-data);font-weight:800;font-size:3.4vh;background:var(--mg-ink);color:var(--mg-bg);border-radius:50%;width:9vh;height:9vh;display:flex;align-items:center;justify-content:center;flex:none;">VS</div>
       ${card(R, 'mg-slide-r', 0.44)}
     </div>
-    ${verdict ? `<div style="display:flex;justify-content:center;"><div class="mg-key" style="--at:${atFrac(0.74)};font-size:3.8vh;">${esc(verdict)}</div></div>` : ''}
+    ${verdict ? `<div style="display:flex;justify-content:center;"><div class="${ctx.style === 'vox' || ctx.style === 'broadcast' ? 'mg-label-vox' : 'mg-key'}" style="--at:${atFrac(0.74)};font-size:3.4vh;">${esc(verdict)}</div></div>` : ''}
   </div>`;
   return { problems, html: shell(ctx, { ground, body }) };
 };
