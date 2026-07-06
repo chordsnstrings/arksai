@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.55';
+export const WHATS_NEW_VERSION = '2026-07-06.56';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'Explainers and shorts no longer just stop after the last fact. A new ending gate makes every script close the loop its hook opened: a short punch line that calls back to the opening, nothing announced ("thanks for watching" is rejected), the closing frame holds while the music carries it out. Even a 15-second short gets the full story arc — hook, turn, and a real landing.',
   },
   {
-    title: 'Your Google account, in the conversation',
-    body: 'Connect Google once and the agent can read and search your Gmail, send email as you (confirmed first), manage calendar events, and pull numbers from a private Google Sheet into a dashboard or report.',
+    title: 'Long builds no longer stall silently',
+    body: 'When a model announced its next step and then went quiet mid-build, the run used to end unfinished until you typed "continue". The engine now sends that nudge itself — runs pick up exactly where they left off, automatically.',
   },
 ];
 

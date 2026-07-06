@@ -1011,6 +1011,26 @@ export class AgentRun {
             stopReason = 'natural';
             break;
           }
+          // SILENT MID-WORK DEATH (live bug class, three occurrences on arksai.studio): the
+          // model ANNOUNCES its next action and stops — "Now retake scene 2:" then nothing —
+          // or returns a fully EMPTY 'stop' turn. Neither is ever a valid completion, and a
+          // human typing "Continue:" recovered every case. Do that nudge automatically,
+          // bounded by the same retry counter as the truncation class.
+          {
+            const trimmed = text.trim();
+            const announcedThenStopped = /:\s*$/.test(trimmed); // a colon-terminated turn promised content/action that never came
+            if ((!trimmed || announcedThenStopped) && emptyRetries < EMPTY_RETRY_LIMIT && !this.abort.signal.aborted) {
+              emptyRetries++;
+              context.push({
+                role: 'user',
+                content: trimmed
+                  ? 'Continue: your last message announced the next action ("…:") but the turn ended without doing it. Pick up exactly where you left off and CALL THE TOOL now — do not re-plan, do not start over.'
+                  : 'Continue: your previous turn was completely empty — no answer, no tool call. Pick up exactly where you left off and act.',
+              });
+              sysInfo(`↳ Turn ended mid-work — auto-continuing (${emptyRetries}/${EMPTY_RETRY_LIMIT}).`);
+              continue;
+            }
+          }
           // Cheap pre-completion self-audit (first-try correctness): run the deterministic,
           // model-free defect checks BEFORE the expensive gate so the agent fixes a known-bad
           // result in-context (no vision call, no full re-loop). Bounded by its own counter.

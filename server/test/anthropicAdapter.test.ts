@@ -349,3 +349,19 @@ test('Semaphore: an aborted waiter rejects and never holds a slot', async () => 
   const r2 = await s.acquire(); // proves the slot was freed, not leaked to the aborted waiter
   r2();
 });
+
+test('runner auto-continues silent mid-work deaths (source lock — the loop is not unit-hostable)', () => {
+  // Live bug class (3 occurrences): the model announces its next action ("Now retake
+  // scene 2:") or returns an empty 'stop' turn, then ends with no tool call — the run
+  // finished "done" mid-task. The fix injects the human "Continue:" nudge automatically,
+  // bounded by EMPTY_RETRY_LIMIT, at the calls.length === 0 decision point.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = fs.readFileSync(path.join(__dirname, '../src/agent/runner.ts'), 'utf8');
+  assert.ok(src.includes('SILENT MID-WORK DEATH'), 'the auto-continue branch exists');
+  assert.match(src, /announcedThenStopped = \/:\\s\*\$\/\.test\(trimmed\)/, 'colon-terminated announcements detected');
+  assert.ok(src.includes('Turn ended mid-work — auto-continuing'), 'user-visible system line');
+  assert.ok(src.includes('CALL THE TOOL now — do not re-plan'), 'the nudge tells it to act, not restart');
+  // The nudge must run BEFORE the natural-completion break so it actually preempts it.
+  assert.ok(src.indexOf('SILENT MID-WORK DEATH') < src.indexOf("stopReason = 'natural'; // task done"), 'nudge preempts natural completion');
+});
