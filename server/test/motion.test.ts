@@ -103,8 +103,22 @@ test('assets: every indexed id resolves to a real source (no dangling manifest e
 
 // Live-failure locks (2026-07-04): missing scene files fail EARLY with a write-first
 // instruction, and motion briefs route to the heavy lane (Swift looped on this live).
-import { renderMotionVideoTool } from '../src/agent/tools/motionVideo';
+import { renderMotionVideoTool, slugifyTitle } from '../src/agent/tools/motionVideo';
 import { complexityTier } from '../src/agent/router';
+
+test('motion tool: outputs are named for the SUBJECT, never a generic "explainer" (operator 2026-07-06)', () => {
+  assert.equal(slugifyTitle('Why airplane windows are round'), 'why-airplane-windows-are-round');
+  assert.equal(slugifyTitle("The ocean's hidden oxygen factory!"), 'the-oceans-hidden-oxygen-factory');
+  assert.equal(slugifyTitle('   '), '', 'blank title yields empty slug (caller falls back)');
+  assert.ok(slugifyTitle('a'.repeat(90)).length <= 48, 'slug is bounded');
+  // The tool takes a title param and the manifest carries the slug into every output name.
+  assert.ok((renderMotionVideoTool.parameters as any).properties.title, 'title param exists');
+  const src = fs.readFileSync(path.join(__dirname, '../src/agent/tools/motionVideo.ts'), 'utf8');
+  assert.match(src, /\$\{m\.slug\}-final\.mp4/, 'final output named by slug');
+  assert.match(src, /\$\{m\.slug\}-scored\.mp4/, 'scored output named by slug');
+  assert.ok(!src.includes('explainer-final.mp4'), 'no hardcoded explainer-final left');
+  assert.ok(!src.includes("explainer.mp4'"), 'no hardcoded explainer.mp4 left');
+});
 
 test('motion tool: unwritten scene files fail early with an unambiguous write-first error', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-motion-'));

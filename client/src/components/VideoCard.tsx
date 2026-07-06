@@ -80,7 +80,8 @@ export function VideoCard({ sessionId, relPath, draft, label }: { sessionId: str
 
 /** Detect a produced video from a tool-result string; returns the card props or null. */
 export function videoFromToolOutput(text: string): { relPath: string; draft: boolean; label?: string } | null {
-  const m = /videos\/[\w.\-]+\.(?:mp4|webm|mov)/i.exec(text || '');
+  // Note the / in the class: motion/story outputs live in nested dirs (videos/motion-<id>/<subject>-final.mp4).
+  const m = /videos\/[\w./\-]+\.(?:mp4|webm|mov)/i.exec(text || '');
   if (!m) return null;
   const relPath = m[0];
   const draft = /-draft\.[a-z0-9]+/i.test(relPath) || /\bdraft\b/i.test(text);

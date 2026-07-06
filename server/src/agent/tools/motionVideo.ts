@@ -65,6 +65,7 @@ type MotionStyle = 'clean' | 'nutshell' | 'broadcast' | 'vox' | 'nordic';
 
 interface MotionManifest {
   id: string;
+  slug: string; // subject slug — names the output files (<slug>-final.mp4), never "explainer"
   style: MotionStyle;
   aspect: string;
   width: number;
@@ -104,6 +105,16 @@ export async function withRenderSlot<T>(fn: (queuedMs: number) => Promise<T>): P
 }
 
 const dirName = (id: string) => `videos/motion-${id}`;
+
+/** Subject → output-file slug ("Why airplane windows are round" → "why-airplane-windows-are-round"). */
+export const slugifyTitle = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48)
+    .replace(/-+$/g, '');
 const manifestPath = (repoDir: string, id: string) => path.join(repoDir, dirName(id), 'manifest.json');
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
 const wordsOf = (s: string) => s.split(/\s+/).filter(Boolean).length;
@@ -116,7 +127,9 @@ function saveManifest(repoDir: string, m: MotionManifest): void {
 }
 function loadManifest(repoDir: string, id: string): MotionManifest | null {
   try {
-    return JSON.parse(fs.readFileSync(manifestPath(repoDir, id), 'utf8'));
+    const m: MotionManifest = JSON.parse(fs.readFileSync(manifestPath(repoDir, id), 'utf8'));
+    if (!m.slug) m.slug = 'explainer'; // pre-title manifests keep their original output names
+    return m;
   } catch {
     return null;
   }
@@ -369,7 +382,7 @@ async function assemble(m: MotionManifest, repoDir: string, signal: AbortSignal,
   const okScenes = m.scenes.filter((s) => s.status === 'ok' && s.clip);
   const clips = okScenes.map((s) => path.join(repoDir, s.clip!));
   if (!clips.length) throw new Error('no scene rendered successfully — nothing to assemble');
-  const outRel = `${dirName(m.id)}/explainer.mp4`;
+  const outRel = `${dirName(m.id)}/${m.slug}.mp4`;
   const outAbs = path.join(repoDir, outRel);
   // Designed transitions at marked seams (scene.transition = INTO the next scene);
   // everything else stays a lossless stream-copy cut.
@@ -390,21 +403,21 @@ async function assemble(m: MotionManifest, repoDir: string, signal: AbortSignal,
       }
     }
     if (m.musicFile) {
-      const scored = path.join(repoDir, `${dirName(m.id)}/explainer-scored.mp4`);
+      const scored = path.join(repoDir, `${dirName(m.id)}/${m.slug}-scored.mp4`);
       if (await mixMusicBed(outAbs, path.join(repoDir, m.musicFile), scored, { duck: true, signal })) {
         // Scored ending: narration is long finished inside the extended tail, so this
         // longer fade is heard as the MUSIC resolving out — the voice is never faded.
-        m.stitched = (await finishWithFade(scored, repoDir, m.id, signal, 1.8)) ?? `${dirName(m.id)}/explainer-scored.mp4`;
+        m.stitched = (await finishWithFade(scored, repoDir, m, signal, 1.8)) ?? `${dirName(m.id)}/${m.slug}-scored.mp4`;
         return;
       }
     }
   }
-  m.stitched = (await finishWithFade(outAbs, repoDir, m.id, signal)) ?? outRel;
+  m.stitched = (await finishWithFade(outAbs, repoDir, m, signal)) ?? outRel;
 }
 
 /** The ending lands, never stops: fade the final stretch of video+audio to black. */
-async function finishWithFade(videoAbs: string, repoDir: string, id: string, signal: AbortSignal, fadeS = 0.9): Promise<string | null> {
-  const rel = `${dirName(id)}/explainer-final.mp4`;
+async function finishWithFade(videoAbs: string, repoDir: string, m: MotionManifest, signal: AbortSignal, fadeS = 0.9): Promise<string | null> {
+  const rel = `${dirName(m.id)}/${m.slug}-final.mp4`;
   const ok = await applyFadeOut(videoAbs, path.join(repoDir, rel), fadeS, signal);
   return ok ? rel : null;
 }
@@ -484,6 +497,11 @@ export const renderMotionVideoTool: ToolDef = {
   parameters: {
     type: 'object',
     properties: {
+      title: {
+        type: 'string',
+        description:
+          'The video\'s SUBJECT in a few words (e.g. "why airplane windows are round") — it names the output file (<slug>-final.mp4). Always pass it on the first call.',
+      },
       scenes: {
         type: 'array',
         description:
@@ -687,6 +705,9 @@ export const renderMotionVideoTool: ToolDef = {
       const estMs = estS * 1000;
       m = {
         id,
+        // The finished file is named for its SUBJECT (operator 2026-07-06: "the output file
+        // should be named appropriately") — title param first, else the hook scene's label.
+        slug: slugifyTitle(String(args.title ?? '')) || slugifyTitle(String(list[0]?.title ?? '')) || 'explainer',
         style,
         aspect,
         width: dim.w,

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.47';
+export const WHATS_NEW_VERSION = '2026-07-06.48';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -21,6 +21,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'Video scripts that tell a story',
     body: 'Explainer narrations are now written — and checked — like a writers’ room: every beat must connect with tension or consequence (no reorderable lists), essay filler, hype and "like and subscribe" endings are rejected before a word is voiced, numbers get ear-friendly comparisons, and each video lands on a short punch-out that calls back to the hook.',
+  },
+  {
+    title: 'Videos are named after their subject',
+    body: 'Finished videos now download as e.g. "why-airplane-windows-are-round-final.mp4" instead of a generic "explainer-final.mp4" — the file tells you what it is.',
   },
 ];
 

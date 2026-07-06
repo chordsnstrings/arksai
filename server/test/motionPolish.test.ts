@@ -334,7 +334,7 @@ test('ending: fade-out command ramps video+audio; scored videos get a MUSIC OUTR
   assert.match(tool, /finishWithFade/);
   assert.match(tool, /extraTailMs: i === list\.length - 1 \? \(args\.music \? 2600 : 800\)/,
     'with a music bed the final scene holds long enough for the duck to release — the bed carries the ending');
-  assert.match(tool, /finishWithFade\(scored, repoDir, m\.id, signal, 1\.8\)/,
+  assert.match(tool, /finishWithFade\(scored, repoDir, m, signal, 1\.8\)/,
     'the scored fade is longer and lands as the MUSIC resolving, never a clipped voice');
 });
 

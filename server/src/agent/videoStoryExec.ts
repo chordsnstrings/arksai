@@ -335,7 +335,16 @@ export async function executeStory(
     .filter((r): r is SceneResult => !!r && r.status === 'ok' && !!r.file)
     .map((r) => path.join(o.repoDir, r.file!));
   if (okFiles.length) {
-    let out = path.join(dir, o.final ? 'story-final.mp4' : 'story-draft.mp4');
+    // Output named for its SUBJECT (from the user's own story words), never a generic "story".
+    const slug =
+      m.story
+        .toLowerCase()
+        .replace(/['’]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 48)
+        .replace(/-+$/g, '') || 'story';
+    let out = path.join(dir, o.final ? `${slug}-final.mp4` : `${slug}-draft.mp4`);
     await stitchClips(okFiles, out, { transition: m.transition, signal: o.signal });
     // Phase 4: ONE continuous music bed under the whole story (diegetic scene audio stays;
     // the bed ducks under it when there's a voiceover). The bed is generated once and reused.
