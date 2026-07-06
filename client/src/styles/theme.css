@@ -3114,7 +3114,7 @@ button { font-family: inherit; cursor: pointer; }
   flex: 0 0 auto;
   border: 1px solid rgba(20, 20, 19, 0.12);
 }
-.ds-sw-auto { background: conic-gradient(#d97757, #6a9bcc, #788c5d, #d97757); }
+.ds-sw-auto { background: conic-gradient(var(--accent), #a8842c, #788c5d, var(--accent)); }
 .ds-sw-brand { background: var(--accent); }
 .ds-dark-chip {
   margin-left: auto;
