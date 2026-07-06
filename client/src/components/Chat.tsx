@@ -142,6 +142,55 @@ function fmtBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/** Copy-a-reply: clipboard API with a hidden-textarea fallback (plain-HTTP local dev has
+ *  no navigator.clipboard). A transient "Copied ✓" confirms without a toast. */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const fallbackCopy = (): boolean => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {
+      ok = false;
+    }
+    ta.remove();
+    return ok;
+  };
+  const copy = async () => {
+    let ok = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch {
+      /* permission denied / insecure context → textarea fallback below */
+    }
+    if (!ok) ok = fallbackCopy();
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    }
+  };
+  return (
+    <button
+      type="button"
+      className={`copy-reply ${copied ? 'done' : ''}`}
+      onClick={copy}
+      title="Copy response"
+      aria-label="Copy response"
+    >
+      {copied ? 'Copied ✓' : 'Copy'}
+    </button>
+  );
+}
+
 /** Human run duration: "8.4s" under a minute, "3m 12s" over. */
 function formatDuration(ms: number): string {
   if (ms < 1000) return '<1s';
@@ -164,9 +213,14 @@ const TimelineRow = memo(function TimelineRow({ item, sessionId }: { item: Timel
       return (
         <div className="assistant-prose">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
-          {item.durationMs !== undefined && (
-            <div className="run-duration" title="Time from your message to this result">
-              Completed in {formatDuration(item.durationMs)}
+          {(item.text.trim() !== '' || item.durationMs !== undefined) && (
+            <div className="reply-meta">
+              {item.text.trim() !== '' && <CopyButton text={item.text} />}
+              {item.durationMs !== undefined && (
+                <div className="run-duration" title="Time from your message to this result">
+                  Completed in {formatDuration(item.durationMs)}
+                </div>
+              )}
             </div>
           )}
         </div>

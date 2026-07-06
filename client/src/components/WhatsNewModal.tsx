@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.57';
+export const WHATS_NEW_VERSION = '2026-07-06.58';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -23,8 +23,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'Spreadsheet models are now built from a pattern language (rows as formulas, referenced by name — never fragile cell addresses) with eight ready model scaffolds: revenue forecasts, 3-statement, DCF valuation, loan amortization, SaaS MRR, headcount plans, prediction/trend forecasts and scenario analysis. Every scaffold ships with built-in tie-out check rows that must equal zero — a model that does not tie is rejected before you ever see it.',
   },
   {
-    title: 'Videos now end properly — at every length',
-    body: 'A new ending gate makes every script close the loop its hook opened: a short callback punch line, nothing announced, the closing frame held while the music carries it out.',
+    title: 'Copy any response',
+    body: 'Every reply in chat now has a Copy button underneath it — one click puts the full response on your clipboard, ready to paste anywhere.',
   },
 ];
 
