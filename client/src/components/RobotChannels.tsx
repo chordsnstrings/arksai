@@ -353,12 +353,16 @@ export function CommandersPanel({ orgId, robotId }: { orgId: string; robotId: st
   const [channel, setChannel] = useState('telegram');
   const [address, setAddress] = useState('');
   const [notifyLevel, setNotifyLevel] = useState<string>('escalations');
+  const [toolsLevel, setToolsLevel] = useState<string>('commanders');
   const load = () => {
     api.listCommanders(orgId, robotId).then(setCommanders).catch(() => setCommanders([]));
   };
   useEffect(load, [orgId, robotId]);
   useEffect(() => {
-    api.getRobot(orgId, robotId).then((r) => setNotifyLevel(r.config?.notify ?? 'escalations')).catch(() => {});
+    api.getRobot(orgId, robotId).then((r) => {
+      setNotifyLevel(r.config?.notify ?? 'escalations');
+      setToolsLevel((r.config as any)?.replyTools ?? 'commanders');
+    }).catch(() => {});
   }, [orgId, robotId]);
   const add = async () => {
     if (!address.trim()) return;
@@ -366,15 +370,22 @@ export function CommandersPanel({ orgId, robotId }: { orgId: string; robotId: st
     setAddress('');
     load();
   };
-  // Read-merge-write so the level never clobbers the rest of the robot's config.
-  const setLevel = async (level: string) => {
-    setNotifyLevel(level);
+  // Read-merge-write so a setting never clobbers the rest of the robot's config.
+  const patchConfig = async (patch: Record<string, unknown>) => {
     try {
       const backend = await api.getRobot(orgId, robotId);
-      await api.updateRobot(orgId, robotId, { config: { ...(backend.config || {}), notify: level as any } });
+      await api.updateRobot(orgId, robotId, { config: { ...(backend.config || {}), ...patch } as any });
     } catch {
       /* retried on next change */
     }
+  };
+  const setLevel = async (level: string) => {
+    setNotifyLevel(level);
+    await patchConfig({ notify: level });
+  };
+  const setTools = async (level: string) => {
+    setToolsLevel(level);
+    await patchConfig({ replyTools: level });
   };
   return (
     <>
@@ -392,6 +403,14 @@ export function CommandersPanel({ orgId, robotId }: { orgId: string; robotId: st
           <option value="escalations">Escalations only</option>
           <option value="all">Everything awaiting approval</option>
           <option value="off">Nothing (console only)</option>
+        </select>
+      </div>
+      <div className="rb-persona-row" style={{ marginBottom: 8 }}>
+        <span className="rb-rule-when" style={{ alignSelf: 'center' }}>Studio tools:</span>
+        <select value={toolsLevel} onChange={(e) => void setTools(e.target.value)} title="Make an image, ad creative, document, spreadsheet or chart, or find stock photos — right in a conversation, delivered on the same channel. Big builds (websites, videos, music) always go through your build commands.">
+          <option value="commanders">My addresses only (default)</option>
+          <option value="everyone">Everyone it talks to</option>
+          <option value="off">Off</option>
         </select>
       </div>
       {commanders === null ? (

@@ -182,5 +182,14 @@ export async function deliverDraft(draft: RobotDraft, text?: string): Promise<vo
       icsReply: (draft as any).icsReply || undefined,
     });
   }
+  // Studio-tool deliverables ride out on the SAME channel to the SAME locked recipient.
+  // Best-effort per file: a missing file never blocks the text reply that already sent.
+  for (const abs of draft.attachments ?? []) {
+    try {
+      await sendFileOnChannel({ id: draft.robotId }, draft.channel ?? 'email', draft.toAddr, abs, path.basename(abs));
+    } catch (e: any) {
+      console.error(`[robot draft ${draft.id}] attachment delivery failed:`, e?.message ?? e);
+    }
+  }
   await markDraftStatus(draft.id, draft.orgId, 'sent', Date.now());
 }

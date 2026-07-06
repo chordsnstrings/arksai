@@ -43,11 +43,15 @@ function rowToRobot(r: any): Robot {
   };
 }
 
-// Correlated subquery (SQLite + PG portable) → 1 when the robot has its own enabled,
-// receivable (IMAP) mailbox. Selected alongside robots.* as `mailbox_ready`.
+// Correlated subquery (SQLite + PG portable) → 1 when the robot can RECEIVE on any
+// channel: its own enabled IMAP mailbox OR an enabled chat channel (Telegram/WhatsApp/
+// SMS in robot_channels). Field keeps its historical name `mailbox_ready` (client-visible
+// as mailboxReady) but means "has at least one connected channel".
 const MAILBOX_READY =
-  `(SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM robot_email_accounts e ` +
-  `WHERE e.robot_id = robots.id AND e.enabled = 1 AND e.imap_host IS NOT NULL) AS mailbox_ready`;
+  `(SELECT CASE WHEN ` +
+  `(SELECT COUNT(*) FROM robot_email_accounts e WHERE e.robot_id = robots.id AND e.enabled = 1 AND e.imap_host IS NOT NULL) + ` +
+  `(SELECT COUNT(*) FROM robot_channels c WHERE c.robot_id = robots.id AND c.enabled = 1) ` +
+  `> 0 THEN 1 ELSE 0 END) AS mailbox_ready`;
 
 function rowToDraft(r: any): RobotDraft {
   return {
@@ -72,9 +76,20 @@ function rowToDraft(r: any): RobotDraft {
     status: r.status,
     channel: r.channel || 'email',
     icsReply: r.ics_reply ?? null,
+    attachments: parseAttachments(r.attachments),
     createdAt: Number(r.created_at),
     sentAt: r.sent_at != null ? Number(r.sent_at) : null,
   };
+}
+
+function parseAttachments(s: any): string[] | null {
+  if (!s) return null;
+  try {
+    const a = JSON.parse(s);
+    return Array.isArray(a) ? a.filter((x) => typeof x === 'string') : null;
+  } catch {
+    return null;
+  }
 }
 
 // ---- robots ----
@@ -189,6 +204,8 @@ export interface NewDraft {
   channel?: RobotDraft['channel'];
   /** Meeting-invite lane: prepared iCal METHOD:REPLY to attach when the draft sends. */
   icsReply?: string | null;
+  /** Files produced by studio tools for this reply (absolute data/-tree paths). */
+  attachments?: string[] | null;
 }
 
 export async function createDraft(d: NewDraft): Promise<RobotDraft> {
@@ -198,8 +215,8 @@ export async function createDraft(d: NewDraft): Promise<RobotDraft> {
     `INSERT INTO robot_drafts(
        id, robot_id, org_id, inbound_message_id, inbound_from, inbound_name, inbound_subject,
        inbound_snippet, inbound_body, to_addr, subject, draft_text, model_used, alt_text, alt_model,
-       escalated, escalation_reason, status, created_at, sent_at, channel, ics_reply)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+       escalated, escalation_reason, status, created_at, sent_at, channel, ics_reply, attachments)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
     [
       id,
       d.robotId,
@@ -223,6 +240,7 @@ export async function createDraft(d: NewDraft): Promise<RobotDraft> {
       null,
       d.channel ?? 'email',
       d.icsReply ?? null,
+      d.attachments?.length ? JSON.stringify(d.attachments) : null,
     ],
   );
   return (await getDraft(id))!;

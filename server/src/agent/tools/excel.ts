@@ -356,7 +356,7 @@ export const generateSpreadsheetTool: ToolDef = {
       },
     },
   },
-  modes: ['code', 'report'],
+  modes: ['chat', 'code', 'report'],
   summarize: (a) => `spreadsheet ${String(a.output ?? 'data.xlsx')}`,
   async run(args, ctx) {
     const outName = String(args.output || 'data.xlsx').replace(/[^a-zA-Z0-9._-]/g, '-');

@@ -100,7 +100,7 @@ export const convertDocumentTool: ToolDef = {
     },
     required: ['input'],
   },
-  modes: ['code', 'report'],
+  modes: ['chat', 'code', 'report'],
   summarize: (a) => `convert ${String(a.input ?? '')} → pdf`,
   async run(args, ctx) {
     let absIn: string;

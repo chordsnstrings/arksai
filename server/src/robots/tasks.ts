@@ -164,9 +164,12 @@ export interface Command {
 export const STATUS_RE = /^\s*(status|progress|update|how('?s| is)\s+(it|the|my)\s*(build|task|going)?( going)?)\s*\??\s*$/i;
 export const CANCEL_RE = /^\s*(cancel|stop|abort|kill)(\s+(it|that|the\s+build|the\s+task))?\s*[.!]?\s*$/i;
 
-/** Cheap prefilter: only messages that plausibly ask to CREATE something reach the model. */
+/** Cheap prefilter: only messages that plausibly ask to CREATE something reach the model.
+ *  Covers the FULL production surface (operator 2026-07-06: "robots that can connect to all
+ *  the new tools") — media asks (video/creative/image/logo/music) route to a build session,
+ *  which carries every system tool. Over-matching is safe (the classifier fails closed). */
 export const BUILD_HINT_RE =
-  /\b(build|create|make|generate|design|develop|website|web ?site|webapp|web ?app|app|application|landing ?page|report|presentation|deck|slides?|document|doc|pdf|spreadsheet|excel|dashboard|invoice|proposal|brochure|flyer|resume|cv)\b/i;
+  /\b(build|create|make|generate|design|develop|produce|render|website|web ?site|webapp|web ?app|app|application|landing ?page|report|presentation|deck|slides?|document|doc|pdf|spreadsheet|excel|dashboard|invoice|proposal|brochure|flyer|resume|cv|video|explainer|animation|animated|short|reel|clip|advert(isement)?|ad ?creative|creative|banner|poster|image|picture|photo|illustration|logo|infographic|chart|graphic|song|music|jingle|soundtrack|voice ?over|audio)\b/i;
 
 /** Lenient strict-JSON extraction (models sometimes fence or pad the JSON). */
 export function parseCommandJson(raw: string): Command | null {
@@ -199,15 +202,16 @@ export function parseCommandJson(raw: string): Command | null {
 const CLASSIFY_SYSTEM =
   'You triage a message the OWNER sent to their assistant robot. Decide whether they are asking the ' +
   'robot to BUILD/CREATE a concrete deliverable (a website, web app, document, report, presentation/deck, ' +
-  'spreadsheet, PDF, dashboard, flyer…), to REVISE the thing it recently delivered, or just ' +
-  'chatting/asking a question.\n' +
+  'spreadsheet, PDF, dashboard, flyer, a VIDEO — explainer/animated/product/story, an ad creative or ' +
+  'social graphic, an image/illustration/logo, a song/music track/jingle, a chart/infographic…), to ' +
+  'REVISE the thing it recently delivered, or just chatting/asking a question.\n' +
   'Respond with STRICT JSON only: {"action":"chat"|"build"|"revise","mode":"code"|"report",' +
   '"brief":string,"deliver_to":[{"channel":"email"|"whatsapp"|"telegram"|"sms","address":string}]}.\n' +
   '- action="build" ONLY for a concrete NEW creation request; questions, chit-chat, status checks → "chat".\n' +
   '- action="revise" ONLY when a recently delivered build is mentioned below AND the owner is asking to ' +
   'change/fix/adjust THAT thing ("make the header blue", "add a pricing section"). No recent build → never "revise".\n' +
   '- mode: "report" for a designed PDF report/deck; "code" for everything else (websites, apps, ' +
-  'documents, spreadsheets — the builder routes further itself).\n' +
+  'documents, spreadsheets, videos, creatives, images, music — the builder routes further itself).\n' +
   '- brief: a complete, self-contained instruction for the builder (carry over every requirement, ' +
   'name, language, style and content detail the owner gave — do not summarize away specifics).\n' +
   '- deliver_to: ONLY destinations the owner EXPLICITLY named in this message (an email address, a ' +

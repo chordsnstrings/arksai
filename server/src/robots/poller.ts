@@ -8,6 +8,7 @@ import { classifyMime, cleanupAttachments, describeAttachments, mediaTmpDir, typ
 import { buildIcsReply, describeWhen, parseIcs } from './ics';
 import { createDraft, draftExistsFor, listActiveRobots, listActiveRules, markDraftStatus, markPolled, wakeSnoozedDrafts } from './store';
 import { draftReplyWithActions } from './actions';
+import { deliverDraft } from './outbound';
 import { listChannels, withSecrets } from './channels/store';
 import { ADAPTERS, handleChannelInbound } from './channels/inbound';
 import { replyExtrasFor } from './personas';
@@ -272,23 +273,18 @@ export async function pollRobotOnce(robot: Robot): Promise<PollSummary> {
       escalated: primary.escalate,
       escalationReason: primary.escalate ? primary.reason : null,
       icsReply,
+      attachments: outcome.attachments ?? null,
     });
     sum.drafted++;
     if (primary.escalate) sum.escalated++;
 
     // Auto mode: send a clean (non-escalated) draft right away, locked to the sender.
+    // deliverDraft carries the whole payload (threaded email + iCal reply + any files
+    // studio tools produced) and marks the draft sent.
     let autoSent = false;
     if (robot.autonomy === 'auto' && !primary.escalate && primary.text) {
       try {
-        await sendEmailForRobot(robot.id, {
-          to: msg.from,
-          subject: reSubject(msg.subject),
-          text: primary.text,
-          inReplyTo: msg.messageId || undefined,
-          references: msg.messageId || undefined,
-          icsReply: draft.icsReply || undefined,
-        });
-        await markDraftStatus(draft.id, robot.orgId, 'sent', Date.now());
+        await deliverDraft(draft);
         sum.sent++;
         autoSent = true;
       } catch (e: any) {

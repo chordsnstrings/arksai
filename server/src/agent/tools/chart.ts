@@ -476,7 +476,7 @@ export const renderChartTool: ToolDef = {
     },
     required: ['type', 'data'],
   },
-  modes: ['report', 'code'],
+  modes: ['chat', 'report', 'code'],
   summarize: (a) => `chart ${String(a.type ?? '')}${a.title ? ` · ${a.title}` : ''}`,
   async run(args, ctx) {
     if (!Array.isArray(args.data) || !args.data.length) return 'Error: `data` must be a non-empty array of row objects.';

@@ -191,11 +191,11 @@ function Home({ robots, onOpen, onHire }: { robots: Robot[]; onOpen: (id: string
             <div className="rb-card-mandate">{r.mandate || spec?.blurb}</div>
             <div className="rb-card-foot">
               {r.mailboxReady === false ? (
-                <span className="rb-task warn">⚠ Needs a mailbox</span>
+                <span className="rb-task warn">⚠ Needs a channel</span>
               ) : r.currentTask ? (
                 <span className="rb-task">{r.currentTask}</span>
               ) : (
-                <span className="rb-task muted">Watching its inbox</span>
+                <span className="rb-task muted">Watching its channels</span>
               )}
             </div>
           </button>
@@ -257,13 +257,13 @@ function Inbox({ onHome }: { onHome: () => void }) {
 /* ---------------- Hire flow ---------------- */
 type Kind = 'customer_service' | 'personal_assistant' | 'custom';
 const KINDS: { id: Kind; emoji: string; title: string; blurb: string }[] = [
-  { id: 'customer_service', emoji: '🎧', title: 'Customer assistant', blurb: 'Handles incoming customer & support email — drafts on-brand replies from your knowledge, escalates the sensitive stuff.' },
-  { id: 'personal_assistant', emoji: '📇', title: 'Personal assistant', blurb: 'Manages your inbox on your behalf — triages, acknowledges, accepts or declines invites, proposes times.' },
-  { id: 'custom', emoji: '✦', title: 'Department specialist', blurb: 'An expert for one function (Finance, Marketing, Legal…) that answers email in that domain.' },
+  { id: 'customer_service', emoji: '🎧', title: 'Customer assistant', blurb: 'Handles incoming customer messages on email, WhatsApp, Telegram or SMS — drafts on-brand replies from your knowledge, escalates the sensitive stuff.' },
+  { id: 'personal_assistant', emoji: '📇', title: 'Personal assistant', blurb: 'Manages your inbox and chats on your behalf — triages, acknowledges, accepts or declines invites, proposes times.' },
+  { id: 'custom', emoji: '✦', title: 'Department specialist', blurb: 'An expert for one function (Finance, Marketing, Legal…) that answers messages in that domain.' },
 ];
 const DEFAULT_MANDATE: Record<Kind, string> = {
   customer_service:
-    'Reply to incoming customer email: answer from our knowledge, keep it warm and on-brand, and escalate refunds, billing, or anything sensitive to a human.',
+    'Reply to incoming customer messages (email, WhatsApp, Telegram, SMS): answer from our knowledge, keep it warm and on-brand, and escalate refunds, billing, or anything sensitive to a human.',
   personal_assistant:
     'Manage my inbox: triage what arrives, acknowledge messages, accept or decline meeting invitations, and propose times — checking with me before anything consequential.',
   custom: '',
@@ -325,7 +325,7 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
       <div className="rb-hire-flow">
         <div className="rb-hire-head">
           <h2>Hire a robot</h2>
-          <p>What should it do? This sets how it reads and answers your email.</p>
+          <p>What should it do? This sets how it reads and answers messages on its channels — email, WhatsApp, Telegram or SMS.</p>
         </div>
         <div className="rb-role-grid">
           {KINDS.map((k) => (
@@ -395,7 +395,7 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
         </div>
         <div className="rb-hire-actions">
           <button className="rb-cta" style={{ ['--accent' as any]: accent }} disabled={!mandate.trim() || busy} onClick={create}>
-            {busy ? 'Creating…' : 'Continue → connect its mailbox'}
+            {busy ? 'Creating…' : 'Continue → connect its channels'}
           </button>
           <button className="rb-cta ghost" onClick={() => setStep(0)}>Back</button>
         </div>
@@ -403,14 +403,16 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
     );
   }
 
-  // Step 2 — connect the robot's own mailbox (connect-first, but skippable)
+  // Step 2 — connect the robot's channels (connect-first, but skippable). A robot works
+  // on whatever you connect here: its own mailbox, and/or Telegram, WhatsApp, SMS.
   return (
     <div className="rb-hire-flow">
       <div className="rb-hire-head" style={{ ['--accent' as any]: accent }}>
-        <h2>Connect {name || 'your robot'}’s mailbox</h2>
-        <p>Each robot has its own email identity. Connect a mailbox so it can read and reply on its own. It won’t start working until one is connected.</p>
+        <h2>Connect {name || 'your robot'}’s channels</h2>
+        <p>Each robot has its own identity on every channel. Connect a mailbox — and/or Telegram, WhatsApp or SMS below — so it can read and reply on its own. It won’t start working until at least one is connected.</p>
       </div>
       {createdId && orgId && <EmailSettings orgId={orgId} robotId={createdId} />}
+      {createdId && orgId && <ChannelsPanel orgId={orgId} robotId={createdId} />}
       <div className="rb-hire-actions" style={{ marginTop: 16 }}>
         <button className="rb-cta" style={{ ['--accent' as any]: accent }} onClick={() => { if (createdId) setStatus(createdId, 'idle'); onDone(createdId!); }}>
           Activate robot
@@ -525,7 +527,7 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
           <div className="rb-mini-empty">Loading…</div>
         ) : !robot.mailboxReady ? (
           <div className="rb-allclear">
-            <p>Connect a mailbox in ⚙ Settings so {robot.name} can start reading and replying.</p>
+            <p>Connect a channel in ⚙ Settings — email, Telegram, WhatsApp or SMS — so {robot.name} can start reading and replying.</p>
           </div>
         ) : needsYou.length === 0 ? (
           <div className="rb-allclear">

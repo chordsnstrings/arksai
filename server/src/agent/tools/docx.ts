@@ -180,7 +180,7 @@ export const generateDocTool: ToolDef = {
     },
     required: ['blocks'],
   },
-  modes: ['code', 'report'],
+  modes: ['chat', 'code', 'report'],
   summarize: (a) => `doc ${String(a.output ?? 'document.docx')}`,
   async run(args, ctx) {
     const outName = String(args.output || 'document.docx').replace(/[^a-zA-Z0-9._-]/g, '-');

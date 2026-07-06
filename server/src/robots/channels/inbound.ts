@@ -4,7 +4,7 @@ import { createDraft, draftExistsFor, listActiveRules, markDraftStatus } from '.
 import { draftReplyWithActions } from '../actions';
 import { replyExtrasFor } from '../personas';
 import { cleanupAttachments, describeAttachments } from '../media';
-import { sendVoiceOnChannel, wantsVoiceReply } from '../outbound';
+import { sendFileOnChannel, sendVoiceOnChannel, wantsVoiceReply } from '../outbound';
 import type { ChannelAdapter, ChannelInbound, ChannelWithSecrets } from './types';
 import { ADAPTERS } from './registry';
 export { ADAPTERS } from './registry';
@@ -170,6 +170,7 @@ export async function handleChannelInbound(
       escalated: primary.escalate,
       escalationReason: primary.escalate ? primary.reason : null,
       channel: kind,
+      attachments: outcome.attachments ?? null,
     });
     sum.drafted++;
     if (primary.escalate) sum.escalated++;
@@ -178,6 +179,12 @@ export async function handleChannelInbound(
     if (robot.autonomy === 'auto' && !primary.escalate && primary.text) {
       try {
         await ADAPTERS[kind].send(ch, msg.from, primary.text);
+        // Studio-tool deliverables ride out right behind the text, same locked recipient.
+        for (const abs of outcome.attachments ?? []) {
+          await sendFileOnChannel(robot, kind, msg.from, abs, abs.split(/[/\\]/).pop() || 'file').catch((e: any) =>
+            console.error(`[robot ${robot.id}] ${kind} attachment delivery failed:`, e?.message ?? e),
+          );
+        }
         await markDraftStatus(draft.id, robot.orgId, 'sent', Date.now());
         sum.sent++;
         autoSent = true;

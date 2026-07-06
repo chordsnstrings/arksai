@@ -742,6 +742,9 @@ async function migrate() {
     "robot_drafts:channel TEXT NOT NULL DEFAULT 'email'",
     // iCal REPLY payload prepared by the meeting-invite lane (sent as an attachment).
     'robot_drafts:ics_reply TEXT',
+    // Files produced by studio tools for this reply (JSON array of data/-tree paths) —
+    // they ride out with the send on the draft's channel.
+    'robot_drafts:attachments TEXT',
     // A commander row doubles as an owner-notification target (escalation pings).
     `robot_commanders:notify ${INT} NOT NULL DEFAULT 1`,
     // When a delivered task was sent back for revision (collect-since + timeout anchor).

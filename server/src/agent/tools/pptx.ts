@@ -122,7 +122,7 @@ export const generatePptxTool: ToolDef = {
     },
     required: ['slides'],
   },
-  modes: ['code', 'report'],
+  modes: ['chat', 'code', 'report'],
   summarize: (a) => `pptx ${String(a.output ?? 'deck.pptx')} (${Array.isArray(a.slides) ? a.slides.length : 0} slides)`,
   async run(args, ctx) {
     const outName = String(args.output || 'deck.pptx').replace(/[^a-zA-Z0-9._-]/g, '-');

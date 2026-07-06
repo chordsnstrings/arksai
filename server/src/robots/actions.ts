@@ -5,6 +5,7 @@ import { decryptSecret, encryptSecret } from '../lib/crypto';
 import { fetchPublic } from '../lib/web';
 import type { InboxMessage } from '../email/client';
 import { draftReply, type DraftResult, type ReplyExtras, type ReplyOutcome } from './reply';
+import { availableStudioTools, senderMayUseTools, runStudioTool, logStudioRun } from './tools';
 
 /**
  * GATED ACTIONS — the §5b ladder made concrete without waiting for MCP: the org defines
@@ -248,16 +249,42 @@ export async function draftReplyWithActions(
   extras: ReplyExtras,
 ): Promise<ReplyOutcome> {
   const actions = (await listActions(robot.id).catch(() => [])).filter((a) => a.enabled);
-  if (!actions.length) return draftReply(robot, msg, signal, rules, extras);
+  // STUDIO TOOLS: the system's quick production tools ride the same request lane as org
+  // actions — offered only when the robot's replyTools policy clears THIS sender.
+  const mayUseTools = await senderMayUseTools(robot, msg.from).catch(() => false);
+  const studio = mayUseTools ? availableStudioTools().filter((s) => !actions.some((a) => a.name.toLowerCase() === s.name.toLowerCase())) : [];
+  if (!actions.length && !studio.length) return draftReply(robot, msg, signal, rules, extras);
 
-  const advertised = actions.map((a) => ({ name: a.name, description: a.description, params: a.params }));
+  const advertised = [
+    ...actions.map((a) => ({ name: a.name, description: a.description, params: a.params })),
+    ...studio.map((s) => ({ name: s.name, description: s.description, params: s.params })),
+  ];
   let extra: ReplyExtras = { ...extras, actions: advertised };
   let outcome = await draftReply(robot, msg, signal, rules, extra);
+  const produced: string[] = []; // files made by studio tools, delivered with the reply
 
   for (let round = 0; round < MAX_ACTION_ROUNDS; round++) {
     const req = outcome.primary.action;
-    if (!req) return outcome;
+    if (!req) break;
     const action = actions.find((a) => a.name.toLowerCase() === req.name.toLowerCase());
+    const studioTool = !action ? studio.find((s) => s.name.toLowerCase() === req.name.toLowerCase()) : undefined;
+    if (studioTool) {
+      if (!underRateLimit(robot.id)) {
+        extra = { ...extras, actionResult: { name: studioTool.name, ok: false, body: 'Tool rate limit reached for this hour.' } };
+        outcome = await draftReply(robot, msg, signal, rules, extra);
+        continue;
+      }
+      const started = Date.now();
+      const res = await runStudioTool(robot, studioTool.name, req.params, signal);
+      await logStudioRun(robot, studioTool.name, req.params, msg.from, res.ok, Date.now() - started);
+      produced.push(...res.files.filter((f) => !produced.includes(f)));
+      const fileNote = res.files.length
+        ? `\nFILES PRODUCED (they will be sent to the sender along with your reply — mention them naturally, do not paste paths): ${res.files.map((f) => f.split('/').pop()).join(', ')}`
+        : '';
+      extra = { ...extras, actionResult: { name: studioTool.name, ok: res.ok, body: res.summary + fileNote } };
+      outcome = await draftReply(robot, msg, signal, rules, extra);
+      continue;
+    }
     if (!action) {
       // The model invented an action — answer without it (fail closed, no escalation spam).
       extra = { ...extras, actionResult: { name: req.name, ok: false, body: 'No such action is configured.' } };
@@ -304,5 +331,6 @@ export async function draftReplyWithActions(
       reason: 'Needed more lookups than allowed for one message.',
     };
   }
+  if (produced.length) outcome.attachments = produced;
   return outcome;
 }

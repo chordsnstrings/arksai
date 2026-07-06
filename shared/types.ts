@@ -640,6 +640,10 @@ export interface RobotConfig {
   /** Voice replies on chat channels: mirror the sender (default — speak only when they
    *  sent a voice note), always speak, or never. */
   voiceReplies?: 'mirror' | 'always' | 'off';
+  /** Studio tools (make an image/creative/document/spreadsheet/chart, find photos) in the
+   *  reply lane: available to the owner's commander addresses (default), to everyone the
+   *  robot talks to, or off. Heavy builds always go through the commander build lane. */
+  replyTools?: 'commanders' | 'everyone' | 'off';
 }
 
 // ---- Robot channels (beyond email: chat/SMS auto-responders) ----
@@ -819,6 +823,8 @@ export interface RobotDraft {
   channel: RobotDraftChannel;
   /** Meeting-invite lane: a prepared iCal METHOD:REPLY, attached when the draft sends. */
   icsReply?: string | null;
+  /** Files studio tools produced for this reply — delivered with the send. */
+  attachments?: string[] | null;
   /** When snoozed, the epoch ms it returns to "needs you". */
   snoozeUntil?: number | null;
   toAddr: string;
