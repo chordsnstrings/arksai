@@ -158,6 +158,46 @@ test('qc: script quality gate — AI-script tells hard-fail, craft slips come ba
   assert.deepEqual(scriptProblems(['']).advisory, [], 'blank narrations are safe');
 });
 
+test('qc: THE ENDING gate — the script must land, not stop (operator 2026-07-06)', () => {
+  // The clean fixture already ends properly: ≤8-word callback line ("breathes" ↔ "breathe").
+  // Outro filler / ending-signals are hard-rejected.
+  const filler = scriptProblems(['Why does your coffee wake you?', 'But caffeine blocks sleep signals.', "So that's it for today, thanks for watching."]);
+  assert.ok(filler.hard.some((p) => p.includes('outro filler')), 'thanks-for-watching rejected');
+
+  // Landing strip: an overlong final sentence is a trailing thought, not an ending.
+  const winding = scriptProblems([
+    'Why does your coffee wake you up?',
+    'But caffeine only blocks the signal.',
+    'So your coffee never gives you energy, it merely hides the tiredness that is still accumulating in your body the whole time.',
+  ]);
+  assert.ok(winding.hard.some((p) => p.includes('final sentence is')), 'overlong final sentence rejected');
+
+  // End-focus: the very last word must be a payoff word, not connective tissue.
+  const trailing = scriptProblems(['Why does your coffee wake you?', 'But caffeine blocks the signal.', 'So the tiredness is still there, and more.']);
+  assert.ok(trailing.hard.some((p) => p.includes('last word')), 'function-word landing rejected');
+
+  // Callback: a ≥3-beat script whose ending never returns to the hook is rejected…
+  const noCallback = scriptProblems(['Why does your coffee wake you?', 'But caffeine blocks the signal.', 'So drink water instead.']);
+  assert.ok(noCallback.hard.some((p) => p.includes('returns to the hook')), 'callback-free ending rejected');
+  // …and a shared hook token (light-stemmed: "coffee") satisfies it.
+  const callback = scriptProblems(['Why does your coffee wake you?', 'But caffeine blocks the signal.', 'So coffee hides tiredness. It never erases it.']);
+  assert.ok(!callback.hard.some((p) => p.includes('returns to the hook')), 'hook-word callback passes');
+
+  // Advisories: a 9-12-word landing, a >15-word closing beat, a new number in the final beat.
+  const soft = scriptProblems([
+    'Why does your coffee wake you at nine?',
+    'But caffeine blocks the sleepy signal in your brain.',
+    "So your nine o clock coffee just delays tomorrow's tiredness.",
+  ]);
+  assert.ok(soft.advisory.some((p) => p.includes('tighten the landing')), '9-12-word landing advisory');
+  const newNum = scriptProblems(['Why does your coffee wake you?', 'But caffeine blocks the signal for hours.', 'So coffee wears off after 6 hours.']);
+  assert.ok(newNum.advisory.some((p) => p.includes('new number')), 'new number in the final beat advisory');
+
+  // Two-beat scripts get the landing checks but never the callback test.
+  const twoBeat = scriptProblems(['Why does your coffee wake you?', 'But it only hides your tiredness.']);
+  assert.ok(!twoBeat.hard.some((p) => p.includes('returns to the hook')), 'callback needs ≥3 beats');
+});
+
 // ---------------- transitions ----------------
 
 test('transitions: xfade kinds are whitelisted, audio fade is bounded (voice-safe), segmented stitch validates seams', async () => {

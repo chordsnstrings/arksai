@@ -100,7 +100,13 @@ or an engagement CTA (hard-fail).
 | Zero connectives in ≥3 beats (But/Therefore) | `scriptProblems.hard` | HARD, pre-TTS |
 | ≥2 intensifiers / ≥2 hedges / AI lexicon | `scriptProblems.advisory` | advisory, returned as SCRIPT NOTES |
 | Sentence monotony / >24-word sentence / no "you" | `scriptProblems.advisory` | advisory |
+| Outro filler / ending-signals ("thanks for watching", "to wrap up") | `scriptProblems.hard` | HARD, pre-TTS |
+| Final sentence >12 words, or ends on a function word | `scriptProblems.hard` | HARD, pre-TTS |
+| Final beat shares no content token with the hook (no callback, ≥3 beats) | `scriptProblems.hard` | HARD, pre-TTS |
+| Final sentence 9–12 words / final beat >15 words / new number in final beat | `scriptProblems.advisory` | advisory |
+| Final scene must read as an ENDING (payoff at hero scale, holds the outro) | vision QC LATE-frame prompt (final scene) | vision, retake-driving |
 | Beat templates, open loops, number translation, end-focus | MOTION.md SCRIPT DOCTRINE | doctrine (prompt-enforced) |
+| THE ENDING: write the last line first, callback, synthesis-not-content, no end-cards on shorts | MOTION.md THE ENDING | doctrine (prompt-enforced) |
 
 Advisories ship (the render completes) but come back in the tool result as
 "SCRIPT NOTES" so the agent fixes the narration on the next pass — same philosophy as the

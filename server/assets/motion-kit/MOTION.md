@@ -97,9 +97,10 @@ must EARN the rest of the video:
   the answer, is what holds attention (dopamine fires on the predictive cue).
 
 ## SCRIPT DOCTRINE (write the narration for retention)
-The tool REJECTS scripts with essay scaffolding, engagement CTAs or hype promises before
-any audio is synthesized, and returns advisory notes on intensifiers/hedges/AI-lexicon/
-rhythm — write to this doctrine the first time.
+The tool REJECTS scripts with essay scaffolding, engagement CTAs, hype promises, outro
+filler, a trailing/overlong final line, or an ending that never calls back to the hook —
+all before any audio is synthesized — and returns advisory notes on intensifiers/hedges/
+AI-lexicon/rhythm — write to this doctrine the first time.
 
 STORY SPINE, NOT ESSAY. A video script is a chain of collisions, not a structured summary:
 - The writers-room rule: every scene joins the next with BUT or THEREFORE — tension (but,
@@ -115,6 +116,30 @@ STORY SPINE, NOT ESSAY. A video script is a chain of collisions, not a structure
     re-hook ("but that's not the strange part") every 30–40s.
 - Open loops: the hook poses a question the FINAL scene answers; mid-script, resolve each
   loop only after the next one is open. Never resolve everything before the last beat.
+- The PUNCH-OUT beat is UNTOUCHABLE at every length: when a script must shrink to fit the
+  word budget, cut MIDDLE beats — a script that fits by amputating its ending is rejected.
+
+THE ENDING (a proper ending is a SCRIPT event — the gate enforces all of this):
+- WRITE THE LAST LINE FIRST. The closing line is the video's thesis paid off: ≤8 words,
+  concrete, the payoff word LAST — then build the script that earns it (kicker craft).
+- CALLBACK: the closing line reuses a key word or number FROM THE HOOK so the loop closes
+  audibly ("Can morning light fix your sleep?" → "Morning sun. Better sleep."). A final
+  beat that shares no content word with the hook is rejected.
+- The closing beat SYNTHESIZES, never adds: no new entities or numbers in the final beat —
+  move the stat earlier and end on what it MEANS. The closing beat is the SHORTEST beat.
+- NEVER announce the ending ("finally", "to wrap up", "that's it for today", "thanks for
+  watching") — land the payoff and stop; the music tail supplies the closure feeling.
+- NO end-cards or CTAs on shorts (≤30s): the payoff line + a held frame + the music carry
+  IS the outro. At 60s+ an optional minimal end frame (title restate) may OVERLAP the
+  music tail for ≤2.5s — never a separate scene in silence, never a logo animation.
+- Per length, the minimum proper ending: 15s = payoff callback line + ~1s hold; 30s = the
+  same + an optional forward "you" question spoken over the final visual; 60s = thesis
+  restated in NEW words + a ≤8-word button line; 3min = a resolution beat (synthesis →
+  reframe → button) ending on the payoff word.
+- The final frame must be able to HOLD the outro: the payoff word/number at hero scale
+  with living ambient motion (end-punch does this) — never a list, a paragraph, or an
+  emptying stage. Loop affinity is a plus on tall formats: let the final frame visually
+  rhyme with scene 1 so the platform replay reads as intentional.
 
 LANGUAGE CRAFT (what separates spoken prose from essay prose):
 - Concrete nouns beat abstractions: "your coffee" not "caffeinated beverages"; a person

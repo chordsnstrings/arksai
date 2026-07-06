@@ -197,10 +197,18 @@ async function qcScene(m: MotionManifest, s: MotionScene, repoDir: string, htmlA
   if (!config.minimaxApiKey) return; // vision QC lights up when keyed; deterministic audits still ran
   const defects: string[] = [];
   const times = spotTimes(s.durationMs!);
+  const isFinalScene = m.scenes[m.scenes.length - 1]?.id === s.id;
   for (let idx = 0; idx < times.length; idx++) {
     const atMs = times[idx];
     const spot = path.join(repoDir, dirName(m.id), `.qc-${s.id}-${idx}.jpg`);
-    const position = idx === 0 ? 'EARLY (~1s in — the HEADLINE and primary anchor must have landed; secondary labels/counters arrive later BY DESIGN, so do NOT flag sparseness or a mid-count number here — but DO flag a frame with no headline/anchor at all)' : idx === 1 ? 'MID (fully assembled — judge fill and composition on THIS frame)' : 'LATE (still assembled; exits have not started; counters show final values)';
+    const position =
+      idx === 0
+        ? 'EARLY (~1s in — the HEADLINE and primary anchor must have landed; secondary labels/counters arrive later BY DESIGN, so do NOT flag sparseness or a mid-count number here — but DO flag a frame with no headline/anchor at all)'
+        : idx === 1
+          ? 'MID (fully assembled — judge fill and composition on THIS frame)'
+          : isFinalScene
+            ? 'LATE — and this is the VIDEO\'S CLOSING FRAME: it holds a 2-3s music outro after the last word, so it must read as an ENDING — the payoff word/number featured at hero scale in a composed frame with living ambient motion. Flag a body-text list, an emptying stage, or a frame with no focal payoff element'
+            : 'LATE (still assembled; exits have not started; counters show final values)';
     try {
       await captureSpotFrame(htmlAbs, { width: m.width, height: m.height, durationMs: s.durationMs!, atMs, outAbs: spot }, signal);
       const v = await analyzeImage(
@@ -607,29 +615,34 @@ export const renderMotionVideoTool: ToolDef = {
       const hookIssue = hookProblems(firstNarration);
       if (hookIssue) return `Error: ${hookIssue}`;
 
-      // SCRIPT QUALITY GATE (SCRIPT_CRAFT.md): the regexable AI-script tells block BEFORE
-      // any TTS is paid; softer craft issues ride along as notes the agent should fix.
+      // SCRIPT QUALITY GATE (SCRIPT_CRAFT.md) + WORD BUDGET — checked TOGETHER before any
+      // TTS is paid, and reported together (one rewrite round, not two): a live run that
+      // was told only "cut words" amputated its ending to fit; the combined message keeps
+      // the hook and the punch-out line off the chopping block.
       const script = scriptProblems(list.map((s: any) => String(s?.narration ?? '')));
-      if (script.hard.length) {
-        return `Error: script quality — fix the narration and call again (nothing was rendered):\n${script.hard.map((p) => `- ${p}`).join('\n')}\nSee motion-kit/MOTION.md "SCRIPT DOCTRINE".`;
-      }
-      scriptNotes = script.advisory;
-
-      // WORD BUDGET vs target_seconds — catch length overshoot BEFORE paying for TTS
-      // (live lesson: heavy agents write ~140s of narration against a 60s brief).
       const targetSeconds = Number(args.target_seconds) > 0 ? Math.min(3600, Number(args.target_seconds)) : undefined;
       const totalWords = list.reduce((a: number, s: any) => a + wordsOf(String(s?.narration ?? '')), 0);
       // Short punchy sentences synthesize slower than flowing narration (live: 15s briefs → 19-21s).
       const wps = targetSeconds && targetSeconds <= 30 ? 2.0 : WPS;
       const estS = totalWords / wps + list.length * 0.95;
-      if (targetSeconds && estS > targetSeconds * 1.25) {
-        const budget = Math.round(targetSeconds * wps);
-        return (
-          `Error: the narration is ~${Math.round(estS)}s of speech against a ${targetSeconds}s target (${totalWords} words; ` +
-          `budget ≈ ${budget} words TOTAL across all scenes). Cut the script — one idea per sentence, drop whole beats, ` +
-          `do not just trim words — then call again.`
-        );
+      const overBudget = targetSeconds && estS > targetSeconds * 1.25;
+      if (script.hard.length || overBudget) {
+        const parts: string[] = [];
+        if (script.hard.length) {
+          parts.push(`script quality — fix the narration and call again (nothing was rendered):\n${script.hard.map((p) => `- ${p}`).join('\n')}`);
+        }
+        if (overBudget) {
+          const budget = Math.round(targetSeconds! * wps);
+          parts.push(
+            `the narration is ~${Math.round(estS)}s of speech against a ${targetSeconds}s target (${totalWords} words; ` +
+              `budget ≈ ${budget} words TOTAL across all scenes). Cut the script — one idea per sentence, drop whole MIDDLE beats, ` +
+              `do not just trim words. The HOOK and the closing PUNCH-OUT line are untouchable: a script that fits the budget ` +
+              `by amputating its ending will be rejected by the ending gate.`,
+          );
+        }
+        return `Error: ${parts.join('\n\nALSO: ')}\nSee motion-kit/MOTION.md "SCRIPT DOCTRINE" and "THE ENDING".`;
       }
+      scriptNotes = script.advisory;
 
       const aspect = String(args.aspect_ratio ?? '16:9');
       const dim = DIMENSION_PRESETS[aspect] ?? DIMENSION_PRESETS['16:9'];
