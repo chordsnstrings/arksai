@@ -763,6 +763,20 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
     }
   }
 
+  // 1c) SPREADSHEETS SKIP THE VISION PASS ENTIRELY (operator directive 2026-07-06): the
+  // premium look is baked in deterministically at build time (theme in excel.ts — Helvetica,
+  // hidden gridlines, accent-tinted banding, finance conventions), and ACCURACY is enforced
+  // by the deterministic audits + recalc above. A vision cosmetic review here only ever
+  // re-authored already-correct workbooks for styling (a live 669s session tail) — cut it.
+  // designVerdict stays 'revise' only for the REAL defects the deterministic audit found.
+  if (kind === 'xlsx') {
+    base.ran = true; // the deterministic audit IS the review for spreadsheets
+    base.detail = seedDefects.length
+      ? `✓ xlsx valid (${fn.detail}); deterministic audit — REVISE:\n  - ${seedDefects.join('\n  - ')}`
+      : `✓ xlsx valid (${fn.detail}); premium styling is applied at build time — no visual pass needed.`;
+    return base;
+  }
+
   // 2) Render to PNG(s).
   let pngs: Buffer[] = [];
   let renderNote = '';
@@ -784,7 +798,7 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
     } else if (kind === 'html') {
       const shot = await screenshotHtml(`file://${abs}`, true);
       if (shot) pngs = [shot];
-    } else if (kind === 'xlsx' || kind === 'docx') {
+    } else if (kind === 'docx') {
       const rendered = await renderDocHtml(abs);
       if (rendered) {
         const shot = await screenshotHtml(rendered.html, false);

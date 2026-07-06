@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.58';
+export const WHATS_NEW_VERSION = '2026-07-06.59';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Excel models: minutes down to seconds — and self-checking',
-    body: 'Spreadsheet models are now built from a pattern language (rows as formulas, referenced by name — never fragile cell addresses) with eight ready model scaffolds: revenue forecasts, 3-statement, DCF valuation, loan amortization, SaaS MRR, headcount plans, prediction/trend forecasts and scenario analysis. Every scaffold ships with built-in tie-out check rows that must equal zero — a model that does not tie is rejected before you ever see it.',
+    title: 'Premium Excel, instantly — no polish pass',
+    body: 'Every spreadsheet now ships with a premium finance look baked in at build time: Helvetica typography, hidden gridlines, brand-tinted banded rows, right-aligned money columns with proper currency formats, blue input cells on assumption sheets, accounting rules under bottom lines and coloured tabs. The separate cosmetic review pass is gone — your workbook arrives faster AND better dressed, and the numbers are still verified by the built-in tie-out checks.',
   },
   {
     title: 'Copy any response',

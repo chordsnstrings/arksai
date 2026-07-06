@@ -27,6 +27,10 @@ export interface PatternRow {
   first?: string;
   then?: string;
   each?: string;
+  /** Number format for THIS row's cells: 'currency' (workbook currency, 2dp), 'percent',
+   *  'number', or an explicit Excel format string ("0.0000"). Rows in a model are
+   *  heterogeneous (money vs ratio vs units) so per-COLUMN typing can't express this. */
+  fmt?: string;
   /** A CHECK row (must compute to ~0 every period — Anthropic-skill practice: models ship
    *  their own tie-out checks). Expands like `each`; the tool hard-fails non-zero checks. */
   check?: string;
@@ -91,7 +95,9 @@ export function expandPatternSheets(sheets: any[]): any[] {
 
     const rows: any[] = [];
     const checkRows: number[] = [];
+    const rowFmts: Record<number, string> = {};
     rowsIn.forEach((r, ri) => {
+      if (typeof r.fmt === 'string' && r.fmt.trim()) rowFmts[ri] = r.fmt.trim();
       const rowNum = ri + 2; // columns are row 1; data starts at row 2
       const row: any[] = [String(r.label)];
       const subst = (f: string, m: number): string => {
@@ -159,7 +165,10 @@ export function expandPatternSheets(sheets: any[]): any[] {
       }
       rows.push(row);
     });
-    return { ...sh, months: undefined, columns, rows, __checkRows: checkRows };
+    // __pattern marks an expanded MODEL sheet (vs an ad-hoc data table) so the styling
+    // pass can treat it like a financial statement (no auto-filter arrows on the header);
+    // __rowFmts carries the per-row number formats into the theme pass.
+    return { ...sh, months: undefined, columns, rows, __checkRows: checkRows, __pattern: true, __rowFmts: rowFmts };
   });
 }
 

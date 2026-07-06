@@ -105,6 +105,32 @@ function toRow(r: any): any {
 
 /** A row whose first-column label reads as a roll-up — bolded + top-ruled so models scan like finance. */
 const TOTAL_ROW_RE = /\b(total|subtotal|grand total|net|gross|closing|opening|ending|balance|ebitda|profit|surplus|deficit|cumulative|runway)\b/i;
+/** The BIG roll-ups (statement bottom lines) get the double top rule — the accounting convention. */
+const GRAND_ROW_RE = /\b(grand total|net income|net profit|net cash|ending (cash|balance)|closing (cash|balance)|total (assets|liabilities|equity))\b/i;
+/** Sheets whose literal numbers are USER INPUTS — they get the classic finance input-blue font. */
+const INPUT_SHEET_RE = /\b(assumption|driver|input)s?\b/i;
+
+// ---- PREMIUM THEME (deterministic — applied at build time, never a review pass) ----
+// The look is baked in so a workbook is premium ON THE FIRST WRITE: Helvetica throughout
+// (Excel substitutes Arial where absent — visually equivalent), gridlines hidden so the
+// zebra banding + hairlines carry the structure, an accent-tinted band instead of generic
+// grey, finance conventions (double rule under bottom lines, blue input font on assumption
+// sheets, italic-muted check rows), and accent-coloured tabs.
+const THEME_FONT = 'Helvetica';
+const INK = 'FF1F1F1F'; // near-black data ink
+const INPUT_BLUE = 'FF1F55C4'; // the finance convention: blue = hard-coded input
+const CHECK_GREY = 'FF8A8F98'; // tie-out check rows read as audit furniture, not data
+
+/** Blend the accent toward white for the zebra band (ratio = share of white). Exported for tests. */
+export function accentTint(accentArgb: string, ratio = 0.93): string {
+  const ch = (i: number) => parseInt(accentArgb.slice(i, i + 2), 16);
+  const mix = (c: number) =>
+    Math.round(255 * ratio + c * (1 - ratio))
+      .toString(16)
+      .padStart(2, '0')
+      .toUpperCase();
+  return `FF${mix(ch(2))}${mix(ch(4))}${mix(ch(6))}`;
+}
 
 function firstCellLabel(cell: any): string {
   if (typeof cell === 'string') return cell;
@@ -188,7 +214,12 @@ function buildSheet(wb: any, s: any, accentArgb: string, currencyFmt?: string): 
   const name = String(s.name || 'Sheet').slice(0, 31);
   const cols: ColSpec[] = Array.isArray(s.columns) ? s.columns : [];
   const rows: any[] = Array.isArray(s.rows) ? s.rows : [];
-  const ws = wb.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] });
+  // Gridlines OFF — the banding + hairlines carry the structure (the single biggest
+  // "premium vs raw dump" visual). Wide time-series models also freeze the label column.
+  const ws = wb.addWorksheet(name, {
+    views: [{ state: 'frozen', ySplit: 1, xSplit: cols.length > 6 ? 1 : 0, showGridLines: false }],
+  });
+  ws.properties.tabColor = { argb: accentArgb };
 
   ws.columns = cols.map((c, i) => ({
     header: c.header,
@@ -196,26 +227,49 @@ function buildSheet(wb: any, s: any, accentArgb: string, currencyFmt?: string): 
     width: c.width && c.width > 0 ? c.width : Math.min(40, Math.max(12, String(c.header || '').length + 4)),
   }));
 
-  // Header styling — branded, bold, readable.
-  const head = ws.getRow(1);
-  head.height = 22;
-  head.eachCell((cell: any) => {
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: accentArgb } };
-    cell.alignment = { vertical: 'middle', horizontal: 'left' };
-    cell.border = { bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } } };
-  });
-
   // Data rows (cells may be literal values OR formulas — see toCell/toRow).
   for (const r of rows) ws.addRow(toRow(r));
 
-  // Number/date formats + right-align numerics. Per-column numFmt beats type; the
-  // workbook's currency option beats the $-default for currency columns.
+  // Base typography + number/date formats + right-align numerics, applied per COLUMN (one
+  // pass over existing cells — the header is restyled after, so it keeps its own face).
+  // Per-column numFmt beats type; the workbook currency option beats the $-default.
   cols.forEach((c, i) => {
     const fmt = c.numFmt || (c.type === 'currency' && currencyFmt ? currencyFmt : c.type ? NUM_FMT[c.type] : undefined);
     const col = ws.getColumn(i + 1);
+    col.font = { name: THEME_FONT, size: 10, color: { argb: INK } };
     if (fmt) col.numFmt = fmt;
     if (c.type && c.type !== 'text' && c.type !== 'date') col.alignment = { horizontal: 'right' };
+  });
+
+  // Per-ROW number formats (pattern dialect `fmt`) — a model's rows are heterogeneous
+  // (money vs ratio vs units), so these OVERRIDE the column format for that row's cells.
+  const rowFmts = ((s as any).__rowFmts ?? {}) as Record<number, string>;
+  const resolveFmt = (k: string): string | undefined =>
+    k === 'currency'
+      ? currencyFmt || '#,##0.00' // no workbook currency → neutral 2dp money, never assume $
+      : k === 'percent'
+        ? NUM_FMT.percent
+        : k === 'number'
+          ? NUM_FMT.number
+          : k || undefined;
+  for (const [riStr, key] of Object.entries(rowFmts)) {
+    const fmt = resolveFmt(String(key));
+    if (!fmt) continue;
+    ws.getRow(Number(riStr) + 2).eachCell((cell: any, cn: number) => {
+      if (cn > 1) cell.numFmt = fmt;
+    });
+  }
+
+  // Header styling — branded, bold, readable. AFTER the column pass so it wins row 1.
+  // Headers over numeric columns right-align with their numbers (finance convention).
+  const head = ws.getRow(1);
+  head.height = 24;
+  head.eachCell((cell: any, cn: number) => {
+    const t = cols[cn - 1]?.type;
+    cell.font = { name: THEME_FONT, bold: true, color: { argb: 'FFFFFFFF' }, size: 10.5 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: accentArgb } };
+    cell.alignment = { vertical: 'middle', horizontal: cn > 1 && t && t !== 'text' && t !== 'date' ? 'right' : 'left' };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } } };
   });
 
   // Cosmetic passes are per-cell object writes — O(rows × cols) allocations. On BIG DATA
@@ -224,25 +278,56 @@ function buildSheet(wb: any, s: any, accentArgb: string, currencyFmt?: string): 
   // and auto-width samples the first 500 rows (widths converge long before that).
   const BIG = rows.length > 5000;
 
-  // Zebra banding.
+  // Zebra banding — a light tint of the ACCENT, not generic grey, so the file reads branded.
+  const bandArgb = accentTint(accentArgb);
   if (!BIG) {
     ws.eachRow((row: any, n: number) => {
       if (n > 1 && n % 2 === 1) {
         row.eachCell((cell: any) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F5' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bandArgb } };
         });
       }
     });
   }
 
-  // Total/roll-up rows: bold + a hairline top rule so a model reads like a real statement.
+  // Total/roll-up rows: bold + a hairline top rule; statement BOTTOM LINES (net income,
+  // ending cash, grand total…) get the accounting double rule.
   if (!BIG) {
     ws.eachRow((row: any, n: number) => {
       if (n === 1) return;
-      if (!TOTAL_ROW_RE.test(firstCellLabel(row.getCell(1).value))) return;
+      const label = firstCellLabel(row.getCell(1).value);
+      if (!TOTAL_ROW_RE.test(label)) return;
+      const rule = GRAND_ROW_RE.test(label) ? 'double' : 'thin';
       row.eachCell((cell: any) => {
-        cell.font = { ...(cell.font || {}), bold: true };
-        cell.border = { ...(cell.border || {}), top: { style: 'thin', color: { argb: 'FFB8B8B0' } } };
+        cell.font = { ...(cell.font || {}), name: THEME_FONT, bold: true };
+        cell.border = { ...(cell.border || {}), top: { style: rule, color: { argb: 'FFB8B8B0' } } };
+      });
+    });
+  }
+
+  // Tie-out CHECK rows: italic + muted — audit furniture, not data. Both the pattern
+  // dialect's `check:` rows (__checkRows) and any row LABELLED as a check/tie-out (the
+  // same convention deliverableCheck's zero-derived-row heuristic exempts).
+  const checkRowNums = new Set<number>((((s as any).__checkRows ?? []) as number[]).map((ri) => ri + 2));
+  if (!BIG) {
+    ws.eachRow((row: any, n: number) => {
+      if (n === 1) return;
+      if (!checkRowNums.has(n) && !/^\s*check\b|tie.?out/i.test(firstCellLabel(row.getCell(1).value))) return;
+      row.eachCell((cell: any) => {
+        cell.font = { ...(cell.font || {}), name: THEME_FONT, italic: true, color: { argb: CHECK_GREY }, bold: false };
+      });
+    });
+  }
+
+  // Assumption/driver sheets: literal numbers are USER INPUTS → the classic finance
+  // input-blue font, so anyone opening the model knows exactly which cells to edit.
+  if (!BIG && INPUT_SHEET_RE.test(name)) {
+    ws.eachRow((row: any, n: number) => {
+      if (n === 1) return;
+      row.eachCell((cell: any) => {
+        if (typeof cell.value === 'number') {
+          cell.font = { ...(cell.font || {}), name: THEME_FONT, color: { argb: INPUT_BLUE } };
+        }
       });
     });
   }
@@ -262,7 +347,9 @@ function buildSheet(wb: any, s: any, accentArgb: string, currencyFmt?: string): 
     col.width = Math.min(48, Math.max(12, max + 3));
   });
 
-  if (cols.length) {
+  // Auto-filter belongs on DATA TABLES; on a financial model/statement the header arrows
+  // read as clutter, so pattern-expanded model sheets skip it.
+  if (cols.length && !(s as any).__pattern) {
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
   }
   return { name, rows: rows.length };
@@ -291,11 +378,14 @@ export const generateSpreadsheetTool: ToolDef = {
     'rows: it shifts every cell down and breaks absolute references like Assumptions!$B$4 (a recurring bug — REVENUE ends ' +
     'up pointing at the wrong row). Put the sheet title in the TAB NAME, keep one clean header row, and reference cells by ' +
     'their real position (header=row1, first data=row2). ' +
-    'DESIGN STANDARDS (judged like a finance pro): make it FORMULA-DRIVEN — never hard-code a derived number ' +
+    'STYLING IS FULLY AUTOMATIC — a premium theme (Helvetica typography, hidden gridlines, accent-tinted banded rows, ' +
+    'finance rules under totals, blue input font on assumption sheets, coloured tabs) is applied at build time. Do NOT ' +
+    'spend calls on cosmetics and NEVER add decorative banner/section/title rows or hand styling — your job is CONTENT ' +
+    'AND FORMULAS only. STANDARDS: make it FORMULA-DRIVEN — never hard-code a derived number ' +
     '(totals via SUM, ratios/growth as formulas) so changing an assumption flows through; lead with a Summary/KPI ' +
     'sheet; give every column an explicit type (currency/percent/date) so numbers align and format consistently; ' +
-    'keep the accent restrained; no orphan/empty columns. The output is auto re-opened, formula-error-checked, and ' +
-    'design-reviewed — a broken or sloppy sheet is sent back to you to fix. ' +
+    'no orphan/empty columns. The output is auto re-opened, recalculated and formula-error-checked — a broken or ' +
+    'untied model is sent back to you to fix (there is no cosmetic review pass; the numbers gate, the look is baked in). ' +
     'TIME-SERIES / FINANCIAL MODELS — USE PATTERN SHEETS (the DEFAULT for any month-by-month or projection model; ' +
     '~10x faster and immune to wrong-row references): write each sheet as {"name":"Revenue","months":24,"rows":[ROW,...]} ' +
     'where ROW is {"label":"...","value":N} (a single assumption), {"label":"...","each":"=F"} (formula every month), or ' +
@@ -303,6 +393,9 @@ export const generateSpreadsheetTool: ToolDef = {
     'previous-month cell). In formulas NEVER write cell addresses — reference rows BY LABEL: {ROW:Label} (same sheet, ' +
     'current month\'s column), {ROW:Sheet!Label} (another sheet; an assumptions/value-only sheet resolves absolutely). ' +
     'Example: {"label":"Units","first":"={ROW:Assumptions!base units}","then":"={PREV}*(1+{ROW:Assumptions!growth rate})"}. ' +
+    'Give each pattern row a "fmt" — "currency" (uses the workbook currency), "percent", "number", or an explicit Excel ' +
+    'format like "0.0000" / "#,##0" — model rows are heterogeneous (money vs ratio vs units) and the right per-row format ' +
+    'is what makes the sheet read professionally. ' +
     'The server expands patterns into all columns deterministically and the full audit runs on the result. One call ' +
     'usually fits the WHOLE model — no staging needed. Verbose cell rows below remain for ad-hoc data tables. ' +
     'LARGE / GRANULAR MODELS (e.g. a 3-year MONTH-BY-MONTH CAPEX+OPEX with many line items, or any model with many ' +
