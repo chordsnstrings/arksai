@@ -9,7 +9,7 @@ import { stitchClips, stitchClipsSegmented, mixMusicBed, applyFadeOut, probeDura
 import { captureScene, captureSpotFrame, auditSceneHtml, auditSceneGeometry } from '../motion/capture';
 import { encodeSceneVideo, pickFps, DIMENSION_PRESETS, frameName, frameCount } from '../motion/encode';
 import { materializeScaffold, workspaceAssetReader, SCAFFOLD_IDS, SCAFFOLD_DOC } from '../motion/scaffolds';
-import { auditSceneMotion, auditFrameFill, isPacingMonotone, hookProblems } from '../motion/qc';
+import { auditSceneMotion, auditFrameFill, isPacingMonotone, hookProblems, scriptProblems } from '../motion/qc';
 
 /**
  * render_motion_video — narrated VECTOR motion graphics (SVG/text/web animation) exported
@@ -549,6 +549,7 @@ export const renderMotionVideoTool: ToolDef = {
 
     let m: MotionManifest | null = null;
     const retake = args.retake_scene != null ? Number(args.retake_scene) : null;
+    let scriptNotes: string[] = [];
 
     if (retake != null || args.motion_id) {
       const id = String(args.motion_id ?? latestMotionId(ctx.repoDir) ?? '');
@@ -587,6 +588,14 @@ export const renderMotionVideoTool: ToolDef = {
       const firstNarration = String(list[0]?.narration ?? '');
       const hookIssue = hookProblems(firstNarration);
       if (hookIssue) return `Error: ${hookIssue}`;
+
+      // SCRIPT QUALITY GATE (SCRIPT_CRAFT.md): the regexable AI-script tells block BEFORE
+      // any TTS is paid; softer craft issues ride along as notes the agent should fix.
+      const script = scriptProblems(list.map((s: any) => String(s?.narration ?? '')));
+      if (script.hard.length) {
+        return `Error: script quality — fix the narration and call again (nothing was rendered):\n${script.hard.map((p) => `- ${p}`).join('\n')}\nSee motion-kit/MOTION.md "SCRIPT DOCTRINE".`;
+      }
+      scriptNotes = script.advisory;
 
       // WORD BUDGET vs target_seconds — catch length overshoot BEFORE paying for TTS
       // (live lesson: heavy agents write ~140s of narration against a 60s brief).
@@ -768,7 +777,10 @@ export const renderMotionVideoTool: ToolDef = {
             `\n\nSCENE-CONTRAST REVIEW: ${v}\nVary the named scenes' GROUND (.mg-ground-dark / .mg-ground-accent vs light) ` +
             `and COMPOSITION (see MOTION.md "SCENE CONTRAST"), then retake them.`;
       }
-      return queuedNote + describe(m!) + variety;
+      const scriptNote = scriptNotes.length
+        ? `\n\nSCRIPT NOTES (fix in the narration next pass — see MOTION.md "SCRIPT DOCTRINE"):\n${scriptNotes.map((p) => `- ${p}`).join('\n')}`
+        : '';
+      return queuedNote + describe(m!) + variety + scriptNote;
     });
   },
 };

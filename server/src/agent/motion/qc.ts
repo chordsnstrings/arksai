@@ -148,6 +148,74 @@ export function isPacingMonotone(durationsMs: number[]): boolean {
 }
 
 /** Hook-killer opening lines — rejected before any TTS is paid for. Pure. */
+/**
+ * SCRIPT QUALITY GATE (operator 2026-07-06: "ensure the actual script that gets generated
+ * is high quality" — research distilled in SCRIPT_CRAFT.md). Deterministic pre-TTS checks
+ * over the WHOLE script. `hard` problems block synthesis (they are the regexable AI-script
+ * tells: essay scaffolding, CTA endings, hype); `advisory` problems ship but come back to
+ * the agent as named defects to fix in the next pass.
+ */
+export interface ScriptVerdict {
+  hard: string[];
+  advisory: string[];
+}
+
+const ESSAY_SCAFFOLDING =
+  /\b(in conclusion|to summariz|in summary|to sum up|firstly|secondly|thirdly|furthermore|moreover|additionally|in today'?s (fast.paced |digital |modern )?world|without further ado|let'?s dive in|delve|it is (important|worth) (to note|noting)|needless to say|so there you have it|at the end of the day|hope you (enjoyed|learned))\b/i;
+const CTA_ENDING = /\b(like and subscribe|smash that|follow (for|me for) more|link in (the )?(bio|description)|comment below|hit the bell)\b/i;
+const HYPE = /\b(you won'?t believe|mind.?blowing|shocking|insane|jaw.?dropping|blow your mind|game.?changer)\b/i;
+const AI_LEXICON = /\b(tapestry|realm|unlock the|unleash|harness the|elevate your|embark on|journey (of|into)|navigate the|robust|seamless|pivotal|foster|garner|underscore|testament to|revolutioniz|deep dive|the world of|boasts)\b/gi;
+const INTENSIFIERS = /\b(truly|incredibly|extremely|absolutely|utterly|remarkably|undeniably|very|really)\b/gi;
+const HEDGES = /\b(perhaps|possibly|potentially|somewhat|relatively|more or less|in some cases|seems? to|tends? to)\b/gi;
+const CONNECTIVES = /\b(but|yet|so|because|instead|except|turns out|which means|that'?s why|here'?s the thing)\b/gi;
+
+export function scriptProblems(narrations: string[]): ScriptVerdict {
+  const hard: string[] = [];
+  const advisory: string[] = [];
+  const full = narrations.join(' ').trim();
+  if (!full) return { hard, advisory };
+
+  const scaffold = full.match(ESSAY_SCAFFOLDING);
+  if (scaffold) hard.push(`essay scaffolding ("${scaffold[0]}") — spoken video is a story, not an essay; cut the connective tissue and let the beats collide (BUT/THEREFORE)`);
+  const cta = full.match(CTA_ENDING);
+  if (cta) hard.push(`engagement CTA ("${cta[0]}") — never spend narration on meta-asks; end on a punch-out line instead`);
+  const hype = full.match(HYPE);
+  if (hype) hard.push(`hype promise ("${hype[0]}") — if the fact is good, the fact carries it; state the fact`);
+
+  const intens = full.match(INTENSIFIERS) ?? [];
+  if (intens.length >= 2) advisory.push(`${intens.length} empty intensifiers (${[...new Set(intens.map((w) => w.toLowerCase()))].join(', ')}) — delete each or replace the base word with a stronger one`);
+  const hedges = full.match(HEDGES) ?? [];
+  if (hedges.length >= 2) advisory.push(`${hedges.length} hedges (${[...new Set(hedges.map((w) => w.toLowerCase()))].join(', ')}) — an explainer asserts or omits; keep at most one deliberate hedge on a genuinely contested claim`);
+  const lex = full.match(AI_LEXICON) ?? [];
+  if (lex.length >= 1) advisory.push(`AI-lexicon tell${lex.length > 1 ? 's' : ''} (${[...new Set(lex.map((w) => w.toLowerCase()))].join(', ')}) — replace with plain concrete words`);
+
+  // But/Therefore: a multi-beat script with no contrastive/causal connective is a list.
+  if (narrations.filter((n) => n.trim()).length >= 3) {
+    const conn = full.match(CONNECTIVES) ?? [];
+    if (conn.length === 0) hard.push('no BUT/THEREFORE connective anywhere — the beats read as a reorderable list, not a story; link every scene to the next with tension (but/except/turns out) or consequence (so/which means/that\'s why)');
+  }
+
+  // Sentence-rhythm monotony: 3+ consecutive sentences within ±2 words of each other.
+  const sentences = full.split(/[.!?]+/).map((s) => s.trim()).filter((s) => s.split(/\s+/).length >= 3);
+  if (sentences.length >= 4) {
+    const lens = sentences.map((s) => s.split(/\s+/).length);
+    for (let i = 0; i + 2 < lens.length; i++) {
+      if (Math.abs(lens[i] - lens[i + 1]) <= 2 && Math.abs(lens[i + 1] - lens[i + 2]) <= 2) {
+        advisory.push(`sentence-rhythm monotony (three consecutive sentences of ~${lens[i + 1]} words) — vary deliberately: two short, one long, one very short`);
+        break;
+      }
+    }
+    const tooLong = sentences.find((s) => s.split(/\s+/).length > 24);
+    if (tooLong) advisory.push(`a ${tooLong.split(/\s+/).length}-word sentence ("${tooLong.slice(0, 50)}…") — one idea per sentence, hard max ~20 words spoken`);
+  }
+
+  // Stakes: no "you/your" anywhere in a multi-beat script = no reason to care.
+  if (narrations.length >= 2 && !/\b(you|your)\b/i.test(full)) {
+    advisory.push('the script never says "you" — anchor the stakes in the viewer ("your money", "your brain") or carry them through a named character');
+  }
+  return { hard, advisory };
+}
+
 export function hookProblems(firstNarration: string): string | null {
   const t = firstNarration.trim();
   if (!t) return null; // silent opening beat is allowed (visual hook)

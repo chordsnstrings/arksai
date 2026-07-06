@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { materializeScaffold, SCAFFOLD_IDS, groundClass, type ScaffoldCtx } from '../src/agent/motion/scaffolds';
-import { stillnessPairs, parseSignalstat, isPacingMonotone, hookProblems, frameDiffCmd, cellStdevCmd } from '../src/agent/motion/qc';
+import { stillnessPairs, parseSignalstat, isPacingMonotone, hookProblems, scriptProblems, frameDiffCmd, cellStdevCmd } from '../src/agent/motion/qc';
 import { xfadeCmd, XFADE_KINDS, stitchClipsSegmented } from '../src/agent/videoStitch';
 import {
   pexelsSearchUrl,
@@ -116,6 +116,46 @@ test('qc: stillness pairs, signalstat parsing, monotone pacing, hook gate', () =
   assert.equal(hookProblems('Why does your own bloodstream turn against you?'), null, 'a real hook passes');
   assert.equal(hookProblems(''), null, 'silent visual hook allowed');
   assert.ok(hookProblems('This is a very long opening narration that keeps going and going with lots of setup and context and background information before ever getting to any point at all which loses every viewer'), 'over-long hook rejected');
+});
+
+test('qc: script quality gate — AI-script tells hard-fail, craft slips come back as advisories', () => {
+  // A clean, doctrine-compliant script passes with no findings at all.
+  const clean = scriptProblems([
+    'Why does half the oxygen you breathe come from the sea?',
+    'Tiny plankton make it. But warming water holds less of it.',
+    "Turns out the ocean already lost two percent since 1960. That's your air supply shrinking.",
+    'Protect the water that breathes for you.',
+  ]);
+  assert.deepEqual(clean.hard, [], 'clean script has no hard problems');
+  assert.deepEqual(clean.advisory, [], 'clean script has no advisories');
+
+  // Essay scaffolding, CTA endings and hype promises each block synthesis.
+  assert.ok(scriptProblems(['Firstly, the ocean makes oxygen.', 'But it is warming.', 'So we lose it.']).hard.some((p) => p.includes('essay scaffolding')));
+  assert.ok(scriptProblems(["Let's dive in to the topic.", 'But wait.', 'So what?']).hard.some((p) => p.includes('essay scaffolding')));
+  assert.ok(scriptProblems(['Half your oxygen comes from the sea.', 'But we are losing it.', 'So like and subscribe for more!']).hard.some((p) => p.includes('CTA')));
+  assert.ok(scriptProblems(['This mind-blowing fact will change everything.', 'But there is more.', 'So watch on.']).hard.some((p) => p.includes('hype')));
+
+  // But/Therefore: three reorderable beats with zero connectives = a list, not a story.
+  const list = scriptProblems(['The ocean makes oxygen.', 'Plankton live in water.', 'Fish eat plankton.']);
+  assert.ok(list.hard.some((p) => p.includes('BUT/THEREFORE')), 'connective-free multi-beat script rejected');
+  const linked = scriptProblems(['The ocean makes oxygen.', 'But plankton are dying.', 'Which means less air for you.']);
+  assert.ok(!linked.hard.some((p) => p.includes('BUT/THEREFORE')), 'one connective satisfies the spine test');
+  assert.deepEqual(scriptProblems(['Just one beat here.']).hard, [], 'single beat never fails the spine test');
+
+  // Advisories: intensifier pileup, hedging, AI lexicon, monotone rhythm, missing "you".
+  const flabby = scriptProblems([
+    'This is truly a really incredible fact.',
+    'But it perhaps seems to possibly matter.',
+    'So we delve into the world of plankton to unlock the tapestry of the sea.',
+  ]);
+  assert.ok(flabby.advisory.some((p) => p.includes('intensifiers')), 'intensifier count flagged');
+  assert.ok(flabby.advisory.some((p) => p.includes('hedges')), 'hedge count flagged');
+  assert.ok(flabby.advisory.some((p) => p.includes('AI-lexicon')), 'AI lexicon flagged');
+  assert.ok(flabby.advisory.some((p) => p.includes('never says "you"') === false), 'sanity: "you" absent check text');
+  assert.ok(scriptProblems(['The sea is big and wide today.', 'But the sea is warm and salty now.', 'So the sea is blue and deep still.', 'Yet the sea is old and vast forever.']).advisory.some((p) => p.includes('monotony')), 'three same-length sentences flagged');
+  assert.ok(scriptProblems(['The ocean makes oxygen.', 'But plankton are dying fast.', 'So the planet loses air.']).advisory.some((p) => p.includes('"you"')), 'stakes-free script flagged for missing you');
+  assert.deepEqual(scriptProblems([]).hard, [], 'empty input is safe');
+  assert.deepEqual(scriptProblems(['']).advisory, [], 'blank narrations are safe');
 });
 
 // ---------------- transitions ----------------

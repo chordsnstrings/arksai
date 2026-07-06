@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-05.46';
+export const WHATS_NEW_VERSION = '2026-07-06.47';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A design library of ~900 video ingredients',
-    body: 'The video builder now picks from a huge indexed library — hundreds of typography voices and pairings, callout styles (pills, stamps, ribbons, badges), living animated backgrounds (drifting grids, waves, orbit rings, light sweeps) and micro-animations — each searchable by intent, so every scene can be dressed differently.',
+    title: 'Video scripts that tell a story',
+    body: 'Explainer narrations are now written — and checked — like a writers’ room: every beat must connect with tension or consequence (no reorderable lists), essay filler, hype and "like and subscribe" endings are rejected before a word is voiced, numbers get ear-friendly comparisons, and each video lands on a short punch-out that calls back to the hook.',
   },
 ];
 

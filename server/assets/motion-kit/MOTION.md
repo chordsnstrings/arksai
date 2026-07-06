@@ -97,10 +97,58 @@ must EARN the rest of the video:
   the answer, is what holds attention (dopamine fires on the predictive cue).
 
 ## SCRIPT DOCTRINE (write the narration for retention)
-- 130–160 spoken words/min (≈2.4 words/s). One idea per sentence. Second person,
-  conversational, concrete numbers over vague quantifiers ("37%", never "many").
-- Causal chain: every scene connects to the next with BUT or THEREFORE — never "and then".
-  End scene narrations on incomplete thoughts the next scene resolves.
+The tool REJECTS scripts with essay scaffolding, engagement CTAs or hype promises before
+any audio is synthesized, and returns advisory notes on intensifiers/hedges/AI-lexicon/
+rhythm — write to this doctrine the first time.
+
+STORY SPINE, NOT ESSAY. A video script is a chain of collisions, not a structured summary:
+- The writers-room rule: every scene joins the next with BUT or THEREFORE — tension (but,
+  except, turns out, the problem is) or consequence (so, which means, that's why) — NEVER
+  "and then" or "additionally". If you can reorder two adjacent scenes without breaking anything, the
+  link between them is missing. Scripts with zero connectives are rejected.
+- Beat templates by length (at ~2.0 spoken words/s for shorts, 2.4 for longer):
+  · 15s ≈ 30 words: HOOK (≤10w) → TENSION/reveal → PUNCH-OUT (≤6w).
+  · 30s ≈ 65 words: HOOK → SETUP → TWIST ("but…") → RESOLUTION → PUNCH-OUT.
+  · 60s ≈ 140 words: HOOK → STAKES (why care) → 2–3 escalating reveals (each a "turns
+    out…") → the PEAK number/moment → PUNCH-OUT that calls back to the hook.
+  · 3min+: chapter the script — each chapter has its own mini-hook and mini-payoff, and a
+    re-hook ("but that's not the strange part") every 30–40s.
+- Open loops: the hook poses a question the FINAL scene answers; mid-script, resolve each
+  loop only after the next one is open. Never resolve everything before the last beat.
+
+LANGUAGE CRAFT (what separates spoken prose from essay prose):
+- Concrete nouns beat abstractions: "your coffee" not "caffeinated beverages"; a person
+  doing a thing, not a concept being the case. If a sentence has no image in it, rewrite.
+- "You" is the stakes-carrier — anchor consequences in the viewer ("your money", "your
+  sleep") or in one named character carried through the video. Facts without an owner
+  are trivia.
+- Translate every number ("naked hero stat" rule): a number lands only next to a
+  comparison the ear can hold — "42% — nearly half of everything you drink", "that's
+  three school buses", "twice your rent". One hero number per scene; the rest go on
+  screen, not in the mouth.
+- Rhythm is deliberate: vary sentence length — two short, one long, one very short.
+  Three same-length sentences in a row read as a list being recited. Hard max ~20 words
+  per spoken sentence; one idea per sentence.
+- Kill the tells: no empty intensifiers (truly/incredibly/absolutely — delete or upgrade
+  the base word), at most one deliberate hedge in the whole script, none of the AI lexicon
+  (delve, tapestry, unlock, unleash, elevate, journey, seamless, robust, game-changer,
+  testament, deep dive, "the world of…"), no essay scaffolding (firstly/moreover/in
+  conclusion/"in today's world"), no hype promises ("you won't believe", "mind-blowing" —
+  if the fact is good, the fact carries it).
+
+WRITE FOR THE EAR (this text is spoken by TTS, not read):
+- Contractions always (it's, don't, that's) — but avoid "-'ve" contractions after nouns
+  ("the results've") which TTS mangles; spell out "have" there.
+- No abbreviations, symbols or parentheses: "about 40 percent" reads better aloud than
+  "(~40%)"; expand acronyms on first use unless universally spoken (NASA fine, "WHO" say
+  "the World Health Organization").
+- End-focus: put the payoff word LAST in the sentence — "The real cause is sugar", not
+  "Sugar is the real cause of this". The ear weights sentence endings.
+- Landing-strip last line: the final narration sentence is short (≤8 words), concrete,
+  and callable back to the hook. Never end on a list item, a disclaimer, or a CTA
+  ("like and subscribe" is rejected).
+- Read it aloud mentally: anywhere you'd stumble or take a breath mid-clause, split the
+  sentence.
 - On-screen text NEVER duplicates the narration (redundancy hurts comprehension): 5–12
   words max on screen, keyword labels not sentences, labels sit NEXT TO what they name.
 - The visual for a thing appears AT THE MOMENT the narration says it: derive `--at` from
