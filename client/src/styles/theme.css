@@ -2867,57 +2867,20 @@ button { font-family: inherit; cursor: pointer; }
 .conn-repo-meta { color: var(--text-faint); font-size: 12px; }
 
 /* ============================= DESIGN STUDIO (.ds-*) =============================
- * "Exactly like Claude" (operator, 2026-07-04): the studio wears Anthropic's exact
- * visual identity — warm paper #faf9f5, ink #141413, clay #d97757, serif greeting —
- * via a SCOPED token override (the shell is token-driven, so every reused component
- * inside — Chat, Composer, Canvas — reskins automatically). Chat-first interaction:
- * a centered greeting, one big rounded composer, suggestion chips, recents. */
+ * The design studio wears ARKSAI's OWN identity (operator 2026-07-06: "it should look
+ * like arksai.studio not claude") — NO token override: it inherits the app's warm
+ * editorial tokens (ivory paper, ink, the house accent, Source Serif display + Space
+ * Grotesk labels) in both themes, so the studio and the rest of the product are one
+ * publication. The Claude-style INTERACTION stays (centered greeting, one composer,
+ * suggestion chips, recents); only the skin is ours. */
 .ds-claude {
   position: fixed;
   inset: 0;
   z-index: 40;
   display: flex;
   flex-direction: column;
-  /* Anthropic-exact tokens (light) */
-  --bg: #faf9f5;
-  --bg-sidebar: #f0eee6;
-  --bg-elev: #ffffff;
-  --bg-bubble: #f0eee6;
-  --bg-input: #ffffff;
-  --bg-hover: #f0eee6;
-  --bg-active: #e8e6dc;
-  --border: #e8e6dc;
-  --border-soft: #f0eee6;
-  --text: #141413;
-  --text-muted: #6e6d64;
-  --text-faint: #b0aea5;
-  --accent: #d97757;
-  --accent-strong: #c05f3c;
-  --accent-dim: rgba(217, 119, 87, 0.12);
-  --glass-bg: rgba(255, 255, 255, 0.72);
-  --glass-hi: rgba(255, 255, 255, 0.5);
   background: var(--bg);
   color: var(--text);
-}
-/* Claude's dark: warm near-black, same clay accent (slightly lifted for contrast). */
-:root[data-theme='dark'] .ds-claude {
-  --bg: #262624;
-  --bg-sidebar: #1f1e1d;
-  --bg-elev: #30302e;
-  --bg-bubble: #333331;
-  --bg-input: #30302e;
-  --bg-hover: #333331;
-  --bg-active: #3a3a37;
-  --border: #3e3d3a;
-  --border-soft: #333330;
-  --text: #f5f4ef;
-  --text-muted: #b8b5ac;
-  --text-faint: #757369;
-  --accent: #e08b6d;
-  --accent-strong: #ec9a7d;
-  --accent-dim: rgba(224, 139, 109, 0.16);
-  --glass-bg: rgba(48, 48, 46, 0.7);
-  --glass-hi: rgba(255, 255, 255, 0.06);
 }
 
 .ds-top {
@@ -2941,13 +2904,17 @@ button { font-family: inherit; cursor: pointer; }
 }
 .ds-back:hover { background: var(--bg-hover); color: var(--text); }
 .ds-wordmark {
-  font-family: var(--serif);
-  font-size: 16px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--label);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--text);
-  letter-spacing: 0.01em;
 }
-.ds-wordmark::first-letter, .ds-spark { color: var(--accent); }
+.ds-spark { color: var(--accent); }
 .ds-top-title {
   flex: 1;
   min-width: 0;
@@ -2988,32 +2955,43 @@ button { font-family: inherit; cursor: pointer; }
   from { opacity: 0; transform: scale(0.5) rotate(-40deg); }
   to { opacity: 1; transform: scale(1) rotate(0); }
 }
+.ds-kicker {
+  font-family: var(--label);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 14px;
+}
 .ds-greet {
   font-family: var(--serif);
-  font-weight: 500;
-  font-size: clamp(24px, 3.4vw, 34px);
+  font-weight: 600;
+  font-size: clamp(24px, 3.4vw, 32px);
+  letter-spacing: -0.01em;
   color: var(--text);
-  margin: 14px 0 26px;
+  margin: 8px 0 24px;
   text-align: center;
   text-wrap: balance;
   max-width: 30ch;
 }
+/* The composer speaks the Launchpad's language (.lp-box): editorial input card, hairline
+   border, the app accent as the focus ring — not a floating Claude pill. */
 .ds-composer {
   width: 100%;
   max-width: 720px;
-  background: var(--bg-elev);
+  background: var(--bg-input);
   border: 1px solid var(--border);
-  border-radius: 22px;
-  box-shadow: 0 4px 22px rgba(20, 20, 19, 0.05), 0 1px 3px rgba(20, 20, 19, 0.04);
-  padding: 14px 14px 10px;
+  border-radius: 13px;
+  padding: 13px 13px 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .ds-composer:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  box-shadow: 0 6px 26px rgba(20, 20, 19, 0.07), 0 1px 3px rgba(20, 20, 19, 0.04);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
 .ds-input {
   border: none;
@@ -3073,7 +3051,7 @@ button { font-family: inherit; cursor: pointer; }
 .ds-send {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: 9px;
   border: none;
   background: var(--accent);
   color: #fff;
@@ -3084,7 +3062,7 @@ button { font-family: inherit; cursor: pointer; }
   justify-content: center;
   transition: background 0.15s ease, transform 0.15s ease;
 }
-.ds-send:hover:not(:disabled) { background: var(--accent-strong); transform: translateY(-1px); }
+.ds-send:hover:not(:disabled) { background: var(--accent-strong, var(--accent)); transform: translateY(-1px); }
 .ds-send:disabled { opacity: 0.35; cursor: default; }
 .ds-err { color: var(--red, #b23b3b); font-size: 13px; margin-top: 10px; }
 
@@ -3154,7 +3132,8 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 7px 14px;
-  font-size: 13px;
+  font-family: var(--label);
+  font-size: 12.5px;
   color: var(--text-muted);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;

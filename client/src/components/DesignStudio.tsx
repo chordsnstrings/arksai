@@ -11,12 +11,12 @@ import { Canvas } from './Canvas';
 import { AUTO_MODEL } from '@shared/types';
 
 /**
- * Design studio — a separate full-page surface at /design ("exactly like Claude", the
- * operator's ask): Anthropic's warm-paper look (scoped token override, .ds-claude) and
- * claude.ai's chat-first interaction — a serif greeting, ONE big rounded composer with
- * suggestion chips + a Style menu, then the conversation stays INSIDE the studio (the
- * existing Chat/Composer/Canvas re-skinned by the token scope). Refinement is
- * conversational — you just keep talking.
+ * Design studio — a separate full-page surface at /design. It wears ARKSAI'S OWN
+ * editorial identity (operator 2026-07-06: "it should look like arksai.studio not
+ * claude") — the studio inherits the app's tokens and typography, no skin override.
+ * The chat-first INTERACTION remains: a serif greeting, ONE composer with suggestion
+ * chips + a Style menu, then the conversation stays INSIDE the studio (the existing
+ * Chat/Composer/Canvas). Refinement is conversational — you just keep talking.
  */
 
 type DsType = 'website' | 'landing' | 'deck' | 'onepager' | 'creative' | 'document';
@@ -144,7 +144,7 @@ export function DesignStudio({ onClose }: { onClose: () => void }) {
       <div className="ds-claude">
         <header className="ds-top">
           <button className="ds-back" onClick={() => setSid(null)} aria-label="Back to Design studio">←</button>
-          <span className="ds-wordmark">✳ Design</span>
+          <span className="ds-wordmark"><span className="ds-spark" aria-hidden>✳</span> ArksAI · Design</span>
           <span className="ds-top-title" title={meta.title || ''}>{meta.title || 'New design'}</span>
           <button className="ds-close" onClick={onClose} aria-label="Close Design studio">Exit studio</button>
         </header>
@@ -166,11 +166,12 @@ export function DesignStudio({ onClose }: { onClose: () => void }) {
     <div className="ds-claude">
       <header className="ds-top">
         <button className="ds-back" onClick={onClose} aria-label="Back">←</button>
-        <span className="ds-wordmark">✳ Design</span>
+        <span className="ds-wordmark"><span className="ds-spark" aria-hidden>✳</span> ArksAI · Design</span>
       </header>
 
       <div className="ds-hero">
         <div className="ds-spark" aria-hidden>✳</div>
+        <div className="ds-kicker">Design studio</div>
         <h1 className="ds-greet">{greet}</h1>
 
         <div className="ds-composer">
