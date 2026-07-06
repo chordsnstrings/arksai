@@ -227,3 +227,41 @@ export const searchPhotosTool: ToolDef = {
     return out + `\n\nNo candidate survived download/quality checks — use generate_image (photographic, text-free) for this subject instead.`;
   },
 };
+
+import { searchMotionDesign } from '../motion/library';
+
+export const searchMotionDesignTool: ToolDef = {
+  name: 'search_motion_design',
+  description:
+    'Search the MOTION DESIGN LIBRARY (~900 intent-indexed presets) for scene ingredients: ' +
+    'type (typography voices/pairings/numerals/quotes), callout (pills, stamps, flags, ribbons, badges, labels), ' +
+    'background (animated pattern/blob/orbit/sweep layers — SVG/CSS movement under content), micro (entrances, idles, emphasis effects). ' +
+    'Query by INTENT ("calm drifting texture for a quiet data scene", "urgent warning number callout", "premium serif hero"). ' +
+    'Each result returns a paste-ready HTML snippet using kit classes — paste into bespoke scenes, or pass a background id as the ' +
+    'bg slot on any scaffold. NEVER invent a background pattern or callout by hand — search here first.',
+  parameters: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Intent, mood and role words: "playful science headline", "downward rain texture decline", "award ribbon money".' },
+      kind: { type: 'string', enum: ['type', 'callout', 'background', 'micro'], description: 'Restrict to one category (recommended).' },
+      style: { type: 'string', enum: ['clean', 'nutshell', 'broadcast', 'vox', 'nordic'], description: 'Your video style — pack-tuned entries rank first, mismatched packs are excluded.' },
+      count: { type: 'number', description: 'Results (default 8, max 20).' },
+    },
+    required: ['query'],
+  },
+  modes: ['chat', 'code'],
+  summarize: (a) => `design: ${String(a.query ?? '').slice(0, 50)}`,
+  async run(args) {
+    const query = String(args.query ?? '').trim();
+    if (!query) return 'Error: pass an intent query, e.g. "calm drifting texture for a quiet scene".';
+    const results = searchMotionDesign(query, {
+      kind: ['type', 'callout', 'background', 'micro'].includes(String(args.kind)) ? (String(args.kind) as any) : undefined,
+      style: ['clean', 'nutshell', 'broadcast', 'vox', 'nordic'].includes(String(args.style)) ? (String(args.style) as any) : undefined,
+      limit: Number(args.count) || 8,
+    });
+    if (!results.length) return `No design entries matched "${query}" — try broader mood words (calm/urgent/premium/playful) or drop the kind filter.`;
+    return results
+      .map((e) => `### ${e.id} [${e.kind}]\n${e.intent}\n\`\`\`html\n${e.snippet}\n\`\`\``)
+      .join('\n\n');
+  },
+};

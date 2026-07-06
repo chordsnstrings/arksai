@@ -261,7 +261,7 @@ function shell(
 </head><body>
 <div class="mg-scene ${opts.ground} mg-style-${ctx.style}${fmtCls}"${theme ? ` style="${theme}"` : ''}>
   <div class="mg-wash"></div>
-  ${opts.bg ?? ''}
+  ${opts.bg ?? ''}${(ctx as any).__libBg ?? ''}
   <div class="${opts.cam ?? camera(ctx)}" style="position:absolute;inset:0;">
     <div class="scaffold-content${exitCls}" style="position:absolute;inset:0;display:flex;flex-direction:column;">
       ${opts.body}
@@ -1004,7 +1004,7 @@ export const SCAFFOLD_DOC =
   'line-chart{points[3-12]:nums, title?, kicker?, labels?[first,last], unit?, insight?} · donut-stat{value:0-100, label≤8w, kicker?, suffix?} · ' +
   'chapter-card{name≤5w, number?, kicker?} (act break, 1.5-2.5s via min_ms) · timeline{events[3-5]:{label≤5w, year?}, title?, kicker?} · breath{line?≤6w, prop?:svg} (quiet beat after a dense stretch). ' +
   'Charts also take source? (credibility line, fades in last). ' +
-  'Common slots: ground?:light|dark|accent (auto-rotates for contrast when omitted); annotated-plate also takes treatment?:duotone|archival. ' +
+  'Common slots: ground?:light|dark|accent (auto-rotates for contrast when omitted); bg?:<design-library background id> (search_motion_design kind:"background" — an animated texture layer under the content); annotated-plate also takes treatment?:duotone|archival. ' +
   'EMPHASIS: mark the spoken keyword in any text slot with *asterisks* — it gets the pack\'s kinetic emphasis timed to the narration.';
 
 /**
@@ -1015,6 +1015,20 @@ export function materializeScaffold(spec: { id: string; slots?: Record<string, a
   const builder = BUILDERS[String(spec?.id ?? '')];
   if (!builder) return { problems: [`unknown scaffold "${spec?.id}" — one of: ${SCAFFOLD_IDS.join(', ')}`] };
   try {
+    // Common `bg` slot: a design-library background id (search_motion_design, kind
+    // "background") — the animated layer is injected into the shell under the content.
+    const bgId = String(spec.slots?.bg ?? '').trim();
+    if (bgId) {
+      // require lazily to avoid a module cycle (library imports MotionStyleId from here)
+      const { designEntry } = require('./library') as typeof import('./library');
+      const entry = designEntry(bgId);
+      if (!entry || entry.kind !== 'background') {
+        return { problems: [`slot "bg": unknown background id "${bgId}" — search_motion_design with kind:"background" and use an exact id`] };
+      }
+      (ctx as any).__libBg = entry.snippet;
+    } else {
+      (ctx as any).__libBg = '';
+    }
     return builder(spec.slots ?? {}, ctx);
   } catch (e: any) {
     return { problems: [`scaffold "${spec.id}" failed: ${String(e?.message ?? e)}`] };

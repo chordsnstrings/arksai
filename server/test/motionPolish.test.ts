@@ -571,3 +571,53 @@ test('craft: *emphasis* markup, draw-on icons, damped shake, new archetypes, var
   assert.match(md, /## EMPHASIS/);
   assert.match(md, /## SHOT GRAMMAR/);
 });
+
+// ---------------- design library (operator 2026-07-05: ~1000 intent-indexed presets) ----------------
+
+import { designCatalog, searchMotionDesign, designEntry } from '../src/agent/motion/library';
+
+test('design library: ~1000 entries, unique ids, every kit class in snippets exists in motion.css', () => {
+  const c = designCatalog();
+  assert.ok(c.length >= 850, `catalog has ${c.length} entries (want ~1000)`);
+  assert.equal(new Set(c.map((e) => e.id)).size, c.length, 'ids are unique');
+  const kinds = new Set(c.map((e) => e.kind));
+  for (const k of ['type', 'callout', 'background', 'micro']) assert.ok(kinds.has(k as any), `has ${k} entries`);
+  // every mg-*/kt-* class referenced by a snippet is defined in the kit css
+  const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
+  const missing = new Set<string>();
+  for (const e of c) {
+    for (const m of e.snippet.matchAll(/class="([^"]+)"/g)) {
+      for (const cls of m[1].split(/\s+/)) {
+        if (!/^(mg|kt)-/.test(cls) || cls === 'ring') continue;
+        if (!css.includes(`.${cls}`)) missing.add(`${e.id}: .${cls}`);
+      }
+    }
+    assert.ok(e.intent.length > 20, `${e.id} carries a real intent line`);
+  }
+  assert.deepEqual([...missing], [], `snippet classes missing from motion.css: ${[...missing].slice(0, 5).join(', ')}`);
+});
+
+test('design library: intent search ranks the right entries; scaffold bg slot injects/validates', () => {
+  const bg = searchMotionDesign('calm drifting dot texture quiet', { kind: 'background', limit: 5 });
+  assert.ok(bg.length >= 3);
+  assert.ok(bg.every((e) => e.kind === 'background'));
+  const danger = searchMotionDesign('urgent warning number', { kind: 'callout', limit: 5 });
+  assert.ok(danger.some((e) => e.id.includes('danger')), danger.map((e) => e.id).join(','));
+  const hero = searchMotionDesign('premium elegant serif hero', { kind: 'type', limit: 5 });
+  assert.ok(hero.some((e) => /fraunces|spectral/.test(e.id)), hero.map((e) => e.id).join(','));
+  // pack filter excludes mismatched entries
+  const nordicOnly = searchMotionDesign('shout loud number', { kind: 'callout', style: 'nordic', limit: 10 });
+  assert.ok(nordicOnly.every((e) => e.packs === 'all' || e.packs.includes('nordic')));
+  // exact lookup + bg slot wiring
+  const someBg = designCatalog().find((e) => e.kind === 'background')!;
+  assert.equal(designEntry(someBg.id)?.id, someBg.id);
+  const withBg = materializeScaffold({ id: 'hero-stat', slots: { ...MINIMAL_SLOTS['hero-stat'], bg: someBg.id } }, ctx('clean', 1));
+  assert.ok(withBg.html!.includes(someBg.snippet.slice(0, 40)), 'bg snippet injected into the shell');
+  const badBg = materializeScaffold({ id: 'hero-stat', slots: { ...MINIMAL_SLOTS['hero-stat'], bg: 'bg-nope' } }, ctx('clean', 1));
+  assert.ok(badBg.problems.some((p) => p.includes('search_motion_design')), badBg.problems.join());
+  // tool registered
+  const idx = fs.readFileSync(path.join(__dirname, '../src/agent/tools/index.ts'), 'utf8');
+  assert.match(idx, /searchMotionDesignTool/);
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  assert.match(md, /THE DESIGN LIBRARY/);
+});

@@ -18,7 +18,7 @@ import { verifyTool } from './verify';
 import { generateMusicTool, extendMusicTool, generateLyricsTool, coverAudioTool } from './music';
 import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
 import { generateVideoStoryTool } from './videoStoryTool';
-import { searchAssetsTool, fetchAssetTool, searchPhotosTool } from './assets';
+import { searchAssetsTool, fetchAssetTool, searchPhotosTool, searchMotionDesignTool } from './assets';
 import { renderMotionVideoTool } from './motionVideo';
 import { generateCreativeTool } from './creative';
 import { generateLogoTool } from './logo';
@@ -77,6 +77,7 @@ export const ALL_TOOLS: ToolDef[] = [
   searchAssetsTool,
   fetchAssetTool,
   searchPhotosTool,
+  searchMotionDesignTool,
   renderMotionVideoTool,
   bashTool,
   bashBackgroundTool,

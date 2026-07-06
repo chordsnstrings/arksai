@@ -40,6 +40,18 @@ dense stretch; use `chapter-card` (1.5-2.5s via min_ms, silent or 3-4 word narra
 at genuine act breaks. Entrance direction follows MEANING: growth rises, decline drops,
 compared things enter from opposite sides.
 
+## THE DESIGN LIBRARY (search, never invent)
+`search_motion_design` indexes ~900 intent-tagged presets: TYPE voices/pairings (every
+bundled family in hero/headline/label/numeral/quote/echo treatments), CALLOUTS (pills,
+stamps, flags, ribbons, badges, brackets, labels — toned and sized), animated
+BACKGROUNDS (drifting dot grids, rain/rise stripes, blueprint grids, contour waves,
+morphing accent blobs, orbit rings, light sweeps — each at whisper/standard/present
+opacity), and MICRO effects (entrances by role+timing, phase-offset idles, emphasis).
+Query by INTENT ("calm drifting texture", "urgent number callout", "premium serif hero"),
+paste the returned snippet into bespoke scenes, or pass a background id as the `bg` slot
+on ANY scaffold. NEVER hand-roll a background pattern, callout box or entrance — a library
+pick is calibrated, seekable and pack-aware.
+
 ## STUDIO MATERIAL (real photos + cutouts — the studio look)
 Photography is design MATERIAL, never a raw stock rectangle. Per video, aim for 1-2
 photo-driven beats: a `photo-hero` (full-bleed duotone/archival plate + giant type), a

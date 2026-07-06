@@ -679,6 +679,119 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
 .mgc-donut-track { fill: none; stroke: color-mix(in srgb, var(--mg-ink) 9%, transparent); }
 .mgc-donut-fill { fill: none; stroke: var(--mg-accent); stroke-linecap: round; stroke-dasharray: 100; animation: mgcDonut 1.3s var(--mg-ease-out) both; animation-delay: var(--at, 0.3s); transform: rotate(-90deg); transform-origin: center; transform-box: fill-box; }
 
+/* ============================ DESIGN LIBRARY BASES (2026-07-05) ============================
+ * Parametric systems behind the intent-indexed design library (search_motion_design):
+ * ~1000 presets are (class + CSS-var + background-image) combinations over these bases.
+ * All seekable CSS animations; layers sit at z-index 0 under content, never over it. */
+
+/* -- animated background layer: pattern comes from the entry's background-image -- */
+.mg-bgx { position: absolute; inset: -12%; z-index: 0; pointer-events: none; opacity: var(--bgo, 0.09); background-repeat: repeat; }
+@keyframes mgbgPos { to { background-position: var(--bgdx, 12vh) var(--bgdy, 8vh); } }
+.mg-bgx.scroll { animation: mgbgPos var(--bgdur, 16s) linear infinite; }
+@keyframes mgbgRot { to { transform: rotate(360deg); } }
+.mg-bgx.spin { animation: mgbgRot var(--bgdur, 70s) linear infinite; }
+@keyframes mgbgBreathe { 0%, 100% { transform: scale(1); opacity: var(--bgo, 0.09); } 50% { transform: scale(1.05); opacity: calc(var(--bgo, 0.09) * 1.6); } }
+.mg-bgx.breathe { animation: mgbgBreathe var(--bgdur, 9s) ease-in-out infinite; }
+/* soft accent blob — morphing organic mass, heavily blurred */
+.mg-blob {
+  position: absolute; z-index: 0; pointer-events: none;
+  width: var(--sz, 46vh); height: var(--sz, 46vh); left: var(--x, 60%); top: var(--y, 20%);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--mg-accent) 55%, transparent), color-mix(in srgb, var(--mg-accent) 16%, transparent) 72%);
+  filter: blur(calc(var(--sz, 46vh) * 0.1)); opacity: var(--bgo, 0.3);
+  animation: mgBlob var(--bgdur, 13s) ease-in-out infinite alternate;
+}
+@keyframes mgBlob {
+  from { border-radius: 58% 42% 55% 45% / 48% 60% 40% 52%; transform: translate(0, 0) rotate(0); }
+  to { border-radius: 45% 55% 40% 60% / 60% 42% 58% 40%; transform: translate(2.6vw, -2vh) rotate(7deg); }
+}
+/* concentric orbit rings with a travelling dot each */
+.mg-orbits { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.mg-orbits .ring {
+  position: absolute; left: var(--cx, 50%); top: var(--cy, 50%); width: var(--d, 70vh); height: var(--d, 70vh);
+  margin: calc(var(--d, 70vh) / -2) 0 0 calc(var(--d, 70vh) / -2);
+  border: 1px solid color-mix(in srgb, var(--mg-ink) 12%, transparent); border-radius: 50%;
+  animation: mgbgRot var(--bgdur, 52s) linear infinite; animation-delay: var(--at, 0s);
+}
+.mg-orbits .ring::after { content: ''; position: absolute; top: -1vh; left: 50%; width: 2vh; height: 2vh; border-radius: 50%; background: var(--mg-accent); opacity: 0.65; }
+/* one soft gradient bar sweeping across (scan/sheen) */
+.mg-bgsweep { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.mg-bgsweep::after {
+  content: ''; position: absolute; top: -10%; bottom: -10%; width: 34%;
+  background: linear-gradient(var(--ang, 100deg), transparent, color-mix(in srgb, var(--mg-accent) calc(var(--bgo, 0.09) * 100%), transparent), transparent);
+  animation: mgSweepX var(--bgdur, 11s) ease-in-out infinite alternate;
+}
+@keyframes mgSweepX { from { left: -35%; } to { left: 100%; } }
+
+/* -- callout components (tones via .accent/.danger/.money/.ink on the same element) -- */
+.mg-pill {
+  display: inline-flex; align-items: center; gap: 1vh; padding: 1.1vh 2.4vh; border-radius: 99vh;
+  font-family: var(--mg-font-body); font-weight: 700; font-size: 2.6vh;
+  background: color-mix(in srgb, var(--mg-accent) 14%, var(--mg-bg)); color: var(--mg-accent);
+  border: 1px solid color-mix(in srgb, var(--mg-accent) 36%, transparent);
+  animation: mgFadeUp 0.5s var(--mg-ease-out) both; animation-delay: var(--at, 0s);
+}
+.mg-pill.solid { background: var(--mg-accent); color: var(--mg-bg); border: none; }
+.mg-bracketed { position: relative; display: inline-block; padding: 0.6vh 1.6vh; font-weight: 700; animation: mgFade 0.4s ease both; animation-delay: var(--at, 0s); }
+.mg-bracketed::before, .mg-bracketed::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 1.2vh;
+  border: 0.35vh solid var(--mg-accent); animation: mgWipe 0.4s var(--mg-ease-out) both; animation-delay: calc(var(--at, 0s) + 0.15s);
+}
+.mg-bracketed::before { left: 0; border-right: none; }
+.mg-bracketed::after { right: 0; border-left: none; }
+.mg-stamp2 {
+  display: inline-block; padding: 1vh 2vh; border: 0.45vh solid var(--mg-accent); color: var(--mg-accent);
+  font-family: var(--mg-font-data); font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; font-size: 2.4vh;
+  border-radius: 0.8vh; transform: rotate(var(--tilt, -3deg));
+  animation: mgStampIn 0.35s var(--mg-ease-back) both; animation-delay: var(--at, 0.4s);
+}
+@keyframes mgStampIn { from { opacity: 0; transform: rotate(var(--tilt, -3deg)) scale(1.6); } to { opacity: 1; transform: rotate(var(--tilt, -3deg)) scale(1); } }
+.mg-flagtag {
+  display: inline-block; padding: 1vh 3vh 1vh 1.8vh; background: var(--mg-accent); color: var(--mg-bg);
+  font-weight: 800; font-size: 2.5vh; clip-path: polygon(0 0, 100% 0, calc(100% - 1.8vh) 50%, 100% 100%, 0 100%);
+  animation: mgSlideL 0.5s var(--mg-ease-out) both; animation-delay: var(--at, 0s);
+}
+.mg-ribbon {
+  display: inline-block; padding: 1.2vh 2.6vh; background: var(--mg-accent); color: var(--mg-bg);
+  font-weight: 800; font-size: 2.6vh; letter-spacing: 0.04em;
+  clip-path: polygon(1.6vh 0, calc(100% - 1.6vh) 0, 100% 50%, calc(100% - 1.6vh) 100%, 1.6vh 100%, 0 50%);
+  animation: mgPop 0.5s var(--mg-ease-back) both; animation-delay: var(--at, 0s);
+}
+.mg-underlabel { display: inline-block; font-weight: 700; background-image: linear-gradient(var(--mg-accent), var(--mg-accent)); background-repeat: no-repeat; background-position: 0 100%; background-size: 0% 0.45vh; animation: mgUnderCrawl 0.6s var(--mg-ease-out) both; animation-delay: var(--at, 0.3s); padding-bottom: 0.5vh; }
+@keyframes mgUnderCrawl { to { background-size: 100% 0.45vh; } }
+.mg-keycap {
+  display: inline-block; padding: 0.8vh 1.8vh; border-radius: 1vh; font-family: var(--mg-font-data); font-weight: 600; font-size: 2.4vh;
+  background: color-mix(in srgb, var(--mg-ink) 5%, var(--mg-bg)); border: 1px solid color-mix(in srgb, var(--mg-ink) 22%, transparent);
+  box-shadow: 0 0.45vh 0 color-mix(in srgb, var(--mg-ink) 22%, transparent); animation: mgDropIn 0.4s var(--mg-ease-back) both; animation-delay: var(--at, 0s);
+}
+.mg-cornerbadge { position: absolute; top: 0; right: 0; padding: 1vh 2.2vh 1.2vh 3vh; background: var(--mg-accent); color: var(--mg-bg); font-weight: 800; font-size: 2.2vh; clip-path: polygon(2vh 0, 100% 0, 100% 100%, 0 100%); animation: mgSlideR 0.5s var(--mg-ease-out) both; animation-delay: var(--at, 0s); }
+/* tone modifiers shared by the callout components */
+.mg-pill.danger, .mg-stamp2.danger, .mg-flagtag.danger, .mg-ribbon.danger { --mg-accent: #e33d3d; }
+.mg-pill.money, .mg-stamp2.money, .mg-flagtag.money, .mg-ribbon.money { --mg-accent: #1f9d55; }
+.mg-pill.ink, .mg-stamp2.ink { --mg-accent: var(--mg-ink); }
+.mg-cornerbadge.danger { --mg-accent: #e33d3d; }
+.mg-cornerbadge.money { --mg-accent: #1f9d55; }
+
+/* -- micro-animation vocabulary (entrances/settles beyond the core set) -- */
+@keyframes mgBlurIn { from { opacity: 0; filter: blur(12px); } to { opacity: 1; filter: blur(0); } }
+.mg-blur-in { animation: mgBlurIn 0.6s var(--mg-ease-out) both; animation-delay: var(--at, 0s); }
+@keyframes mgFlipIn { from { opacity: 0; transform: perspective(70vh) rotateX(62deg); } to { opacity: 1; transform: perspective(70vh) rotateX(0); } }
+.mg-flip-in { animation: mgFlipIn 0.55s var(--mg-ease-out) both; animation-delay: var(--at, 0s); transform-origin: center 80%; }
+@keyframes mgDropIn { 0% { opacity: 0; transform: translateY(-7vh); } 62% { opacity: 1; transform: translateY(0.7vh); } 82% { transform: translateY(-0.25vh); } 100% { transform: none; } }
+.mg-drop-in { animation: mgDropIn 0.5s var(--mg-ease-out) both; animation-delay: var(--at, 0s); }
+@keyframes mgSwingIn { 0% { opacity: 0; transform: rotate(-7deg) translateY(-2vh); } 70% { opacity: 1; transform: rotate(2deg); } 100% { transform: none; } }
+.mg-swing-in { animation: mgSwingIn 0.6s var(--mg-ease-out) both; animation-delay: var(--at, 0s); transform-origin: top center; }
+@keyframes mgClipDiag { from { clip-path: polygon(0 0, 0 0, 0 100%, 0 100%); } to { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); } }
+.mg-clip-diag { animation: mgClipDiag 0.7s var(--mg-ease-out) both; animation-delay: var(--at, 0s); }
+@keyframes mgZoomSettle { 0% { opacity: 0; transform: scale(1.35); } 100% { opacity: 1; transform: scale(1); } }
+.mg-zoom-settle { animation: mgZoomSettle 0.55s var(--mg-ease-out) both; animation-delay: var(--at, 0s); }
+@keyframes mgWiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-2.4deg); } 55% { transform: rotate(1.6deg); } 80% { transform: rotate(-0.7deg); } }
+.mg-wiggle-once { animation: mgWiggle 0.55s ease-in-out both; animation-delay: var(--at, 1s); }
+.mg-pulse-ring { position: relative; }
+.mg-pulse-ring::after { content: ''; position: absolute; inset: -0.5vh; border: 0.35vh solid var(--mg-accent); border-radius: inherit; opacity: 0; animation: mgPulseRing 0.9s var(--mg-ease-out) both; animation-delay: var(--at, 1s); }
+@keyframes mgPulseRing { 0% { opacity: 0.7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.35); } }
+@keyframes mgSkewSettle { 0% { opacity: 0; transform: skewX(-9deg) translateX(-3vw); } 100% { opacity: 1; transform: none; } }
+.mg-skew-in { animation: mgSkewSettle 0.5s var(--mg-ease-out) both; animation-delay: var(--at, 0s); }
+
 /* ---------- SQUARE (1:1 / 4:5) — row layouts survive, everything tightens ---------- */
 .mg-fmt-sq .mg-safe { padding: 6vh 6vw; }
 .mg-fmt-sq .mg-title { font-size: min(7vh, 8vw); }
