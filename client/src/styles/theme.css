@@ -2261,6 +2261,16 @@ button { font-family: inherit; cursor: pointer; }
 .rb-role-icon { color: var(--accent); }
 .rb-role-name { font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--text); }
 .rb-role-blurb { font-size: 12.5px; color: var(--text-muted); line-height: 1.45; }
+/* Use-case catalog (hire step 0): grouped jobs with capability chips. */
+.rb-hire-wide { max-width: 860px; }
+.rb-uc-group { margin-bottom: 22px; }
+.rb-uc-group-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.rb-uc-group-label { font-family: var(--label); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); }
+.rb-uc-group-sub { font-size: 12.5px; color: var(--text-muted); }
+.rb-uc-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; padding-top: 10px; }
+.rb-uc-chip { font-family: var(--label); font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--text-muted); background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 2.5px 8px; white-space: nowrap; }
+.rb-role.picked .rb-uc-chip { border-color: color-mix(in srgb, var(--accent, #3a6ea5) 45%, var(--border)); color: var(--text); }
+.rb-uc-posthire { margin-top: 10px !important; padding: 9px 12px; border-left: 3px solid var(--accent, #3a6ea5); background: var(--bg-elev); border-radius: 0 8px 8px 0; font-size: 13px !important; }
 .rb-link { font-family: var(--label); font-size: 13px; color: var(--text-muted); background: none; border: none; padding: 0 0 10px; }
 .rb-link:hover { color: var(--text); }
 .rb-field { display: block; margin-bottom: 18px; }

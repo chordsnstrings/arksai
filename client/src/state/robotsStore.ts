@@ -57,6 +57,8 @@ export interface HireInput {
   signature?: string;
   autonomy: AutonomyLevel;
   triggers: TriggerKind[];
+  /** Studio-tools policy preset from the use-case card (commanders/everyone/off). */
+  replyTools?: 'commanders' | 'everyone' | 'off';
 }
 
 interface RobotsState {
@@ -115,6 +117,7 @@ export const useRobots = create<RobotsState>((set, get) => ({
       escalateOn: input.escalateOn?.trim() || undefined,
       signature: input.signature?.trim() || undefined,
       triggers: input.triggers.length ? input.triggers : ['event'],
+      replyTools: input.replyTools,
     };
     const displayName = input.name || spec?.name || 'Agent';
     if (orgId) {

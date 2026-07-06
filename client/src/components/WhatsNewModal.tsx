@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.49';
+export const WHATS_NEW_VERSION = '2026-07-06.50';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -27,8 +27,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'A one-off Word document, Excel workbook, slide deck or designed chart no longer needs a mode switch — just ask in plain chat and the file is produced directly.',
   },
   {
-    title: 'Hiring a robot now connects every channel',
-    body: 'The hire flow connects a mailbox AND Telegram, WhatsApp or SMS in one step, and a robot with any connected channel counts as ready — not just email.',
+    title: 'Seven robot jobs to hire for',
+    body: 'The hire screen is now a catalog of everything a robot can be: Customer support desk, Sales assistant (makes & sends brochures), Order & booking desk (live lookups), Executive assistant, Department specialist, Studio & builder (your production line in a chat), and a Reporting robot on a schedule — each pre-configured with the right mandate, escalation rules and tool permissions.',
   },
 ];
 

@@ -19,6 +19,7 @@ import { ActionsPanel, PerformancePanel, RoutinesPanel } from './RobotOps';
 import { api } from '../api/client';
 import { useEscClose } from '../hooks/useEscClose';
 import { ROBOT_TYPES, robotType } from '../lib/robotTypes';
+import { ROBOT_USE_CASES, USE_CASE_GROUPS, useCaseSpec, type RobotUseCase } from '../lib/robotUseCases';
 import type { RobotDraft, RobotRule } from '@shared/types';
 
 /** True if an epoch-ms timestamp falls on the local calendar today. */
@@ -256,18 +257,6 @@ function Inbox({ onHome }: { onHome: () => void }) {
 
 /* ---------------- Hire flow ---------------- */
 type Kind = 'customer_service' | 'personal_assistant' | 'custom';
-const KINDS: { id: Kind; emoji: string; title: string; blurb: string }[] = [
-  { id: 'customer_service', emoji: '🎧', title: 'Customer assistant', blurb: 'Handles incoming customer messages on email, WhatsApp, Telegram or SMS — drafts on-brand replies from your knowledge, escalates the sensitive stuff.' },
-  { id: 'personal_assistant', emoji: '📇', title: 'Personal assistant', blurb: 'Manages your inbox and chats on your behalf — triages, acknowledges, accepts or declines invites, proposes times.' },
-  { id: 'custom', emoji: '✦', title: 'Department specialist', blurb: 'An expert for one function (Finance, Marketing, Legal…) that answers messages in that domain.' },
-];
-const DEFAULT_MANDATE: Record<Kind, string> = {
-  customer_service:
-    'Reply to incoming customer messages (email, WhatsApp, Telegram, SMS): answer from our knowledge, keep it warm and on-brand, and escalate refunds, billing, or anything sensitive to a human.',
-  personal_assistant:
-    'Manage my inbox: triage what arrives, acknowledge messages, accept or decline meeting invitations, and propose times — checking with me before anything consequential.',
-  custom: '',
-};
 
 function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: () => void }) {
   const hire = useRobots((s) => s.hire);
@@ -275,6 +264,7 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
   const orgId = useRobots((s) => s.orgId) ?? '';
 
   const [step, setStep] = useState(0);
+  const [ucId, setUcId] = useState<string | null>(null); // the picked use case
   const [kind, setKind] = useState<Kind | null>(null);
   const [dept, setDept] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -287,17 +277,25 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const uc = ucId ? useCaseSpec(ucId) : undefined;
   const spec = dept ? roleSpec(dept) : null;
   const accent = spec?.accent ?? '#3a6ea5';
   const toggleTrigger = (t: TriggerKind) =>
     setTriggers((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
 
-  const pickKind = (k: Kind) => {
-    setKind(k);
-    if (k !== 'custom') {
+  const pickUseCase = (u: RobotUseCase) => {
+    setUcId(u.id);
+    setKind(u.kind);
+    setAutonomy(u.autonomy);
+    if (u.wantsDept) {
       setDept(null);
-      setName(KINDS.find((x) => x.id === k)!.title);
-      setMandate(DEFAULT_MANDATE[k]);
+      setName('');
+      setMandate('');
+    } else {
+      setDept(null);
+      setName(u.name);
+      setMandate(u.mandate);
+      setEscalateOn(u.escalateOn ?? '');
     }
   };
   const pickDept = (id: string) => {
@@ -310,7 +308,18 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
   const create = async () => {
     setBusy(true);
     try {
-      const r = await hire({ kind: kind!, dept: dept ?? undefined, name, mandate, knowledge, escalateOn, signature, autonomy, triggers });
+      const r = await hire({
+        kind: kind!,
+        dept: dept ?? undefined,
+        name,
+        mandate,
+        knowledge,
+        escalateOn,
+        signature,
+        autonomy,
+        triggers,
+        replyTools: uc?.replyTools,
+      });
       setCreatedId(r.id);
       setStep(2);
     } finally {
@@ -318,25 +327,38 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
     }
   };
 
-  // Step 0 — what kind of assistant?
+  // Step 0 — pick the JOB (the use-case catalog: everything a robot can be today).
   if (step === 0) {
-    const ready = kind && (kind !== 'custom' || dept);
+    const ready = ucId && (!uc?.wantsDept || dept);
     return (
-      <div className="rb-hire-flow">
+      <div className="rb-hire-flow rb-hire-wide">
         <div className="rb-hire-head">
           <h2>Hire a robot</h2>
-          <p>What should it do? This sets how it reads and answers messages on its channels — email, WhatsApp, Telegram or SMS.</p>
+          <p>Pick its job. Every robot works its channels — email, WhatsApp, Telegram or SMS — understands voice notes and attachments, and remembers each person's thread.</p>
         </div>
-        <div className="rb-role-grid">
-          {KINDS.map((k) => (
-            <button key={k.id} className={`rb-role ${kind === k.id ? 'picked' : ''}`} onClick={() => pickKind(k.id)}>
-              <span className="rb-role-icon" style={{ fontSize: 22 }}>{k.emoji}</span>
-              <div className="rb-role-name">{k.title}</div>
-              <div className="rb-role-blurb">{k.blurb}</div>
-            </button>
-          ))}
-        </div>
-        {kind === 'custom' && (
+        {USE_CASE_GROUPS.map((g) => (
+          <div key={g.id} className="rb-uc-group">
+            <div className="rb-uc-group-head">
+              <span className="rb-uc-group-label">{g.label}</span>
+              <span className="rb-uc-group-sub">{g.sub}</span>
+            </div>
+            <div className="rb-role-grid">
+              {ROBOT_USE_CASES.filter((u) => u.group === g.id).map((u) => (
+                <button key={u.id} className={`rb-role ${ucId === u.id ? 'picked' : ''}`} onClick={() => pickUseCase(u)}>
+                  <span className="rb-role-icon" style={{ fontSize: 22 }}>{u.emoji}</span>
+                  <div className="rb-role-name">{u.title}</div>
+                  <div className="rb-role-blurb">{u.blurb}</div>
+                  <div className="rb-uc-chips">
+                    {u.chips.map((c) => (
+                      <span key={c} className="rb-uc-chip">{c}</span>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+        {uc?.wantsDept && (
           <>
             <p className="rb-sub" style={{ margin: '14px 0 8px' }}>Which function is it an expert in?</p>
             <div className="rb-role-grid">
@@ -372,7 +394,7 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
           <textarea rows={3} value={mandate} onChange={(e) => setMandate(e.target.value)} placeholder="In plain language, what should it keep doing?" />
         </label>
         <label className="rb-field"><span>Knowledge it can answer from</span>
-          <textarea rows={4} value={knowledge} onChange={(e) => setKnowledge(e.target.value)} placeholder="Paste product info, policies, FAQ, hours, your preferences — whatever it should ground replies in." />
+          <textarea rows={4} value={knowledge} onChange={(e) => setKnowledge(e.target.value)} placeholder={uc?.knowledgeHint ?? 'Paste product info, policies, FAQ, hours, your preferences — whatever it should ground replies in.'} />
         </label>
         <label className="rb-field"><span>Always escalate when…</span>
           <textarea rows={2} value={escalateOn} onChange={(e) => setEscalateOn(e.target.value)} placeholder="e.g. refunds, cancellations, anything about money, legal threats, an upset customer." />
@@ -405,14 +427,18 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
 
   // Step 2 — connect the robot's channels (connect-first, but skippable). A robot works
   // on whatever you connect here: its own mailbox, and/or Telegram, WhatsApp, SMS.
+  // Commander-centric jobs (studio/reporter) also add YOUR addresses right here — only
+  // commanders can order builds and studio work.
   return (
     <div className="rb-hire-flow">
       <div className="rb-hire-head" style={{ ['--accent' as any]: accent }}>
         <h2>Connect {name || 'your robot'}’s channels</h2>
         <p>Each robot has its own identity on every channel. Connect a mailbox — and/or Telegram, WhatsApp or SMS below — so it can read and reply on its own. It won’t start working until at least one is connected.</p>
+        {uc?.postHire && <p className="rb-uc-posthire">{uc.postHire}</p>}
       </div>
       {createdId && orgId && <EmailSettings orgId={orgId} robotId={createdId} />}
       {createdId && orgId && <ChannelsPanel orgId={orgId} robotId={createdId} />}
+      {uc?.commanderCentric && createdId && orgId && <CommandersPanel orgId={orgId} robotId={createdId} />}
       <div className="rb-hire-actions" style={{ marginTop: 16 }}>
         <button className="rb-cta" style={{ ['--accent' as any]: accent }} onClick={() => { if (createdId) setStatus(createdId, 'idle'); onDone(createdId!); }}>
           Activate robot
