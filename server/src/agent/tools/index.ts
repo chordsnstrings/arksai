@@ -58,6 +58,7 @@ import { readSpreadsheetTool } from './spreadsheet';
 import { recalcSpreadsheetTool } from './recalcSheet';
 import { querySpreadsheetTool } from './query';
 import { readPresentationTool } from './presentation';
+import { GOOGLE_WORKSPACE_TOOLS } from './googleWorkspace';
 
 export const ALL_TOOLS: ToolDef[] = [
   checkpointTool,
@@ -134,6 +135,7 @@ export const ALL_TOOLS: ToolDef[] = [
   recalcSpreadsheetTool,
   querySpreadsheetTool,
   readPresentationTool,
+  ...GOOGLE_WORKSPACE_TOOLS,
 ];
 
 // Report mode gets a curated toolset: read/synthesize data, research, render,
@@ -172,6 +174,12 @@ const REPORT_TOOLS = new Set([
   'send_webhook',
   'send_email',
   'read_inbox',
+  // Google Workspace READ tools — reports built from the user's private data.
+  'read_gmail',
+  'read_calendar',
+  'search_drive',
+  'read_drive_file',
+  'read_gsheet',
 ]);
 
 export interface ToolSet {

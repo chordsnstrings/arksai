@@ -55,8 +55,8 @@ export const fetchDataTool: ToolDef = {
   description:
     'Fetch live data from a PUBLIC url (a Google-Sheets "publish to web" CSV link, a CSV/TSV/JSON ' +
     'file, or a public API) and read it as a table/text — so you can build a dashboard, report, or ' +
-    'analysis off real numbers instead of pasted data. Private sources (a logged-in Google Sheet, a ' +
-    'CRM) need a configured connector and are not supported here.',
+    'analysis off real numbers instead of pasted data. For a PRIVATE (not published) Google Sheet on ' +
+    "the user's connected Google account, use read_gsheet instead.",
   parameters: {
     type: 'object',
     properties: {
