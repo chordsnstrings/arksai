@@ -390,6 +390,17 @@ async function assemble(m: MotionManifest, repoDir: string, signal: AbortSignal,
   const okScenes = m.scenes.filter((s) => s.status === 'ok' && s.clip);
   const clips = okScenes.map((s) => path.join(repoDir, s.clip!));
   if (!clips.length) throw new Error('no scene rendered successfully — nothing to assemble');
+  // THE ENDING IS LOAD-BEARING: a cut whose CLOSING scene failed has no landing — never
+  // dress it as "-final" (a live run shipped a final.mp4 silently missing its punch-out).
+  // Assemble a draft preview instead; the retake path produces the real final.
+  const lastScene = m.scenes[m.scenes.length - 1];
+  if (lastScene && (lastScene.status !== 'ok' || !lastScene.clip)) {
+    const draftRel = `${dirName(m.id)}/${m.slug}-draft.mp4`;
+    await stitchClips(clips, path.join(repoDir, draftRel), { transition: 'cut', signal });
+    m.totalMs = okScenes.reduce((a, s) => a + (s.durationMs ?? 0), 0);
+    m.stitched = draftRel;
+    return;
+  }
   const outRel = `${dirName(m.id)}/${m.slug}.mp4`;
   const outAbs = path.join(repoDir, outRel);
   // Designed transitions at marked seams (scene.transition = INTO the next scene);
@@ -441,8 +452,15 @@ function describe(m: MotionManifest): string {
     .join('\n');
   const total = m.totalMs ? `${(m.totalMs / 1000).toFixed(1)}s` : '?';
   const issues = m.scenes.filter((s) => s.status !== 'ok' || s.qcDefects?.length);
+  const last = m.scenes[m.scenes.length - 1];
   let next = '';
-  if (issues.length) {
+  if (last && last.status !== 'ok') {
+    next =
+      `\n⚠ INCOMPLETE — the CLOSING scene (${last.id}) FAILED, so this cut has NO ENDING and was assembled ` +
+      `as a -draft, not a -final. The video must NOT be delivered like this: fix scene ${last.id} FIRST ` +
+      `(${last.error ?? 'see the defect above'}), then call render_motion_video with ` +
+      `{"motion_id":"${m.id}","retake_scene":${last.id}} to land the ending and produce the real final cut.`;
+  } else if (issues.length) {
     next =
       `\nFIX THEN RETAKE: edit the listed scene HTML file(s) to fix the named defect, then call ` +
       `render_motion_video again with {"motion_id":"${m.id}","retake_scene":<n>} — only that scene re-renders (cached narration is reused).`;

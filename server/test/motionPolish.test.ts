@@ -196,6 +196,14 @@ test('qc: THE ENDING gate — the script must land, not stop (operator 2026-07-0
   // Two-beat scripts get the landing checks but never the callback test.
   const twoBeat = scriptProblems(['Why does your coffee wake you?', 'But it only hides your tiredness.']);
   assert.ok(!twoBeat.hard.some((p) => p.includes('returns to the hook')), 'callback needs ≥3 beats');
+
+  // THE ENDING IS LOAD-BEARING at assembly too (live: a -final.mp4 shipped silently missing
+  // its failed closing scene): a failed LAST scene assembles as -draft with a loud
+  // no-ending instruction, never as -final. Source-locked.
+  const src = fs.readFileSync(path.join(__dirname, '../src/agent/tools/motionVideo.ts'), 'utf8');
+  assert.ok(src.includes('-draft.mp4'), 'failed-ending assembly goes to -draft');
+  assert.ok(src.includes('has NO ENDING'), 'describe() screams when the closing scene failed');
+  assert.match(src, /lastScene && \(lastScene\.status !== 'ok'/, 'the draft branch keys on the LAST scene');
 });
 
 // ---------------- transitions ----------------
