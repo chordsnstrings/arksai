@@ -28,9 +28,12 @@ const EASY =
  */
 export function isSpreadsheetBrief(task: string): boolean {
   const t = task.toLowerCase();
-  if (!/\b(spreadsheet|workbook|xlsx|excel|financial model|cash[- ]?flow (model|projection|forecast)|budget (model|sheet)|3[- ]statement)\b/.test(t)) return false;
+  if (!/\b(spreadsheet|workbook|xlsx|excel|financial model|cash[- ]?flow (model|projection|forecast)|budget (model|sheet)|amorti[sz]ation|3[- ]statement)\b/.test(t)) return false;
   if (/\b(app|website|web ?site|landing page|dashboard|api|backend|frontend|deck|pdf|report|video)\b/.test(t)) return false;
-  return !new RegExp(SUBSYSTEM.source, 'i').test(task);
+  // "36 monthly payments" / "billing schedule" are MODEL VOCABULARY in a spreadsheet brief,
+  // not the payments/billing SUBSYSTEM (live: a loan brief routed Heavy on "payments").
+  const scrubbed = task.replace(/\b(payments?|billing)\b/gi, '');
+  return !new RegExp(SUBSYSTEM.source, 'i').test(scrubbed);
 }
 
 /** Cheap, free complexity estimate from the task text and mode. */

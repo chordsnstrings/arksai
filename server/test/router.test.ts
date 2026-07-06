@@ -133,6 +133,8 @@ test('spreadsheet-deliverable briefs route to Swift (bake-off round 2); app brie
   // Deliverable guards: an app that mentions excel, or subsystem-scale briefs, stay on normal routing.
   assert.ok(!isSpreadsheetBrief('build a SaaS dashboard app with excel export and JWT auth'));
   assert.ok(!isSpreadsheetBrief('a landing page for my excel consultancy'));
-  assert.ok(!isSpreadsheetBrief('multi-tenant billing workbook system with oauth'));
+  assert.ok(!isSpreadsheetBrief('multi-tenant billing workbook system with oauth'), 'oauth still blocks');
+  // Live bug: "36 monthly payments" tripped the payments SUBSYSTEM guard → Heavy lane.
+  assert.ok(isSpreadsheetBrief('Build a loan amortization spreadsheet: AED 500,000 loan, 8% annual interest, 36 monthly payments. Fully formula-driven workbook with a payment schedule and totals.'));
   assert.ok(!isSpreadsheetBrief('write me a poem'));
 });
