@@ -104,6 +104,18 @@ test('all 7 workspace tools registered chat+code; read tools are report-eligible
   assert.ok(!report.includes("'create_calendar_event'"), 'create_calendar_event NOT in report mode');
 });
 
+// ---------------- session.createdBy round-trip (the wiring the tools depend on) ----------------
+
+test('sessions surface createdBy on read — per-user connections resolve', async () => {
+  // created_by was WRITTEN on insert but never read back (META_COLS omitted it), so every
+  // loaded session had createdBy === undefined and per-user tools could not resolve.
+  const store = await import('../src/sessions/store');
+  const s = await store.createSession({ mode: 'chat', model: 'arksai-auto', repoUrl: null, repoName: null, branch: null, createdBy: 'user-42' } as any);
+  assert.equal((s as any).createdBy, 'user-42', 'createSession returns createdBy');
+  const loaded = await store.getSession(s.id);
+  assert.equal((loaded as any)?.createdBy, 'user-42', 'getSession round-trips createdBy');
+});
+
 // ---------------- mocked round-trip through the real token store ----------------
 
 test('read_gmail: honest error unconnected, then lists via the stored token', async () => {

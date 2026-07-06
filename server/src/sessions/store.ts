@@ -28,7 +28,7 @@ export async function initStore() {
 // org on each app open / sidebar refresh; SELECT * pulled + parsed + discarded that
 // blob N times. Projecting the metadata columns keeps the hot path lean.
 const META_COLS =
-  'id, title, org_id, project_id, repo_url, repo_name, branch, github_connection_id, mode, model, status, task, ' +
+  'id, title, org_id, project_id, created_by, repo_url, repo_name, branch, github_connection_id, mode, model, status, task, ' +
   'awaiting_plan, diff_stat, total_tokens, prompt_tokens, completion_tokens, cost_usd, created_at, updated_at';
 
 function rowToMeta(row: any): SessionMeta {
@@ -37,6 +37,7 @@ function rowToMeta(row: any): SessionMeta {
     title: row.title,
     orgId: row.org_id ?? null,
     projectId: row.project_id ?? null,
+    createdBy: row.created_by ?? null,
     repoUrl: row.repo_url,
     repoName: row.repo_name,
     branch: row.branch,

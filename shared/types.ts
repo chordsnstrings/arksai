@@ -197,6 +197,8 @@ export interface SessionMeta {
   /** Owning organization (tenant). Drives org-scoped shared memory + branding. */
   orgId: string | null;
   projectId: string | null;
+  /** The user who created the session — resolves per-user connections (GitHub, Google). */
+  createdBy?: string | null;
   repoUrl: string | null;
   repoName: string | null;
   branch: string | null;
