@@ -485,6 +485,15 @@ export const generateSpreadsheetTool: ToolDef = {
     },
   },
   modes: ['chat', 'code', 'report'],
+  // Live failure mode (2026-07-06): a model dictated one giant verbose `sheets` payload,
+  // mangled the JSON three times, then abandoned the tool for openpyxl — losing the theme
+  // and the audits. The recovery is ALWAYS a smaller call, never a retry of the same blob.
+  badJsonHint:
+    'your payload was probably too large to serialize. Do NOT retry the same giant sheets array. ' +
+    'Call again with template:"<id>" — a matching ready model (e.g. kpi-dashboard, budget-vs-actual, cash-runway, ' +
+    'loan-amortization, cohort-retention, ab-test, revenue-forecast…) is the WHOLE build in one small call — ' +
+    'or write COMPACT pattern sheets ({label, first/then/each} rows referenced BY LABEL), never verbose cell arrays. ' +
+    'Do not fall back to a hand-written script: the tool applies the premium styling and the accuracy audits.',
   summarize: (a) => `spreadsheet ${String(a.output ?? 'data.xlsx')}`,
   async run(args, ctx) {
     const outName = String(args.output || 'data.xlsx').replace(/[^a-zA-Z0-9._-]/g, '-');
@@ -501,7 +510,12 @@ export const generateSpreadsheetTool: ToolDef = {
         return `Error: unknown template "${args.template}". Available: financial-model, ${EXCEL_SCAFFOLDS.map((s) => s.id).join(', ')}.`;
       sheets = merged;
     }
-    if (!sheets.length) return 'Error: provide at least one sheet (name, columns, rows), or set a template.';
+    if (!sheets.length)
+      return (
+        'Error: provide at least one sheet, or set a template — for any standard model, template:"<id>" (+ months/currency/accent) ' +
+        `is the WHOLE call. Ready self-checking models: financial-model, ${EXCEL_SCAFFOLDS.map((s) => s.id).join(', ')}. ` +
+        'For a custom model use compact pattern sheets ({label, first/then/each} rows referenced BY LABEL) — never a giant verbose cells array.'
+      );
     // PATTERN sheets (the fast, structurally-safe dialect for time-series models) expand
     // HERE, so every audit below — refs, cached-vs-computed, plausibility — runs on the
     // exact cells that reach the workbook. Bad label refs fail with the available labels.

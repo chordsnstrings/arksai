@@ -27,6 +27,11 @@ export interface ToolDef {
   modes: SessionMode[];
   /** Optional gate — e.g. an engine tool only available when its key is set. */
   available?: () => boolean;
+  /** Appended to the "tool arguments were not valid JSON" error — the recovery move for
+   *  THIS tool. Models mangle JSON exactly when a payload is too big; tell them the small
+   *  alternative instead of letting them retry the same giant payload or abandon the tool
+   *  (live: 3× bad-JSON generate_spreadsheet calls → the agent fell back to openpyxl). */
+  badJsonHint?: string;
   summarize(args: any): string;
   run(args: any, ctx: ToolCtx): Promise<string>;
 }

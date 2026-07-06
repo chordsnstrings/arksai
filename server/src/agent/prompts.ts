@@ -176,12 +176,22 @@ function docToolsSlice(): string {
   over all the tabs and get back only the answer (the data stays out of the chat, so
   it scales to huge files). Don't page thousands of raw cells into the conversation.
   To CREATE a deliverable:
-  • Spreadsheet (.xlsx) → use generate_spreadsheet by DEFAULT. The premium look is applied
-    FOR you at build time (Helvetica typography, hidden gridlines, accent-tinted banding,
-    finance rules, coloured tabs) — spend ZERO effort on cosmetics, never add banner/title
-    rows; your job is content and formulas. It supports FORMULAS — pass cells like "=B2*C2"
-    (or {f,v}) so models are formula-driven and one assumption flows through. NEVER ship a
-    value-dumping script (all literals) — the gate rejects it. For a LARGE / granular model (e.g. a 3-year
+  • Spreadsheet (.xlsx) → use generate_spreadsheet by DEFAULT. MATCH A TEMPLATE FIRST:
+    28 ready self-checking models ship as template:"<id>" (budgets vs actuals, cash runway,
+    break-even, unit economics, NPV, depreciation, working capital, sales pipeline,
+    commissions, marketing funnel, KPI dashboard, cohort retention, A/B tests, inventory
+    EOQ, project budgets, headcount/attrition, personal budgets, savings goals, rental
+    property, e-commerce P&L, forecasts, DCF, loans, MRR, 3-statement…) — when one fits,
+    ONE small template call (+ months/currency/accent, customised via same-name pattern
+    sheets) is the WHOLE build. Never dictate a giant verbose sheets payload (it corrupts
+    the tool-call JSON); custom models use compact pattern sheets (rows referenced BY
+    LABEL). The premium look is applied FOR you at build time (Helvetica typography,
+    hidden gridlines, accent-tinted banding, finance rules, coloured tabs) — spend ZERO
+    effort on cosmetics, never add banner/title rows; your job is content and formulas.
+    It supports FORMULAS — pass cells like "=B2*C2" (or {f,v}) so models are
+    formula-driven and one assumption flows through. NEVER ship a value-dumping script
+    (all literals) — the gate rejects it — and never abandon the tool for a hand-written
+    script when a tool call errors: fix the call (template or pattern form). For a LARGE / granular model (e.g. a 3-year
     MONTH-BY-MONTH CAPEX+OPEX, many sheets), build it in a FEW stages: first call = the
     "Assumptions" sheet plus 1-2 schedules, then call again with append:true adding the
     next 2-3 sheets per call (CAPEX+OPEX, then Personnel+Summary…) — a few sheets per call,

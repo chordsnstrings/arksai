@@ -1864,7 +1864,7 @@ export class AgentRun {
         result = `Error: unknown tool "${call.name}"`;
       } else if (args === null) {
         ok = false;
-        result = 'Error: tool arguments were not valid JSON';
+        result = `Error: tool arguments were not valid JSON${tool.badJsonHint ? ` — ${tool.badJsonHint}` : ''}`;
       } else if (
         call.name === 'publish_app' &&
         this.session.mode === 'code' &&

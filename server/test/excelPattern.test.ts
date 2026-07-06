@@ -188,6 +188,21 @@ test('every scaffold builds through the REAL tool: audit-clean, check rows tie',
   assert.equal(applyScaffold('nope', 12, []), null);
 });
 
+test('failed-call recovery steers to templates, never to a hand-written script', async () => {
+  // Live 2026-07-06: 3× bad-JSON verbose payloads + 3× empty calls → the agent abandoned
+  // the tool for openpyxl (no theme, no audits). Both error paths must name the way back.
+  assert.match(String((generateSpreadsheetTool as any).badJsonHint), /template:"<id>"/);
+  assert.match(String((generateSpreadsheetTool as any).badJsonHint), /kpi-dashboard/);
+  assert.match(String((generateSpreadsheetTool as any).badJsonHint), /Do not fall back to a hand-written script/i);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-empty-'));
+  const ctx: any = { session: { id: 't', orgId: null }, repoDir: dir, mode: 'code', signal: new AbortController().signal, addCost: () => {} };
+  const out = await generateSpreadsheetTool.run({ output: 'x.xlsx' }, ctx);
+  assert.match(out, /template:"<id>"/, 'empty-args error teaches the template call');
+  assert.match(out, /kpi-dashboard/, 'empty-args error lists the catalog');
+  assert.match(out, /pattern sheets/, 'empty-args error names the compact dialect');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('scaffold ground truths: amortization zeros out, DCF discounts exactly, trend recovers the slope', async () => {
   const read = async (dir: string) => {
     const ExcelJS = (await import('exceljs')).default ?? (await import('exceljs'));
