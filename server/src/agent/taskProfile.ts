@@ -16,6 +16,8 @@ export type TaskType =
   | 'data-viz'
   | 'mobile'
   | 'report'
+  | 'wireframe'
+  | 'prototype'
   | 'api'
   | 'cli'
   | 'library'
@@ -42,10 +44,16 @@ const VISUAL_TYPES = new Set<TaskType>([
   'data-viz',
   'mobile',
   'report',
+  'wireframe',
+  'prototype',
 ]);
 
 // Ordered most-specific-first. First match wins.
 const TYPE_RULES: { type: TaskType; re: RegExp }[] = [
+  // Design-thinking artifacts come FIRST: "wireframe the landing page" is a wireframe,
+  // not a landing page, and "prototype of the dashboard" is a prototype.
+  { type: 'wireframe', re: /\b(wire[\s-]?frames?|lo[\s-]?fi\s?(mock|screens?|design)|low[\s-]?fidelity|screen\s?flow\s?sketch|ux\s?sketch|paper\s?prototype)\b/ },
+  { type: 'prototype', re: /\b(prototypes?|clickable\s?(mock(up)?s?|demo)|click[\s-]?through|hi[\s-]?fi\s?mock(up)?s?|interactive\s?mock(up)?s?)\b/ },
   { type: 'landing', re: /\b(landing\s?page|marketing\s?(site|page)|home\s?page|hero\s?section|waitlist|product\s?page|sales\s?page)\b/ },
   { type: 'data-viz', re: /\b(chart|graph|plot|data\s?viz|visuali[sz]ation|histogram|scatter|heatmap)\b/ },
   { type: 'dashboard', re: /\b(dashboard|admin\s?(panel|console)|analytics|metrics|kpi|reporting\s?ui)\b/ },
@@ -83,7 +91,7 @@ export function classifyTask(task: string, mode: SessionMode): TaskProfile {
   let audience: Audience | undefined;
   if (type === 'landing' || type === 'portfolio' || type === 'content') audience = 'marketing';
   else if (type === 'api' || type === 'cli' || type === 'library') audience = 'developer';
-  else if (type === 'dashboard' || type === 'internal-tool') audience = 'internal';
+  else if (type === 'dashboard' || type === 'internal-tool' || type === 'wireframe') audience = 'internal';
   else if (isVisual) audience = 'consumer';
 
   return { type, isVisual, audience, tier };
@@ -126,6 +134,14 @@ const NEGATION_RE =
 export function suggestArchitecture(task: string, profile: TaskProfile): ArchitectureSuggestion | null {
   const t = task.toLowerCase().replace(NEGATION_RE, ' ');
   if (profile.type === 'report' || profile.type === 'cli' || profile.type === 'library') return null;
+  // Design-thinking artifacts never get a backend/scaffold: a wireframe is one hand-written
+  // lo-fi board page; a prototype is linked static screens (create_web_app gives the shell).
+  if (profile.type === 'wireframe') {
+    return { base: 'create_web_app', modules: [], line: 'Wireframe board → one self-contained lo-fi HTML board (ui-kit/wireframe.css); no scaffold, no backend.' };
+  }
+  if (profile.type === 'prototype') {
+    return { base: 'create_web_app', modules: [], line: 'Clickable prototype → linked static screens (create_web_app shell + proto.css switcher); no backend.' };
+  }
 
   if (profile.type === 'mobile') {
     return { base: 'create_expo_app', modules: [], line: 'Mobile app → create_expo_app (native) or a PWA per the mobile decision rule.' };

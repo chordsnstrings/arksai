@@ -312,6 +312,46 @@ or blank; with one series, turn the legend off.`,
     an empty first screen with no guidance is a review FAIL.
 If unsure, ASK one quick question (just-an-installable-app → PWA; needs the Play/App Store or native
 device power → native) or default to PWA.`,
+  wireframe: `Task: a WIREFRAME BOARD — a lo-fi THINKING artifact (this REPLACES the usual design
+bar: polish is a DEFECT here; the wireframe is judged on clarity of thought).
+- BUILD: ONE self-contained HTML page. Call add_ui_kit first, then link ui-kit/fonts.css +
+  ui-kit/wireframe.css, put class "wf" on <body>, and compose ONLY from the kit's lo-fi
+  vocabulary: .wf-board > .wf-screen.phone/.tablet/.desktop > .wf-frame, blocks (.wf-nav,
+  .wf-box, .wf-img (hatch placeholder), .wf-text(.head), .wf-btn(.primary), .wf-input
+  (data-label="…"), .wf-list/.wf-card, .wf-avatar, .wf-chip, .wf-chart, .wf-tabbar).
+  Do NOT write bespoke visual CSS beyond tiny layout tweaks — the kit IS the aesthetic.
+- LO-FI DISCIPLINE (hard rules): greyscale + the kit's single annotation red ONLY — no
+  brand colours, no photos/images, no gradients/shadows, no real logos (a .wf-logo box),
+  no polished typography. If it starts looking like a finished design, strip it back.
+- TELL THE STORY (what separates a wireframe from empty boxes):
+  · Label EVERY screen: .wf-title with a .wf-step number + name; add a .wf-tag one-liner.
+  · ANNOTATE every non-obvious decision with .wf-note (handwritten red, --nx/--ny percent
+    position inside the frame; .below variant under the anchor) — notes explain WHY
+    ("guest checkout default — signup killed conversion"), never restate WHAT.
+  · CONNECT screens with .wf-flow arrows labelled with the trigger ("on submit", "if
+    declined"); every primary CTA must lead SOMEWHERE on the board.
+  · Use REAL-looking content words in labels (actual nav items, button verbs, field
+    names) — never "lorem" or "text here"; bars (.wf-text) stand in for body copy only.
+- SCOPE: 3–8 screens per board, ordered as the user journey; include the unhappy path
+  when it matters (an error/empty screen). For a CONCEPT-EXPLORATION ask, produce 2–4
+  NAMED .wf-variant columns side by side, each with a .wf-thesis one-liner stating its
+  bet — variants must genuinely differ in structure, not decoration.
+- FINISH with a .wf-legend strip: open questions + assumptions as .wf-note-inline items.`,
+  prototype: `Task: a CLICKABLE PROTOTYPE — a hi-fi, multi-screen, navigable mock. Real design
+language (the full design bar above applies), fake-but-real data, NO backend, NO publish.
+- SCREENS FIRST: list the 3–7 screens of the core journey (include one empty/success/error
+  state where it matters), then build each as its own linked page.
+- BUILD: create_web_app for the shell, then one .html per screen; link ui-kit/proto.css
+  and add class "proto" on <body>. Navigation is ORDINARY ANCHORS between screens —
+  every primary action navigates somewhere real on the click path (no dead buttons on the
+  happy path). ui-kit/proto.js injects a floating screen SWITCHER (auto-lists the pages;
+  arrow keys jump) — include <script src="ui-kit/proto.js" defer></script> on every page.
+  Optional device framing: wrap a mobile flow's content in .proto-frame.phone.
+- DATA: seed specific, real-looking content (names, prices, dates, states) — the
+  prototype must feel alive, never lorem. Interactions beyond navigation are SIMULATED:
+  a form's submit just links to the success screen; a toggle can be two screens.
+- The design gate judges it at the full editorial bar — direction, type, palette,
+  signature all apply. It is NOT published; the canvas preview is the deliverable.`,
   report: '', // report mode has its own bespoke protocol
   api: dx,
   cli: `${dx} CLI: clear help/usage, good flags/defaults, helpful errors, sensible exit codes.`,
@@ -323,6 +363,9 @@ device power → native) or default to PWA.`,
 export function designContext(profile: TaskProfile): string {
   const pack = typePacks[profile.type] ?? '';
   if (!profile.isVisual) return pack; // backend/cli/library: DX delta only, no design core
+  // Wireframes are DELIBERATELY lo-fi: the editorial core + palettes/looks/directions would
+  // push exactly the hi-fi creep the wireframe review flags. The pack stands alone.
+  if (profile.type === 'wireframe') return pack;
   // The curated, pre-validated swatch book the agent picks an accent from when there's no brand
   // logo/colour — every entry is WCAG-AA, so the colour layer is good-and-fast by construction.
   const swatch = `\n\n## Palette swatch book (pick ONE fitting accent; all are WCAG-AA validated)\nApply via the locked tokens (--accent / --accent-2 / --accent-deep / --accent-tint / --accent-ink) or, with the UI kit, <html data-theme="<name>">.\n${paletteMenu()}`;

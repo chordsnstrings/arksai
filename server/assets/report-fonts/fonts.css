@@ -52,5 +52,7 @@
 @font-face{font-family:'Bricolage Grotesque';font-weight:700;font-style:normal;font-display:swap;src:url('bricolage-700.woff2') format('woff2')}
 @font-face{font-family:'IBM Plex Mono';font-weight:500;font-style:normal;font-display:swap;src:url('ibmplexmono-500.woff2') format('woff2')}
 @font-face{font-family:'Space Mono';font-weight:400;font-style:normal;font-display:swap;src:url('spacemono-400.woff2') format('woff2')}
+/* Caveat — handwritten ANNOTATION voice, for the wireframe kit's notes ONLY (never body/UI text). */
+@font-face{font-family:'Caveat';font-weight:600;font-style:normal;font-display:swap;src:url('caveat-600.woff2') format('woff2')}
 @font-face{font-family:'Hanken Grotesk';font-weight:400;font-style:normal;font-display:swap;src:url('hanken-400.woff2') format('woff2')}
 @font-face{font-family:'Hanken Grotesk';font-weight:600;font-style:normal;font-display:swap;src:url('hanken-600.woff2') format('woff2')}

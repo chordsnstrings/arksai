@@ -1,0 +1,216 @@
+/*
+ * WIREFRAME KIT — the deliberate LO-FI language for thinking artifacts.
+ *
+ * A wireframe is judged on CLARITY OF THOUGHT, not visual polish: greyscale paper +
+ * graphite ink + ONE annotation red, dashed sketch strokes, hatch-fill placeholders,
+ * handwritten notes. Hi-fi creep (brand colours, photos, shadows, gradients) is a
+ * DEFECT here — the wireframe review flags it.
+ *
+ * Usage: one self-contained board page.
+ *   <link rel="stylesheet" href="ui-kit/fonts.css">
+ *   <link rel="stylesheet" href="ui-kit/wireframe.css">
+ *   <body class="wf">
+ *     <header class="wf-head"><h1>Checkout flow</h1><p>3 screens · v1</p></header>
+ *     <div class="wf-board">
+ *       <section class="wf-screen phone">
+ *         <div class="wf-title"><span class="wf-step">1</span> Cart</div>
+ *         <div class="wf-frame"> …blocks… <div class="wf-note" style="--nx:70%;--ny:20%">price updates live</div></div>
+ *       </section>
+ *       <div class="wf-flow"><span>on checkout</span></div>
+ *       <section class="wf-screen phone">…</section>
+ *     </div>
+ *   </body>
+ * Variant exploration: wrap alternatives in .wf-variant columns, each with a .wf-thesis.
+ */
+
+.wf {
+  /* Lo-fi tokens — greyscale + ONE annotation accent. Never add brand colours. */
+  --wf-paper: #fbfaf7;
+  --wf-surface: #ffffff;
+  --wf-ink: #3c3a36;
+  --wf-ink-soft: #8a877f;
+  --wf-line: #b9b5ab;
+  --wf-fill: #efede7;
+  --wf-note: #c2402a; /* the single annotation red */
+  --wf-stroke: 1.5px;
+  margin: 0;
+  background: var(--wf-paper);
+  color: var(--wf-ink);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 28px clamp(16px, 4vw, 48px) 64px;
+}
+
+.wf-head { margin: 0 auto 26px; max-width: 1600px; }
+.wf-head h1 { font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 21px; font-weight: 700; letter-spacing: 0.01em; margin: 0 0 2px; }
+.wf-head p { margin: 0; color: var(--wf-ink-soft); font-size: 12.5px; }
+.wf-head .wf-note-inline { font-family: 'Caveat', cursive; font-size: 18px; color: var(--wf-note); }
+
+/* ---- the board: screens flow left-to-right, wrap, never overflow ---- */
+.wf-board {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 34px 26px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* Variant exploration: named columns, each carrying its one-line thesis. */
+.wf-variant { display: flex; flex-direction: column; gap: 18px; }
+.wf-variant-name { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.wf-variant-name .wf-badge { display: inline-block; border: var(--wf-stroke) solid var(--wf-ink); border-radius: 5px; padding: 1px 7px; margin-right: 7px; }
+.wf-thesis { font-family: 'Caveat', cursive; font-size: 19px; color: var(--wf-note); margin: -8px 0 2px; max-width: 320px; }
+
+/* ---- screens ---- */
+.wf-screen { display: flex; flex-direction: column; gap: 8px; position: relative; }
+.wf-title { display: flex; align-items: center; gap: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.wf-step {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  border: var(--wf-stroke) solid var(--wf-ink);
+  font-size: 11px; font-weight: 700;
+}
+.wf-tag { font-family: 'Caveat', cursive; font-size: 17px; font-weight: 600; color: var(--wf-ink-soft); text-transform: none; letter-spacing: 0; }
+
+.wf-frame {
+  position: relative;
+  background: var(--wf-surface);
+  border: var(--wf-stroke) solid var(--wf-ink);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: visible; /* notes may sit just outside the frame edge */
+}
+/* Device sizes (content decides height; width is the device) */
+.wf-screen.phone .wf-frame { width: 250px; min-height: 420px; border-radius: 22px; }
+.wf-screen.tablet .wf-frame { width: 420px; min-height: 360px; border-radius: 16px; }
+.wf-screen.desktop .wf-frame { width: 560px; min-height: 340px; }
+/* Phone status hint + home bar (pure sketch, no realism) */
+.wf-screen.phone .wf-frame::before {
+  content: ''; height: 5px; width: 56px; margin: 0 auto 2px;
+  border-radius: 3px; background: var(--wf-fill); flex: 0 0 auto;
+}
+.wf-screen.phone .wf-frame::after {
+  content: ''; height: 4px; width: 84px; margin: 4px auto 0;
+  border-radius: 2px; background: var(--wf-fill); flex: 0 0 auto;
+}
+/* Desktop browser chrome hint */
+.wf-screen.desktop .wf-frame::before {
+  content: '● ● ●'; letter-spacing: 3px; font-size: 8px; color: var(--wf-line);
+  border-bottom: 1px dashed var(--wf-line); padding-bottom: 8px; margin: -4px -14px 2px; text-align: left; text-indent: 12px;
+}
+
+/* ---- blocks (all dashed/sketchy, greyscale) ---- */
+.wf-box { border: var(--wf-stroke) dashed var(--wf-line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.wf-row { display: flex; gap: 8px; align-items: center; }
+.wf-row > * { flex: 1; }
+.wf-row > .tight { flex: 0 0 auto; }
+
+/* image/media placeholder: diagonal hatch + an X */
+.wf-img {
+  position: relative; min-height: 64px; border: var(--wf-stroke) solid var(--wf-line); border-radius: 8px;
+  background: repeating-linear-gradient(45deg, transparent 0 9px, var(--wf-fill) 9px 11px);
+}
+.wf-img::before, .wf-img::after {
+  content: ''; position: absolute; left: 6%; right: 6%; top: 50%; height: 1px; background: var(--wf-line);
+}
+.wf-img::before { transform: rotate(18deg); }
+.wf-img::after { transform: rotate(-18deg); }
+.wf-img.tall { min-height: 120px; }
+
+/* text bars */
+.wf-text { display: flex; flex-direction: column; gap: 6px; }
+.wf-text i { display: block; height: 8px; border-radius: 4px; background: var(--wf-fill); }
+.wf-text i:last-child { width: 62%; }
+.wf-text.head i:first-child { height: 13px; width: 78%; background: var(--wf-line); }
+
+/* controls */
+.wf-btn {
+  border: var(--wf-stroke) solid var(--wf-ink); border-radius: 8px; padding: 8px 12px;
+  font-family: 'Space Grotesk', sans-serif; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; text-align: center; color: var(--wf-ink); background: transparent;
+}
+.wf-btn.primary { background: var(--wf-ink); color: var(--wf-paper); }
+.wf-input { border: var(--wf-stroke) solid var(--wf-line); border-radius: 8px; padding: 8px 10px; color: var(--wf-ink-soft); font-size: 12px; }
+.wf-input::before { content: attr(data-label); }
+.wf-avatar { width: 30px; height: 30px; border-radius: 50%; border: var(--wf-stroke) solid var(--wf-line); background: var(--wf-fill); flex: 0 0 auto; }
+.wf-chip { display: inline-block; border: 1px dashed var(--wf-line); border-radius: 999px; padding: 3px 10px; font-size: 11px; color: var(--wf-ink-soft); }
+
+/* nav */
+.wf-nav { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--wf-line); }
+.wf-nav .wf-logo { width: 54px; height: 14px; border: var(--wf-stroke) solid var(--wf-ink); border-radius: 4px; }
+.wf-nav i { display: block; width: 30px; height: 7px; border-radius: 4px; background: var(--wf-fill); }
+.wf-nav i:first-of-type { margin-left: auto; }
+.wf-tabbar { display: flex; justify-content: space-around; gap: 6px; border-top: 1px dashed var(--wf-line); padding-top: 8px; margin-top: auto; }
+.wf-tabbar i { display: block; width: 22px; height: 22px; border: var(--wf-stroke) solid var(--wf-line); border-radius: 6px; }
+.wf-tabbar i.on { border-color: var(--wf-ink); background: var(--wf-fill); }
+
+/* list + card */
+.wf-list { display: flex; flex-direction: column; gap: 8px; }
+.wf-card { display: flex; gap: 10px; align-items: center; border: var(--wf-stroke) dashed var(--wf-line); border-radius: 8px; padding: 8px; }
+.wf-card .wf-text { flex: 1; }
+
+/* sketch chart */
+.wf-chart { display: flex; align-items: flex-end; gap: 6px; height: 74px; border-bottom: var(--wf-stroke) solid var(--wf-line); padding: 0 4px; }
+.wf-chart i { display: block; flex: 1; background: repeating-linear-gradient(45deg, transparent 0 5px, var(--wf-fill) 5px 7px); border: 1px solid var(--wf-line); border-bottom: none; border-radius: 3px 3px 0 0; }
+
+/* ---- the story layer ---- */
+/* Handwritten annotation. Position with --nx/--ny (percent of the frame). Clamp-safe:
+   translated toward the inside so a note can point at an edge without clipping the page. */
+.wf-note {
+  position: absolute;
+  left: var(--nx, 60%);
+  top: var(--ny, 10%);
+  transform: translate(-20%, -110%);
+  font-family: 'Caveat', cursive;
+  font-size: 17px;
+  line-height: 1.15;
+  color: var(--wf-note);
+  max-width: 190px;
+  pointer-events: none;
+  z-index: 3;
+}
+.wf-note::after {
+  content: ''; position: absolute; left: 12%; top: 100%; width: 1.5px; height: 16px;
+  background: var(--wf-note); transform: rotate(20deg); transform-origin: top;
+}
+.wf-note.below { transform: translate(-20%, 24px); }
+.wf-note.below::after { top: -16px; transform: rotate(-20deg) scaleY(-1); }
+
+/* Flow arrow between screens (a board-level connector, not absolute-positioned). */
+.wf-flow {
+  align-self: center;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  min-width: 84px; flex: 0 0 auto;
+}
+.wf-flow::before {
+  content: ''; width: 100%; height: 14px;
+  background:
+    linear-gradient(var(--wf-ink), var(--wf-ink)) 0 50% / calc(100% - 10px) 1.5px no-repeat,
+    conic-gradient(from 120deg at 65% 50%, var(--wf-ink) 0 60deg, transparent 60deg) 100% 50% / 10px 10px no-repeat;
+}
+.wf-flow span { font-family: 'Caveat', cursive; font-size: 16px; color: var(--wf-note); white-space: nowrap; }
+.wf-flow.down { min-width: 0; min-height: 48px; }
+.wf-flow.down::before { width: 14px; height: 100%; background:
+  linear-gradient(var(--wf-ink), var(--wf-ink)) 50% 0 / 1.5px calc(100% - 10px) no-repeat,
+  conic-gradient(from 210deg at 50% 65%, var(--wf-ink) 0 60deg, transparent 60deg) 50% 100% / 10px 10px no-repeat; }
+
+/* board-level footnote strip */
+.wf-legend { margin: 34px auto 0; max-width: 1600px; border-top: 1px dashed var(--wf-line); padding-top: 12px; display: flex; flex-wrap: wrap; gap: 8px 22px; color: var(--wf-ink-soft); font-size: 12px; }
+.wf-legend .wf-note-inline { font-family: 'Caveat', cursive; font-size: 17px; color: var(--wf-note); }
+
+/* Print/PNG export: keep the paper ground */
+@media print { .wf { padding: 18px; } }
+
+/* Small screens: the board stacks; frames shrink to fit, nothing overflows. */
+@media (max-width: 640px) {
+  .wf-board { gap: 26px 18px; }
+  .wf-screen.phone .wf-frame { width: min(250px, 86vw); }
+  .wf-screen.tablet .wf-frame, .wf-screen.desktop .wf-frame { width: min(560px, 92vw); min-height: 300px; }
+  .wf-flow { transform: rotate(90deg); min-width: 48px; }
+  .wf-flow span { transform: rotate(-90deg); }
+}

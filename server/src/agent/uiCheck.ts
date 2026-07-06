@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { analyzeImage } from '../engines/minimax';
 import { config } from '../config';
 
@@ -126,6 +127,34 @@ export const DESIGN_RUBRIC_PROMPT =
   'Then up to 5 lines, each a SHORT, concrete, fixable defect (what + where), prefixed "- ". The FIRST defect ' +
   'should name the biggest distinctiveness gap (e.g. "generic centered hero — needs the concept\'s signature ' +
   'board"). No preamble, no praise.';
+
+/**
+ * The WIREFRAME rubric — swapped in for lo-fi thinking artifacts, where the editorial
+ * rubric would demand exactly the polish a wireframe must NOT have. Hi-fi creep is the
+ * defect here; clarity of thought is the bar.
+ */
+export const WIREFRAME_RUBRIC_PROMPT =
+  'You are a senior product designer reviewing a screenshot of a LO-FI WIREFRAME BOARD a junior made. ' +
+  'A wireframe is a THINKING artifact: it is judged on clarity of thought, never on visual polish. ' +
+  'Judge it against this rubric:\n' +
+  '• LO-FI DISCIPLINE (judge FIRST): the board must stay greyscale + ONE annotation red. FLAG hi-fi creep — ' +
+  'brand colours, photos or real images, gradients, drop shadows, polished styling. A wireframe that looks ' +
+  'like a finished design is a FAIL of this kind.\n' +
+  '• STORY: every screen has a name/step label; handwritten annotations explain the WHY of non-obvious ' +
+  'decisions (not restating what is visible); flow arrows connect the screens with labelled triggers; the ' +
+  'board reads as a coherent user journey in order.\n' +
+  '• COMPLETENESS: primary actions lead somewhere on the board; the unhappy path (error/empty) appears when ' +
+  'it matters; labels use real words (nav items, button verbs, field names) — flag "lorem", "text here", or ' +
+  'unlabeled mystery boxes.\n' +
+  '• VARIANTS (when present): named alternatives must genuinely differ in structure, each with a one-line ' +
+  'thesis — flag variants that are the same layout with cosmetic shuffles.\n' +
+  '• LEGIBILITY & LAYOUT: annotations and labels readable at this size; nothing clipped or overlapping ' +
+  'illegibly; screens evenly composed on the board.\n' +
+  'Respond EXACTLY in this format and nothing else:\n' +
+  'First line: "VERDICT: PASS" if the board communicates its flow clearly at the lo-fi bar, otherwise ' +
+  '"VERDICT: REVISE".\n' +
+  'Then up to 5 lines, each a SHORT, concrete, fixable defect (what + where), prefixed "- ". ' +
+  'No preamble, no praise.';
 
 /** Parse the design-director response into a verdict + concrete defects. Pure. */
 export function parseDesignVerdict(text: string): { verdict: 'pass' | 'revise' | 'unknown'; defects: string[] } {
@@ -428,7 +457,15 @@ export async function walkPagesAuthenticated(page: any, declaredCreds?: { email:
 export async function browserSmokeTest(
   url: string,
   signal: AbortSignal,
-  opts?: { visual?: boolean; designBrief?: string; manifest?: VerifyManifest | null },
+  opts?: {
+    visual?: boolean;
+    designBrief?: string;
+    manifest?: VerifyManifest | null;
+    /** Override the visual rubric (wireframes get the lo-fi rubric, not the editorial one). */
+    rubric?: string;
+    /** Persist the full-page review screenshot here (wireframe boards export a PNG). */
+    exportShotPath?: string;
+  },
 ): Promise<UiCheckResult> {
   if (signal.aborted) return { ...base, detail: 'Browser check skipped: aborted.' };
 
@@ -982,12 +1019,21 @@ export async function browserSmokeTest(
           })
           .catch(() => {});
         const shot = (await page.screenshot({ type: 'png', fullPage: !!opts?.visual })) as Buffer;
+        // Wireframe boards export their review shot as the shareable PNG deliverable.
+        if (opts?.exportShotPath) {
+          try {
+            fs.writeFileSync(opts.exportShotPath, shot);
+          } catch {
+            /* export is additive */
+          }
+        }
         const dataUrl = `data:image/png;base64,${shot.toString('base64')}`;
+        const rubricBase = opts?.rubric ?? DESIGN_RUBRIC_PROMPT;
         const prompt =
           opts?.visual
-            ? opts.designBrief
-              ? `${DESIGN_RUBRIC_PROMPT}\n\nThe build committed to this LOCKED design direction — judge CONCEPT FIDELITY too (REVISE if the page ignores it / reverts to a default look): ${opts.designBrief}`
-              : DESIGN_RUBRIC_PROMPT
+            ? opts.designBrief && !opts.rubric
+              ? `${rubricBase}\n\nThe build committed to this LOCKED design direction — judge CONCEPT FIDELITY too (REVISE if the page ignores it / reverts to a default look): ${opts.designBrief}`
+              : rubricBase
             : VISION_PROMPT;
         const r = await analyzeImage(dataUrl, prompt, signal);
         if (r.ok && r.text) {

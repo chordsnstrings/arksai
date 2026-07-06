@@ -3,7 +3,7 @@ import path from 'node:path';
 import { execBash } from '../lib/exec';
 import { listeningPorts } from '../lib/ports';
 import { processRegistry } from './processes';
-import { browserSmokeTest, type UiCheckResult, type VerifyManifest } from './uiCheck';
+import { browserSmokeTest, WIREFRAME_RUBRIC_PROMPT, type UiCheckResult, type VerifyManifest } from './uiCheck';
 
 /** The scaffold-declared verification manifest, when the workspace has one. */
 export function readVerifyManifest(dir: string): VerifyManifest | null {
@@ -166,7 +166,12 @@ export async function probeApp(
   dir: string,
   startCmd: string,
   signal: AbortSignal,
-  opts?: { visual?: boolean; onPhase?: (label: string) => void },
+  opts?: {
+    visual?: boolean;
+    onPhase?: (label: string) => void;
+    /** Wireframe boards: swap in the lo-fi rubric + export the board PNG next to the HTML. */
+    wireframe?: boolean;
+  },
 ): Promise<ProbeReport> {
   const phase = (label: string) => opts?.onPhase?.(label);
   const empty = (detail: string): ProbeReport => ({
@@ -271,6 +276,9 @@ export async function probeApp(
         visual: opts?.visual,
         designBrief: readDesignBrief(dir),
         manifest: readVerifyManifest(dir),
+        ...(opts?.wireframe
+          ? { rubric: WIREFRAME_RUBRIC_PROMPT, exportShotPath: path.join(dir, 'wireframe-board.png') }
+          : {}),
       });
     }
 

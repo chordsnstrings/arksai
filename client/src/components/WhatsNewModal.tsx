@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.51';
+export const WHATS_NEW_VERSION = '2026-07-06.52';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -31,8 +31,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'The hire screen is now a catalog of everything a robot can be: Customer support desk, Sales assistant (makes & sends brochures), Order & booking desk (live lookups), Executive assistant, Department specialist, Studio & builder (your production line in a chat), and a Reporting robot on a schedule — each pre-configured with the right mandate, escalation rules and tool permissions.',
   },
   {
-    title: 'The Design studio now looks like ArksAI',
-    body: 'The /design surface wears the product’s own editorial identity — the warm paper, house accent and typography of arksai.studio — in both light and dark, instead of a borrowed look.',
+    title: 'Wireframes, prototypes and animations in the Design studio',
+    body: 'The studio now starts from nine visual templates: alongside websites, decks and documents you can ask for a lo-fi WIREFRAME board (annotated sketch screens with flow arrows and concept variants), a clickable PROTOTYPE (multi-screen, navigable, no backend), or a short ANIMATION produced by the motion engine.',
   },
 ];
 

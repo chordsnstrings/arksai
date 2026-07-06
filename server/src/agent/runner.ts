@@ -2145,6 +2145,7 @@ export class AgentRun {
     this.emitProgress('testing', staticSite ? 'Checking it renders on phone + desktop…' : 'Booting a live instance…');
     const probe = await probeApp(this.session.id, probeDir, probeCmd, this.abort.signal, {
       visual: this.taskProfile?.isVisual,
+      wireframe: this.taskProfile?.type === 'wireframe',
       onPhase: (label) => this.emitProgress('testing', label),
     });
     if (probe.ui?.visualReview) this.engineCostUsd += config.minimaxVisionCost; // vision spend
@@ -2401,6 +2402,7 @@ export class AgentRun {
       this.emitProgress('testing', 'Booting a live instance…');
       const probe = await probeApp(this.session.id, dir, startCmd, this.abort.signal, {
         visual: this.taskProfile?.isVisual,
+        wireframe: this.taskProfile?.type === 'wireframe',
         onPhase: (label) => this.emitProgress('testing', label),
       });
       if (probe.ui?.visualReview) this.engineCostUsd += config.minimaxVisionCost;
