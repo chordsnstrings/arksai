@@ -3046,6 +3046,8 @@ button { font-family: inherit; cursor: pointer; }
   transition: background 0.15s ease, color 0.15s ease;
 }
 .ds-tool:hover { background: var(--bg-hover); color: var(--text); }
+.ds-tool:disabled { opacity: 0.55; cursor: default; }
+.ds-tool:disabled:hover { background: transparent; color: var(--text-muted); }
 .ds-caret { font-size: 10px; opacity: 0.7; }
 .ds-spacer { flex: 1; }
 .ds-send {

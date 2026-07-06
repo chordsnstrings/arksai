@@ -277,7 +277,7 @@ export async function probeApp(
         designBrief: readDesignBrief(dir),
         manifest: readVerifyManifest(dir),
         ...(opts?.wireframe
-          ? { rubric: WIREFRAME_RUBRIC_PROMPT, exportShotPath: path.join(dir, 'wireframe-board.png') }
+          ? { wireframe: true, rubric: WIREFRAME_RUBRIC_PROMPT, exportShotPath: path.join(dir, 'wireframe-board.png') }
           : {}),
       });
     }

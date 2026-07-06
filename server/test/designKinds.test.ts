@@ -8,7 +8,7 @@ import type { AddressInfo } from 'node:net';
 
 import { classifyTask, suggestArchitecture } from '../src/agent/taskProfile';
 import { designContext, typePacks } from '../src/agent/designSystem';
-import { browserSmokeTest, parseDesignVerdict, WIREFRAME_RUBRIC_PROMPT } from '../src/agent/uiCheck';
+import { browserSmokeTest, parseDesignVerdict, wfNoteCollisions, WIREFRAME_RUBRIC_PROMPT } from '../src/agent/uiCheck';
 
 const KIT = path.join(__dirname, '../assets/ui-kit');
 const FONTS = path.join(__dirname, '../assets/report-fonts');
@@ -91,6 +91,32 @@ test('wireframe rubric: lo-fi bar, hi-fi creep is the defect; verdict format par
   assert.equal(v.defects.length, 2);
 });
 
+// ---------------- annotation-collision geometry (pure) ----------------
+
+test('wfNoteCollisions: notes on text hard-fail, brushes and empty-paper notes pass', () => {
+  const note = { label: 'weekly time shown', x: 100, y: 100, w: 120, h: 24 };
+  const row = { label: '~130 min/wk', x: 110, y: 105, w: 80, h: 16 }; // fully under the note
+  const hits = wfNoteCollisions([note], [row]);
+  assert.equal(hits.length, 1);
+  assert.match(hits[0], /sits ON TOP of "~130 min\/wk"/);
+  assert.match(hits[0], /empty paper/);
+
+  // A 10%-of-area brush (handwriting grazing padding) is tolerated.
+  const graze = { label: 'Skip', x: 214, y: 118, w: 40, h: 14 };
+  assert.equal(wfNoteCollisions([note], [graze]).length, 0);
+
+  // Clear paper: no overlap at all.
+  assert.equal(wfNoteCollisions([note], [{ label: 'NEXT', x: 400, y: 400, w: 90, h: 30 }]).length, 0);
+
+  // Note-on-note pileups are also defects.
+  const twin = { label: 'reduces overcommit', x: 110, y: 108, w: 120, h: 24 };
+  assert.match(wfNoteCollisions([note, twin], [])[0], /overlap each other/);
+
+  // Capped so a broken board doesn't flood the gate.
+  const many = Array.from({ length: 9 }, (_, i) => ({ label: `n${i}`, x: 0, y: 0, w: 50, h: 50 }));
+  assert.ok(wfNoteCollisions(many, [{ label: 't', x: 0, y: 0, w: 50, h: 50 }]).length <= 5);
+});
+
 // ---------------- real render: a fixture board through the actual browser gate ----------------
 
 test('a 3-screen wireframe board renders clean through browserSmokeTest (no hard fail, no overflow)', { timeout: 120_000 }, async (t) => {
@@ -136,6 +162,18 @@ test('a 3-screen wireframe board renders clean through browserSmokeTest (no hard
 </body></html>`;
   fs.writeFileSync(path.join(dir, 'index.html'), board);
 
+  // The same board with annotations breaking the placement rule: one note parked ON the
+  // primary button's text, plus two notes stacked on the same spot — both classes of
+  // collision the live fitness board shipped with. The geometry audit must hard-fail it.
+  const colliding = board.replace(
+    '<div class="wf-note" style="--nx:55%;--ny:78%">price updates live</div>',
+    // Pinned coordinates so the overlap is deterministic regardless of flow layout.
+    '<div style="position:absolute;left:12%;top:150px;font-size:13px">Cart — 3 items</div>' +
+      '<div class="wf-note" style="left:12%;top:148px;transform:none">price updates live</div>' +
+      '<div class="wf-note" style="left:13%;top:150px;transform:none">tax added at pay</div>',
+  );
+  fs.writeFileSync(path.join(dir, 'collide.html'), colliding);
+
   const server = http.createServer((req, res) => {
     const p = path.join(dir, decodeURIComponent((req.url || '/').split('?')[0]).replace(/^\//, '') || 'index.html');
     try {
@@ -151,13 +189,20 @@ test('a 3-screen wireframe board renders clean through browserSmokeTest (no hard
   const port = (server.address() as AddressInfo).port;
   try {
     const ac = new AbortController();
-    const res = await browserSmokeTest(`http://127.0.0.1:${port}/index.html`, ac.signal);
+    const res = await browserSmokeTest(`http://127.0.0.1:${port}/index.html`, ac.signal, { wireframe: true });
     if (!res.ran) {
       t.skip('Chromium unavailable in this environment');
       return;
     }
     assert.equal(res.hardFail, false, `board renders clean: ${res.detail}`);
     assert.ok(!/horizontal overflow/i.test(res.detail), 'no mobile overflow');
+
+    // The same board with a note parked on frame text (and a note-on-note pileup)
+    // must be caught DETERMINISTICALLY — no vision key involved.
+    const bad = await browserSmokeTest(`http://127.0.0.1:${port}/collide.html`, ac.signal, { wireframe: true });
+    assert.equal(bad.hardFail, true, 'colliding annotations hard-fail the gate');
+    assert.match(bad.detail, /Wireframe geometry audit/);
+    assert.match(bad.detail, /empty paper/);
   } finally {
     server.close();
     fs.rmSync(dir, { recursive: true, force: true });

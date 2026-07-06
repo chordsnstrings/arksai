@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.52';
+export const WHATS_NEW_VERSION = '2026-07-06.53';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,20 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Robots can now make things, not just reply',
-    body: 'Message your robot for an image, a finished ad creative, a document, a spreadsheet, a chart or stock photos and it produces the file right in the conversation — delivered on the same channel. Ask it for a video, a website or a song and it runs a full build and sends the result. Control who can trigger this per robot in its settings.',
+    title: 'Wireframe boards: annotations never cover your screens',
+    body: 'A new geometry check measures every handwritten note on a wireframe board and rejects any that sits on top of screen text or another note — annotations now always land on empty paper, so exported boards stay legible.',
   },
   {
-    title: 'Documents, sheets, decks and charts — right in chat',
-    body: 'A one-off Word document, Excel workbook, slide deck or designed chart no longer needs a mode switch — just ask in plain chat and the file is produced directly.',
-  },
-  {
-    title: 'Seven robot jobs to hire for',
-    body: 'The hire screen is now a catalog of everything a robot can be: Customer support desk, Sales assistant (makes & sends brochures), Order & booking desk (live lookups), Executive assistant, Department specialist, Studio & builder (your production line in a chat), and a Reporting robot on a schedule — each pre-configured with the right mandate, escalation rules and tool permissions.',
-  },
-  {
-    title: 'Wireframes, prototypes and animations in the Design studio',
-    body: 'The studio now starts from nine visual templates: alongside websites, decks and documents you can ask for a lo-fi WIREFRAME board (annotated sketch screens with flow arrows and concept variants), a clickable PROTOTYPE (multi-screen, navigable, no backend), or a short ANIMATION produced by the motion engine.',
+    title: 'Design studio knows what a wireframe is',
+    body: 'Pick the Wireframe template and the Style menu steps aside — wireframes are deliberately greyscale, so the studio says "Lo-fi by design" instead of offering styles that would be ignored.',
   },
 ];
 

@@ -348,10 +348,17 @@ export function DesignStudio({ onClose }: { onClose: () => void }) {
               }}
             />
             <div className="ds-style" ref={styleRef}>
+              {/* Wireframes are deliberately greyscale — a style pick would be ignored, so say so instead of offering it. */}
+              {type === 'wireframe' ? (
+                <button className="ds-tool ds-style-btn" disabled title="Wireframes stay greyscale — pick a style when you move to the hi-fi design">
+                  Style · Lo-fi by design
+                </button>
+              ) : (
               <button className="ds-tool ds-style-btn" onClick={() => setStyleOpen((v) => !v)} aria-expanded={styleOpen}>
                 {styleLabel} <span className="ds-caret">▾</span>
               </button>
-              {styleOpen && (
+              )}
+              {styleOpen && type !== 'wireframe' && (
                 <div className="ds-style-menu" role="menu">
                   <button className={`ds-style-row ${style.kind === 'auto' ? 'on' : ''}`} onClick={() => { setStyle({ kind: 'auto' }); setStyleOpen(false); }}>
                     <span className="ds-sw ds-sw-auto" />

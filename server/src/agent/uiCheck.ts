@@ -148,8 +148,9 @@ export const WIREFRAME_RUBRIC_PROMPT =
   'unlabeled mystery boxes.\n' +
   '• VARIANTS (when present): named alternatives must genuinely differ in structure, each with a one-line ' +
   'thesis — flag variants that are the same layout with cosmetic shuffles.\n' +
-  '• LEGIBILITY & LAYOUT: annotations and labels readable at this size; nothing clipped or overlapping ' +
-  'illegibly; screens evenly composed on the board.\n' +
+  '• LEGIBILITY & LAYOUT: annotations and labels readable at this size; an annotation sitting ON TOP of ' +
+  'ANY other text or component (screen titles, list rows, buttons, content bars — not just titles) is a ' +
+  'defect: notes belong on empty paper. Nothing clipped; screens evenly composed on the board.\n' +
   'Respond EXACTLY in this format and nothing else:\n' +
   'First line: "VERDICT: PASS" if the board communicates its flow clearly at the lo-fi bar, otherwise ' +
   '"VERDICT: REVISE".\n' +
@@ -171,6 +172,75 @@ export function parseDesignVerdict(text: string): { verdict: 'pass' | 'revise' |
     .slice(0, 5);
   return { verdict, defects };
 }
+
+/** A measured box on the wireframe board (page pixels). */
+export interface WfRect {
+  label: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Deterministic wireframe annotation-collision audit — PURE (unit-testable).
+ * A .wf-note earns its place on EMPTY PAPER; a note sitting on top of frame text
+ * (or another note) is illegible on the exported board. The vision rubric misses
+ * these reliably (it reads the words fine because it knows both layers), so
+ * geometry gates them: any overlap covering ≥20% of the smaller box is a defect. */
+export function wfNoteCollisions(notes: WfRect[], targets: WfRect[]): string[] {
+  const area = (r: WfRect) => Math.max(0, r.w) * Math.max(0, r.h);
+  const overlap = (a: WfRect, b: WfRect) => {
+    const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+    const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+    return w > 0 && h > 0 ? w * h : 0;
+  };
+  const hit = (a: WfRect, b: WfRect) => {
+    const o = overlap(a, b);
+    return o > 0 && o >= 0.2 * Math.max(1, Math.min(area(a), area(b)));
+  };
+  const issues: string[] = [];
+  for (const n of notes) {
+    const t = targets.find((t) => hit(n, t));
+    if (t)
+      issues.push(
+        `annotation "${n.label}" sits ON TOP of "${t.label}" — move the note to empty paper (a gutter/margin beside the screen, or .below the frame) and point at the element instead`,
+      );
+  }
+  for (let i = 0; i < notes.length; i++)
+    for (let j = i + 1; j < notes.length; j++)
+      if (hit(notes[i], notes[j]))
+        issues.push(`annotations "${notes[i].label}" and "${notes[j].label}" overlap each other — spread them out`);
+  return issues.slice(0, 5);
+}
+
+/** In-page collector for wfNoteCollisions — string-form evaluate (esbuild keepNames
+ * breaks closure evaluate). Targets = anything text-bearing inside a frame plus the
+ * .wf-text placeholder bars (they stand in for copy); the .wf-img hatch is NOT a
+ * target — annotating over an image region is normal wireframe practice. */
+const WF_COLLECT_JS = `(() => {
+  const d = document;
+  const vis = (el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return null;
+    const s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden' || Number(s.opacity) === 0) return null;
+    return r;
+  };
+  const label = (el) => ((el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 48)) || el.className || el.tagName.toLowerCase();
+  const box = (el, r) => ({ label: label(el), x: r.x, y: r.y, w: r.width, h: r.height });
+  const notes = [];
+  for (const el of d.querySelectorAll('.wf-note')) { const r = vis(el); if (r) notes.push(box(el, r)); }
+  const targets = [];
+  for (const el of d.querySelectorAll('.wf-frame *')) {
+    if (el.closest('.wf-note')) continue;
+    const ownText = Array.from(el.childNodes).some((n) => n.nodeType === 3 && (n.textContent || '').trim());
+    const bar = el.classList.contains('wf-text');
+    if (!ownText && !bar) continue;
+    const r = vis(el);
+    if (r) targets.push(bar && !ownText ? { ...box(el, r), label: 'a .wf-text content bar' } : box(el, r));
+  }
+  return { notes, targets };
+})()`;
 
 const base: UiCheckResult = {
   ran: false,
@@ -465,6 +535,8 @@ export async function browserSmokeTest(
     rubric?: string;
     /** Persist the full-page review screenshot here (wireframe boards export a PNG). */
     exportShotPath?: string;
+    /** Wireframe board: run the deterministic annotation-collision audit. */
+    wireframe?: boolean;
   },
 ): Promise<UiCheckResult> {
   if (signal.aborted) return { ...base, detail: 'Browser check skipped: aborted.' };
@@ -533,6 +605,18 @@ export async function browserSmokeTest(
     const renderedTextLen = info.text.length;
     const domNodes = info.nodes;
     const blank = renderedTextLen < 1 && domNodes < 15; // nothing meaningful rendered
+
+    // Wireframe boards: geometry-gate annotation collisions BEFORE the interaction
+    // pass can mutate the page. Deterministic — runs with or without a vision key.
+    let wireframeIssues: string[] = [];
+    if (opts?.wireframe && !blank && !signal.aborted) {
+      try {
+        const rects = await page.evaluate(WF_COLLECT_JS);
+        if (rects?.notes?.length) wireframeIssues = wfNoteCollisions(rects.notes, rects.targets ?? []);
+      } catch {
+        /* audit is additive */
+      }
+    }
 
     // Interaction pass: a real user clicks things. Seed visible inputs, submit
     // the first visible form, and click a few non-destructive primary buttons —
@@ -999,7 +1083,8 @@ export async function browserSmokeTest(
       !!contrastIssue ||
       !!hoverIssue ||
       pageAuditIssues.length > 0 ||
-      manifestIssues.length > 0;
+      manifestIssues.length > 0 ||
+      wireframeIssues.length > 0;
 
     // True visual judgment: if vision is configured, actually LOOK at the page
     // (the text-only model can't). For visual tasks run the DESIGN RUBRIC (gating
@@ -1066,6 +1151,8 @@ export async function browserSmokeTest(
     if (hoverIssue) lines.push(`✗ ${hoverIssue}`);
     if (pageAuditIssues.length) lines.push(`✗ Signed-in page audit found layout defects:\n  - ${pageAuditIssues.join('\n  - ')}`);
     if (manifestIssues.length) lines.push(`✗ Declared verification (verify.json) failed:\n  - ${manifestIssues.join('\n  - ')}`);
+    if (wireframeIssues.length)
+      lines.push(`✗ Wireframe geometry audit — annotations must sit on EMPTY paper:\n  - ${wireframeIssues.join('\n  - ')}`);
     if (ce.length) lines.push(`⚠ Console errors:\n  - ${ce.join('\n  - ')}`);
     if (leaked.length) lines.push(`⚠ Value leaked into the UI:\n  - ${leaked.join('\n  - ')}`);
     if (interacted) lines.push('• Interaction pass ran (seeded inputs, submitted a form, clicked primary actions).');

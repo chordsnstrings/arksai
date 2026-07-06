@@ -326,8 +326,11 @@ bar: polish is a DEFECT here; the wireframe is judged on clarity of thought).
 - TELL THE STORY (what separates a wireframe from empty boxes):
   · Label EVERY screen: .wf-title with a .wf-step number + name; add a .wf-tag one-liner.
   · ANNOTATE every non-obvious decision with .wf-note (handwritten red, --nx/--ny percent
-    position inside the frame; .below variant under the anchor) — notes explain WHY
-    ("guest checkout default — signup killed conversion"), never restate WHAT.
+    position; .below variant under the anchor) — notes explain WHY ("guest checkout
+    default — signup killed conversion"), never restate WHAT. PLACEMENT IS A HARD RULE:
+    a note lives on EMPTY PAPER — a gutter/margin beside the screen, whitespace inside
+    the frame, or .below it — NEVER on top of frame text or content bars (a geometry
+    gate hard-fails any note that covers another element's text).
   · CONNECT screens with .wf-flow arrows labelled with the trigger ("on submit", "if
     declined"); every primary CTA must lead SOMEWHERE on the board.
   · Use REAL-looking content words in labels (actual nav items, button verbs, field
@@ -351,7 +354,8 @@ language (the full design bar above applies), fake-but-real data, NO backend, NO
   prototype must feel alive, never lorem. Interactions beyond navigation are SIMULATED:
   a form's submit just links to the success screen; a toggle can be two screens.
 - The design gate judges it at the full editorial bar — direction, type, palette,
-  signature all apply. It is NOT published; the canvas preview is the deliverable.`,
+  signature all apply. Do NOT publish (never call publish_app) unless the user
+  explicitly asks — the canvas preview is the deliverable.`,
   report: '', // report mode has its own bespoke protocol
   api: dx,
   cli: `${dx} CLI: clear help/usage, good flags/defaults, helpful errors, sensible exit codes.`,
