@@ -29,7 +29,10 @@ const EASY =
 export function isSpreadsheetBrief(task: string): boolean {
   const t = task.toLowerCase();
   if (!/\b(spreadsheet|workbook|xlsx|excel|financial model|cash[- ]?flow (model|projection|forecast)|budget (model|sheet)|amorti[sz]ation|3[- ]statement)\b/.test(t)) return false;
-  if (/\b(app|website|web ?site|landing page|dashboard|api|backend|frontend|deck|pdf|report|video)\b/.test(t)) return false;
+  // "dashboard" is deliberately NOT an excluding word: reaching this line means the brief
+  // already named a spreadsheet deliverable, and "an Excel KPI dashboard" IS one (the
+  // kpi-dashboard scaffold) — a web dashboard brief still excludes via app/website/frontend.
+  if (/\b(app|website|web ?site|landing page|api|backend|frontend|deck|pdf|report|video)\b/.test(t)) return false;
   // "36 monthly payments" / "billing schedule" are MODEL VOCABULARY in a spreadsheet brief,
   // not the payments/billing SUBSYSTEM (live: a loan brief routed Heavy on "payments").
   const scrubbed = task.replace(/\b(payments?|billing)\b/gi, '');

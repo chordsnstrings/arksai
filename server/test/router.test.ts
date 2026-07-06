@@ -136,5 +136,9 @@ test('spreadsheet-deliverable briefs route to Swift (bake-off round 2); app brie
   assert.ok(!isSpreadsheetBrief('multi-tenant billing workbook system with oauth'), 'oauth still blocks');
   // Live bug: "36 monthly payments" tripped the payments SUBSYSTEM guard → Heavy lane.
   assert.ok(isSpreadsheetBrief('Build a loan amortization spreadsheet: AED 500,000 loan, 8% annual interest, 36 monthly payments. Fully formula-driven workbook with a payment schedule and totals.'));
+  // "dashboard" no longer excludes when the brief names a spreadsheet deliverable —
+  // "an Excel KPI dashboard" is the kpi-dashboard scaffold, not a web app.
+  assert.ok(isSpreadsheetBrief('Build me an Excel KPI dashboard tracking revenue vs target and orders month over month'));
+  assert.ok(!isSpreadsheetBrief('build a KPI dashboard web app'), 'a web dashboard still routes normally');
   assert.ok(!isSpreadsheetBrief('write me a poem'));
 });

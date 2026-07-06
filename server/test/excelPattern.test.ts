@@ -167,7 +167,8 @@ test('label-sanity audit catches the wrong-row passthrough the bake-off exposed'
 
 test('every scaffold builds through the REAL tool: audit-clean, check rows tie', async () => {
   const { EXCEL_SCAFFOLDS, applyScaffold } = await import('../src/agent/excelScaffolds');
-  assert.equal(EXCEL_SCAFFOLDS.length, 8);
+  assert.equal(EXCEL_SCAFFOLDS.length, 28);
+  assert.equal(new Set(EXCEL_SCAFFOLDS.map((s: any) => s.id)).size, 28, 'scaffold ids are unique');
   for (const sc of EXCEL_SCAFFOLDS) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), `arksai-sc-${sc.id}-`));
     const ctx: any = { session: { id: 't', orgId: null }, repoDir: dir, mode: 'code', signal: new AbortController().signal, addCost: () => {} };
@@ -228,6 +229,35 @@ test('scaffold ground truths: amortization zeros out, DCF discounts exactly, tre
   assert.ok(Math.abs(trend.get('Model', 'Slope', 2) - 40) < 1e-6, 'helper-row least squares recovers the slope');
   assert.ok(Math.abs(trend.get('Forecast', 'Trend forecast', 2) - (1000 + 40 * 12)) < 1e-6, 'forecast continues the line');
   fs.rmSync(trend.dir, { recursive: true, force: true });
+
+  // Inventory: at the EOQ, annual ordering cost EQUALS annual holding cost (the defining
+  // property) — and EOQ itself matches the closed form sqrt(2DS/H).
+  const inv = await run({ template: 'inventory-planning' });
+  const eoq = Math.sqrt((2 * 24000 * 150) / 4);
+  assert.ok(Math.abs(inv.get('Plan', 'Economic order quantity (EOQ)', 2) - eoq) < 1e-6, '^0.5 EOQ equals closed form');
+  assert.ok(Math.abs(inv.get('Plan', 'Annual ordering cost', 2) - inv.get('Plan', 'Annual holding cost', 2)) < 1e-6, 'EOQ balances the two costs');
+  fs.rmSync(inv.dir, { recursive: true, force: true });
+
+  // Savings: growth on the opening balance then the contribution lands →
+  // FV_n = P(1+i)^n + C((1+i)^n − 1)/i exactly.
+  const sav = await run({ template: 'savings-goal', months: 24 });
+  const i = 0.06 / 12;
+  const fv = 20000 * Math.pow(1 + i, 24) + 3000 * ((Math.pow(1 + i, 24) - 1) / i);
+  assert.ok(Math.abs(sav.get('Growth', 'Closing balance', 25) - fv) < 0.01, 'compound savings equals the closed-form FV');
+  fs.rmSync(sav.dir, { recursive: true, force: true });
+
+  // Break-even: units × contribution margin − fixed costs must be exactly zero at BE.
+  const be = await run({ template: 'break-even' });
+  assert.ok(Math.abs(be.get('Summary', 'Break-even units', 2) - 40000 / 50) < 1e-9, 'BE units = fixed / CM');
+  fs.rmSync(be.dir, { recursive: true, force: true });
+
+  // A/B test: two-proportion z-score matches a hand computation (0.080 vs 0.092, n=5000 each).
+  const ab = await run({ template: 'ab-test' });
+  const p = (400 + 460) / 10000;
+  const se = Math.sqrt(p * (1 - p) * (2 / 5000));
+  assert.ok(Math.abs(ab.get('Results', 'Z-score', 2) - (0.092 - 0.08) / se) < 1e-9, 'z-score matches the closed form');
+  assert.equal(ab.get('Results', 'Significant at 95% (1 = yes)', 2), 1, 'this uplift is significant');
+  fs.rmSync(ab.dir, { recursive: true, force: true });
 
   // A deliberately broken model: force a non-zero check row → the tool must reject it.
   const broken = await run({

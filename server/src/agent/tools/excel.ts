@@ -426,15 +426,26 @@ export const generateSpreadsheetTool: ToolDef = {
       output: { type: 'string', description: 'Output filename, e.g. "sales.xlsx". Default data.xlsx. For a staged build, keep the SAME filename across calls.' },
       template: {
         type: 'string',
-        enum: ['financial-model', 'revenue-forecast', 'three-statement', 'dcf-valuation', 'loan-amortization', 'saas-mrr', 'headcount-plan', 'forecast-trend', 'scenario-forecast'],
+        enum: [
+          'financial-model', 'revenue-forecast', 'three-statement', 'dcf-valuation', 'loan-amortization', 'saas-mrr', 'headcount-plan',
+          'forecast-trend', 'scenario-forecast', 'budget-vs-actual', 'cash-runway', 'break-even', 'unit-economics', 'npv-project',
+          'capex-depreciation', 'working-capital', 'sales-pipeline', 'sales-commission', 'marketing-funnel', 'kpi-dashboard',
+          'cohort-retention', 'ab-test', 'inventory-planning', 'project-budget', 'attrition-headcount', 'personal-budget',
+          'savings-goal', 'rental-property', 'ecommerce-pnl',
+        ],
         description:
-          'Seed a correct, fully-wired, CHECK-ROW-carrying model skeleton instead of building from scratch — THE FASTEST, MOST ACCURATE path for any standard model. ' +
-          'revenue-forecast (units×price drivers) · three-statement (IS+CF, IF-gated tax, tie checks) · dcf-valuation (recursive discounting, TV, per-share) · ' +
-          'loan-amortization (PMT via compounding factor, zero-balance check) · saas-mrr (MRR waterfall, NRR, ARR) · headcount-plan (start-month gating, loaded payroll) · ' +
-          'forecast-trend (PREDICTION: least-squares trend + exponential smoothing + forward forecast) · scenario-forecast (bear/base/bull with ONE consolidation row) · ' +
-          'financial-model (legacy verbose 3-statement). CUSTOMISE by passing your own pattern sheets in the SAME call — a sheet with the same name (e.g. "Assumptions" ' +
-          'with the user\'s real numbers/labels) REPLACES the scaffold\'s; extra sheets are added. Set months to size the projection. ' +
-          'The built-in CHECK rows must compute to 0 — the tool rejects a model that does not tie.',
+          'Seed a correct, fully-wired, CHECK-ROW-carrying model skeleton instead of building from scratch — THE FASTEST, MOST ACCURATE path for any standard model; ' +
+          'PREFER a template whenever one fits the ask. ' +
+          'FINANCE: revenue-forecast · three-statement · dcf-valuation · loan-amortization · saas-mrr · headcount-plan · budget-vs-actual · cash-runway (burn/runway) · ' +
+          'break-even · unit-economics (CAC/LTV) · npv-project (appraisal) · capex-depreciation · working-capital (DSO/DIO/DPO, CCC). ' +
+          'PREDICTION: forecast-trend (least-squares + smoothing) · scenario-forecast (bear/base/bull). ' +
+          'SALES & MARKETING: sales-pipeline (funnel) · sales-commission (tiered) · marketing-funnel (spend→customers, CAC/ROAS). ' +
+          'BI & ANALYTICS: kpi-dashboard (actual vs target, MoM, flags) · cohort-retention (decay + LTV) · ab-test (z-score significance). ' +
+          'OPERATIONS: inventory-planning (EOQ/reorder) · project-budget (planned vs actual). HR: attrition-headcount. ' +
+          'PERSONAL & PROPERTY: personal-budget · savings-goal (compounding) · rental-property (NOI/cap rate/DSCR). E-COMMERCE: ecommerce-pnl. ' +
+          'Plus financial-model (legacy verbose 3-statement). CUSTOMISE by passing your own pattern sheets in the SAME call — a sheet with the same name (e.g. "Assumptions" ' +
+          'with the user\'s real numbers/labels) REPLACES the scaffold\'s; extra sheets are added. Rows labelled "…(replace with your data)" are example series to overwrite. ' +
+          'Set months to size the projection. The built-in CHECK rows must compute to 0 — the tool rejects a model that does not tie.',
       },
       months: { type: 'number', description: 'Projection length for a template (periods/columns). Defaults per template.' },
       append: { type: 'boolean', description: 'When true, ADD these sheets to the existing file (same output name) instead of overwriting — for building a large multi-sheet model a few (2-3) sheets per call. A sheet whose name already exists is replaced. Default false (fresh file).' },

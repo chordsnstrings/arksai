@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.59';
+export const WHATS_NEW_VERSION = '2026-07-06.60';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Premium Excel, instantly — no polish pass',
-    body: 'Every spreadsheet now ships with a premium finance look baked in at build time: Helvetica typography, hidden gridlines, brand-tinted banded rows, right-aligned money columns with proper currency formats, blue input cells on assumption sheets, accounting rules under bottom lines and coloured tabs. The separate cosmetic review pass is gone — your workbook arrives faster AND better dressed, and the numbers are still verified by the built-in tie-out checks.',
+    title: '28 ready-made Excel models — for every team',
+    body: 'The spreadsheet engine now ships 28 self-checking model templates covering finance (budgets vs actuals, cash runway, break-even, unit economics, NPV appraisals, depreciation, working capital), sales & marketing (pipelines, commissions, funnel + CAC/ROAS), BI & analytics (KPI dashboards, cohort retention, A/B test significance), operations, HR, personal budgets, savings goals, rental-property deals and e-commerce P&Ls. Every one is formula-driven with built-in tie-out checks that must equal zero.',
   },
   {
-    title: 'Copy any response',
-    body: 'Every reply in chat now has a Copy button underneath it — one click puts the full response on your clipboard, ready to paste anywhere.',
+    title: 'Premium Excel, instantly — no polish pass',
+    body: 'Every workbook wears a premium finance look baked in at build time: Helvetica typography, hidden gridlines, brand-tinted banded rows, proper money/percent formats, blue input cells and accounting rules under bottom lines. The cosmetic review pass is gone — files arrive faster AND better dressed.',
   },
 ];
 
