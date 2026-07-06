@@ -3,6 +3,7 @@ import { resolveInWorkspace, type ToolDef } from './common';
 import { recalcSheetData, recalcWorkbook } from './sheetcalc';
 import { auditFormulaRefs, auditExcelWorkbook, formulaAuditLines } from './sheetAudit';
 import { expandPatternSheets } from '../excelPattern';
+import { EXCEL_SCAFFOLDS, applyScaffold } from '../excelScaffolds';
 import { ToolError } from './common';
 import { STRINGY_REF_RE } from '../deliverableCheck';
 
@@ -330,7 +331,19 @@ export const generateSpreadsheetTool: ToolDef = {
     type: 'object',
     properties: {
       output: { type: 'string', description: 'Output filename, e.g. "sales.xlsx". Default data.xlsx. For a staged build, keep the SAME filename across calls.' },
-      template: { type: 'string', enum: ['financial-model'], description: 'Seed a correct, fully-wired skeleton instead of building from scratch. "financial-model" → a 3-statement model (Assumptions → Income → CashFlow) with live cross-sheet formulas and a POPULATED cash-flow statement (never an empty tab). Call this FIRST for any multi-sheet/3-statement model, then customise: re-call generate_spreadsheet with append:true (or overwrite) to rename line items, tune the Assumptions, or add detail. Omit `sheets` when using a template.' },
+      template: {
+        type: 'string',
+        enum: ['financial-model', 'revenue-forecast', 'three-statement', 'dcf-valuation', 'loan-amortization', 'saas-mrr', 'headcount-plan', 'forecast-trend', 'scenario-forecast'],
+        description:
+          'Seed a correct, fully-wired, CHECK-ROW-carrying model skeleton instead of building from scratch — THE FASTEST, MOST ACCURATE path for any standard model. ' +
+          'revenue-forecast (units×price drivers) · three-statement (IS+CF, IF-gated tax, tie checks) · dcf-valuation (recursive discounting, TV, per-share) · ' +
+          'loan-amortization (PMT via compounding factor, zero-balance check) · saas-mrr (MRR waterfall, NRR, ARR) · headcount-plan (start-month gating, loaded payroll) · ' +
+          'forecast-trend (PREDICTION: least-squares trend + exponential smoothing + forward forecast) · scenario-forecast (bear/base/bull with ONE consolidation row) · ' +
+          'financial-model (legacy verbose 3-statement). CUSTOMISE by passing your own pattern sheets in the SAME call — a sheet with the same name (e.g. "Assumptions" ' +
+          'with the user\'s real numbers/labels) REPLACES the scaffold\'s; extra sheets are added. Set months to size the projection. ' +
+          'The built-in CHECK rows must compute to 0 — the tool rejects a model that does not tie.',
+      },
+      months: { type: 'number', description: 'Projection length for a template (periods/columns). Defaults per template.' },
       append: { type: 'boolean', description: 'When true, ADD these sheets to the existing file (same output name) instead of overwriting — for building a large multi-sheet model a few (2-3) sheets per call. A sheet whose name already exists is replaced. Default false (fresh file).' },
       accent: { type: 'string', description: 'Header accent colour as hex (e.g. "#4f46e5"). Use the brand accent if known.' },
       currency: { type: 'string', description: 'The workbook\'s currency for ALL currency-typed columns — an ISO code ("AED", "USD", "BDT") or a symbol ("$", "€", "£"). ALWAYS set this from the brief\'s market (an AED brief must NOT show $ — the default is $ only when nothing is specified).' },
@@ -376,7 +389,15 @@ export const generateSpreadsheetTool: ToolDef = {
     // template:"financial-model" → seed the correct, fully-wired 3-statement skeleton (the model
     // then customises via a follow-up append/overwrite call). Only seeds when no sheets are given.
     if (!sheets.length && String(args.template || '') === 'financial-model') sheets = financialModelScaffold();
-    if (!sheets.length) return 'Error: provide at least one sheet (name, columns, rows), or set template:"financial-model".';
+    // Pattern-scaffold templates: a correct, check-row-carrying model skeleton the caller
+    // customises by passing same-name sheets (they REPLACE the scaffold's before expansion).
+    if (args.template && String(args.template) !== 'financial-model') {
+      const merged = applyScaffold(String(args.template), Number(args.months) || undefined, sheets);
+      if (!merged)
+        return `Error: unknown template "${args.template}". Available: financial-model, ${EXCEL_SCAFFOLDS.map((s) => s.id).join(', ')}.`;
+      sheets = merged;
+    }
+    if (!sheets.length) return 'Error: provide at least one sheet (name, columns, rows), or set a template.';
     // PATTERN sheets (the fast, structurally-safe dialect for time-series models) expand
     // HERE, so every audit below — refs, cached-vs-computed, plausibility — runs on the
     // exact cells that reach the workbook. Bad label refs fail with the available labels.
@@ -395,6 +416,25 @@ export const generateSpreadsheetTool: ToolDef = {
     // (models often write a wrong/0 cached value; the formula itself is preserved + Excel
     // recalculates the download regardless, so this is a strictly-improving preview fix).
     recalcSheetData(sheets);
+    // CHECK ROWS (pattern dialect): tie-outs shipped INSIDE the model — Anthropic-skill
+    // practice ("Assets − L − E = 0", cash tie-outs) — must compute to ~0 every period.
+    // A non-zero check is a hard defect naming the first offending period.
+    const checkDefects: string[] = [];
+    for (const s of sheets) {
+      for (const ri of ((s as any).__checkRows ?? []) as number[]) {
+        const row: any[] = Array.isArray(s.rows?.[ri]) ? s.rows[ri] : [];
+        for (let ci = 1; ci < row.length; ci++) {
+          const v = row[ci]?.v;
+          if (Number.isFinite(v) && Math.abs(v) > 0.01) {
+            if (checkDefects.length < 6)
+              checkDefects.push(
+                `CHECK row "${row[0]}" on "${s.name}" is non-zero in period ${ci} (${Number(v).toFixed(2)}) — the model does not tie; fix the formulas it references (a check row must equal 0 everywhere).`,
+              );
+            break;
+          }
+        }
+      }
+    }
 
     let absOut: string;
     try {
@@ -443,7 +483,9 @@ export const generateSpreadsheetTool: ToolDef = {
       // tab suggested on a near-miss), dot-notation refs, and single-cell refs beyond a
       // sheet's real extent (the banner-shift off-by-one). Runs BEFORE recalcWorkbook.
       const builtAudit = auditExcelWorkbook(wb);
-      payloadAudit.refDefects = builtAudit.refDefects;
+      // Built-workbook refs replace the payload's (they see appended sheets too) — but the
+      // pattern dialect's CHECK-row defects always ride along.
+      payloadAudit.refDefects = [...builtAudit.refDefects, ...checkDefects];
       // AUTHORITATIVE pass: compute + cache every formula cell's result on the BUILT
       // workbook (real coordinates), so the in-app preview never shows blank formula
       // cells — even when the model's structure defeated the pre-write recalc.

@@ -164,3 +164,77 @@ test('label-sanity audit catches the wrong-row passthrough the bake-off exposed'
   assert.ok(!labelsOverlap('Rent', 'bean cost per unit (AED)'));
   assert.ok(labelsOverlap('—', 'anything'));
 });
+
+test('every scaffold builds through the REAL tool: audit-clean, check rows tie', async () => {
+  const { EXCEL_SCAFFOLDS, applyScaffold } = await import('../src/agent/excelScaffolds');
+  assert.equal(EXCEL_SCAFFOLDS.length, 8);
+  for (const sc of EXCEL_SCAFFOLDS) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), `arksai-sc-${sc.id}-`));
+    const ctx: any = { session: { id: 't', orgId: null }, repoDir: dir, mode: 'code', signal: new AbortController().signal, addCost: () => {} };
+    try {
+      const result = await generateSpreadsheetTool.run({ output: 'm.xlsx', template: sc.id }, ctx);
+      assert.match(result, /audit-clean/, `${sc.id}: ${result.slice(0, 400)}`);
+      assert.ok(!/CHECK row .* non-zero/.test(result), `${sc.id} check rows tie`);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  // Same-name user sheet replaces the scaffold's (customisation path).
+  const merged = applyScaffold('revenue-forecast', 12, [
+    { name: 'Assumptions', rows: [{ label: 'base units month 1', value: 5 }, { label: 'monthly unit growth rate', value: 0 }, { label: 'price per unit', value: 2 }] },
+  ])!;
+  assert.equal(merged[0].rows[0].value, 5, 'user assumptions replace scaffold assumptions');
+  assert.equal(applyScaffold('nope', 12, []), null);
+});
+
+test('scaffold ground truths: amortization zeros out, DCF discounts exactly, trend recovers the slope', async () => {
+  const read = async (dir: string) => {
+    const ExcelJS = (await import('exceljs')).default ?? (await import('exceljs'));
+    const wb = new (ExcelJS as any).Workbook();
+    await wb.xlsx.readFile(path.join(dir, 'm.xlsx'));
+    const val = (c: any) => (c && typeof c === 'object' && 'result' in c ? c.result : c);
+    return (sheet: string, label: string, col: number) => {
+      const ws = wb.getWorksheet(sheet);
+      for (let r = 1; r <= ws.rowCount; r++)
+        if (String(val(ws.getRow(r).getCell(1).value) ?? '').trim().toLowerCase() === label.toLowerCase()) return Number(val(ws.getRow(r).getCell(col).value));
+      return NaN;
+    };
+  };
+  const run = async (args: any) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-gt-'));
+    const ctx: any = { session: { id: 't', orgId: null }, repoDir: dir, mode: 'code', signal: new AbortController().signal, addCost: () => {} };
+    const result = await generateSpreadsheetTool.run({ output: 'm.xlsx', ...args }, ctx);
+    return { dir, result, get: await read(dir) };
+  };
+
+  // Loan: 500k @ 8%/12 over 36 months — closing balance M36 must be ~0 (the built-in check
+  // already enforces it; assert the value directly too) and payment matches the PMT formula.
+  const loan = await run({ template: 'loan-amortization', months: 36 });
+  const r = 0.08 / 12;
+  const pmt = (500000 * r * Math.pow(1 + r, 36)) / (Math.pow(1 + r, 36) - 1);
+  assert.ok(Math.abs(loan.get('Schedule', 'Payment', 2) - pmt) < 0.01, 'compounding-factor PMT equals closed form');
+  assert.ok(Math.abs(loan.get('Schedule', 'Closing balance', 37)) < 0.01, 'loan fully amortizes');
+  fs.rmSync(loan.dir, { recursive: true, force: true });
+
+  // DCF: discount factor year 3 = 1/(1+wacc)^3 via recursion, no POWER anywhere.
+  const dcf = await run({ template: 'dcf-valuation', months: 10 });
+  assert.ok(Math.abs(dcf.get('FCF', 'Discount factor', 4) - 1 / Math.pow(1.1, 3)) < 1e-9, 'recursive df = exponent df');
+  assert.ok(Number.isFinite(dcf.get('Valuation', 'Value per share', 2)), 'per-share value computes');
+  fs.rmSync(dcf.dir, { recursive: true, force: true });
+
+  // Prediction: the example series is exactly linear (base 1000 step 40) — least-squares
+  // helper rows must recover slope=40, and the forecast continues the line.
+  const trend = await run({ template: 'forecast-trend', months: 12 });
+  assert.ok(Math.abs(trend.get('Model', 'Slope', 2) - 40) < 1e-6, 'helper-row least squares recovers the slope');
+  assert.ok(Math.abs(trend.get('Forecast', 'Trend forecast', 2) - (1000 + 40 * 12)) < 1e-6, 'forecast continues the line');
+  fs.rmSync(trend.dir, { recursive: true, force: true });
+
+  // A deliberately broken model: force a non-zero check row → the tool must reject it.
+  const broken = await run({
+    sheets: [
+      { name: 'S', months: 3, rows: [{ label: 'a', each: '=1' }, { label: 'CHECK broken', check: '={ROW:a}+1' }] },
+    ],
+  });
+  assert.match(broken.result, /CHECK row .* non-zero/, 'non-tying check row is a named defect');
+  fs.rmSync(broken.dir, { recursive: true, force: true });
+});

@@ -27,6 +27,9 @@ export interface PatternRow {
   first?: string;
   then?: string;
   each?: string;
+  /** A CHECK row (must compute to ~0 every period — Anthropic-skill practice: models ship
+   *  their own tie-out checks). Expands like `each`; the tool hard-fails non-zero checks. */
+  check?: string;
 }
 
 const MAX_MONTHS = 120;
@@ -87,6 +90,7 @@ export function expandPatternSheets(sheets: any[]): any[] {
       : [{ header: String(sh.item_header ?? 'Item'), type: 'text' }, ...Array.from({ length: n }, (_, m) => ({ header: monthHeader(sh, m), type: 'number' }))];
 
     const rows: any[] = [];
+    const checkRows: number[] = [];
     rowsIn.forEach((r, ri) => {
       const rowNum = ri + 2; // columns are row 1; data starts at row 2
       const row: any[] = [String(r.label)];
@@ -96,29 +100,53 @@ export function expandPatternSheets(sheets: any[]): any[] {
         let out = String(f);
         out = out.replaceAll('{PREV}', `${colLetter(m)}${rowNum}`);
         out = out.replaceAll('{COL}', col);
-        out = out.replace(/\{ROW:([^}]+)\}/g, (_, ref: string) => {
+        // {ROW:Label} / {ROW:Sheet!Label} with an optional [-k] column lag (collections that
+        // arrive a month later); {FIRST:...}/{LAST:...} pin a row's first/last data cell
+        // absolutely (PMT compounding factors, LTV read-offs).
+        const resolveRef = (kind: string, ref: string, lag: number): string => {
           const bang = ref.indexOf('!');
+          if (kind === 'ROW' && m - lag < 0)
+            throw new ToolError(`row "${r.label}" lags [-${lag}] past the first column at month ${m + 1} — seed the early months with "first"/"then" instead.`);
+          const targetN = (t: any): number => Math.max(1, Math.min(MAX_MONTHS, Number(t?.months) || 24));
+          const wantCol = kind === 'FIRST' ? colLetter(1) : kind === 'LAST' ? colLetter(n) : colLetter(m + 1 - lag);
+          const abs = kind !== 'ROW';
+          const place = (sheetName: string | null, idx: number, valueSheet: boolean, tN = n): string => {
+            if (valueSheet) return `'${sheetName}'!$B$${idx + 2}`;
+            if (kind === 'RANGE') {
+              const range = `$B$${idx + 2}:$${colLetter(tN)}$${idx + 2}`;
+              return sheetName ? `'${sheetName}'!${range}` : range;
+            }
+            const lastCol = kind === 'LAST' && sheetName ? colLetter(tN) : wantCol;
+            const cell = abs ? `$${lastCol}$${idx + 2}` : `${lastCol}${idx + 2}`;
+            return sheetName ? `'${sheetName}'!${cell}` : cell;
+          };
           if (bang > 0) {
             const sheetName = ref.slice(0, bang);
             const label = ref.slice(bang + 1);
             const target = patternByName.get(sheetName) ?? [...patternByName.values()].find((x) => norm(x.name) === norm(sheetName));
             if (!target)
-              throw new ToolError(`pattern ref "{ROW:${ref}}" points at sheet "${sheetName}" which is not a pattern sheet in this call. Pattern refs only resolve between pattern sheets.`);
+              throw new ToolError(`pattern ref "{${kind}:${ref}}" points at sheet "${sheetName}" which is not a pattern sheet in this call. Pattern refs only resolve between pattern sheets.`);
             const idx = findRow(target.rows, label);
             if (idx < 0)
-              throw new ToolError(`pattern ref "{ROW:${ref}}": no row labeled like "${label}" on "${target.name}". Its rows are: ${target.rows.map((x: any) => `"${x.label}"`).join(', ')}.`);
-            return isValueOnly(target) ? `'${target.name}'!$B$${idx + 2}` : `'${target.name}'!${col}${idx + 2}`;
+              throw new ToolError(`pattern ref "{${kind}:${ref}}": no row labeled like "${label}" on "${target.name}". Its rows are: ${target.rows.map((x: any) => `"${x.label}"`).join(', ')}.`);
+            return place(String(target.name), idx, isValueOnly(target), targetN(target));
           }
           const idx = findRow(rowsIn, ref);
           if (idx < 0)
-            throw new ToolError(`pattern ref "{ROW:${ref}}": no row labeled like "${ref}" on this sheet. Its rows are: ${rowsIn.map((x) => `"${x.label}"`).join(', ')}.`);
-          return `${col}${idx + 2}`;
-        });
+            throw new ToolError(`pattern ref "{${kind}:${ref}}": no row labeled like "${ref}" on this sheet. Its rows are: ${rowsIn.map((x) => `"${x.label}"`).join(', ')}.`);
+          return place(null, idx, false);
+        };
+        out = out.replace(/\{(ROW|FIRST|LAST|RANGE):([^}[]+?)(?:\[-(\d+)\])?\}/g, (_, kind: string, ref: string, lag?: string) =>
+          resolveRef(kind, ref.trim(), Number(lag ?? 0)),
+        );
         return out;
       };
 
       if (r.value !== undefined) {
         row.push(r.value);
+      } else if (r.check) {
+        for (let m = 0; m < n; m++) row.push(subst(r.check, m));
+        checkRows.push(ri);
       } else if (r.each) {
         for (let m = 0; m < n; m++) row.push(subst(r.each, m));
       } else if (r.first) {
@@ -131,7 +159,7 @@ export function expandPatternSheets(sheets: any[]): any[] {
       }
       rows.push(row);
     });
-    return { ...sh, months: undefined, columns, rows };
+    return { ...sh, months: undefined, columns, rows, __checkRows: checkRows };
   });
 }
 

@@ -654,8 +654,10 @@ export function auditNumericSanity(wb: any): string[] {
       // leaked rate (revenue 0.30 across every month), not a stray ratio/per-unit cell.
       if (isMoney && !isRatio && r.cells.length >= 4 && r.cells.every((c) => Math.abs(c.v) > 0 && Math.abs(c.v) < 1))
         for (const { v, addr } of r.cells) leaks.push(`${addr}=${v}`);
-      // (3) derived row computing to all-zero
-      if (sheetHasNonzero && r.label && SANITY_DERIVED_RE.test(r.label) && !isRatio && r.cells.length >= 1 && r.cells.every((c) => c.v === 0))
+      // (3) derived row computing to all-zero — EXCEPT check/tie-out rows, whose whole
+      // purpose is to equal 0 everywhere (the pattern dialect ships them inside models).
+      const isCheck = !!r.label && /\bcheck\b|tie.?out|must (be|equal) (0|zero)/i.test(r.label);
+      if (sheetHasNonzero && r.label && !isCheck && SANITY_DERIVED_RE.test(r.label) && !isRatio && r.cells.length >= 1 && r.cells.every((c) => c.v === 0))
         zeroRows.push(r.label.slice(0, 28));
     }
     const parts: string[] = [];

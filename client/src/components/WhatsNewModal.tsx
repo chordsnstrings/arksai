@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.56';
+export const WHATS_NEW_VERSION = '2026-07-06.57';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Videos now end properly — at every length',
-    body: 'Explainers and shorts no longer just stop after the last fact. A new ending gate makes every script close the loop its hook opened: a short punch line that calls back to the opening, nothing announced ("thanks for watching" is rejected), the closing frame holds while the music carries it out. Even a 15-second short gets the full story arc — hook, turn, and a real landing.',
+    title: 'Excel models: minutes down to seconds — and self-checking',
+    body: 'Spreadsheet models are now built from a pattern language (rows as formulas, referenced by name — never fragile cell addresses) with eight ready model scaffolds: revenue forecasts, 3-statement, DCF valuation, loan amortization, SaaS MRR, headcount plans, prediction/trend forecasts and scenario analysis. Every scaffold ships with built-in tie-out check rows that must equal zero — a model that does not tie is rejected before you ever see it.',
   },
   {
-    title: 'Long builds no longer stall silently',
-    body: 'When a model announced its next step and then went quiet mid-build, the run used to end unfinished until you typed "continue". The engine now sends that nudge itself — runs pick up exactly where they left off, automatically.',
+    title: 'Videos now end properly — at every length',
+    body: 'A new ending gate makes every script close the loop its hook opened: a short callback punch line, nothing announced, the closing frame held while the music carries it out.',
   },
 ];
 
