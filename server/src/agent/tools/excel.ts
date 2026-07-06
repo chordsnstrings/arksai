@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import { resolveInWorkspace, type ToolDef } from './common';
 import { recalcSheetData, recalcWorkbook } from './sheetcalc';
 import { auditFormulaRefs, auditExcelWorkbook, formulaAuditLines } from './sheetAudit';
+import { expandPatternSheets } from '../excelPattern';
+import { ToolError } from './common';
 import { STRINGY_REF_RE } from '../deliverableCheck';
 
 type ColType = 'text' | 'number' | 'currency' | 'percent' | 'date';
@@ -293,6 +295,15 @@ export const generateSpreadsheetTool: ToolDef = {
     'sheet; give every column an explicit type (currency/percent/date) so numbers align and format consistently; ' +
     'keep the accent restrained; no orphan/empty columns. The output is auto re-opened, formula-error-checked, and ' +
     'design-reviewed — a broken or sloppy sheet is sent back to you to fix. ' +
+    'TIME-SERIES / FINANCIAL MODELS — USE PATTERN SHEETS (the DEFAULT for any month-by-month or projection model; ' +
+    '~10x faster and immune to wrong-row references): write each sheet as {"name":"Revenue","months":24,"rows":[ROW,...]} ' +
+    'where ROW is {"label":"...","value":N} (a single assumption), {"label":"...","each":"=F"} (formula every month), or ' +
+    '{"label":"...","first":"=F1","then":"=F"} (M1 uses first; later months use then, where {PREV} is this row\'s ' +
+    'previous-month cell). In formulas NEVER write cell addresses — reference rows BY LABEL: {ROW:Label} (same sheet, ' +
+    'current month\'s column), {ROW:Sheet!Label} (another sheet; an assumptions/value-only sheet resolves absolutely). ' +
+    'Example: {"label":"Units","first":"={ROW:Assumptions!base units}","then":"={PREV}*(1+{ROW:Assumptions!growth rate})"}. ' +
+    'The server expands patterns into all columns deterministically and the full audit runs on the result. One call ' +
+    'usually fits the WHOLE model — no staging needed. Verbose cell rows below remain for ad-hoc data tables. ' +
     'LARGE / GRANULAR MODELS (e.g. a 3-year MONTH-BY-MONTH CAPEX+OPEX with many line items, or any model with many ' +
     'sheets) — BUILD IT IN A FEW STAGES. Avoid BOTH extremes: cramming EVERY sheet into one giant call (slow, can ' +
     'stall or hit the output limit and truncate) AND one sheet per call (needlessly slow — each call is a full ' +
@@ -366,6 +377,15 @@ export const generateSpreadsheetTool: ToolDef = {
     // then customises via a follow-up append/overwrite call). Only seeds when no sheets are given.
     if (!sheets.length && String(args.template || '') === 'financial-model') sheets = financialModelScaffold();
     if (!sheets.length) return 'Error: provide at least one sheet (name, columns, rows), or set template:"financial-model".';
+    // PATTERN sheets (the fast, structurally-safe dialect for time-series models) expand
+    // HERE, so every audit below — refs, cached-vs-computed, plausibility — runs on the
+    // exact cells that reach the workbook. Bad label refs fail with the available labels.
+    try {
+      sheets = expandPatternSheets(sheets);
+    } catch (e: any) {
+      if (e instanceof ToolError) return `Error: ${e.message}`;
+      throw e;
+    }
     // ACCURACY audit part 1 — cached-vs-computed MISMATCHES, captured from the RAW payload
     // BEFORE any recalc pass overwrites the model's cached values: where {f,v} disagree
     // materially, the model's arithmetic and its formula tell two different stories — which

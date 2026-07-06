@@ -19,6 +19,20 @@ const SUBSYSTEM =
 const EASY =
   /\b(rename|typo|format|lint|comment|readme|hello world|simple|quick|small|tweak|adjust|change the (colou?r|text|label|title)|bump version|add a (button|link))\b/;
 
+/**
+ * A brief whose DELIVERABLE is a spreadsheet/financial model (not an app that mentions one).
+ * EXCEL_BAKEOFF.md round 2 (2026-07-06): seed-2-0-pro was the fastest model AND 4/4 on
+ * semantic ground truth for exactly this class — route it to the Swift lane instead of the
+ * heavy lane, where the same workbook took ~8 minutes. Guarded: any app/product subsystem
+ * signal keeps the brief on normal routing (a SaaS build that exports xlsx is NOT this).
+ */
+export function isSpreadsheetBrief(task: string): boolean {
+  const t = task.toLowerCase();
+  if (!/\b(spreadsheet|workbook|xlsx|excel|financial model|cash[- ]?flow (model|projection|forecast)|budget (model|sheet)|3[- ]statement)\b/.test(t)) return false;
+  if (/\b(app|website|web ?site|landing page|dashboard|api|backend|frontend|deck|pdf|report|video)\b/.test(t)) return false;
+  return !new RegExp(SUBSYSTEM.source, 'i').test(task);
+}
+
 /** Cheap, free complexity estimate from the task text and mode. */
 export function complexityTier(task: string, mode: SessionMode): Tier {
   const t = task.toLowerCase();
@@ -53,7 +67,12 @@ export interface RouteOpts {
   minimaxAvailable: boolean;
 }
 
-const tierModel = (tier: Tier, mode: SessionMode, _o: RouteOpts): string => {
+const tierModel = (tier: Tier, mode: SessionMode, _o: RouteOpts, task = ''): string => {
+  // Spreadsheet-deliverable briefs → Swift (seed-2-0-pro): bake-off-verified equal accuracy
+  // (4/4 ground truth, audit-clean) at a fraction of the heavy lane's latency. The pattern
+  // dialect in generate_spreadsheet is what makes this safe — accuracy is enforced by the
+  // audits, not by the slow model's carefulness.
+  if (mode === 'code' && byteplusReady() && isSpreadsheetBrief(task)) return SWIFT_MODEL;
   // CODING = ALL-BYTEPLUS (operator decision 2026-07-02: "for coding remove M3 completely — stick
   // to GLM-5.1, it gives better output"). Light builds keep the validated Swift/Dola fast lane;
   // everything else in CODE mode is GLM-5.1. M3 is NOT a coding tier anymore — it remains only
@@ -82,7 +101,7 @@ const LABELS: Record<string, string> = {
 /** Pick a concrete model for a task. Pure + deterministic so it's testable. */
 export function selectModel(task: string, mode: SessionMode, o: RouteOpts): { model: string; tier: Tier; reason: string } {
   const tier = complexityTier(task, mode);
-  const model = tierModel(tier, mode, o);
+  const model = tierModel(tier, mode, o, task);
   const why =
     mode === 'code'
       ? tier === 'heavy'

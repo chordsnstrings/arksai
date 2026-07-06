@@ -38,6 +38,27 @@ const SHEET_REF_RE = /(?:'([^']+)'|([A-Za-z_][A-Za-z0-9_ ]*))!\$?([A-Za-z]{1,3})
 const DOT_REF_RE = /\b([A-Za-z_][A-Za-z0-9_]{1,30})\.(\$?[A-Z]{1,3}\$?\d{1,7})\b/g;
 // Function calls, to spot ones the verifier can't compute.
 const FN_RE = /\b([A-Z][A-Z0-9_]{1,15})\s*\(/g;
+// A formula that is NOTHING BUT one sheet-qualified single-cell ref ("=Assumptions!$B$4") —
+// a passthrough row, where the source and target row labels should agree.
+const BARE_PASSTHROUGH_RE = /^=?\s*(?:'([^']+)'|([A-Za-z_][A-Za-z0-9_ ]*))!\$?([A-Za-z]{1,3})\$?(\d{1,7})\s*$/;
+
+// Content-token overlap between two row labels ("Rent" ↔ "rent per month (AED)" = yes;
+// "Rent" ↔ "bean cost per unit (AED)" = no). Light plural stem; unit/glue words ignored.
+const LABEL_NOISE = new Set(['per', 'month', 'monthly', 'aed', 'usd', 'the', 'of', 'a', 'an', 'and', 'rate', 'value', 'total', 'amount']);
+const labelTokens = (s: string): Set<string> => {
+  const out = new Set<string>();
+  for (const m of s.toLowerCase().match(/[a-z]{2,}/g) ?? []) {
+    const w = m.length > 4 && m.endsWith('s') ? m.slice(0, -1) : m;
+    if (!LABEL_NOISE.has(w)) out.add(w);
+  }
+  return out;
+};
+export function labelsOverlap(a: string, b: string): boolean {
+  const ta = labelTokens(a);
+  const tb = labelTokens(b);
+  if (!ta.size || !tb.size) return true; // unscoreable labels never accuse
+  return [...ta].some((t) => tb.has(t));
+}
 
 const colToNum = (c: string): number => {
   let n = 0;
@@ -187,6 +208,35 @@ function auditWorkbook(wbSource: Workbook, extOverride?: SheetExtent[]): Formula
     // 3. Unsupported-function telemetry.
     for (const m of f.matchAll(FN_RE)) {
       if (!SUPPORTED_FNS.has(m[1])) unsupported.add(m[1]);
+    }
+    // 5. Label sanity on BARE PASSTHROUGH refs (bake-off round 2 blind spot: "Rent" =
+    // Assumptions!$B$4 = the bean-cost cell — self-consistent, so nothing above fires).
+    // Scope, to stay false-positive-safe: the WHOLE formula is one absolute-ish ref into a
+    // narrow (≤3-col) assumptions-style sheet, the two row labels share no content token,
+    // and a like-named row EXISTS on the target sheet — that is the off-by-one, name it.
+    const bare = BARE_PASSTHROUGH_RE.exec(f);
+    if (bare) {
+      const name = (bare[1] ?? bare[2] ?? '').trim();
+      const col = bare[3].toUpperCase();
+      const row = parseInt(bare[4], 10);
+      const target = ext.find((s) => s.name === name);
+      const tgrid = wbSource.get(name);
+      if (target && tgrid && target.lastCol <= 3) {
+        const srcRow = parseInt(addr.replace(/^[A-Z]+/, ''), 10);
+        const srcLabel = String(wbSource.get(sheet)?.get(`A${srcRow}`)?.v ?? '').trim();
+        const tgtLabel = String(tgrid.get(`A${row}`)?.v ?? '').trim();
+        if (srcLabel && tgtLabel && !labelsOverlap(srcLabel, tgtLabel)) {
+          for (let r = 1; r <= target.lastRow; r++) {
+            const cand = String(tgrid.get(`A${r}`)?.v ?? '').trim();
+            if (r !== row && cand && labelsOverlap(srcLabel, cand)) {
+              defect(
+                `${sheet}!${addr}: row "${srcLabel}" is a passthrough of ${name}!${col}${row} ("${tgtLabel}") — the labels don't match. Did you mean ${name}!$${col}$${r} ("${cand}")? This is the classic off-by-one on the assumptions block.`,
+              );
+              break;
+            }
+          }
+        }
+      }
     }
   }
   out.unsupportedFns = [...unsupported].sort();

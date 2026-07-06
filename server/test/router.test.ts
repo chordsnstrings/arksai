@@ -117,3 +117,22 @@ test('complexityTier: a subsystem-stacked SaaS brief is HEAVY (the TaskForge mis
   // A single subsystem mention in a short ask does not blow up the tier.
   assert.equal(complexityTier('add a login page to my site', 'code'), 'standard');
 });
+
+test('spreadsheet-deliverable briefs route to Swift (bake-off round 2); app briefs do not', async () => {
+  const { selectModel, isSpreadsheetBrief } = await import('../src/agent/router');
+  const { SWIFT_MODEL } = await import('../../shared/types');
+  const { __setByteplusKeyForTest } = await import('../src/agent/byteplusRuntime');
+  __setByteplusKeyForTest('test-key');
+  const o = { minimaxAvailable: true };
+  // A pure model brief — even a long, heavy-scoring one — goes to the Swift lane.
+  const brief =
+    'Build a 24-month financial model spreadsheet for a Dubai coffee roastery: Assumptions, Revenue, Opex, PnL sheets, ' +
+    'compounding growth, cross-sheet formulas, IF-gated tax, cumulative cash. All derived cells live formulas.';
+  assert.ok(isSpreadsheetBrief(brief));
+  assert.equal(selectModel(brief, 'code', o).model, SWIFT_MODEL);
+  // Deliverable guards: an app that mentions excel, or subsystem-scale briefs, stay on normal routing.
+  assert.ok(!isSpreadsheetBrief('build a SaaS dashboard app with excel export and JWT auth'));
+  assert.ok(!isSpreadsheetBrief('a landing page for my excel consultancy'));
+  assert.ok(!isSpreadsheetBrief('multi-tenant billing workbook system with oauth'));
+  assert.ok(!isSpreadsheetBrief('write me a poem'));
+});
