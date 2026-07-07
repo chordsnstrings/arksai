@@ -36,7 +36,7 @@ export function currencyNumFmt(currency: string | undefined): string {
 }
 
 /** Normalise a hex like "#4f46e5" / "4f46e5" to an ARGB string exceljs wants. */
-function toArgb(hex: string | undefined, fallback: string): string {
+export function toArgb(hex: string | undefined, fallback: string): string {
   const h = String(hex || '').replace('#', '').trim();
   if (/^[0-9a-fA-F]{6}$/.test(h)) return 'FF' + h.toUpperCase();
   return fallback;
@@ -210,7 +210,7 @@ export function financialModelScaffold(): Array<{ name: string; columns: ColSpec
  * (append) path share identical styling, and so a large model assembled sheet-by-sheet still
  * looks designed, not like a raw script dump.
  */
-function buildSheet(wb: any, s: any, accentArgb: string, currencyFmt?: string): { name: string; rows: number } {
+export function buildSheet(wb: any, s: any, accentArgb: string, currencyFmt?: string): { name: string; rows: number } {
   const name = String(s.name || 'Sheet').slice(0, 31);
   const cols: ColSpec[] = Array.isArray(s.columns) ? s.columns : [];
   const rows: any[] = Array.isArray(s.rows) ? s.rows : [];
@@ -341,7 +341,9 @@ function buildSheet(wb: any, s: any, accentArgb: string, currencyFmt?: string): 
     let seen = 0;
     col.eachCell({ includeEmpty: false }, (cell: any) => {
       if (seen++ > WIDTH_SAMPLE) return;
-      const len = String(cell.value ?? '').length;
+      // A Date cell renders ~10 chars ("2024-01-15") — String(Date) is a 60-char tz dump
+      // that would balloon the column to the width cap.
+      const len = cell.value instanceof Date ? 10 : String(cell.value ?? '').length;
       if (len > max) max = len;
     });
     col.width = Math.min(48, Math.max(12, max + 3));

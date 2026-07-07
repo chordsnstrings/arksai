@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.60';
+export const WHATS_NEW_VERSION = '2026-07-06.61';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: '28 ready-made Excel models — for every team',
-    body: 'The spreadsheet engine now ships 28 self-checking model templates covering finance (budgets vs actuals, cash runway, break-even, unit economics, NPV appraisals, depreciation, working capital), sales & marketing (pipelines, commissions, funnel + CAC/ROAS), BI & analytics (KPI dashboards, cohort retention, A/B test significance), operations, HR, personal budgets, savings goals, rental-property deals and e-commerce P&Ls. Every one is formula-driven with built-in tie-out checks that must equal zero.',
+    title: 'Combine messy spreadsheets into one clean workbook',
+    body: 'Upload several bank statements, expense exports or monthly files and ask for one combined sheet. ArksAI now merges them deterministically: it finds each file\'s real header (even under bank preamble), matches columns by meaning across files, turns debit/credit pairs into one signed amount, fixes dates and currency formats, drops repeated headers and footer totals, removes duplicates from overlapping exports, and sorts everything by date. The delivered workbook includes an Audit sheet where live formulas re-count and re-sum every source file — the tie checks read OK, proving not a single row was lost — plus a monthly summary.',
   },
   {
-    title: 'Premium Excel, instantly — no polish pass',
-    body: 'Every workbook wears a premium finance look baked in at build time: Helvetica typography, hidden gridlines, brand-tinted banded rows, proper money/percent formats, blue input cells and accounting rules under bottom lines. The cosmetic review pass is gone — files arrive faster AND better dressed.',
+    title: '28 ready-made Excel models — for every team',
+    body: 'Self-checking templates for budgets vs actuals, cash runway, break-even, unit economics, NPV, depreciation, working capital, sales pipelines, commissions, marketing funnels, KPI dashboards, cohort retention, A/B tests, inventory EOQ, project budgets, headcount, personal budgets, savings goals, rental property and e-commerce P&L — all formula-driven with tie-out checks.',
   },
 ];
 

@@ -364,6 +364,12 @@ const MODEL_SHEET_RE = /assumption|driver|input/i;
 // typed-in numbers with zero formulas while the model computes elsewhere, it was hand-keyed and will
 // silently go stale — it should reference the calc sheets (=Model!.. / =SUM(Model!..)).
 const SUMMARY_SHEET_RE = /summary|dashboard|overview|output|result|total|p&?l|income|cash\s*flow|balance|statement|kpi|metric/i;
+// IMPORTED-DATA sheets (combine_spreadsheets output and the like): rows are REAL transactions/
+// records copied from source files — literals ARE the truth there, and descriptions legitimately
+// contain model vocabulary ("Balance transfer", "Total Fitness gym"), date serials sit next to
+// small amounts, and a running Balance column dwarfs row amounts. The model-shaped audits
+// (derived-row literals, numeric outliers) are all false positives on this class of sheet.
+export const DATA_SHEET_RE = /\b(combined|transactions?|ledger|entries|register|imported?|raw data|source data|statement lines|audit|reconcil)\b/i;
 // A financial STATEMENT that must carry rows of data (so an empty one is an incomplete model). Kept
 // tighter than SUMMARY_SHEET_RE — no "summary/kpi/total" (which can legitimately be a thin sheet).
 const STATEMENT_SHEET_RE = /cash\s*flow|p&?l|profit.{0,4}loss|income|balance\s*sheet|statement|forecast|projection/i;
@@ -474,26 +480,28 @@ export function auditFormulaModel(wb: any): { isModel: boolean; reason: string }
       }
     }
     // An assumptions/driver/input sheet is SUPPOSED to be hard-coded numbers — never treat
-    // its rows as "should-be-computed" derived rows (that's a false positive).
+    // its rows as "should-be-computed" derived rows (that's a false positive). Imported-DATA
+    // sheets likewise: a transaction description "Balance transfer" is data, not a roll-up.
     const isInputSheet = MODEL_SHEET_RE.test(name);
+    const isDataSheet = DATA_SHEET_RE.test(name);
     for (const r of rows.values()) {
       if (!r.label || !DERIVED_LABEL_RE.test(r.label)) continue;
-      if (!derivedWithNumbers && r.numCells >= 1) derivedWithNumbers = r.label.trim();
+      if (!derivedWithNumbers && !isDataSheet && r.numCells >= 1) derivedWithNumbers = r.label.trim();
       // On a CALCULATION sheet, a derived row with ≥2 numbers that are ALL literals (no
       // formulas) was typed in, not computed.
-      if (!derivedAllLiteral && !isInputSheet && r.numCells >= 2 && r.numFormulaCells === 0)
+      if (!derivedAllLiteral && !isInputSheet && !isDataSheet && r.numCells >= 2 && r.numFormulaCells === 0)
         derivedAllLiteral = r.label.trim();
     }
     // Sheet-level tell: an aggregation/output sheet (Summary/Dashboard/P&L/Cash Flow…) packed with
     // typed-in numbers and ZERO formulas — it was hand-keyed and will go stale. (Row-level checks
     // miss it when the row labels aren't Total/Growth/… — e.g. a "Summary" sheet of bare numbers.)
-    if (!hardcodedSummary && !isInputSheet && SUMMARY_SHEET_RE.test(name) && sheetFormulas === 0 && sheetLiterals >= 15)
+    if (!hardcodedSummary && !isInputSheet && !isDataSheet && SUMMARY_SHEET_RE.test(name) && sheetFormulas === 0 && sheetLiterals >= 15)
       hardcodedSummary = name;
     // A STATEMENT sheet (Cash Flow / P&L / Income / Balance …) that's a header-only stub — no
     // numbers and no formulas at all. The user asked for that statement; shipping it empty is an
     // incomplete model. (Caught live: a 6-sheet coffee-shop model whose Cash Flow tab was just a
     // header row + an "OPERATING ACTIVITIES" label.)
-    if (!emptyStatementSheet && !isInputSheet && STATEMENT_SHEET_RE.test(name) && rows.size >= 1 && sheetNumeric === 0 && sheetFormulas === 0)
+    if (!emptyStatementSheet && !isInputSheet && !isDataSheet && STATEMENT_SHEET_RE.test(name) && rows.size >= 1 && sheetNumeric === 0 && sheetFormulas === 0)
       emptyStatementSheet = name;
   }
   // A cross-sheet reference stored as TEXT (the model dropped the leading "=") — the link is
@@ -615,7 +623,7 @@ export function auditNumericSanity(wb: any): string[] {
   const findings: string[] = [];
   const names: string[] = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
   for (const name of names) {
-    if (MODEL_SHEET_RE.test(name) || SKIP_SHEET_RE.test(name)) continue;
+    if (MODEL_SHEET_RE.test(name) || SKIP_SHEET_RE.test(name) || DATA_SHEET_RE.test(name)) continue;
     const sh = wb?.Sheets?.[name];
     if (!sh) continue;
     const rows = new Map<number, { label?: string; labelCol: number; cells: { col: number; v: number; addr: string }[] }>();

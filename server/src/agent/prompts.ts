@@ -176,6 +176,14 @@ function docToolsSlice(): string {
   over all the tabs and get back only the answer (the data stays out of the chat, so
   it scales to huge files). Don't page thousands of raw cells into the conversation.
   To CREATE a deliverable:
+  • MULTIPLE spreadsheets to merge/combine/clean (bank statements, expense exports,
+    monthly files) → combine_spreadsheets with ALL the paths in ONE call. It is fully
+    deterministic on the server: detects real header rows under preamble, auto-maps
+    columns by meaning (debit+credit → one signed amount), normalises dates/amounts,
+    drops empties/repeated headers/footer totals, de-duplicates across files, and ships
+    a themed workbook with a live per-source Audit sheet whose CHECK cells prove no row
+    was lost. NEVER pre-read the files with read_spreadsheet first and NEVER write a
+    merge script — one combine_spreadsheets call is the whole job.
   • Spreadsheet (.xlsx) → use generate_spreadsheet by DEFAULT. MATCH A TEMPLATE FIRST:
     28 ready self-checking models ship as template:"<id>" (budgets vs actuals, cash runway,
     break-even, unit economics, NPV, depreciation, working capital, sales pipeline,

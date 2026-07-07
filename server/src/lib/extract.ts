@@ -76,7 +76,10 @@ export function buildUploadNote(files: string[], minimaxAvailable: boolean, pale
   if (sheets.length)
     clauses.push(
       `spreadsheet(s): ${sheets.join(', ')} — call read_spreadsheet on each (NOT read_file) to list every sheet ` +
-        `and read exact values; for totals / P&L / pivots / charts, crunch the raw file with Python (pandas/openpyxl) in code mode`,
+        `and read exact values; for totals / P&L / pivots / charts, crunch the raw file with Python (pandas/openpyxl) in code mode` +
+        (sheets.length > 1
+          ? `. To MERGE/COMBINE these into ONE workbook (bank statements, expense exports…) call combine_spreadsheets with ALL the paths in one call — it cleans, maps, de-duplicates and reconciles deterministically; do NOT pre-read or script the merge`
+          : ''),
     );
   if (decks.length)
     clauses.push(

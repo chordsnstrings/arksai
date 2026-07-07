@@ -57,6 +57,7 @@ import { dependencyAuditorTool } from './dependencyAuditor';
 import { readSpreadsheetTool } from './spreadsheet';
 import { recalcSpreadsheetTool } from './recalcSheet';
 import { querySpreadsheetTool } from './query';
+import { combineSpreadsheetsTool } from './combineSheets';
 import { readPresentationTool } from './presentation';
 import { GOOGLE_WORKSPACE_TOOLS } from './googleWorkspace';
 
@@ -134,6 +135,7 @@ export const ALL_TOOLS: ToolDef[] = [
   readSpreadsheetTool,
   recalcSpreadsheetTool,
   querySpreadsheetTool,
+  combineSpreadsheetsTool,
   readPresentationTool,
   ...GOOGLE_WORKSPACE_TOOLS,
 ];
@@ -168,6 +170,7 @@ const REPORT_TOOLS = new Set([
   'read_spreadsheet',
   'recalc_spreadsheet',
   'query_spreadsheet',
+  'combine_spreadsheets',
   'read_presentation',
   'switch_mode',
   'fetch_data',
