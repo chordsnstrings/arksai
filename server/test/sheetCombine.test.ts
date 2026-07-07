@@ -231,3 +231,160 @@ test('ambiguous sources return profiles + a proposed mapping instead of writing 
   assert.ok(!fs.existsSync(path.join(dir, 'combined.xlsx')), 'no file written on the inspect path');
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// ---------------------------------------------------------------------------
+// COMBINE v2 (BI hardening): locales, hierarchical headers, multi-table tabs,
+// wide-format unpivot, corrupted IDs, update mode, missing-month honesty.
+// ---------------------------------------------------------------------------
+
+test('v2: EU number locale — evidence + parsing', async () => {
+  const { numberLocaleEvidence } = await import('../src/agent/sheetCombine');
+  assert.equal(numberLocaleEvidence(['1.234,56', '999,00']), 'eu');
+  assert.equal(numberLocaleEvidence(['1,234.56', '999.00']), 'us');
+  assert.equal(numberLocaleEvidence(['1.234']), 'unknown', 'ambiguous alone');
+  assert.equal(parseAmountStrict('1.234,56', 'eu'), 1234.56);
+  assert.equal(parseAmountStrict('(1.200,00)', 'eu'), -1200);
+  assert.equal(parseAmountStrict('1,234.56', 'us'), 1234.56);
+});
+
+test('v2: two-row hierarchical headers compose', async () => {
+  const { composeHeaders } = await import('../src/agent/sheetCombine');
+  const grid = [
+    ['Revenue', null, 'Cost', null],
+    ['Q1', 'Q2', 'Q1', 'Q2'],
+    [100, 200, 50, 60],
+  ];
+  const c = composeHeaders(grid, 0);
+  assert.equal(c.headerRowCount, 2);
+  assert.deepEqual(c.headers, ['Revenue Q1', 'Revenue Q2', 'Cost Q1', 'Cost Q2']);
+  // A normal header over a TEXT-heavy data row must NOT be mistaken for two rows.
+  const bank = [
+    ['Date', 'Description', 'Debit', 'Credit'],
+    ['01/02/2024', 'POS Carrefour', '250.00', null],
+  ];
+  assert.equal(composeHeaders(bank, 0).headerRowCount, 1);
+});
+
+test('v2: multi-table tabs pick the largest block; preamble is not a table', async () => {
+  const { splitTables } = await import('../src/agent/sheetCombine');
+  const grid = [
+    ['Budget', 'Amount'],
+    ['Rent', 100],
+    ['Food', 200],
+    [null, null],
+    [null, null],
+    ['Date', 'Item', 'Value'],
+    ['2024-01-01', 'a', 1],
+    ['2024-01-02', 'b', 2],
+    ['2024-01-03', 'c', 3],
+  ];
+  const tables = splitTables(grid);
+  assert.equal(tables.length, 2);
+  assert.equal(tables[0].rows.length, 4, 'largest block first');
+  // One-cell preamble rows split from a table are NOT a second table.
+  const pre = [
+    ['Account Statement'],
+    ['Account: 001'],
+    [null],
+    [null],
+    ['Date', 'Description', 'Amount'],
+    ['2024-01-01', 'x', 5],
+    ['2024-01-02', 'y', 6],
+  ];
+  assert.equal(splitTables(pre).length, 1);
+});
+
+test('v2: wide (pivoted) layout unpivots to Date + Value', async () => {
+  const { unpivotWide } = await import('../src/agent/sheetCombine');
+  const src = {
+    file: 'wide.xlsx',
+    tab: '',
+    grid: [
+      ['Category', 'Jan-24', 'Feb-24', 'Mar-24', 'Apr-24'],
+      ['Rent', 1000, 1000, 1100, 1100],
+      ['Food', 400, 420, null, 460],
+    ],
+  };
+  const un = unpivotWide(src as any);
+  assert.ok(un, 'wide layout detected');
+  assert.deepEqual(un!.src.grid[0], ['Category', 'Date', 'Value']);
+  // 4 rent + 3 food values (the null Mar food cell is skipped).
+  assert.equal(un!.src.grid.length - 1, 7);
+  assert.ok(un!.src.grid[1][1] instanceof Date);
+  // A normal transaction table must NOT be unpivoted.
+  assert.equal(unpivotWide({ file: 'a', tab: '', grid: [['Date', 'Desc', 'Amount'], ['2024-01-01', 'x', 5]] } as any), null);
+});
+
+test('v2: corrupted Excel IDs are detected and warned, never "fixed"', () => {
+  const src: GridSource = {
+    file: 'ids.csv',
+    tab: '',
+    grid: [
+      ['Date', 'Description', 'Amount', 'Card No'],
+      ['2024-01-01', 'x', 5, '4.51278E+15'],
+      ['2024-01-02', 'y', 6, '4.51278E+15'],
+    ],
+  };
+  const p = profileSource(src);
+  assert.deepEqual(p.corruptIdColumns, ['Card No']);
+  const plan = autoMapSources([p]);
+  assert.ok(plan.notes.some((n) => /corrupted IDs/i.test(n)), plan.notes.join(' | '));
+});
+
+test('v2: update mode — a prior combined file keeps its per-row Source provenance', () => {
+  const prior: GridSource = {
+    file: 'combined.xlsx',
+    tab: 'Combined',
+    grid: [
+      ['Date', 'Description', 'Amount', 'Source'],
+      ['2024-01-15', 'POS Carrefour', -250, 'jan.xlsx'],
+      ['2024-01-20', 'Salary ACME', 12000, 'jan.xlsx'],
+    ],
+  };
+  const fresh: GridSource = {
+    file: 'mar.csv',
+    tab: '',
+    grid: [
+      ['Date', 'Details', 'Amount'],
+      ['2024-01-20', 'Salary ACME', '12,000.00'], // duplicate of the prior row
+      ['2024-03-05', 'DEWA bill', '(430.50)'],
+    ],
+  };
+  const profiles = [prior, fresh].map(profileSource);
+  const plan = autoMapSources(profiles);
+  assert.ok(plan.confident);
+  assert.equal(plan.provenanceFrom?.['combined.xlsx › Combined'], 3, 'Source column claimed as provenance');
+  const r = combineSources([prior, fresh], profiles, plan);
+  assert.equal(r.perSource[1].drops.duplicate, 1, 'overlap deduped against the prior combined');
+  const salary = r.rows.find((row) => row[1] === 'Salary ACME')!;
+  assert.equal(salary[salary.length - 1], 'jan.xlsx', 'original provenance preserved, not overwritten');
+  // Date coverage recorded per source.
+  assert.equal(r.perSource[0].dateMin, '2024-01-15');
+  assert.equal(r.perSource[1].dateMax, '2024-03-05');
+});
+
+test('v2 e2e: missing month inside the range shows as "no data", never skipped', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'combine-gap-'));
+  fs.writeFileSync(
+    path.join(dir, 'gap.csv'),
+    'Date,Details,Amount\n2024-01-10,Jan txn,100\n2024-03-10,Mar txn,300\n',
+  );
+  const ctx: any = { session: { id: 't', orgId: null }, repoDir: dir, mode: 'code', signal: new AbortController().signal, addCost: () => {} };
+  const out = await combineSpreadsheetsTool.run({ inputs: ['gap.csv'], output: 'g.xlsx' }, ctx);
+  assert.match(out, /Month 2024-02 has NO rows/);
+  const mod: any = await import('exceljs');
+  const ExcelJS = mod.default ?? mod;
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(path.join(dir, 'g.xlsx'));
+  const monthly = wb.getWorksheet('Monthly');
+  const labels: string[] = [];
+  monthly.eachRow((row: any, n: number) => {
+    if (n > 1) labels.push(String(row.getCell(1).value));
+  });
+  assert.deepEqual(labels, ['2024-01', '2024-02 — no data', '2024-03']);
+  // Audit carries per-source date coverage.
+  const audit = wb.getWorksheet('Audit');
+  assert.equal(String(audit.getRow(2).getCell(14).value), '2024-01-10');
+  assert.equal(String(audit.getRow(2).getCell(15).value), '2024-03-10');
+  fs.rmSync(dir, { recursive: true, force: true });
+});

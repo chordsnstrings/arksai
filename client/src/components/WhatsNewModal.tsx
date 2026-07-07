@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.61';
+export const WHATS_NEW_VERSION = '2026-07-06.62';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Combine messy spreadsheets into one clean workbook',
-    body: 'Upload several bank statements, expense exports or monthly files and ask for one combined sheet. ArksAI now merges them deterministically: it finds each file\'s real header (even under bank preamble), matches columns by meaning across files, turns debit/credit pairs into one signed amount, fixes dates and currency formats, drops repeated headers and footer totals, removes duplicates from overlapping exports, and sorts everything by date. The delivered workbook includes an Audit sheet where live formulas re-count and re-sum every source file — the tie checks read OK, proving not a single row was lost — plus a monthly summary.',
+    title: 'Reconcile two spreadsheets — every discrepancy isolated',
+    body: 'Upload two exports that should agree (orders vs payouts, bank vs ledger, CRM vs billing) and ask ArksAI to reconcile them. Every row lands in exactly one bucket — matched, amount-mismatched (with the exact difference), probable match (dates a few days apart), or only-in-one-file — and the delivered workbook proves the buckets account for every input row.',
   },
   {
-    title: '28 ready-made Excel models — for every team',
-    body: 'Self-checking templates for budgets vs actuals, cash runway, break-even, unit economics, NPV, depreciation, working capital, sales pipelines, commissions, marketing funnels, KPI dashboards, cohort retention, A/B tests, inventory EOQ, project budgets, headcount, personal budgets, savings goals, rental property and e-commerce P&L — all formula-driven with tie-out checks.',
+    title: '“Why did revenue drop?” — answered with a variance bridge',
+    body: 'Compare this month vs last, or actuals vs budget, and ArksAI decomposes the change by region, product, channel — any dimension. Movers are ranked, new and disappeared segments flagged, the segment contributions sum exactly to the total change, and you get plain-language driver commentary plus a bridge workbook.',
+  },
+  {
+    title: 'Recurring reports now remember last period',
+    body: 'A weekly or monthly report can save its final numbers and compare like-for-like on the next run — real "up 7.1% vs January" statements grounded in what was actually recorded, with restatements surfaced instead of silently overwritten. Combining files also got smarter: European number formats, two-row headers, multiple tables per tab and wide month-column layouts are all handled.',
   },
 ];
 

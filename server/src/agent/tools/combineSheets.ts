@@ -10,6 +10,8 @@ import {
   cleanText,
   combineSources,
   profileSource,
+  splitTables,
+  unpivotWide,
 } from '../sheetCombine';
 
 /** 0-based column index → Excel letter. */
@@ -171,6 +173,26 @@ export const combineSpreadsheetsTool: ToolDef = {
     } catch (e: any) {
       return `Error: ${e instanceof ToolError ? e.message : (e?.message ?? e)}`;
     }
+    // Structural prep BEFORE profiling: (1) a sheet holding multiple independent tables is
+    // narrowed to its largest block (reading both as one blob corrupts each); (2) a WIDE
+    // (pivoted) layout with periods-as-columns is unpivoted to long format.
+    const prepNotes: string[] = [];
+    sources = sources.map((src) => {
+      let s = src;
+      const tables = splitTables(s.grid);
+      if (tables.length > 1) {
+        s = { ...s, grid: tables[0].rows };
+        prepNotes.push(
+          `"${src.file}${src.tab ? ` › ${src.tab}` : ''}": ${tables.length} separate tables detected on one sheet — used the largest (${tables[0].rows.length} rows, from sheet row ${tables[0].start + 1}). To include the other block(s), split them into their own tab/file or pin a range.`,
+        );
+      }
+      const un = unpivotWide(s);
+      if (un) {
+        prepNotes.push(un.note);
+        return un.src;
+      }
+      return s;
+    });
     const profiles = sources.map(profileSource);
 
     let plan: CombinePlan;
@@ -192,11 +214,13 @@ export const combineSpreadsheetsTool: ToolDef = {
       }
       lines.push('', `PROPOSED mapping (fix the gaps, then re-call combine_spreadsheets with the same inputs plus mapping:):`);
       lines.push(JSON.stringify(planToMappingJson(plan, profiles), null, 1));
+      if (prepNotes.length) lines.push('', `Prep: ${prepNotes.join(' ')}`);
       if (plan.notes.length) lines.push('', `Gaps: ${plan.notes.join(' ')}`);
       return lines.join('\n');
     }
 
     const result = combineSources(sources, profiles, plan, { dedupe: args.dedupe !== false, sort: args.sort !== false });
+    result.warnings.unshift(...prepNotes);
 
     // ---- build the themed output workbook ----
     const outName = String(args.output || 'combined.xlsx').replace(/[^a-zA-Z0-9._-]/g, '-');
@@ -240,6 +264,8 @@ export const combineSpreadsheetsTool: ToolDef = {
         liveSum,
         f(`IF(J${r}=C${r},"OK","MISMATCH")`, 'OK'),
         liveSum ? f(`IF(ROUND(K${r}-I${r},2)=0,"OK","MISMATCH")`, 'OK') : null,
+        s.dateMin ?? '—',
+        s.dateMax ?? '—',
       ];
     });
     const tr = result.perSource.length + 2;
@@ -253,6 +279,8 @@ export const combineSpreadsheetsTool: ToolDef = {
       amountCol ? f(`ROUND(SUM(Combined!$${amountCol}$2:$${amountCol}$${nRows}),2)`, Math.round(result.totalAmount * 100) / 100) : null,
       f(`IF(J${tr}=C${tr},"OK","MISMATCH")`, 'OK'),
       amountCol ? f(`IF(ROUND(K${tr}-I${tr},2)=0,"OK","MISMATCH")`, 'OK') : null,
+      result.perSource.reduce((m: string | null, s) => (s.dateMin && (!m || s.dateMin < m) ? s.dateMin : m), null) ?? '—',
+      result.perSource.reduce((m: string | null, s) => (s.dateMax && (!m || s.dateMax > m) ? s.dateMax : m), null) ?? '—',
     ]);
     const auditSheet = {
       name: 'Audit',
@@ -263,6 +291,7 @@ export const combineSpreadsheetsTool: ToolDef = {
         { header: 'Duplicates', numFmt: '0', type: 'number' }, { header: 'Amount sum', numFmt: currencyFmt, type: 'number' },
         { header: 'Rows in file (live)', numFmt: '0', type: 'number' }, { header: 'Sum in file (live)', numFmt: currencyFmt, type: 'number' },
         { header: 'CHECK rows tie', type: 'text' }, { header: 'CHECK sum ties', type: 'text' },
+        { header: 'First date', type: 'text' }, { header: 'Last date', type: 'text' },
       ],
       rows: auditRows,
       __pattern: true, // statement, not a data table — no autofilter arrows
@@ -288,6 +317,27 @@ export const combineSpreadsheetsTool: ToolDef = {
         } else buckets.push({ month, start: excelRow, end: excelRow, count: 1, sum: amt });
       });
       if (buckets.length) {
+        // HONESTY: a month with no rows INSIDE the covered range is shown as "no data",
+        // never silently skipped — a missing feed must not read as a zero-activity month.
+        const monthRows: any[][] = [];
+        const nextMonth = (m: string): string => {
+          const [y, mm] = m.split('-').map(Number);
+          return mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, '0')}`;
+        };
+        for (let bi = 0; bi < buckets.length; bi++) {
+          const b = buckets[bi];
+          monthRows.push([
+            b.month,
+            b.count,
+            f(`ROUND(SUM(Combined!$${amountCol}$${b.start}:$${amountCol}$${b.end}),2)`, Math.round(b.sum * 100) / 100),
+          ]);
+          if (bi < buckets.length - 1) {
+            for (let m = nextMonth(b.month); m < buckets[bi + 1].month && monthRows.length < 400; m = nextMonth(m)) {
+              monthRows.push([`${m} — no data`, 0, null]);
+              result.warnings.push(`Month ${m} has NO rows although it sits inside the data range — check whether an export is missing.`);
+            }
+          }
+        }
         monthlySheet = {
           name: 'Monthly',
           columns: [
@@ -295,11 +345,7 @@ export const combineSpreadsheetsTool: ToolDef = {
             { header: 'Transactions', numFmt: '0', type: 'number' },
             { header: 'Total', numFmt: currencyFmt, type: 'number' },
           ],
-          rows: buckets.map((b) => [
-            b.month,
-            b.count,
-            f(`ROUND(SUM(Combined!$${amountCol}$${b.start}:$${amountCol}$${b.end}),2)`, Math.round(b.sum * 100) / 100),
-          ]),
+          rows: monthRows,
           __pattern: true,
         };
       }

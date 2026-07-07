@@ -369,7 +369,7 @@ const SUMMARY_SHEET_RE = /summary|dashboard|overview|output|result|total|p&?l|in
 // contain model vocabulary ("Balance transfer", "Total Fitness gym"), date serials sit next to
 // small amounts, and a running Balance column dwarfs row amounts. The model-shaped audits
 // (derived-row literals, numeric outliers) are all false positives on this class of sheet.
-export const DATA_SHEET_RE = /\b(combined|transactions?|ledger|entries|register|imported?|raw data|source data|statement lines|audit|reconcil)\b/i;
+export const DATA_SHEET_RE = /\b(combined|transactions?|ledger|entries|register|imported?|raw data|source data|statement lines|audit|reconcil\w*|matched|mismatch\w*|only in|variance bridge|movers)\b/i;
 // A financial STATEMENT that must carry rows of data (so an empty one is an incomplete model). Kept
 // tighter than SUMMARY_SHEET_RE — no "summary/kpi/total" (which can legitimately be a thin sheet).
 const STATEMENT_SHEET_RE = /cash\s*flow|p&?l|profit.{0,4}loss|income|balance\s*sheet|statement|forecast|projection/i;

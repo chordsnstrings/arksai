@@ -40,12 +40,18 @@ export interface SourceProfile {
   file: string;
   tab: string;
   headerRow: number; // index into grid
+  /** 1 for a normal header; 2 when a two-row hierarchical header was composed. */
+  headerRowCount: number;
   headers: string[];
   columns: ColumnProfile[];
   dataRows: number; // rows below the header (before cleaning)
   preamble: string[]; // non-empty pre-header lines (account metadata etc.)
   /** Corpus evidence for slash-date order on this source's date-typed columns. */
   dateOrder: 'dmy' | 'mdy' | 'unknown';
+  /** Corpus evidence for number locale on this source's number-typed columns. */
+  numberLocale: NumberLocale;
+  /** Columns whose values look like Excel-corrupted IDs (1.23457E+15 — low digits GONE). */
+  corruptIdColumns: string[];
 }
 
 /** One output column: either a canonical field mapped per source, or a passthrough extra. */
@@ -61,6 +67,10 @@ export interface CombinePlan {
   /** true when every source mapped a date AND an amount (or debit/credit) — safe to run unattended. */
   confident: boolean;
   notes: string[];
+  /** Per source: a column that carries EXISTING provenance (a "Source" column from a prior
+   *  combine) — its value is used instead of the file key, so re-combining a combined file
+   *  with a new export preserves original per-row provenance (the update-with-new-file mode). */
+  provenanceFrom?: Record<string, number | undefined>;
 }
 
 export interface SourceRecon {
@@ -69,6 +79,9 @@ export interface SourceRecon {
   kept: number;
   drops: { empty: number; repeatedHeader: number; footer: number; nonData: number; duplicate: number };
   amountSum: number; // over KEPT rows of this source
+  /** Date coverage of the KEPT rows — a truncated export shows up as a short range. */
+  dateMin: string | null; // ISO yyyy-mm-dd
+  dateMax: string | null;
 }
 
 export interface CombineResult {
@@ -92,13 +105,16 @@ export const cleanText = (v: any): string => cellText(v).replace(/\s+/g, ' ');
 
 const CR_DR_RE = /\s*(CR|DR)\.?\s*$/i;
 
+export type NumberLocale = 'us' | 'eu' | 'unknown';
+
 /**
  * Parse a money-ish cell to a signed number, or null when it isn't one.
  * Handles: 1,234.56 · $1,234 · AED 1,250.00 · (1,200.00) → -1200 · 500 DR → -500 ·
- * 500 CR → 500 · trailing "-" (SAP style) → negative. Bare integers ARE parsed here
- * (unlike excel.ts coerceNumeric) because a mapped amount column is known-numeric.
+ * 500 CR → 500 · trailing "-" (SAP style) → negative · EU locale 1.234,56 when the
+ * column's corpus evidence says so. Bare integers ARE parsed here (unlike excel.ts
+ * coerceNumeric) because a mapped amount column is known-numeric.
  */
-export function parseAmountStrict(v: any): number | null {
+export function parseAmountStrict(v: any, locale: NumberLocale = 'us'): number | null {
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
   if (typeof v !== 'string') return null;
   let s = v.trim();
@@ -117,15 +133,45 @@ export function parseAmountStrict(v: any): number | null {
     sign *= -1;
     s = s.slice(0, -1).trim();
   }
-  // currency code prefix/suffix (AED / USD / BDT …) or symbol
+  // currency code prefix/suffix (AED / USD / BDT …) or symbol; NBSP/thin-space grouping.
   s = s.replace(/^[A-Za-z]{2,4}\s+/, '').replace(/\s+[A-Za-z]{2,4}$/, '');
-  s = s.replace(/[$£€₹¥]/g, '').trim();
+  s = s.replace(/[$£€₹¥]/g, '').replace(/[  \s']/g, '').trim();
+  if (locale === 'eu') {
+    // 1.234.567,89 — dots group thousands, comma is the decimal mark.
+    if (/^[-+]?\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) {
+      const n = Number(s.replace(/\./g, '').replace(',', '.'));
+      return Number.isFinite(n) ? sign * n : null;
+    }
+    // A plain integer or dot-decimal still parses (mixed exports).
+  }
   if (/^[-+]?\d[\d,]*(\.\d+)?$/.test(s)) {
     const n = Number(s.replace(/,/g, ''));
     return Number.isFinite(n) ? sign * n : null;
   }
   return null;
 }
+
+/**
+ * Corpus evidence for a column's number locale. "1.234,56" (dot-thousands + comma-decimal)
+ * proves EU; "1,234.56" proves US. A value like "1.234" alone is AMBIGUOUS (1.234 US vs
+ * 1234 EU) — only the unambiguous shapes vote, exactly like dateOrderEvidence.
+ */
+export function numberLocaleEvidence(values: any[]): NumberLocale {
+  let eu = 0;
+  let us = 0;
+  for (const v of values) {
+    if (typeof v !== 'string') continue;
+    const s = v.trim().replace(/^[A-Za-z]{2,4}\s+|[$£€₹¥()]/g, '').trim();
+    if (/^\d{1,3}(\.\d{3})+,\d+$/.test(s) || /,\d{1,2}$/.test(s)) eu++;
+    else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s) || /\.\d{1,2}$/.test(s)) us++;
+  }
+  if (eu > 0 && us === 0) return 'eu';
+  if (us > 0 && eu === 0) return 'us';
+  return 'unknown';
+}
+
+/** Excel scientific-notation ID corruption: "1.23457E+15" — the low digits are GONE. */
+export const CORRUPT_ID_RE = /^\d(\.\d+)?E\+1[2-9]$/i;
 
 // ---------------------------------------------------------------- dates
 
@@ -240,9 +286,116 @@ export function detectHeaderRow(grid: any[][]): number {
   return bestScore >= 0 ? best : 0;
 }
 
+/**
+ * Split a grid that holds MULTIPLE independent tables (separated by ≥2 fully-blank rows)
+ * into blocks. Returns the blocks largest-first; the caller keeps the biggest and warns
+ * about the rest — reading "budget at A1 + headcount at A20" as one ragged blob corrupts
+ * both tables.
+ */
+export function splitTables(grid: any[][]): Array<{ start: number; rows: any[][] }> {
+  const blocks: Array<{ start: number; rows: any[][] }> = [];
+  let cur: any[][] = [];
+  let curStart = 0;
+  let blanks = 0;
+  grid.forEach((row, i) => {
+    const blank = (row ?? []).every((c) => isBlank(c));
+    if (blank) {
+      blanks++;
+      if (blanks >= 2 && cur.some((r) => (r ?? []).some((c) => !isBlank(c)))) {
+        blocks.push({ start: curStart, rows: cur });
+        cur = [];
+        curStart = i + 1;
+      } else if (cur.length) cur.push(row);
+      return;
+    }
+    if (!cur.length) curStart = i;
+    blanks = 0;
+    cur.push(row);
+  });
+  if (cur.some((r) => (r ?? []).some((c) => !isBlank(c)))) blocks.push({ start: curStart, rows: cur });
+  // Only blocks that look like TABLES: ≥2 rows carrying ≥2 cells each (a preamble block of
+  // one-cell metadata lines must not count as a "second table"). Largest first.
+  const tables = blocks.filter((b) => b.rows.filter((r) => (r ?? []).filter((c) => !isBlank(c)).length >= 2).length >= 2);
+  return tables.sort((a, b) => b.rows.length - a.rows.length);
+}
+
+/**
+ * Two-row hierarchical header ("Revenue | (blank) | Cost | (blank)" over "Q1 | Q2 | Q1 | Q2")
+ * → composed names (Revenue Q1, Revenue Q2, …). Detected when the row AFTER the header is
+ * ALSO header-ish (short unique-ish text) AND the header row has spanning blanks — a data
+ * row under a real header is number/date-heavy so it never qualifies.
+ */
+export function composeHeaders(grid: any[][], headerRow: number): { headers: string[]; headerRowCount: number } {
+  const top = (grid[headerRow] ?? []).map(cellText);
+  const next = grid[headerRow + 1] ?? [];
+  const nextCells = next.filter((c: any) => !isBlank(c));
+  const nextTexty = nextCells.filter(
+    (c: any) => typeof c === 'string' && c.trim().length <= 30 && parseAmountStrict(c) === null && !looksDate(c, false),
+  );
+  const topBlanks = top.filter((t) => !t).length;
+  const twoRow =
+    nextCells.length >= 2 &&
+    nextTexty.length >= Math.ceil(nextCells.length * 0.8) &&
+    topBlanks >= 1 && // spanning parents leave gaps
+    grid.length > headerRow + 2; // data must exist below
+  if (!twoRow) return { headers: top, headerRowCount: 1 };
+  const width = Math.max(top.length, next.length);
+  let parent = '';
+  const headers: string[] = [];
+  for (let i = 0; i < width; i++) {
+    if (top[i]) parent = cleanText(top[i]);
+    const child = cleanText(cellText(next[i]));
+    headers.push([parent, child].filter(Boolean).join(' ').trim());
+  }
+  return { headers, headerRowCount: 2 };
+}
+
+/**
+ * WIDE (pivoted) layout: periods live as COLUMNS ("Jan-24 | Feb-24 | …"). Detected when
+ * ≥4 headers parse as dates; melted to long format (label columns + Date + Value) so the
+ * combine pipeline can treat it like any other transaction table.
+ */
+export function unpivotWide(src: GridSource): { src: GridSource; note: string } | null {
+  const headerRow = detectHeaderRow(src.grid);
+  const headers = (src.grid[headerRow] ?? []).map(cellText);
+  const dateCols: Array<{ index: number; date: Date }> = [];
+  headers.forEach((h, i) => {
+    const d = parseDateValue(h) ?? parseMonthHeader(h);
+    if (d) dateCols.push({ index: i, date: d });
+  });
+  if (dateCols.length < 4) return null;
+  const labelCols = headers.map((h, i) => ({ h, i })).filter(({ i }) => !dateCols.some((d) => d.index === i) && headers[i]);
+  const out: any[][] = [[...labelCols.map(({ h }) => h), 'Date', 'Value']];
+  for (const row of src.grid.slice(headerRow + 1)) {
+    const cells = row ?? [];
+    if (cells.every((c: any) => isBlank(c))) continue;
+    for (const dc of dateCols) {
+      const v = cells[dc.index];
+      if (isBlank(v)) continue;
+      out.push([...labelCols.map(({ i }) => cells[i]), dc.date, v]);
+    }
+  }
+  return {
+    src: { ...src, grid: out },
+    note: `"${src.file}${src.tab ? ` › ${src.tab}` : ''}": wide (pivoted) layout detected — unpivoted ${dateCols.length} period columns into Date + Value rows.`,
+  };
+}
+
+const MONTH_HEADER_RE = /^([A-Za-z]{3,})[\s-]?['’]?(\d{2,4})$/;
+
+/** "Jan-24" / "March 2024" style period headers → the first of that month. */
+function parseMonthHeader(h: string): Date | null {
+  const m = cellText(h).match(MONTH_HEADER_RE);
+  if (!m) return null;
+  const mon = MONTHS[m[1].slice(0, 3).toLowerCase()];
+  if (mon === undefined) return null;
+  return new Date(Date.UTC(fixYear(Number(m[2])), mon, 1));
+}
+
 export function profileSource(src: GridSource): SourceProfile {
   const headerRow = detectHeaderRow(src.grid);
-  const raw = (src.grid[headerRow] ?? []).map(cellText);
+  const composed = composeHeaders(src.grid, headerRow);
+  const raw = composed.headers;
   const width = raw.length;
   const seen = new Map<string, number>();
   const headers = Array.from({ length: width }, (_, i) => {
@@ -252,7 +405,7 @@ export function profileSource(src: GridSource): SourceProfile {
     if (n > 1) h = `${h} (${n})`;
     return h;
   });
-  const data = src.grid.slice(headerRow + 1);
+  const data = src.grid.slice(headerRow + composed.headerRowCount);
   const columns: ColumnProfile[] = headers.map((header, index) => {
     const hintsDate = /date/i.test(header);
     let dates = 0;
@@ -275,11 +428,17 @@ export function profileSource(src: GridSource): SourceProfile {
   });
   const dateVals: any[] = [];
   for (const col of columns) if (col.type === 'date') for (const row of data) dateVals.push((row ?? [])[col.index]);
+  const numVals: any[] = [];
+  for (const col of columns) if (col.type === 'number') for (const row of data.slice(0, 200)) numVals.push((row ?? [])[col.index]);
+  const corruptIdColumns = columns
+    .filter((c) => data.slice(0, 200).some((row) => typeof (row ?? [])[c.index] === 'string' && CORRUPT_ID_RE.test(String((row ?? [])[c.index]).trim())))
+    .map((c) => c.header);
   return {
     key: `${src.file}${src.tab ? ` › ${src.tab}` : ''}`,
     file: src.file,
     tab: src.tab,
     headerRow,
+    headerRowCount: composed.headerRowCount,
     headers,
     columns,
     dataRows: data.length,
@@ -289,6 +448,8 @@ export function profileSource(src: GridSource): SourceProfile {
       .filter(Boolean)
       .slice(0, 6),
     dateOrder: dateOrderEvidence(dateVals),
+    numberLocale: numberLocaleEvidence(numVals),
+    corruptIdColumns,
   };
 }
 
@@ -317,6 +478,7 @@ const CANON: Array<{ field: string; kind: FieldPlan['kind']; re: RegExp; not?: R
 export function autoMapSources(profiles: SourceProfile[]): CombinePlan {
   const notes: string[] = [];
   const fields = new Map<string, FieldPlan>();
+  const provenanceFrom: Record<string, number | undefined> = {};
   const ensure = (name: string, kind: FieldPlan['kind']): FieldPlan => {
     let f = fields.get(name.toLowerCase());
     if (!f) {
@@ -329,6 +491,17 @@ export function autoMapSources(profiles: SourceProfile[]): CombinePlan {
 
   for (const p of profiles) {
     const claimed = new Set<number>();
+    // A column literally named "Source" is a prior combine's provenance stamp — carry its
+    // VALUES through instead of overwriting them with this file's key (update mode).
+    const srcCol = p.columns.find((c) => norm(c.header) === 'source' && c.type === 'text');
+    if (srcCol) {
+      provenanceFrom[p.key] = srcCol.index;
+      claimed.add(srcCol.index);
+    }
+    if (p.corruptIdColumns.length)
+      notes.push(
+        `"${p.key}": column(s) ${p.corruptIdColumns.join(', ')} contain Excel-corrupted IDs (scientific notation like 1.23457E+15 — the low digits are permanently lost). The values are carried through AS-IS; recover them from the original system export if joins depend on them.`,
+      );
     const byField = new Map<string, number>();
     for (const canon of CANON) {
       let bestIdx = -1;
@@ -384,7 +557,7 @@ export function autoMapSources(profiles: SourceProfile[]): CombinePlan {
     }
   }
   ordered.push(...fields.values());
-  return { fields: ordered, confident, notes };
+  return { fields: ordered, confident, notes, provenanceFrom };
 }
 
 // ---------------------------------------------------------------- combine
@@ -420,9 +593,12 @@ export function combineSources(
       kept: 0,
       drops: { empty: 0, repeatedHeader: 0, footer: 0, nonData: 0, duplicate: 0 },
       amountSum: 0,
+      dateMin: null,
+      dateMax: null,
     };
-    const data = src.grid.slice(p.headerRow + 1);
+    const data = src.grid.slice(p.headerRow + (p.headerRowCount ?? 1));
     const headerLower = p.headers.map((h) => h.toLowerCase());
+    const provIdx = plan.provenanceFrom?.[p.key];
     for (const row of data) {
       const cells = row ?? [];
       if (cells.every((c: any) => isBlank(c))) {
@@ -448,8 +624,8 @@ export function combineSources(
         }
         if (typeof from === 'object') {
           // debit/credit pair → one signed amount (credit +, debit −)
-          const d = from.debit !== undefined ? parseAmountStrict(cells[from.debit]) : null;
-          const c = from.credit !== undefined ? parseAmountStrict(cells[from.credit]) : null;
+          const d = from.debit !== undefined ? parseAmountStrict(cells[from.debit], p.numberLocale) : null;
+          const c = from.credit !== undefined ? parseAmountStrict(cells[from.credit], p.numberLocale) : null;
           const merged = c !== null || d !== null ? (c ?? 0) - Math.abs(d ?? 0) : null;
           unified.push(merged);
           if (f.kind === 'amount') amount = merged;
@@ -463,7 +639,7 @@ export function combineSources(
             unified.push(cleanText(v)); // keep the raw text — never silently blank a cell
           } else unified.push(date);
         } else if (f.kind === 'amount' || f.kind === 'balance' || f.kind === 'number') {
-          const n = parseAmountStrict(v);
+          const n = parseAmountStrict(v, p.numberLocale);
           unified.push(n !== null ? n : isBlank(v) ? null : cleanText(v));
           if (f.kind === 'amount') amount = n;
         } else {
@@ -492,7 +668,13 @@ export function combineSources(
       }
       recon.kept++;
       if (amount !== null) recon.amountSum += amount;
-      out.push({ cells: unified, date, source: p.key, order: order++ });
+      if (date !== null) {
+        const iso = date.toISOString().slice(0, 10);
+        if (!recon.dateMin || iso < recon.dateMin) recon.dateMin = iso;
+        if (!recon.dateMax || iso > recon.dateMax) recon.dateMax = iso;
+      }
+      const prov = provIdx !== undefined ? cleanText(cells[provIdx]) : '';
+      out.push({ cells: unified, date, source: prov || p.key, order: order++ });
     }
     // Internal invariant — reconciliation MUST balance or the engine itself is broken.
     const counted = recon.kept + recon.drops.empty + recon.drops.repeatedHeader + recon.drops.footer + recon.drops.nonData + recon.drops.duplicate;

@@ -184,6 +184,23 @@ function docToolsSlice(): string {
     a themed workbook with a live per-source Audit sheet whose CHECK cells prove no row
     was lost. NEVER pre-read the files with read_spreadsheet first and NEVER write a
     merge script — one combine_spreadsheets call is the whole job.
+  • TWO exports to CHECK AGAINST EACH OTHER ("find what's missing/different": bank vs
+    ledger, orders vs payouts, CRM vs billing) → reconcile_spreadsheets with both paths in
+    ONE call. Deterministic matching buckets EVERY row — matched, amount-mismatched (with
+    the delta), probable (fuzzy date), only-in-A, only-in-B — and the themed workbook's
+    Reconciliation sheet proves the buckets account for every input row. Never
+    eyeball-match rows yourself.
+  • "WHY did <metric> change?" (this month vs last, actual vs budget/plan) →
+    analyze_variance (two files, or ONE file + period_column + the two periods). It
+    decomposes the move by dimension — segment deltas sum EXACTLY to the total change —
+    ranks the movers, flags NEW/disappeared segments, and returns driver commentary
+    ("Revenue fell 270 (-20.8%): driven by EMEA -120 (44% of the change)…"). Relay that
+    commentary — it IS the answer; never hand-compute the decomposition.
+  • RECURRING numbers (a weekly/monthly report produced repeatedly): call metric_history
+    (same series name) FIRST so "vs last period" quotes the actual recorded figures, and
+    record_metrics at the END with the final headline numbers so the NEXT run compares
+    like-for-like. If it reports a RESTATEMENT (a period's numbers changed since last
+    recorded), say so in the deliverable — never silently swap history.
   • Spreadsheet (.xlsx) → use generate_spreadsheet by DEFAULT. MATCH A TEMPLATE FIRST:
     28 ready self-checking models ship as template:"<id>" (budgets vs actuals, cash runway,
     break-even, unit economics, NPV, depreciation, working capital, sales pipeline,
@@ -285,6 +302,7 @@ This session was started automatically by a schedule. NOBODY is watching the cha
 - NEVER ask a clarifying question, offer options, or wait for approval — any "ask first" or plan-approval guidance elsewhere is OVERRIDDEN here. Choose sensible defaults and proceed.
 - Open the result by briefly STATING the assumptions you made (one or two lines), then the deliverable itself.
 - Finish the deliverable COMPLETELY in this run so it's ready when a human opens the session later; if the task names a delivery channel (webhook/email), send it there.
+- If this is a RECURRING report (weekly/monthly numbers): read metric_history(series) first so period-over-period claims use the actual recorded figures, and record_metrics at the end so the next run compares like-for-like.
 - If the task is genuinely impossible right now (a source is down, credentials missing), do not loop or wait — end with a short plain-language note saying exactly what's needed to fix it.`
       : '';
   // Judgment & failure discipline — injected into EVERY mode. Each rule below is pinned to a
@@ -503,6 +521,13 @@ ANALYSIS RIGOR (the report is only as good as the numbers — do the work FIRST)
   "how we got this" beats an unexplained figure). When two sources disagree or a
   value is absent, say which you used / mark it "data not provided" — never silently
   diverge or invent.
+- DATA HONESTY FURNITURE — every data-driven deliverable states its ground: the
+  data-as-of range (first/last date IN the data, not today's date), the source
+  file(s)/link(s), and the row counts used (rows in → rows kept, with what was
+  excluded and why). A period or segment with NO rows is reported as "no data" —
+  NEVER rendered as zero (a zero is a claim; a gap is a gap). For a recurring
+  report, ground period-over-period claims with metric_history and save the final
+  numbers with record_metrics; surface any restatement it reports.
 
 INSIGHT & METHODOLOGY (make it read consultant-grade, not just pretty):
 - LEAD WITH THE INSIGHT — open with the counter-intuitive reframe the data

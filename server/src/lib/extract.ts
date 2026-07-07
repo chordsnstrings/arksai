@@ -78,7 +78,7 @@ export function buildUploadNote(files: string[], minimaxAvailable: boolean, pale
       `spreadsheet(s): ${sheets.join(', ')} — call read_spreadsheet on each (NOT read_file) to list every sheet ` +
         `and read exact values; for totals / P&L / pivots / charts, crunch the raw file with Python (pandas/openpyxl) in code mode` +
         (sheets.length > 1
-          ? `. To MERGE/COMBINE these into ONE workbook (bank statements, expense exports…) call combine_spreadsheets with ALL the paths in one call — it cleans, maps, de-duplicates and reconciles deterministically; do NOT pre-read or script the merge`
+          ? `. To MERGE/COMBINE these into ONE workbook (bank statements, expense exports…) call combine_spreadsheets with ALL the paths in one call — it cleans, maps, de-duplicates and reconciles deterministically; to CHECK two exports AGAINST each other (find missing/different rows) call reconcile_spreadsheets; to EXPLAIN why a metric changed between them call analyze_variance. Do NOT pre-read or script any of these — one call is the whole job`
           : ''),
     );
   if (decks.length)

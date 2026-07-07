@@ -58,6 +58,9 @@ import { readSpreadsheetTool } from './spreadsheet';
 import { recalcSpreadsheetTool } from './recalcSheet';
 import { querySpreadsheetTool } from './query';
 import { combineSpreadsheetsTool } from './combineSheets';
+import { reconcileSpreadsheetsTool } from './reconcileSheets';
+import { analyzeVarianceTool } from './varianceTool';
+import { metricHistoryTool, recordMetricsTool } from './metrics';
 import { readPresentationTool } from './presentation';
 import { GOOGLE_WORKSPACE_TOOLS } from './googleWorkspace';
 
@@ -136,6 +139,10 @@ export const ALL_TOOLS: ToolDef[] = [
   recalcSpreadsheetTool,
   querySpreadsheetTool,
   combineSpreadsheetsTool,
+  reconcileSpreadsheetsTool,
+  analyzeVarianceTool,
+  recordMetricsTool,
+  metricHistoryTool,
   readPresentationTool,
   ...GOOGLE_WORKSPACE_TOOLS,
 ];
@@ -171,6 +178,10 @@ const REPORT_TOOLS = new Set([
   'recalc_spreadsheet',
   'query_spreadsheet',
   'combine_spreadsheets',
+  'reconcile_spreadsheets',
+  'analyze_variance',
+  'record_metrics',
+  'metric_history',
   'read_presentation',
   'switch_mode',
   'fetch_data',

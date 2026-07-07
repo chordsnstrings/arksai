@@ -594,6 +594,27 @@ async function migrate() {
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_analytics_digests_gen ON analytics_digests(generated_at)`);
 
+  // BI metric snapshots — the recurring-report memory. Each row = one (series, period)
+  // observation of named business metrics ({"Revenue": 120000, ...}), org-scoped so a
+  // scheduled "monthly revenue report" can compare like-for-like against LAST run's
+  // numbers. Re-recording an existing period keeps the prior values in restated_from so
+  // restatements are SURFACED, never silent.
+  await q(`CREATE TABLE IF NOT EXISTS metric_snapshots(
+    id TEXT PRIMARY KEY,
+    org_id TEXT,
+    series TEXT NOT NULL,
+    period TEXT NOT NULL,
+    metrics TEXT NOT NULL,
+    note TEXT,
+    session_id TEXT,
+    restated_from TEXT,
+    restated_at ${INT},
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_metric_snap_key ON metric_snapshots(org_id, series, period)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_metric_snap_series ON metric_snapshots(org_id, series, created_at)`);
+
   // Ad-platform connectors — per-ORG OAuth links to Meta/Google/TikTok ad accounts.
   // Tokens are stored ENCRYPTED (AES-256-GCM); never plaintext. One row per connected
   // ad account. Org-scoped: an org only ever sees its own connectors.
