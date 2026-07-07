@@ -121,3 +121,26 @@ test('generate_video_story: follow-up without an existing story fails plainly', 
   assert.match(out, /no existing story/i);
   fs.rmSync(repo, { recursive: true, force: true });
 });
+
+test('style anchor (the Higgsfield style-key borrow): manifest carries it, exec anchors ONLY plain t2v scenes', () => {
+  // manifest round-trip
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'story-anchor-'));
+  const m: StoryManifest = {
+    id: '3333', createdAt: 1, story: 's', aspect: '16:9', audio: true, transition: 'cut',
+    plan: plan4(), pass: 'draft', scenes: [], totalTokens: 0, costUsd: 0,
+    styleAnchor: 'images/style-key.jpg',
+  };
+  saveManifest(repo, m);
+  assert.equal(loadManifest(repo, '3333')?.styleAnchor, 'images/style-key.jpg');
+  fs.rmSync(repo, { recursive: true, force: true });
+  // tool surface
+  const tool = ALL_TOOLS.find((t) => t.name === 'generate_video_story')!;
+  assert.ok((tool.parameters as any).properties.style_anchor, 'style_anchor param exposed');
+  // exec semantics (source-locked — buildSpec is a closure): the anchor applies only to a
+  // bare t2v scene, rides referenceUrls, prefixes a style-only instruction, and routes r2v.
+  const src = fs.readFileSync(path.join(__dirname, '../src/agent/videoStoryExec.ts'), 'utf8');
+  assert.match(src, /mech === 't2v' && !useRefs && !\(scene\.id === 1 && m\.openingFrame\)/);
+  assert.match(src, /do NOT copy its content/);
+  assert.match(src, /useRefs \|\| useStyleAnchor \? 'arksai-video-20-fast'/);
+  assert.match(src, /else if \(useStyleAnchor\)/);
+});

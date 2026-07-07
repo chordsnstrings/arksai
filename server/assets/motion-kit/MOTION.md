@@ -210,9 +210,26 @@ A held, frozen frame reads as a slideshow, not a video — the render FAILS a sc
 frames are pixel-static. EVERY visible element must either
 (a) enter with a smooth entrance that SETTLES INTO an ambient idle — `.mg-float` (drift),
 `.mg-breathe` (subtle scale), `.mg-sway` (±1°), `.mg-bob`, `.mg-pulse`, `.mg-shimmer` —
-or (b) ride a camera move: EVERY scene wraps its stage in `.mg-cam-in` / `.mg-cam-out` /
-`.mg-cam-drift` (alternate the direction scene to scene; never two consecutive scenes with
-the same camera). Rules of smoothness: transform/opacity ONLY; the kit's easing tokens
+or (b) ride a camera move: EVERY scene wraps its stage in ONE camera class (alternate the
+direction/energy scene to scene; never two consecutive scenes with the same camera).
+
+CAMERA VOCABULARY (pick the move by INTENT, like a director calling a shot — search the
+design library with kind:"camera" for the full annotated list):
+- `.mg-cam-in` push in (default lean-in) · `.mg-cam-out` pull back (context/closings) ·
+  `.mg-cam-drift` neutral lateral glide.
+- `.mg-cam-crash` crash zoom — fast punch then hold, for shock stats and hard reveals.
+- `.mg-cam-punch` punch-in settle — confident emphasis without alarm (verdict beats).
+- `.mg-cam-whip-l` / `.mg-cam-whip-r` whip in — high-energy scene changes; mirror on
+  consecutive uses.
+- `.mg-cam-pan-l` / `.mg-cam-pan-r` survey pans — wide compositions (timelines, lists).
+- `.mg-cam-rise` / `.mg-cam-fall` pedestal — rise for growth/optimism, fall for
+  decline/weight; match the direction to the beat's emotional arithmetic.
+- `.mg-cam-orbit-l` / `.mg-cam-orbit-r` shallow 3D orbit — product/hero-object beats.
+- `.mg-cam-fpv` FPV sweep — diagonal swoop decelerating into place; dynamic openers.
+- `.mg-cam-handheld` documentary micro-wobble — human/testimony beats, quiet scenes.
+- `.mg-cam-dutch` slow cant to a dutch angle — tension, something-is-wrong beats.
+The move is part of the storytelling: a decline beat under `.mg-cam-rise` reads wrong.
+One camera per scene, always; the whole stage goes inside the wrapper. Rules of smoothness: transform/opacity ONLY; the kit's easing tokens
 (`--mg-ease-out` entrances, `--mg-ease-exit` exits, `--mg-ease-back` for 1–2 focal pops)
 — linear is reserved for parallax; entrances 0.3–0.7s traveling SHORT distances (2–4vh —
 long flights read student); STAGGER every group (`.mg-stagger`, or −ve `--at` offsets so

@@ -15,7 +15,7 @@ import type { MotionStyleId } from './scaffolds';
 
 export interface DesignEntry {
   id: string;
-  kind: 'type' | 'callout' | 'background' | 'micro';
+  kind: 'type' | 'callout' | 'background' | 'micro' | 'camera';
   name: string;
   /** One line: when a designer would reach for this. */
   intent: string;
@@ -491,6 +491,42 @@ function microEntries(): DesignEntry[] {
 }
 
 // ---------------------------------------------------------------------------
+// CAMERA VOCABULARY — named cinematic moves (the Higgsfield lesson, 2026-07-07:
+// productize the director's lexicon — users and agents pick a move by NAME/intent,
+// not by inventing transforms). One camera per scene; the class wraps the stage.
+// ---------------------------------------------------------------------------
+
+function cameraEntries(): DesignEntry[] {
+  const cams: Array<{ id: string; cls: string; name: string; intent: string; moods: string[] }> = [
+    { id: 'cam-push-in', cls: 'mg-cam-in', name: 'Push in', intent: 'slow push toward the subject — the default "lean in and listen" move for most scenes', moods: ['calm', 'default', 'focus', 'slow'] },
+    { id: 'cam-pull-back', cls: 'mg-cam-out', name: 'Pull back', intent: 'slow retreat that reveals context around the subject — closings, breathers, scale reveals', moods: ['calm', 'reveal', 'context', 'ending'] },
+    { id: 'cam-drift', cls: 'mg-cam-drift', name: 'Lateral drift', intent: 'gentle sideways glide at constant scale — neutral texture for mid-video information beats', moods: ['calm', 'neutral', 'ambient', 'quiet'] },
+    { id: 'cam-crash-zoom', cls: 'mg-cam-crash', name: 'Crash zoom', intent: 'fast punch into the subject in the first beat then hold — shock stats, hard reveals, "wait what" moments', moods: ['urgent', 'dramatic', 'fast', 'energy', 'reveal', 'shock'] },
+    { id: 'cam-punch-settle', cls: 'mg-cam-punch', name: 'Punch-in settle', intent: 'quick confident push that settles into a slow creep — emphasis without alarm, verdicts and key claims', moods: ['confident', 'emphasis', 'bold', 'verdict'] },
+    { id: 'cam-whip-left', cls: 'mg-cam-whip-l', name: 'Whip in (from right)', intent: 'the frame whips in laterally then micro-drifts — high-energy scene changes, list item punches', moods: ['fast', 'energy', 'cut', 'punchy'] },
+    { id: 'cam-whip-right', cls: 'mg-cam-whip-r', name: 'Whip in (from left)', intent: 'mirror of the left whip — alternate direction on consecutive high-energy scenes', moods: ['fast', 'energy', 'cut', 'punchy'] },
+    { id: 'cam-pan-left', cls: 'mg-cam-pan-l', name: 'Survey pan left', intent: 'slow linear pan across a wide composition — timelines, lists, before/after plates, maps', moods: ['calm', 'survey', 'wide', 'linear', 'journey'] },
+    { id: 'cam-pan-right', cls: 'mg-cam-pan-r', name: 'Survey pan right', intent: 'slow linear pan the other way — alternate with pan-left across adjacent wide scenes', moods: ['calm', 'survey', 'wide', 'linear', 'journey'] },
+    { id: 'cam-rise', cls: 'mg-cam-rise', name: 'Pedestal rise', intent: 'the frame rises through the scene — growth, optimism, improvement beats, chart climbs', moods: ['optimism', 'growth', 'up', 'positive', 'aspiration'] },
+    { id: 'cam-fall', cls: 'mg-cam-fall', name: 'Pedestal fall', intent: 'the frame sinks — decline, weight, gravity, cost and loss beats', moods: ['decline', 'heavy', 'down', 'negative', 'loss'] },
+    { id: 'cam-orbit-left', cls: 'mg-cam-orbit-l', name: 'Orbit left', intent: 'shallow 3D sweep around the stage — product hero beats, objects that deserve dimension', moods: ['premium', 'product', 'hero', 'dimensional', 'showcase'] },
+    { id: 'cam-orbit-right', cls: 'mg-cam-orbit-r', name: 'Orbit right', intent: 'mirror orbit — alternate direction on consecutive product/hero scenes', moods: ['premium', 'product', 'hero', 'dimensional', 'showcase'] },
+    { id: 'cam-fpv-sweep', cls: 'mg-cam-fpv', name: 'FPV sweep', intent: 'diagonal swoop that decelerates into place — dynamic openers, journeys, arrivals', moods: ['dynamic', 'opener', 'journey', 'sweep', 'energy'] },
+    { id: 'cam-handheld', cls: 'mg-cam-handheld', name: 'Handheld', intent: 'documentary micro-wobble — human stories, testimony, "real footage" feel on quiet beats', moods: ['human', 'documentary', 'real', 'testimony', 'intimate'] },
+    { id: 'cam-dutch-roll', cls: 'mg-cam-dutch', name: 'Dutch roll', intent: 'the frame slowly cants to a slight angle — tension, unease, something is wrong', moods: ['tension', 'unease', 'wrong', 'suspense', 'dark'] },
+  ];
+  return cams.map((c) => ({
+    id: c.id,
+    kind: 'camera' as const,
+    name: c.name,
+    intent: `Camera: ${c.intent}. One camera per scene — wrap the whole stage.`,
+    moods: [...c.moods, 'camera', 'move', 'cinematic'],
+    packs: 'all' as const,
+    snippet: `<div class="${c.cls}">\n  <!-- entire scene stage goes inside the camera wrapper -->\n</div>`,
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Catalog + search
 // ---------------------------------------------------------------------------
 
@@ -498,7 +534,7 @@ let CATALOG: DesignEntry[] | null = null;
 
 export function designCatalog(): DesignEntry[] {
   if (!CATALOG) {
-    CATALOG = [...typeEntries(), ...calloutEntries(), ...backgroundEntries(), ...microEntries()];
+    CATALOG = [...typeEntries(), ...calloutEntries(), ...backgroundEntries(), ...microEntries(), ...cameraEntries()];
   }
   return CATALOG;
 }

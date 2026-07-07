@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-06.62';
+export const WHATS_NEW_VERSION = '2026-07-07.63';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Reconcile two spreadsheets — every discrepancy isolated',
-    body: 'Upload two exports that should agree (orders vs payouts, bank vs ledger, CRM vs billing) and ask ArksAI to reconcile them. Every row lands in exactly one bucket — matched, amount-mismatched (with the exact difference), probable match (dates a few days apart), or only-in-one-file — and the delivered workbook proves the buckets account for every input row.',
+    title: 'Ad A/B sets from one brief',
+    body: 'Ask for an ad creative and get 2–3 versions with different opening hooks — a question, a bold claim, a before-and-after — each laid over the same designed background, ready to test against each other. Give a product link and ArksAI reads the site first so the ad uses your real product language and brand colours.',
   },
   {
-    title: '“Why did revenue drop?” — answered with a variance bridge',
-    body: 'Compare this month vs last, or actuals vs budget, and ArksAI decomposes the change by region, product, channel — any dimension. Movers are ranked, new and disappeared segments flagged, the segment contributions sum exactly to the total change, and you get plain-language driver commentary plus a bridge workbook.',
+    title: 'Videos now speak film language',
+    body: 'Explainer and social videos gained a named camera vocabulary — crash zoom for a shock stat, a slow survey pan across a timeline, a pedestal rise for growth, handheld for human stories, a dutch roll for tension. The right move is picked to match each beat\'s meaning, so scenes feel directed, not templated.',
   },
   {
-    title: 'Recurring reports now remember last period',
-    body: 'A weekly or monthly report can save its final numbers and compare like-for-like on the next run — real "up 7.1% vs January" statements grounded in what was actually recorded, with restatements surfaced instead of silently overwritten. Combining files also got smarter: European number formats, two-row headers, multiple tables per tab and wide month-column layouts are all handled.',
+    title: 'Cinematic story videos hold their look',
+    body: 'AI-filmed story videos can now pin one style frame and carry its palette, lighting and grade through every shot — so a five-scene film looks like one production instead of five different ones.',
   },
 ];
 

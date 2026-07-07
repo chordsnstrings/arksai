@@ -52,12 +52,14 @@ export const generateCreativeTool: ToolDef = {
     'It picks the best text placement automatically, saves to images/, and offers a download; make one per channel size (1:1 / 4:5 / 9:16 / 16:9 / 1.91:1). ' +
     'SUBJECT FIDELITY — write the imagery `prompt` with the specificity a photographer gets on a call sheet, because the image model drifts on vague nouns: describe PEOPLE explicitly to match the audience/market (e.g. "a South Asian couple in their 30s, warm smiles, business-casual" — never just "a couple"); name LANDMARKS precisely with one distinguishing detail ("Big Ben and the Elizabeth Tower clock face" — not "a London tower"); describe the PRODUCT exactly (colour, material, orientation). One vague noun = the wrong face or the wrong building in the final ad. ' +
     'BRAND FIRST: if the user has not given a logo, ASK them to upload one and pass its path — or set logo_placeholder. ' +
-    'SOCIAL conversion: a benefit/outcome headline (value in the first few words), a short check-marked benefit list, proof/specifics only where true, and a single clear CTA.',
+    'SOCIAL conversion: a benefit/outcome headline (value in the first few words), a short check-marked benefit list, proof/specifics only where true, and a single clear CTA. ' +
+    'HOOK VARIANTS (ads): pass 2-3 alternate headlines in `headline_variants` and you get an A/B/C set composited on the SAME background for one image cost — write each variant from a DIFFERENT proven hook archetype: QUESTION ("Still overpaying for X?"), BOLD CLAIM ("The last X you\'ll ever buy"), BEFORE/AFTER ("From 4 hours to 4 minutes"), SOCIAL PROOF ("12,000 teams switched"), STAT LEAD ("73% cheaper than Y"). Deliver all variants and let the user pick.',
   parameters: {
     type: 'object',
     properties: {
       prompt: { type: 'string', description: 'The IMAGERY ONLY — scene, subject, style, mood, brand palette. NEVER put any text/words/letters here (they go in headline/subhead/bullets/cta).' },
       headline: { type: 'string', description: 'The main headline text (use \\n for a line break). Strongly recommended — this is the composited text.' },
+      headline_variants: { type: 'array', items: { type: 'string' }, description: 'Up to 3 ALTERNATE hook headlines — each is composited onto the same background as its own image (an instant A/B/C ad set, no extra image cost). Use different hook archetypes: question / bold claim / before-after / social proof / stat lead.' },
       subhead: { type: 'string', description: 'Optional supporting line.' },
       bullets: { type: 'array', items: { type: 'string' }, description: 'Optional feature/benefit list — each rendered with a check mark (e.g. ["Quick turnaround","Embassy-ready files"]).' },
       cta: { type: 'string', description: 'Optional call-to-action button label, e.g. "Shop now →".' },
@@ -137,6 +139,7 @@ export const generateCreativeTool: ToolDef = {
         zone,
         logoAbsPath,
         logoPlaceholder: !!args.logo_placeholder,
+        headlineVariants: Array.isArray(args.headline_variants) ? args.headline_variants.map((v: any) => String(v)) : undefined,
         copy: { accent, kicker: args.kicker ? String(args.kicker) : undefined, headline, sub: args.subhead ? String(args.subhead) : undefined, bullets, cta: args.cta ? String(args.cta) : undefined },
       },
       ctx.repoDir,

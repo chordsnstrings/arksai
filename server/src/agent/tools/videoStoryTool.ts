@@ -66,6 +66,7 @@ export const generateVideoStoryTool: ToolDef = {
       music: { type: 'string', description: 'Optional music-bed style ("warm cinematic strings, building") — ONE continuous instrumental score generated and mixed under the whole story (ducks under the voiceover).' },
       captions: { type: 'boolean', description: 'Burn the voiceover line as a caption strip (needs dialogue; only on explicit ask).' },
       opening_frame: { type: 'string', description: 'Optional workspace image path — scene 1 OPENS on this exact frame (e.g. a staged product frame: "make this product ad a story").' },
+      style_anchor: { type: 'string', description: 'Optional workspace image path used as a UNIVERSAL STYLE KEY: every plain scene gets it as a style-only reference (match palette/grade/lighting, never its content) so the look cannot drift shot to shot. Generate or pick ONE frame that nails the intended look first, then pass it here. Scenes with cast refs / opening frame / chained frames keep their own stronger anchor.' },
       resolution: { type: 'string', description: 'Final render resolution: "1080p" (default) or "4k" (only when the user explicitly asks).' },
       story_id: { type: 'string', description: 'An existing story (from a prior call) for final/retake. Omit to use the most recent story.' },
       final: { type: 'boolean', description: 'Re-render the existing story at 1080p (after the user approves the draft).' },
@@ -104,6 +105,7 @@ export const generateVideoStoryTool: ToolDef = {
           music: args.music ? String(args.music) : undefined,
           captions: args.captions === true,
           openingFrame: args.opening_frame ? String(args.opening_frame) : undefined,
+          styleAnchor: args.style_anchor ? String(args.style_anchor) : undefined,
           resolution: args.resolution === '4k' ? '4k' : undefined,
           signal: ctx.signal,
         });

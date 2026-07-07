@@ -405,6 +405,51 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
 @keyframes mgCamDrift { from { transform: translateX(0.9vw) scale(1.03); } to { transform: translateX(-0.9vw) scale(1.03); } }
 .mg-cam-drift { animation: mgCamDrift calc(var(--scene-s, 8) * 1s) var(--mg-ease-cam) both; }
 
+/* ---------- CAMERA VOCABULARY (named cinematic moves — pick ONE per scene by intent).
+   All transform-only, scene-length driven, seekable. Any move that translates keeps
+   scale ≥1.04 so the frame edge never shows. ---------- */
+/* Crash zoom — fast punch in the first beat, then hold. Reveals, shock stats. */
+@keyframes mgCamCrash { 0% { transform: scale(1); } 16% { transform: scale(1.13); } 100% { transform: scale(1.1); } }
+.mg-cam-crash { animation: mgCamCrash calc(var(--scene-s, 8) * 1s) var(--mg-ease-out) both; transform-origin: center; }
+/* Punch-in settle — quick push that eases into a slow creep. Confident emphasis. */
+@keyframes mgCamPunch { 0% { transform: scale(1); } 24% { transform: scale(1.065); } 100% { transform: scale(1.085); } }
+.mg-cam-punch { animation: mgCamPunch calc(var(--scene-s, 8) * 1s) var(--mg-ease-cam) both; transform-origin: center; }
+/* Whip in — the frame arrives fast from one side then micro-drifts. Hard cuts, energy. */
+@keyframes mgCamWhipL { 0% { transform: translateX(3vw) scale(1.06); } 12% { transform: translateX(-0.2vw) scale(1.06); } 100% { transform: translateX(-0.8vw) scale(1.06); } }
+.mg-cam-whip-l { animation: mgCamWhipL calc(var(--scene-s, 8) * 1s) var(--mg-ease-out) both; }
+@keyframes mgCamWhipR { 0% { transform: translateX(-3vw) scale(1.06); } 12% { transform: translateX(0.2vw) scale(1.06); } 100% { transform: translateX(0.8vw) scale(1.06); } }
+.mg-cam-whip-r { animation: mgCamWhipR calc(var(--scene-s, 8) * 1s) var(--mg-ease-out) both; }
+/* Slow pans — surveying a wide composition (lists, timelines, plates). */
+@keyframes mgCamPanL { from { transform: translateX(1.6vw) scale(1.05); } to { transform: translateX(-1.6vw) scale(1.05); } }
+.mg-cam-pan-l { animation: mgCamPanL calc(var(--scene-s, 8) * 1s) linear both; }
+@keyframes mgCamPanR { from { transform: translateX(-1.6vw) scale(1.05); } to { transform: translateX(1.6vw) scale(1.05); } }
+.mg-cam-pan-r { animation: mgCamPanR calc(var(--scene-s, 8) * 1s) linear both; }
+/* Pedestal rise / fall — vertical reveal; rise = optimism/growth, fall = weight/decline. */
+@keyframes mgCamRise { from { transform: translateY(1.4vh) scale(1.05); } to { transform: translateY(-1.4vh) scale(1.05); } }
+.mg-cam-rise { animation: mgCamRise calc(var(--scene-s, 8) * 1s) var(--mg-ease-cam) both; }
+@keyframes mgCamFall { from { transform: translateY(-1.4vh) scale(1.05); } to { transform: translateY(1.4vh) scale(1.05); } }
+.mg-cam-fall { animation: mgCamFall calc(var(--scene-s, 8) * 1s) var(--mg-ease-cam) both; }
+/* Orbit — a shallow 3D sweep around the stage. Product beats, hero objects. */
+@keyframes mgCamOrbitL { from { transform: perspective(90vw) rotateY(2.2deg) scale(1.06); } to { transform: perspective(90vw) rotateY(-2.2deg) scale(1.06); } }
+.mg-cam-orbit-l { animation: mgCamOrbitL calc(var(--scene-s, 8) * 1s) var(--mg-ease-cam) both; }
+@keyframes mgCamOrbitR { from { transform: perspective(90vw) rotateY(-2.2deg) scale(1.06); } to { transform: perspective(90vw) rotateY(2.2deg) scale(1.06); } }
+.mg-cam-orbit-r { animation: mgCamOrbitR calc(var(--scene-s, 8) * 1s) var(--mg-ease-cam) both; }
+/* FPV sweep — a diagonal swoop that decelerates. Dynamic openers, journeys. */
+@keyframes mgCamFpv { 0% { transform: translate(2vw, 1.2vh) scale(1.11); } 60% { transform: translate(-0.8vw, -0.5vh) scale(1.06); } 100% { transform: translate(-1.6vw, -1vh) scale(1.05); } }
+.mg-cam-fpv { animation: mgCamFpv calc(var(--scene-s, 8) * 1s) var(--mg-ease-out) both; }
+/* Handheld — a documentary micro-wobble (tiny, slow, never nauseating). Human/testimony beats. */
+@keyframes mgCamHandheld {
+  0% { transform: translate(0, 0) rotate(0deg) scale(1.05); }
+  25% { transform: translate(0.3vw, -0.2vh) rotate(0.12deg) scale(1.05); }
+  50% { transform: translate(-0.25vw, 0.25vh) rotate(-0.1deg) scale(1.055); }
+  75% { transform: translate(0.2vw, 0.15vh) rotate(0.08deg) scale(1.05); }
+  100% { transform: translate(-0.15vw, -0.15vh) rotate(-0.05deg) scale(1.05); }
+}
+.mg-cam-handheld { animation: mgCamHandheld calc(var(--scene-s, 8) * 1s) linear both; }
+/* Dutch roll — the frame slowly cants to a slight angle. Tension, something is off. */
+@keyframes mgCamDutch { from { transform: rotate(0deg) scale(1.05); } to { transform: rotate(1.2deg) scale(1.07); } }
+.mg-cam-dutch { animation: mgCamDutch calc(var(--scene-s, 8) * 1s) var(--mg-ease-cam) both; }
+
 /* ---------- DEPTH / PARALLAX (≥2 layers moving at different rates under the camera) ---------- */
 @keyframes mgDriftX { from { transform: translateX(calc(var(--px, -2vw) * -0.5)); } to { transform: translateX(calc(var(--px, -2vw) * 0.5)); } }
 .mg-depth-bg  { --px: -1vw;   animation: mgDriftX calc(var(--scene-s, 8) * 1s) linear both; }

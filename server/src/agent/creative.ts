@@ -247,6 +247,9 @@ export async function composeCreative(
     zone: Zone | 'auto';
     logoAbsPath?: string | null;
     logoPlaceholder?: boolean;
+    /** Alternate hook headlines (≤3) — each composited onto the SAME settled background
+     *  as its own output file, so one brief yields an A/B/C set for one image-gen cost. */
+    headlineVariants?: string[];
   },
   repoDir: string,
   signal: AbortSignal,
@@ -335,8 +338,27 @@ export async function composeCreative(
       await renderToImage(buildCreativeHtml({ bgDataUrl: bg2, zone, textColor, copy: opts.copy, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder, logoIsSvg }), size.w, size.h, absOut, opts.format);
     }
 
+    // 4) hook variants — the same SETTLED background/zone/colour with alternate headlines,
+    //    each its own file. Pure Chromium re-renders: no extra model calls, no extra cost.
+    const files = [{ path: `images/${name}` }];
+    const variants = (opts.headlineVariants ?? []).map((v) => String(v).trim()).filter(Boolean).slice(0, 3);
+    if (variants.length) {
+      const finalBg = `data:${sniffMime(buf)};base64,${buf.toString('base64')}`;
+      const stamp = Date.now();
+      for (let i = 0; i < variants.length; i++) {
+        const vName = `creative-${stamp}-v${i + 2}.${ext}`;
+        const vAbs = path.join(dir, vName);
+        await renderToImage(
+          buildCreativeHtml({ bgDataUrl: finalBg, zone, textColor, copy: { ...opts.copy, headline: variants[i] }, w: size.w, h: size.h, logoDataUrl, logoPlaceholder: opts.logoPlaceholder, logoIsSvg }),
+          size.w, size.h, vAbs, opts.format,
+        );
+        files.push({ path: `images/${vName}` });
+      }
+      log.push(`${variants.length} hook variant(s) composited on the same background`);
+    }
+
     const notes = `zone=${zone}, text=${textColor}, ${opts.aspect} ${size.w}×${size.h}${log.length ? ' · ' + log.join('; ') : ''}`;
-    return { ok: true, files: [{ path: `images/${name}` }], notes, costUsd: cost };
+    return { ok: true, files, notes, costUsd: cost };
   } catch (e: any) {
     return { ok: false, files: [], error: String(e?.message ?? e), notes: log.join('; '), costUsd: cost };
   }

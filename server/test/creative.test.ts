@@ -135,3 +135,18 @@ test('CREATIVE_SIZES: every channel ratio maps to a canvas + a MiniMax gen ratio
     assert.ok(s && s.w > 0 && s.h > 0 && /^[0-9]+:[0-9]+$/.test(s.gen), `bad size for ${k}`);
   }
 });
+
+test('hook variants (the Higgsfield Hermes borrow): schema + pipeline + steering all wired', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  // tool exposes headline_variants and teaches the hook archetypes
+  const toolSrc = fs.readFileSync(path.join(__dirname, '../src/agent/tools/creative.ts'), 'utf8');
+  assert.match(toolSrc, /headline_variants/);
+  assert.match(toolSrc, /headlineVariants:/);
+  assert.match(toolSrc, /HOOK VARIANTS/);
+  // pipeline composites variants on the SAME settled background, capped at 3
+  const coreSrc = fs.readFileSync(path.join(__dirname, '../src/agent/creative.ts'), 'utf8');
+  assert.match(coreSrc, /headlineVariants\?\:/);
+  assert.match(coreSrc, /slice\(0, 3\)/);
+  assert.match(coreSrc, /headline: variants\[i\]/);
+});

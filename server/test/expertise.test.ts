@@ -125,3 +125,10 @@ test('buildSystemPrompt: injects the expert standards when the session has a tas
   assert.match(withTask, /Expert standards for this task/);
   assert.match(withTask, /FP&A/);
 });
+
+test('marketing creative carries the hook-variant + product-link ad doctrine', () => {
+  const c = expertiseFor('marketing.creative')!;
+  assert.match(c, /headline_variants/);
+  assert.match(c, /hook archetype/i);
+  assert.match(c, /crawl_site/);
+});

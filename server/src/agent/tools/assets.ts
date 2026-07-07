@@ -235,7 +235,8 @@ export const searchMotionDesignTool: ToolDef = {
   description:
     'Search the MOTION DESIGN LIBRARY (~900 intent-indexed presets) for scene ingredients: ' +
     'type (typography voices/pairings/numerals/quotes), callout (pills, stamps, flags, ribbons, badges, labels), ' +
-    'background (animated pattern/blob/orbit/sweep layers — SVG/CSS movement under content), micro (entrances, idles, emphasis effects). ' +
+    'background (animated pattern/blob/orbit/sweep layers — SVG/CSS movement under content), micro (entrances, idles, emphasis effects), ' +
+    'camera (named cinematic moves — crash zoom, whip, survey pan, pedestal rise/fall, orbit, FPV sweep, handheld, dutch roll; ONE per scene, chosen by intent). ' +
     'Query by INTENT ("calm drifting texture for a quiet data scene", "urgent warning number callout", "premium serif hero"). ' +
     'Each result returns a paste-ready HTML snippet using kit classes — paste into bespoke scenes, or pass a background id as the ' +
     'bg slot on any scaffold. NEVER invent a background pattern or callout by hand — search here first.',
@@ -243,7 +244,7 @@ export const searchMotionDesignTool: ToolDef = {
     type: 'object',
     properties: {
       query: { type: 'string', description: 'Intent, mood and role words: "playful science headline", "downward rain texture decline", "award ribbon money".' },
-      kind: { type: 'string', enum: ['type', 'callout', 'background', 'micro'], description: 'Restrict to one category (recommended).' },
+      kind: { type: 'string', enum: ['type', 'callout', 'background', 'micro', 'camera'], description: 'Restrict to one category (recommended).' },
       style: { type: 'string', enum: ['clean', 'nutshell', 'broadcast', 'vox', 'nordic'], description: 'Your video style — pack-tuned entries rank first, mismatched packs are excluded.' },
       count: { type: 'number', description: 'Results (default 8, max 20).' },
     },
@@ -255,7 +256,7 @@ export const searchMotionDesignTool: ToolDef = {
     const query = String(args.query ?? '').trim();
     if (!query) return 'Error: pass an intent query, e.g. "calm drifting texture for a quiet scene".';
     const results = searchMotionDesign(query, {
-      kind: ['type', 'callout', 'background', 'micro'].includes(String(args.kind)) ? (String(args.kind) as any) : undefined,
+      kind: ['type', 'callout', 'background', 'micro', 'camera'].includes(String(args.kind)) ? (String(args.kind) as any) : undefined,
       style: ['clean', 'nutshell', 'broadcast', 'vox', 'nordic'].includes(String(args.style)) ? (String(args.style) as any) : undefined,
       limit: Number(args.count) || 8,
     });

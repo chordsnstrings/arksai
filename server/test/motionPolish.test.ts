@@ -669,7 +669,7 @@ test('design library: ~1000 entries, unique ids, every kit class in snippets exi
   assert.ok(c.length >= 850, `catalog has ${c.length} entries (want ~1000)`);
   assert.equal(new Set(c.map((e) => e.id)).size, c.length, 'ids are unique');
   const kinds = new Set(c.map((e) => e.kind));
-  for (const k of ['type', 'callout', 'background', 'micro']) assert.ok(kinds.has(k as any), `has ${k} entries`);
+  for (const k of ['type', 'callout', 'background', 'micro', 'camera']) assert.ok(kinds.has(k as any), `has ${k} entries`);
   // every mg-*/kt-* class referenced by a snippet is defined in the kit css
   const css = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/motion.css'), 'utf8');
   const missing = new Set<string>();
@@ -708,4 +708,20 @@ test('design library: intent search ranks the right entries; scaffold bg slot in
   assert.match(idx, /searchMotionDesignTool/);
   const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
   assert.match(md, /THE DESIGN LIBRARY/);
+});
+
+test('camera vocabulary: named cinematic moves indexed by intent (the Higgsfield borrow)', () => {
+  const cams = designCatalog().filter((e) => e.kind === 'camera');
+  assert.ok(cams.length >= 14, `camera vocabulary has ${cams.length} moves`);
+  // intent search finds the right move — a director asks by feel, not by class name
+  const shock = searchMotionDesign('dramatic fast shock reveal', { kind: 'camera', limit: 5 });
+  assert.ok(shock.some((e) => e.id === 'cam-crash-zoom'), shock.map((e) => e.id).join(','));
+  const decline = searchMotionDesign('decline heavy loss', { kind: 'camera', limit: 5 });
+  assert.ok(decline.some((e) => e.id === 'cam-fall'), decline.map((e) => e.id).join(','));
+  const product = searchMotionDesign('premium product hero showcase', { kind: 'camera', limit: 5 });
+  assert.ok(product.some((e) => e.id.startsWith('cam-orbit')), product.map((e) => e.id).join(','));
+  // doctrine documented
+  const md = fs.readFileSync(path.join(__dirname, '../assets/motion-kit/MOTION.md'), 'utf8');
+  assert.match(md, /CAMERA VOCABULARY/);
+  assert.match(md, /mg-cam-crash/);
 });

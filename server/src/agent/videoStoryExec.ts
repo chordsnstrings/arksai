@@ -60,6 +60,11 @@ export interface StoryManifest {
   musicFile?: string; // the generated bed, reused across passes
   captions?: boolean;
   openingFrame?: string; // workspace image path anchoring scene 1 (product-story bridge)
+  /** Universal style key (workspace image path): attached as a style-only reference to every
+   *  plain t2v scene so the look never drifts across shots (the Higgsfield style-key pattern).
+   *  Scenes with their own visual anchor (cast refs, opening frame, frame-chain, extend,
+   *  composited frame) keep that stronger anchor instead. */
+  styleAnchor?: string;
   resolution?: '1080p' | '4k';
 }
 
@@ -181,18 +186,27 @@ async function runScene(
 
   const buildSpec = async (mech: ScenePlan['mechanism'], prompt: string): Promise<VideoSpec> => {
     const useRefs = (scene.castRefs?.length ?? 0) > 0;
+    // Style anchor applies ONLY to plain t2v scenes with no anchor of their own — every other
+    // mechanism already carries a stronger visual anchor (cast, prev frame, composite, video).
+    const anchorAbs = m.styleAnchor ? path.resolve(o.repoDir, m.styleAnchor) : null;
+    const useStyleAnchor =
+      !!anchorAbs && fs.existsSync(anchorAbs) && mech === 't2v' && !useRefs && !(scene.id === 1 && m.openingFrame);
     const spec: VideoSpec = {
-      prompt,
+      prompt: useStyleAnchor
+        ? `Match the reference image's visual STYLE exactly — palette, colour grade, lighting, lens character — but do NOT copy its content or subjects. ${prompt}`
+        : prompt,
       aspect: m.aspect,
       duration: scene.durationS,
       audio: m.audio,
-      model: mech === 'extend' || useRefs ? 'arksai-video-20-fast' : 'arksai-video-15',
+      model: mech === 'extend' || useRefs || useStyleAnchor ? 'arksai-video-20-fast' : 'arksai-video-15',
       draft: !o.final,
       // 4K only when the story explicitly asked for it (STORY_PLAN Phase 4).
       resolution: o.final ? (m.resolution === '4k' ? '4k' : '1080p') : '480p',
     };
     if (useRefs) {
       spec.referenceUrls = (scene.castRefs ?? []).map((p) => fileToDataUrl(path.resolve(o.repoDir, p)));
+    } else if (useStyleAnchor) {
+      spec.referenceUrls = [fileToDataUrl(anchorAbs!)];
     }
     // Product-story bridge: an explicit opening frame anchors scene 1 (e.g. the staged
     // product frame from a product ad — "make this a story").
@@ -448,6 +462,7 @@ export async function planAndInitStory(
     music?: string;
     captions?: boolean;
     openingFrame?: string;
+    styleAnchor?: string;
     resolution?: '1080p' | '4k';
   } & PlanStoryOpts,
 ): Promise<StoryManifest> {
@@ -469,6 +484,7 @@ export async function planAndInitStory(
     music: o.music,
     captions: o.captions,
     openingFrame: o.openingFrame,
+    styleAnchor: o.styleAnchor,
     resolution: o.resolution,
   };
   saveManifest(o.repoDir, m);
