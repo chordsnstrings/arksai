@@ -139,7 +139,10 @@ test('style anchor (the Higgsfield style-key borrow): manifest carries it, exec 
   // exec semantics (source-locked — buildSpec is a closure): the anchor applies only to a
   // bare t2v scene, rides referenceUrls, prefixes a style-only instruction, and routes r2v.
   const src = fs.readFileSync(path.join(__dirname, '../src/agent/videoStoryExec.ts'), 'utf8');
-  assert.match(src, /mech === 't2v' && !useRefs && !\(scene\.id === 1 && m\.openingFrame\)/);
+  assert.match(src, /mech === 't2v' && !useRefs && !openingFrameApplies/);
+  // The suppression and the opening-frame application MUST share the same existence gate, or a
+  // truthy-but-missing openingFrame leaves scene 1 un-anchored (review finding 2026-07-07).
+  assert.match(src, /openingFrameApplies = !!openingFrameAbs && fs\.existsSync\(openingFrameAbs\)/);
   assert.match(src, /do NOT copy its content/);
   assert.match(src, /useRefs \|\| useStyleAnchor \? 'arksai-video-20-fast'/);
   assert.match(src, /else if \(useStyleAnchor\)/);

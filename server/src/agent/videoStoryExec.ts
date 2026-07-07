@@ -189,8 +189,15 @@ async function runScene(
     // Style anchor applies ONLY to plain t2v scenes with no anchor of their own — every other
     // mechanism already carries a stronger visual anchor (cast, prev frame, composite, video).
     const anchorAbs = m.styleAnchor ? path.resolve(o.repoDir, m.styleAnchor) : null;
+    // Scene 1's opening frame only anchors when the file actually RESOLVES (existsSync below),
+    // so the style-anchor suppression must key off the SAME existence check — otherwise a
+    // truthy-but-missing openingFrame (typo path, checkpoint-resumed workspace) would leave
+    // scene 1 with NEITHER anchor, the exact first-shot drift the style anchor exists to prevent.
+    const openingFrameAbs =
+      scene.id === 1 && m.openingFrame && mech !== 'i2v-composited' ? path.resolve(o.repoDir, m.openingFrame) : null;
+    const openingFrameApplies = !!openingFrameAbs && fs.existsSync(openingFrameAbs);
     const useStyleAnchor =
-      !!anchorAbs && fs.existsSync(anchorAbs) && mech === 't2v' && !useRefs && !(scene.id === 1 && m.openingFrame);
+      !!anchorAbs && fs.existsSync(anchorAbs) && mech === 't2v' && !useRefs && !openingFrameApplies;
     const spec: VideoSpec = {
       prompt: useStyleAnchor
         ? `Match the reference image's visual STYLE exactly — palette, colour grade, lighting, lens character — but do NOT copy its content or subjects. ${prompt}`
@@ -209,11 +216,9 @@ async function runScene(
       spec.referenceUrls = [fileToDataUrl(anchorAbs!)];
     }
     // Product-story bridge: an explicit opening frame anchors scene 1 (e.g. the staged
-    // product frame from a product ad — "make this a story").
-    if (scene.id === 1 && m.openingFrame && mech !== 'i2v-composited') {
-      const abs = path.resolve(o.repoDir, m.openingFrame);
-      if (fs.existsSync(abs)) spec.imageUrl = fileToDataUrl(abs);
-    }
+    // product frame from a product ad — "make this a story"). Same existence gate as the
+    // style-anchor suppression above, so exactly one of the two anchors scene 1.
+    if (openingFrameApplies) spec.imageUrl = fileToDataUrl(openingFrameAbs!);
     if (mech === 'i2v-composited' && scene.compositeHtml) {
       const frame = path.join(dir, `scene-${scene.id}-frame.jpg`);
       await rasterizeFrame(compositePage(scene.compositeHtml, size.w, size.h), size.w, size.h, frame);
