@@ -26,16 +26,16 @@ const go = (href: string) => () => {
 const ADOPTERS = ['ARKS Groups Investments', 'Ecosine', 'Powerdrive', 'EGari'];
 
 const STEPS = [
-  { no: '01', title: 'Ask in plain words', body: 'Someone on the team describes the task — a VAT return, a board deck, a dashboard, an outreach kit.' },
-  { no: '02', title: 'ArksAI does the work', body: 'It builds, runs the checks, and validates the output against what actually matters — so it’s right, not just done.' },
-  { no: '03', title: 'Use it the same day', body: 'A finished result: a filing-ready document, a live tool, a polished report — no back-and-forth.' },
+  { no: '01', title: 'Hire the worker you need', body: 'Pick a role — a finance clerk, a front desk, a specialist. It introduces itself and asks for what it needs to start, like any new hire.' },
+  { no: '02', title: 'Manage it like a person', body: 'Give it a task in plain words — a message, a photo, a voice note. Approve, change, or escalate in a tap; forward a customer message with a one-line order.' },
+  { no: '03', title: 'It hands you finished work', body: 'It does the job, checks its own output against what “done” means, fixes its own mistakes, and only then hands it over — verified, ready to use.' },
 ];
 
 // A few concrete "watch it work" vignettes — the breadth of what ArksAI delivers, shown
 // as small honest mock results (no invented metrics).
 const DEMOS: { tag: string; accent: string; prompt: string; result: React.ReactNode }[] = [
   {
-    tag: 'Email robot',
+    tag: 'Front Desk',
     accent: '#2f6f6a',
     prompt: '“Answer booking enquiries from our inbox.”',
     result: (
@@ -47,7 +47,7 @@ const DEMOS: { tag: string; accent: string; prompt: string; result: React.ReactN
     ),
   },
   {
-    tag: 'Finance',
+    tag: 'Finance Clerk',
     accent: '#1f6feb',
     prompt: '“Build a 3-year cash-flow model for the new branch.”',
     result: (
@@ -59,7 +59,7 @@ const DEMOS: { tag: string; accent: string; prompt: string; result: React.ReactN
     ),
   },
   {
-    tag: 'Legal · UAE',
+    tag: 'Legal Counsel',
     accent: '#7a2e3b',
     prompt: '“Draft a notice before action for unpaid invoices.”',
     result: (
@@ -71,7 +71,7 @@ const DEMOS: { tag: string; accent: string; prompt: string; result: React.ReactN
     ),
   },
   {
-    tag: 'Marketing',
+    tag: 'Marketing Studio',
     accent: '#b8852a',
     prompt: '“A launch ad for our app — our teal, our logo.”',
     result: (
@@ -95,7 +95,7 @@ const EARLY = [
 const FAQ = [
   {
     q: 'What is ArksAI, exactly?',
-    a: 'An AI platform built for UAE businesses. Anyone on the team describes what they need in plain words and ArksAI does the work and hands back a finished, verified result — a live app, a dashboard, a report or deck, an on-brand image, an email reply, or a UAE-compliant filing. No technical skills required, and it works for every function.',
+    a: 'An AI workforce built for UAE businesses. You hire a worker — a finance clerk, a front desk, a specialist — and manage it the way you manage staff: describe what you need in plain words and it does the work, checks its own output, and hands back a finished, verified result — a live app, a dashboard, a report or deck, an on-brand image, a customer reply, or a UAE-compliant filing. No technical skills required, and there’s a worker for every function.',
   },
   {
     q: 'How do I get access?',
@@ -198,14 +198,15 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
       </header>
 
       <section className="lnd-hero">
-        <div className="lp-kicker">AI for UAE businesses</div>
+        <div className="lp-kicker">An AI workforce for UAE business</div>
         <h1 className="lnd-h1">
-          The AI that <em>empowers your business.</em>
+          Hire an AI employee that <em>checks its own work.</em>
         </h1>
         <p className="lnd-lede">
-          ArksAI brings AI into the everyday work of every team in your UAE company — Finance, Marketing, Sales,
-          HR, and Legal. Describe what you need in plain words; ArksAI plans it, builds it, checks that it works,
-          and hands back something finished and correct. Not a tool to learn — a teammate that delivers.
+          ArksAI is an AI workforce for your UAE business. Hire a worker to run the back office — compliance
+          filings, invoices, customer replies, reports — and manage it the way you manage people: describe the
+          task, send a photo or a voice note, approve or escalate in a tap. It does the work, checks its own
+          output, and hands you only what’s right — reachable on WhatsApp, Telegram, email, or right here.
         </p>
         <div className="lnd-cta">
           <button className="lnd-primary" onClick={toForm}>
@@ -235,10 +236,10 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
 
       <section className="lnd-section lnd-demos-sec">
         <div className="lp-kicker">See it work</div>
-        <h2 className="lnd-h2">Four teams, four asks, four finished results.</h2>
+        <h2 className="lnd-h2">Four workers. Four asks. Four finished results.</h2>
         <p className="lnd-lede">
-          One studio, speaking each function’s language. A sentence goes in; a verified, ready-to-use thing comes
-          back — an app, a financial model, a bilingual legal draft, a finished ad.
+          Each is a different hire with the same discipline: a sentence goes in; a verified, ready-to-use result
+          comes back — a reply sent, a financial model built, a bilingual legal draft, a finished ad.
         </p>
         <div className="lnd-demos">
           {DEMOS.map((d) => (
@@ -251,14 +252,14 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
         </div>
         <div className="lnd-more-link">
           <button className="lnd-link" onClick={go('/features')}>
-            See everything ArksAI does — for every team →
+            See everything the workers can do — for every team →
           </button>
         </div>
       </section>
 
       <section className="lnd-section">
         <div className="lp-kicker">How it works</div>
-        <h2 className="lnd-h2">Ask once. Get it done.</h2>
+        <h2 className="lnd-h2">Hire it, manage it, trust the output.</h2>
         <div className="lnd-steps">
           {STEPS.map((s) => (
             <div key={s.no} className="lnd-step">
@@ -382,7 +383,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
           <p className="lnd-founder-body">
             We built ArksAI in the UAE because we kept watching capable teams stall on the same wall: the work
             needed someone “technical,” and that person was always busy, expensive, or not there. So we didn’t
-            build another chat box. We built a studio that does the work and checks its own output — a finished
+            build another chat box. We built a workforce that does the work and checks its own output — a finished
             app, a board deck, a VAT file, a bilingual notice — and hands it back ready to use.
           </p>
           <p className="lnd-founder-body">
@@ -414,7 +415,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
         <span className="lp-mark">
           <span className="logo-mark sm" /> ARKSAI · STUDIO
         </span>
-        <span className="lnd-foot-tag">AI, working across your business.</span>
+        <span className="lnd-foot-tag">An AI workforce, working across your business.</span>
         <div style={{ display: 'flex', gap: 16 }}>
           <button className="lnd-link" onClick={go('/features')}>
             Features

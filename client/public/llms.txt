@@ -1,12 +1,12 @@
 # ArksAI
 
-> ArksAI is an AI platform that helps UAE businesses adopt AI **without needing any AI-skilled staff**. Anyone on a team describes what they need in plain words, and ArksAI does the work and hands back a finished, verified result — a live web app, a dashboard, a designed report or deck, on-brand ad/social creatives, real spreadsheets and documents, or the exact UAE-compliant filing the FTA and MOHRE expect. Website: https://arksai.studio (currently in alpha, invitation-only).
+> ArksAI is an **AI workforce** for UAE businesses. Instead of learning a tool, you **hire a worker** — a finance clerk, a front desk, a specialist — and manage it the way you manage staff: describe what you need in plain words (a message, a photo, a voice note, a quick approval), and it does the work, **checks its own output**, and hands back a finished, verified result — a live web app, a dashboard, a designed report or deck, on-brand ad/social creatives, real spreadsheets and documents, a customer reply, or the exact UAE-compliant filing the FTA and MOHRE expect. You can reach the worker on WhatsApp, Telegram, email, or in the studio. Website: https://arksai.studio (currently in alpha, invitation-only).
 
 ## What ArksAI is
 
-ArksAI is "describe it once → get one finished thing that looks perfect, works perfectly, and is actually usable." It is built for **non-technical business people**, not developers. The promise is zero user iteration: the quality comes from the system (an opinionated design engine plus an internal verify-and-revise loop), not from the user's prompting skill.
+ArksAI is "hire it, manage it, trust the output": an AI employee that does the work and verifies it **before** it hands it to you. It is built for **non-technical business owners and teams**, not developers. The promise is zero user iteration — the quality comes from the system (an opinionated design engine plus an internal verify-and-revise loop), not from the user's prompting skill. You approve the result, not the process.
 
-The single biggest reason it exists: **help UAE businesses adopt AI without hiring or training AI-skilled individuals.** A marketer, an accountant, an HR manager, or a founder gets expert-grade output in their own language, the same day, with no technical skill required.
+The single biggest reason it exists: **let UAE businesses adopt AI without hiring or training AI-skilled staff, or even learning a tool.** A marketer, an accountant, an HR manager, or a founder manages an AI worker in plain language and gets expert-grade, verified output in their own language, the same day.
 
 ## Who it is for (per team)
 

@@ -165,14 +165,14 @@ export function FeaturesPage({ onSignIn }: { onSignIn: () => void }) {
       </header>
 
       <section className="lnd-hero">
-        <div className="lp-kicker">What ArksAI can do</div>
+        <div className="lp-kicker">What the workers do</div>
         <h1 className="lnd-h1">
-          One studio. <em>Every deliverable your company needs.</em>
+          One workforce. <em>Every deliverable your business needs.</em>
         </h1>
         <p className="lnd-lede">
-          ArksAI isn’t a chatbot that gives you answers — it does the work and hands back a finished, verified thing.
+          Your AI workers don’t just answer — they do the work and hand back a finished, verified thing.
           Apps and dashboards, designed reports and decks, videos and on-brand creatives, real spreadsheets and BI,
-          autonomous robots across every channel, and the exact UAE-compliant filings. Here’s the whole surface.
+          autonomous replies across every channel, and the exact UAE-compliant filings. Here’s the whole surface.
         </p>
         <div className="lnd-cta">
           <button className="lnd-primary" onClick={go('/#get-access')}>
@@ -218,7 +218,7 @@ export function FeaturesPage({ onSignIn }: { onSignIn: () => void }) {
 
       <section className="lnd-section">
         <div className="lp-kicker">Every team, every day</div>
-        <h2 className="lnd-h2">One studio that speaks each function’s language.</h2>
+        <h2 className="lnd-h2">One workforce, with a role for each function.</h2>
         <div className="lnd-depts">
           {DEPARTMENTS.map((d) => (
             <div key={d.id} className="lnd-dept" style={{ ['--dept' as any]: d.accent }}>
@@ -259,7 +259,7 @@ export function FeaturesPage({ onSignIn }: { onSignIn: () => void }) {
         <button className="lp-mark" onClick={go('/')} style={{ background: 'none', border: 0, cursor: 'pointer' }}>
           <span className="logo-mark sm" /> ARKSAI · STUDIO
         </button>
-        <span className="lnd-foot-tag">AI, working across your business.</span>
+        <span className="lnd-foot-tag">An AI workforce, working across your business.</span>
         <div style={{ display: 'flex', gap: 16 }}>
           <button className="lnd-link" onClick={go('/research')}>
             Research

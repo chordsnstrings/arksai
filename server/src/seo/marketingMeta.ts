@@ -26,10 +26,10 @@ export interface RouteMeta {
 // The per-vertical marketing pages. Keyword-rich, UAE-positioned, distinct per team.
 export const MARKETING_ROUTES: Record<string, RouteMeta> = {
   '/': {
-    title: 'ArksAI — AI That Empowers UAE Businesses | Apps, Reports & Compliance',
+    title: 'ArksAI — Hire an AI Employee for Your UAE Business | Apps, Reports & Compliance',
     description:
-      'ArksAI helps UAE businesses adopt AI without hiring AI-skilled staff. Describe what you need in plain words and get a finished, verified result — live apps, dashboards, reports, decks, on-brand creatives, and UAE-compliant filings (VAT 201, Corporate Tax, WPS, PINT AE e-invoicing). Alpha — invite-only.',
-    ogTitle: 'Give every team AI — without hiring an AI expert',
+      'ArksAI is an AI workforce for UAE businesses. Hire a worker to run the back office — describe the task and it does the work, checks its own output, and hands you a finished, verified result: live apps, dashboards, reports, decks, on-brand creatives, and UAE-compliant filings (VAT 201, Corporate Tax, WPS, PINT AE e-invoicing). Manage it by message. Alpha — invite-only.',
+    ogTitle: 'Hire an AI employee that checks its own work',
   },
   '/for/marketing': {
     title: 'AI for Marketing Teams in the UAE — Landing Pages, Ad Creatives & Campaigns | ArksAI',
