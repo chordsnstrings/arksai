@@ -38,46 +38,72 @@ const GROUPS: Group[] = [
     kicker: 'Build & ship',
     heading: 'Real software, built and verified — then live.',
     lede: 'Describe the tool; ArksAI builds it, boots it in a real browser, exercises every route, and publishes it to a shareable link. You never see a broken build.',
+    accent: '#1c6b64',
     features: [
-      { icon: 'layout', title: 'Live web apps & sites', body: 'Booking pages, internal tools, microsites, portals — built responsive and on-brand, then booted and checked before you ever see them.' },
-      { icon: 'bar-chart-3', title: 'Dashboards & analyses', body: 'Live KPI dashboards, cohort, variance and ad-hoc analyses — from your own numbers (pull a public CSV/JSON/Sheet), never invented.' },
-      { icon: 'rocket', title: 'One-click publish', body: 'Every app is snapshotted, classified, and served at a public link — then smoke-tested on the live URL so you never share something broken.' },
-      { icon: 'circle-check', title: 'A verification gate', body: 'Static checks, a real headless-browser boot, and an interaction pass (it fills forms and clicks buttons) hard-fail a broken build so it self-heals first.' },
+      { icon: 'layout', title: 'Live web apps & sites', body: 'Booking pages, internal tools, microsites, portals — built responsive and on-brand, booted in a real browser and checked at phone and desktop widths before you ever see them.' },
+      { icon: 'code', title: 'Full-stack apps + a real database', body: 'One deployable service with a wired API and SQLite (or an isolated Postgres) — CRUD, multi-tenant orgs, public forms, uploads, realtime and background jobs from proven modules.' },
+      { icon: 'dollar-sign', title: 'Payments, keys pasted in-app', body: 'Stripe, PayPal and four UAE rails (Ziina, Telr, N-Genius, Binance Pay crypto) with Apple & Google Pay free — server-verified so a client can never mark itself paid.' },
+      { icon: 'rocket', title: 'Android apps + installable PWAs', body: 'Native APKs built on our own infra, or make any site installable and offline — published to a public link and smoke-tested on the live URL before it reaches you.' },
     ],
   },
   {
     kicker: 'Design & document',
-    heading: 'Magazine-grade documents, not templates.',
+    heading: 'Magazine-grade documents and a design studio.',
     lede: 'Every visual deliverable is rendered to an image, design-reviewed by a senior-director rubric, and revised until it looks right — automatically.',
+    accent: '#6b4a9e',
     features: [
       { icon: 'presentation', title: 'Reports, decks & PDFs', body: 'Board-ready PDFs and 16:9 decks with real charts (dual-axis, heatmaps), embedded fonts and editorial covers — page-perfect, never bleeding.' },
-      { icon: 'file-text', title: 'Editable .docx / .xlsx / .pptx', body: 'Typographic Word docs, formula-driven Excel models (live cross-sheet formulas, not typed-in numbers), and real editable PowerPoint.' },
-      { icon: 'image', title: 'Ad & social creatives', body: 'A finished PNG/JPEG: on-brand AI imagery with pixel-crisp headline, sub, bullets, CTA and your logo composited on top — never garbled AI lettering.' },
+      { icon: 'file-text', title: 'Editable .docx / .xlsx / .pptx', body: 'Typographic Word docs (bilingual Arabic set right-to-left), formula-driven Excel models with live cross-sheet formulas, and real editable PowerPoint.' },
+      { icon: 'pen-tool', title: 'A design studio', body: 'Websites, landing pages, clickable prototypes, lo-fi wireframes, one-pagers and animations — art-directed from a bespoke concept grounded in your brand, never a template.' },
       { icon: 'chart-pie', title: 'Real charts from real data', body: 'Server-rendered, editorial, flat 2D charts with direct value labels — built from your figures, design-checked for contrast and legibility.' },
     ],
   },
   {
-    kicker: 'Automate & operate',
-    heading: 'Work that runs without you.',
-    lede: 'Beyond one-off builds — ArksAI keeps working. Autonomous email agents, recurring scheduled deliveries, live data in, and results pushed out.',
-    accent: '#2f6f6a',
+    kicker: 'Data & business intelligence',
+    heading: 'Numbers that tie out.',
+    lede: 'A full BI toolkit where the model only picks the files and columns — every row is handled by a deterministic engine, and the proof ships inside the workbook.',
+    accent: '#2f5aa8',
     features: [
-      { icon: 'mail', title: 'Email robots', body: 'Give a robot its own mailbox and a mandate; it reads incoming mail and drafts (or, when certified, sends) replies — locked to the sender, injection-resistant, with a "Needs You" approval inbox.' },
-      { icon: 'calendar', title: 'Scheduled deliveries', body: 'Recurring tasks — a Monday dashboard, a month-end pack — run on a durable server scheduler and land finished, with a "Delivered" badge.' },
-      { icon: 'search', title: 'Live data in', body: 'Pull a public CSV, JSON, or published Google Sheet straight into a dashboard or report — credential-free and SSRF-guarded.' },
-      { icon: 'target', title: 'Deliver out', body: 'Post results to a Slack, Discord or Zapier webhook so a finished deliverable lands where your team already works.' },
+      { icon: 'bar-chart-3', title: 'Live dashboards & analyses', body: 'KPI dashboards, cohort, variance and ad-hoc analysis from your own numbers (pull a public CSV/JSON/Sheet) — computed and reconciled, never invented.' },
+      { icon: 'circle-check', title: 'Combine & reconcile files', body: 'Merge many bank/expense exports into one clean workbook, or reconcile two exports row-by-row (matched, mismatched with the delta, only-in-one) with a live audit proof.' },
+      { icon: 'trending-up', title: 'Variance & recurring memory', body: '"Why did revenue drop?" decomposed by dimension with driver commentary; recurring reports remember last period and surface restatements instead of overwriting them.' },
+      { icon: 'search', title: 'Query huge workbooks with SQL', body: 'Load every tab into a database and run SQL across them (joins, pivots, reconciliation) returning only the answer — it scales to many-tab files without paging cells into the chat.' },
     ],
   },
   {
-    kicker: 'Finance & strategy',
-    heading: 'Models that actually compute.',
-    lede: 'FP&A rigor baked in. Finance gets formula-driven models that are computed and verified — a workbook of hand-typed numbers is rejected and rebuilt.',
-    accent: '#1f6feb',
+    kicker: 'Video & motion',
+    heading: 'From a sentence to a finished film.',
+    lede: 'Cinematic AI video, narrated motion-graphic explainers, and multi-scene story films — with music, all delivered as playable clips.',
+    accent: '#b23a2b',
     features: [
-      { icon: 'dollar-sign', title: 'Formula-driven models', body: 'DCF, three-statement, ratios, variance and forecasts with live cross-sheet formulas and a real Assumptions/Drivers tab — change an input, the model recomputes.' },
-      { icon: 'trending-up', title: 'Board decks & investor updates', body: 'Magazine-grade board packs and updates with real charts, reconciled numbers, and an insight-led narrative — not a wall of tables.' },
-      { icon: 'bar-chart-3', title: 'KPI dashboards', body: 'Live finance dashboards (5–7 KPIs, F-pattern layout) from your own data, with the analysis done first so the numbers reconcile.' },
-      { icon: 'wallet', title: 'Budgets & scenarios', body: 'Budgets, cash-flow models and scenario analysis — structured the way an FP&A lead would build them, validated on re-open.' },
+      { icon: 'megaphone', title: 'AI video (draft → final)', body: 'A cheap draft you approve before the final renders; real people animate and lip-sync a line, product photos become commercials, up to 4K with synced audio.' },
+      { icon: 'presentation', title: 'Narrated explainers', body: 'Motion-graphic videos built from vector scenes in five signature styles — script, narration, animation, QC and a music bed, at pennies per video and any length.' },
+      { icon: 'image', title: 'Multi-scene story films', body: 'Describe a sequence once; ArksAI keeps continuity across shots, holds one look with a style anchor, and stitches a single film — retake any scene.' },
+      { icon: 'pen-tool', title: 'Original music', body: 'Tracks via Suno — auto from a description, or custom with a rich style field and structured lyrics, mixed under a video as a ducked bed.' },
+    ],
+  },
+  {
+    kicker: 'Marketing & brand',
+    heading: 'Finished creative, on brand.',
+    lede: 'Ready-to-post ad and social creative with crisp composited text, complete logo identities, and live ad-platform data — all grounded in the real brand.',
+    accent: '#b45a24',
+    features: [
+      { icon: 'image', title: 'Finished ad & social creatives', body: 'On-brand AI imagery with pixel-crisp headline, sub, bullets, CTA and your logo composited on top — never garbled AI lettering — at every channel size.' },
+      { icon: 'target', title: 'A/B hook variants in one call', body: 'Alternate headlines composited on the same background for one image cost — each written from a proven hook archetype to test against each other.' },
+      { icon: 'pen-tool', title: 'Logo & brand identity', body: 'A complete brand mark (letters real type, symbols built from geometric primitives), light & dark variants, app-icon / favicon / navbar placements and a zipped asset kit.' },
+      { icon: 'bar-chart-3', title: 'Live ad-platform data', body: 'Connect Meta, Google Ads and TikTok; pull live spend, clicks and conversions straight into dashboards and reports — tokens encrypted, never shown to the model.' },
+    ],
+  },
+  {
+    kicker: 'Robots & automation',
+    heading: 'Work that runs without you.',
+    lede: 'Standing agents that answer customers across channels, build and deliver on command, and run on a schedule — checking in only when they need a decision.',
+    accent: '#2c7a4f',
+    features: [
+      { icon: 'mail', title: 'Multichannel robots', body: 'The same brain answers on email, Telegram, WhatsApp and SMS — grounded in its knowledge, escalating rather than guessing, always locked to the person who wrote in. It reads photos and files and listens to voice notes.' },
+      { icon: 'rocket', title: 'Text it → it builds → it delivers', body: 'From your own address, ask a robot to build something and send it to a named recipient — it spawns a full build session and delivers the result on the channel.' },
+      { icon: 'calendar', title: 'Routines & live lookups', body: 'Scheduled digests and recurring builds; real iCal meeting-invite replies; gated HTTPS actions (an order-status API) answered mid-reply — admin-defined and audit-logged.' },
+      { icon: 'target', title: 'Scheduled deliveries + webhooks', body: 'Recurring tasks run on a durable server scheduler and land finished; results post to a Slack, Discord or Zapier webhook where your team already works.' },
     ],
   },
   {
@@ -102,6 +128,18 @@ const GROUPS: Group[] = [
       { icon: 'file-text', title: 'Notices, opinions & memos', body: 'Letters before action, legal opinions and memos that cite the article and law (e.g. Federal Decree-Laws) — never fabricated, formal British-English register.' },
       { icon: 'circle-check', title: 'Bilingual by destination', body: 'Government, court and notary submissions come in eloquent English + native Modern Standard Arabic (not a literal translation); internal docs stay in your language.' },
       { icon: 'search', title: 'Review & compliance', body: 'Contract review, compliance audits, dispute briefs and a legal calendar — the everyday work of an in-house team, with a mandatory lawyer sign-off footer.' },
+    ],
+  },
+  {
+    kicker: 'Your workspace',
+    heading: 'Multi-tenant, private, accountable.',
+    lede: 'Isolated company workspaces, per-user connections to your own tools, a prepaid wallet with an invoice ledger, and metadata-only analytics — everyone sees only their own data.',
+    accent: '#3f5566',
+    features: [
+      { icon: 'users', title: 'Isolated team workspaces', body: 'Every session, project and published app is scoped to your org; roles, invite-only onboarding, and everyone — including us — sees only their own workspace’s data.' },
+      { icon: 'git-branch', title: 'Connect your own tools', body: 'Per-user GitHub (push generated code to your repo, or open a pull request) and Google (Gmail, Calendar, Drive/Sheets, Ads) — tokens encrypted, never shown to the model.' },
+      { icon: 'wallet', title: 'Wallet & invoicing', body: 'A prepaid balance debited per run into an append-only ledger that doubles as your statement — shown in your currency, exportable to CSV, with no drift.' },
+      { icon: 'bar-chart-3', title: 'Analytics, metadata only', body: 'Engagement, adoption, retention and cost dashboards for your team — they never touch your message or document content.' },
     ],
   },
 ];
@@ -133,12 +171,12 @@ export function FeaturesPage({ onSignIn }: { onSignIn: () => void }) {
         </h1>
         <p className="lnd-lede">
           ArksAI isn’t a chatbot that gives you answers — it does the work and hands back a finished, verified thing.
-          Apps and dashboards, designed reports and decks, on-brand creatives, real spreadsheets and documents,
-          autonomous email agents, and the exact UAE-compliant filings. Here’s the whole surface.
+          Apps and dashboards, designed reports and decks, videos and on-brand creatives, real spreadsheets and BI,
+          autonomous robots across every channel, and the exact UAE-compliant filings. Here’s the whole surface.
         </p>
         <div className="lnd-cta">
           <button className="lnd-primary" onClick={go('/#get-access')}>
-            Apply for founding access →
+            Join the waitlist →
           </button>
           <button className="lnd-secondary" onClick={go('/research')}>
             Read the research
@@ -205,14 +243,14 @@ export function FeaturesPage({ onSignIn }: { onSignIn: () => void }) {
 
       <section className="lnd-section lnd-getaccess feat-cta">
         <div className="lnd-form-copy" style={{ textAlign: 'center', margin: '0 auto' }}>
-          <div className="lp-kicker">Founding access</div>
-          <h2 className="lnd-h2">Give every team this, today.</h2>
+          <div className="lp-kicker">Early access</div>
+          <h2 className="lnd-h2">Give every team this.</h2>
           <p className="lnd-lede">
-            ArksAI Studio is in alpha. Founding members get full access for a flat 39 AED/month and help shape what
-            gets built next.
+            ArksAI Studio is in a private, invitation-only alpha. Join the waitlist with your work email and we
+            review every request personally — if it’s a fit, we send an invite link.
           </p>
           <button className="lnd-primary" onClick={go('/#get-access')} style={{ marginTop: 6 }}>
-            Apply for founding access →
+            Join the waitlist →
           </button>
         </div>
       </section>

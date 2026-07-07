@@ -97,14 +97,14 @@ export function ResearchHub({ onSignIn }: { onSignIn: () => void }) {
 
       <section className="lnd-section lnd-getaccess rsh-cta">
         <div className="lnd-form-copy" style={{ textAlign: 'center', margin: '0 auto' }}>
-          <div className="lp-kicker">Founding access</div>
+          <div className="lp-kicker">Early access</div>
           <h2 className="lnd-h2">Put these ideas to work.</h2>
           <p className="lnd-lede">
-            ArksAI turns a sentence into a finished, verified deliverable for every team in your company. Join the
-            founding cohort.
+            ArksAI turns a sentence into a finished, verified deliverable for every team in your company. It’s a
+            private, invitation-only alpha — join the waitlist.
           </p>
           <button className="lnd-primary" onClick={go('/#get-access')} style={{ marginTop: 6 }}>
-            Apply for founding access →
+            Join the waitlist →
           </button>
         </div>
       </section>
@@ -205,14 +205,14 @@ export function ResearchArticle({ slug, onSignIn }: { slug: string; onSignIn: ()
           ) : null}
 
           <section className="art-cta">
-            <div className="lp-kicker">Founding access</div>
+            <div className="lp-kicker">Early access</div>
             <h2>From idea to finished deliverable.</h2>
             <p>
               ArksAI gives every team in your company an AI that turns a sentence into a verified, ready-to-use
               result — apps, dashboards, reports, decks, creatives, and UAE-compliant filings.
             </p>
             <button className="lnd-primary" onClick={go('/#get-access')}>
-              Apply for founding access →
+              Join the waitlist →
             </button>
           </section>
         </article>

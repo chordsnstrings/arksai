@@ -84,9 +84,9 @@ const DEMOS: { tag: string; accent: string; prompt: string; result: React.ReactN
   },
 ];
 
-const FOUNDING = [
-  { icon: 'dollar-sign', title: 'One simple price', body: 'Full access to every team’s capabilities for one flat monthly price — no per-seat fees and no add-ons. Founding members come in at 39 AED/month while we’re in alpha.' },
-  { icon: 'rocket', title: 'Shape what gets built', body: 'You get a direct line to the team. What founding members ask for is what we build next — you’re not a number in a queue.' },
+const EARLY = [
+  { icon: 'layout', title: 'Full access, every team', body: 'One login covers every function — Finance, Marketing, Sales, HR, Legal and more. No per-seat fees, no add-ons to piece together; the whole studio from day one.' },
+  { icon: 'rocket', title: 'Shape what gets built', body: 'You get a direct line to the team. What early members ask for is what we build next — you’re not a number in a queue.' },
   { icon: 'circle-check', title: 'No lock-in, ever', body: 'Invitation-only while we’re in alpha, but never a trap: cancel anytime, export your work anytime. We earn the renewal.' },
 ];
 
@@ -98,8 +98,8 @@ const FAQ = [
     a: 'An AI platform built for UAE businesses. Anyone on the team describes what they need in plain words and ArksAI does the work and hands back a finished, verified result — a live app, a dashboard, a report or deck, an on-brand image, an email reply, or a UAE-compliant filing. No technical skills required, and it works for every function.',
   },
   {
-    q: 'How much does ArksAI cost?',
-    a: 'Founding members get full access for a flat 39 AED per month while we’re in alpha, covering every team’s capabilities. It’s invitation-only; apply with your work email and we review every request personally.',
+    q: 'How do I get access?',
+    a: 'ArksAI is in a private, invitation-only alpha. Join the waitlist with your work email and we review every request personally — if it’s a fit, you’ll get an invite link by email. Full access covers every team’s capabilities; pricing is shared with members during onboarding.',
   },
   {
     q: 'Can AI handle UAE VAT, Corporate Tax and WPS?',
@@ -190,7 +190,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
           <button className="lnd-link" onClick={go('/research')}>
             Research
           </button>
-          <span className="lnd-alpha-pill">Founding alpha · invite-only</span>
+          <span className="lnd-alpha-pill">Private alpha · invite-only</span>
           <button className="lnd-signin" onClick={onSignIn}>
             Sign in
           </button>
@@ -209,15 +209,15 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
         </p>
         <div className="lnd-cta">
           <button className="lnd-primary" onClick={toForm}>
-            Apply for founding access →
+            Join the waitlist →
           </button>
           <button className="lnd-secondary" onClick={go('/features')}>
             See what it does
           </button>
         </div>
         <p className="lnd-alpha-note">
-          <strong>Founding alpha — 39 AED/month, invitation-only.</strong> We’re onboarding a small founding cohort
-          of UAE teams and review every application personally.
+          <strong>Private alpha — invitation-only.</strong> We’re onboarding a small group of UAE teams and review
+          every application personally.
         </p>
         <LandingDemo />
       </section>
@@ -270,15 +270,15 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
         </div>
       </section>
 
-      <section className="lnd-section lnd-founding" id="founding">
-        <div className="lp-kicker">Founding membership</div>
-        <h2 className="lnd-h2">Join the founding cohort.</h2>
+      <section className="lnd-section lnd-founding" id="early">
+        <div className="lp-kicker">Why join early</div>
+        <h2 className="lnd-h2">Get in while it’s early.</h2>
         <p className="lnd-lede">
           We’re onboarding a small group of UAE teams who want to put AI to work across the whole business now —
-          and help shape what it becomes. One honest price, no lock-in, a real say.
+          and help shape what it becomes. Invitation-only, no lock-in, a real say.
         </p>
         <div className="lnd-found-grid">
-          {FOUNDING.map((f) => (
+          {EARLY.map((f) => (
             <div key={f.title} className="lnd-found-card">
               <span className="lnd-found-ico">
                 <Icon name={f.icon as IconName} size={20} />
@@ -293,7 +293,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
       <section className="lnd-section lnd-getaccess" id="get-access">
         <div className="lnd-form-wrap">
           <div className="lnd-form-copy">
-            <div className="lp-kicker">Apply for founding access</div>
+            <div className="lp-kicker">Join the waitlist</div>
             <h2 className="lnd-h2">Two quick steps. We’ll do the rest.</h2>
             <p className="lnd-lede">
               Invitation-only while we’re in alpha. Tell us where to send the invite and a little about your team —
@@ -305,7 +305,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
               <span className="cc-check">✓</span>
               <div>
                 <strong>Thanks — your application is in.</strong>
-                <p>We review every request personally. If it’s a fit, you’ll get a founding invite link by email — open it, set a password, and you’re in.</p>
+                <p>We review every request personally. If it’s a fit, you’ll get an invite link by email — open it, set a password, and you’re in.</p>
               </div>
             </div>
           ) : (
@@ -386,8 +386,8 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
             app, a board deck, a VAT file, a bilingual notice — and hands it back ready to use.
           </p>
           <p className="lnd-founder-body">
-            It’s early, and we’d rather have a hundred founding members who push us than ten thousand who drift
-            off. If that’s you, apply — and tell us what your team needs first. We read every one.
+            It’s early, and we’d rather have a hundred early members who push us than ten thousand who drift
+            off. If that’s you, join the waitlist — and tell us what your team needs first. We read every one.
           </p>
           <div className="lnd-founder-sign">— The team behind ArksAI · Dubai</div>
         </div>
