@@ -54,6 +54,9 @@ test('metric snapshots: record → like-for-like deltas → restatement surfaced
   assert.match(r3, /RESTATEMENT/);
   assert.match(r3, /Revenue: 100,000 → 98,500/);
   assert.doesNotMatch(r3, /Orders: 250 →/, 'unchanged metric not in the restatement diff');
+  // Restating the EARLIEST period must not claim "first recorded period" (live 2026-07-07).
+  assert.doesNotMatch(r3, /First recorded period/);
+  assert.match(r3, /earliest period on record/);
 
   // History reads the restated value, shows the deltas AND the restatement marker.
   const h = await tools.metricHistoryTool.run({ series: 'monthly-revenue' }, ctx('org-a'));

@@ -77,8 +77,10 @@ export const recordMetricsTool: ToolDef = {
       lines.push(`Vs ${withPrior[0].priorPeriod}:`);
       for (const d of withPrior)
         lines.push(`- ${d.metric}: ${fmtNum(d.value)} — ${d.isNew ? 'NEW metric (no prior value)' : fmtDelta(d.delta, d.deltaPct)}`);
-    } else {
+    } else if (snaps.length === 1) {
       lines.push('First recorded period for this series — the next run will get deltas against these numbers.');
+    } else {
+      lines.push('This is the earliest period on record — later periods compare against it.');
     }
     if (dropped.length) lines.push(`Dropped non-numeric metric(s): ${dropped.join(', ')}.`);
     return lines.join('\n');
