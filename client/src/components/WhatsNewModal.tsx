@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-08.64';
+export const WHATS_NEW_VERSION = '2026-07-08.65';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Living hero backgrounds for brand sites',
-    body: 'When a brand, product-launch or creative landing page calls for it, ArksAI can now give the hero a subtle, moving background — a soft aurora glow, a drifting constellation, or flowing waves in your brand colour. It reads as a premium, interactive site, yet always stays perfectly readable and falls back to a clean solid colour on older devices or when someone prefers less motion. Reserved for expressive pages — dashboards and tools stay calm.',
+    title: 'Animated illustrated explainer videos',
+    body: 'A new video style in the Video studio: flowing, AI-animated illustrated scenes — flat-vector, painterly, ink, paper-collage, silhouette and more — with a real voiceover. The clever part: the on-screen text is a separate crisp layer laid over the animation, never generated into it, so every title and number stays razor-sharp and on-brand (no garbled AI lettering). Pick "Illustrated", describe the topic, choose a look, and ArksAI writes the script, animates each scene and composites the text automatically.',
   },
 ];
 

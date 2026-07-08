@@ -887,7 +887,7 @@ body.ax-body { background: transparent !important; }
 .ax-scrim { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
 .ax-scrim.bottom { background: linear-gradient(0deg, color-mix(in srgb, var(--ax-scrim-c) 78%, transparent) 0%, color-mix(in srgb, var(--ax-scrim-c) 40%, transparent) 32%, transparent 58%); }
 .ax-scrim.top { background: linear-gradient(180deg, color-mix(in srgb, var(--ax-scrim-c) 74%, transparent) 0%, color-mix(in srgb, var(--ax-scrim-c) 30%, transparent) 34%, transparent 56%); }
-.ax-scrim.full { background: radial-gradient(120% 100% at 50% 50%, color-mix(in srgb, var(--ax-scrim-c) 34%, transparent) 0%, color-mix(in srgb, var(--ax-scrim-c) 66%, transparent) 100%); }
+.ax-scrim.full { background: radial-gradient(115% 95% at 50% 50%, color-mix(in srgb, var(--ax-scrim-c) 46%, transparent) 0%, color-mix(in srgb, var(--ax-scrim-c) 62%, transparent) 45%, color-mix(in srgb, var(--ax-scrim-c) 78%, transparent) 100%); }
 .ax-scrim.left { background: linear-gradient(90deg, color-mix(in srgb, var(--ax-scrim-c) 74%, transparent) 0%, color-mix(in srgb, var(--ax-scrim-c) 34%, transparent) 40%, transparent 66%); }
 
 .ax-content { position: absolute; z-index: 1; }

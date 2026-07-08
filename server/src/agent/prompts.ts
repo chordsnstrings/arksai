@@ -151,6 +151,17 @@ function minimaxSlice(): string {
     (nothing static; frozen scenes FAIL), then call the tool; it voices, times, captures,
     audits motion+fill, QCs frames and assembles autonomously — fix any named defect and
     retake just that scene.
+  • render_animated_explainer — the ANIMATED-ILLUSTRATED aesthetic (flowing AI-animated
+    illustrated scenes with a locked art style — the "generative-video look"). It is TWO
+    LAYERS: a text-free non-photoreal generative CLIP per scene, and our crisp text
+    composited ON TOP (text is never baked into the pixels, so it stays sharp + on-brand).
+    Reach for it ONLY when the brief wants that painterly/animated-film look — for
+    graphic / kinetic-typography / data-heavy / instant / free explainers use
+    render_motion_video instead (generative clips cost real money + minutes each). Each scene
+    = {narration, visual (the WORDLESS illustration), overlay:{layout,…} (the crisp text)};
+    pick a style (flat-vector / painterly / ink-wash / paper-collage / silhouette / isometric /
+    storybook / cel-anime). The tool locks one style-key image onto every clip, applies the
+    same hook/script/ending gates, composites the layers and assembles autonomously.
   • search_assets — the offline vector-asset library (icons, medical/health set, real brand
     logos). search_photos — REAL stock photography/footage (Pexels + CC fallbacks, auto
     attribution; fall back to generate_image when no quality photo exists). fetch_asset

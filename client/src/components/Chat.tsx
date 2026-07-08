@@ -40,6 +40,7 @@ const TOOL_LABEL: Record<string, string> = {
   text_to_speech: 'Recording the voiceover',
   generate_video: 'Filming the clip',
   render_motion_video: 'Animating the scenes',
+  render_animated_explainer: 'Animating the illustrated scenes',
   search_assets: 'Picking the artwork',
   search_photos: 'Finding real photography',
   fetch_asset: 'Fetching your asset',
@@ -84,7 +85,7 @@ function ToolRow({ call }: { call: ToolCallRecord }) {
 function ToolActivity({ calls, running, sessionId }: { calls: ToolCallRecord[]; running: boolean; sessionId?: string }) {
   // A produced video → a playable card right under the tool group (draft→final ladder).
   // Any tool whose output names a videos/*.mp4 gets the card (story + motion incl.).
-  const VIDEO_TOOLS = new Set(['generate_video', 'generate_video_story', 'render_motion_video']);
+  const VIDEO_TOOLS = new Set(['generate_video', 'generate_video_story', 'render_motion_video', 'render_animated_explainer']);
   const videos = sessionId
     ? calls
         .filter((c) => VIDEO_TOOLS.has(c.tool) && c.ok && c.outputPreview)

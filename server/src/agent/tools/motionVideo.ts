@@ -150,7 +150,7 @@ export function latestMotionId(repoDir: string): string | null {
 /** Ensure the motion-kit runtime exists in the workspace (scenes link it relatively).
  *  Files only — the kit dir also holds previews/ (style-picker thumbnails), which the
  *  workspace doesn't need and copyFileSync would choke on. */
-function ensureMotionKit(repoDir: string): void {
+export function ensureMotionKit(repoDir: string): void {
   const src = path.join(repoRoot, 'server', 'assets', 'motion-kit');
   const dest = path.join(repoDir, 'motion-kit');
   fs.mkdirSync(dest, { recursive: true });

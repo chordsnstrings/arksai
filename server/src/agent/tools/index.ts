@@ -20,6 +20,7 @@ import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } 
 import { generateVideoStoryTool } from './videoStoryTool';
 import { searchAssetsTool, fetchAssetTool, searchPhotosTool, searchMotionDesignTool } from './assets';
 import { renderMotionVideoTool } from './motionVideo';
+import { renderAnimatedExplainerTool } from './animatedExplainer';
 import { generateCreativeTool } from './creative';
 import { generateLogoTool } from './logo';
 import { renderReportTool } from './report';
@@ -85,6 +86,7 @@ export const ALL_TOOLS: ToolDef[] = [
   searchPhotosTool,
   searchMotionDesignTool,
   renderMotionVideoTool,
+  renderAnimatedExplainerTool,
   bashTool,
   bashBackgroundTool,
   bashOutputTool,

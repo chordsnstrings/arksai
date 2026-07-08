@@ -23,7 +23,19 @@ type ModelChoice = 'auto' | 'arksai-video-15' | 'arksai-video-20';
 type Pick2 = { file: File; url: string };
 /** What kind of video: a free-form scene, a product ad from the product's photo, or a
  *  multi-scene STORY planned + stitched into one film. */
-type StudioKind = 'scene' | 'product' | 'story' | 'explainer';
+type StudioKind = 'scene' | 'product' | 'story' | 'explainer' | 'illustrated';
+
+/** The illustrated LOOKS for the animated-explainer kind (mirror server/agent/motion/overlay.ts). */
+const ILLUST_STYLES: { id: string; label: string }[] = [
+  { id: 'flat-vector', label: 'Flat vector' },
+  { id: 'painterly', label: 'Painterly' },
+  { id: 'ink-wash', label: 'Ink & wash' },
+  { id: 'paper-collage', label: 'Paper collage' },
+  { id: 'silhouette', label: 'Silhouette' },
+  { id: 'isometric', label: 'Isometric' },
+  { id: 'storybook', label: 'Storybook' },
+  { id: 'cel-anime', label: 'Cel anime' },
+];
 
 /** One beat of a multi-shot sequence: a camera motion + what we see during it. Seedance 2.0
  *  natively supports sequenced motion in one continuous clip (aerial → zoom in → pull out);
@@ -145,6 +157,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [explainVoice, setExplainVoice] = useState('Wise_Woman');
   const [explainMusic, setExplainMusic] = useState(true);
   const [explainStyle, setExplainStyle] = useState('clean');
+  const [illustStyle, setIllustStyle] = useState('flat-vector');
 
   // Story mode: the sequence description + cast stills + a total-length hint.
   const [storyText, setStoryText] = useState('');
@@ -157,7 +170,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       ? productName.trim().length > 1 && !busy
       : kind === 'story'
         ? storyText.trim().length > 14 && !busy
-        : kind === 'explainer'
+        : kind === 'explainer' || kind === 'illustrated'
           ? explainText.trim().length > 9 && !busy
           : scene.trim().length > 5 && !busy;
 
@@ -213,6 +226,23 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       '3. Build scenes as SCAFFOLDS ({scaffold:{id,slots}} — hook-question, hero-stat, annotated-plate, split-compare, callout, chart-insight, end-punch…) so the choreography/exits/camera/composition come pre-built; hand-write HTML only for a signature moment. Keep STRONG scene-to-scene contrast (grounds auto-rotate when you omit ground).',
       '4. Call render_motion_video with the scenes in order, passing title:"<the subject in a few words>" so the output file is named for its subject (use transition:"dip"/"wipe" only at 1-2 act boundaries); if it reports a scene defect, fix and retake JUST that scene.',
       'Facts in the narration must be accurate and non-controversial; keep any health/finance content evidence-based with a one-line "educational, not professional advice" closing scene.',
+    ].filter(Boolean).join('\n');
+  }
+
+  /** The animated-illustrated brief — drives render_animated_explainer: text-free generative
+   *  clips (layer 1) + crisp overlay text (layer 2), composited. */
+  function animatedBrief(): string {
+    return [
+      `Create an ANIMATED-ILLUSTRATED explainer video with the render_animated_explainer tool — the "${illustStyle}" illustrated look. Two layers per scene: a WORDLESS generated illustration + our crisp text overlay on top (NEVER put text in the illustration).`,
+      `Topic/brief: ${explainText.trim()}`,
+      `Target length: about ${explainLength}. Dimension: ${ratio}. Narrator voice_id: "${explainVoice}". Illustrated style: "${illustStyle}".`,
+      explainMusic ? 'Add a quiet instrumental music bed (the tool ducks it under the voice).' : 'No music bed.',
+      '',
+      'Do the WHOLE thing autonomously, then show me the finished video:',
+      '1. Write a RETENTION-FIRST script: scene 1 is a HOOK (question/bold claim/stake — never a title card); scenes chain BUT/THEREFORE; one idea per scene; concrete; END on a ≤8-word punch-out calling back to the hook. Pass target_seconds so the tool checks the word budget.',
+      '2. For EACH scene give: narration (the spoken line); visual (the WORDLESS illustrated scene to generate — describe only imagery, no text/letters); overlay ({layout: lower|center|stat|caption, + kicker/title/sub/num/unit/label/caption}) for the crisp on-screen words. Keep on-screen words short (the overlay is the ONLY text).',
+      `3. Call render_animated_explainer with style:"${illustStyle}", title:"<the subject in a few words>", the scenes in order, target_seconds, voice_id and the music brief. It locks one style-key image across all clips, composites the two layers, gates the script + ending, and assembles. If it reports a scene defect, fix and retake JUST that scene.`,
+      'NOTE the tradeoff: generative clips cost real money and take a few minutes each — keep the scene count sensible. Facts must be accurate; keep any health/finance content evidence-based.',
     ].filter(Boolean).join('\n');
   }
 
@@ -329,6 +359,8 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
         msg = storyBrief({ castPaths });
       } else if (kind === 'explainer') {
         msg = explainerBrief();
+      } else if (kind === 'illustrated') {
+        msg = animatedBrief();
       } else {
         const startPath = (await up(startFrame))[0];
         const endPath = (await up(endFrame))[0];
@@ -373,10 +405,13 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             <button className={`aw-seg ${kind === 'explainer' ? 'on' : ''}`} onClick={() => { setKind('explainer'); setRatio('16:9'); }} type="button">
               <strong>Explainer</strong><span>narrated motion graphics</span>
             </button>
+            <button className={`aw-seg ${kind === 'illustrated' ? 'on' : ''}`} onClick={() => { setKind('illustrated'); setRatio('16:9'); }} type="button">
+              <strong>Illustrated</strong><span>AI-animated + crisp text</span>
+            </button>
           </div>
         </div>
 
-        {kind === 'explainer' ? (
+        {kind === 'explainer' || kind === 'illustrated' ? (
           <>
             <label className="aw-field">
               <span className="aw-label">What should the video explain? <em>(topic or a full brief — the agent writes the script)</em></span>
@@ -387,10 +422,19 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
                 placeholder="e.g. How to reduce LDL cholesterol — the 5 evidence-based moves, friendly and practical"
               />
             </label>
-            <div className="aw-field">
-              <span className="aw-label">Style <em>(real frames from each style's engine)</em></span>
-              <MotionStylePicker value={explainStyle} onChange={setExplainStyle} />
-            </div>
+            {kind === 'explainer' ? (
+              <div className="aw-field">
+                <span className="aw-label">Style <em>(real frames from each style's engine)</em></span>
+                <MotionStylePicker value={explainStyle} onChange={setExplainStyle} />
+              </div>
+            ) : (
+              <label className="aw-field">
+                <span className="aw-label">Illustrated look <em>(AI-animated scenes; the text stays crisp on top)</em></span>
+                <select value={illustStyle} onChange={(e) => setIllustStyle(e.target.value)}>
+                  {ILLUST_STYLES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </select>
+              </label>
+            )}
             <div className="aw-row">
               <label className="aw-field">
                 <span className="aw-label">Length</span>
@@ -425,7 +469,11 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
                 <span className="aw-label">Music bed</span>
               </label>
             </div>
-            <p className="aw-hint">Vector motion graphics with a real voiceover — crisp text, brand colors, no film footage. Longer videos render for several minutes; the finished video appears in the chat.</p>
+            <p className="aw-hint">
+              {kind === 'illustrated'
+                ? 'AI-animated illustrated scenes with a real voiceover — the on-screen text stays pixel-crisp on top (never baked into the animation). Generative clips cost more and take a few minutes each; the finished video appears in the chat.'
+                : 'Vector motion graphics with a real voiceover — crisp text, brand colors, no film footage. Longer videos render for several minutes; the finished video appears in the chat.'}
+            </p>
           </>
         ) : kind === 'story' ? (
           <>
@@ -691,6 +739,10 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
         </>
         )}
 
+        {/* Motion-graphics kinds (explainer/illustrated) set the format via their own panel — the
+            Seedance aspect tiles + native-audio toggle don't apply to them. */}
+        {kind !== 'explainer' && kind !== 'illustrated' && (
+        <>
         <div className="aw-step">3 · Format</div>
         <div className="aw-field">
           <span className="aw-label">Aspect ratio</span>
@@ -747,6 +799,8 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             <span>Native audio (ambience + spoken dialogue)</span>
           </label>
         </div>
+        </>
+        )}
 
         {err && <p className="aw-err">{err}</p>}
 
