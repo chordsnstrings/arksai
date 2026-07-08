@@ -1,0 +1,64 @@
+/*
+ * ArksAI hero FX — layout + fallback + scrim for the Canvas-2D hero backgrounds
+ * driven by hero-fx.js. Installed via add_hero_fx.
+ *
+ * FALLBACK-FIRST, CORRECT BY CONSTRUCTION: .fx-hero carries a SOLID --fx-bg colour.
+ * That colour is (1) what shows whenever the canvas can't or shouldn't paint — no JS,
+ * no 2D context, or prefers-reduced-motion — and (2) the surface the automated
+ * legibility gate measures your headline against. The animated canvas only ever ADDS
+ * ink over --fx-bg, so if your copy is legible on --fx-bg it stays legible with the
+ * effect running. Set --fx-bg + --fx-accent (+ optional --fx-accent-2, --fx-ink) to
+ * your brand tokens; --fx-ink must contrast --fx-bg (WCAG AA) — light ink on a dark
+ * --fx-bg (default) or dark ink on a light --fx-bg both work.
+ */
+.fx-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--fx-bg, #0b0f1a); /* the fallback — ALWAYS painted, under the canvas */
+  color: var(--fx-ink, #f4f6ff);
+}
+
+/* The effect surface. pointer-events:none so it never eats clicks; hero-fx.js reads the
+   pointer off .fx-hero itself. z-index 0 keeps it under the scrim + content. */
+.fx-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Optional legibility veil between the effect and the copy — a gentle vertical gradient
+   built from --fx-bg so it stays on-brand. Use it when the effect is busy (particles),
+   skip it for quiet ones (a soft aurora). It never changes what the gate measures
+   (that's the solid --fx-bg on .fx-hero) — it only makes the real render calmer. */
+.fx-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--fx-bg, #0b0f1a) 25%, transparent) 0%,
+    color-mix(in srgb, var(--fx-bg, #0b0f1a) 20%, transparent) 42%,
+    color-mix(in srgb, var(--fx-bg, #0b0f1a) 60%, transparent) 100%
+  );
+}
+
+/* The copy layer — always above the canvas + scrim. */
+.fx-content {
+  position: relative;
+  z-index: 2;
+}
+
+/* Reduced motion / no JS: hero-fx.js hides the canvas at runtime; this hides it even
+   before the script runs, so there's never a flash of an empty/transparent canvas —
+   the solid --fx-bg fallback shows a designed, legible hero on its own. */
+@media (prefers-reduced-motion: reduce) {
+  .fx-canvas {
+    display: none !important;
+  }
+}

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-07.63';
+export const WHATS_NEW_VERSION = '2026-07-08.64';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Ad A/B sets from one brief',
-    body: 'Ask for an ad creative and get 2–3 versions with different opening hooks — a question, a bold claim, a before-and-after — each laid over the same designed background, ready to test against each other. Give a product link and ArksAI reads the site first so the ad uses your real product language and brand colours.',
-  },
-  {
-    title: 'Videos now speak film language',
-    body: 'Explainer and social videos gained a named camera vocabulary — crash zoom for a shock stat, a slow survey pan across a timeline, a pedestal rise for growth, handheld for human stories, a dutch roll for tension. The right move is picked to match each beat\'s meaning, so scenes feel directed, not templated.',
-  },
-  {
-    title: 'Cinematic story videos hold their look',
-    body: 'AI-filmed story videos can now pin one style frame and carry its palette, lighting and grade through every shot — so a five-scene film looks like one production instead of five different ones.',
+    title: 'Living hero backgrounds for brand sites',
+    body: 'When a brand, product-launch or creative landing page calls for it, ArksAI can now give the hero a subtle, moving background — a soft aurora glow, a drifting constellation, or flowing waves in your brand colour. It reads as a premium, interactive site, yet always stays perfectly readable and falls back to a clean solid colour on older devices or when someone prefers less motion. Reserved for expressive pages — dashboards and tools stay calm.',
   },
 ];
 

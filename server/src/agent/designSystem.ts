@@ -104,6 +104,16 @@ sometimes is.
   --radius (keep them on-brand, never Shoelace-default blue), accessible, and responsive. Use them
   ONLY for genuine interactivity; static layout still comes from the kit + craft.css. They must
   still pass the responsive + contrast gate — minimal·polished holds.
+- EXPRESSIVE HERO BACKGROUND (gated): ONLY when the brief truly wants an atmospheric, expressive
+  hero (a BRAND site, a PRODUCT/APP launch, a CREATIVE/portfolio landing page) — NEVER on a
+  dashboard, booking flow, admin tool, form or any utilitarian page — you may call add_hero_fx for
+  a fallback-first, Canvas-2D animated hero background (aurora — a soft gradient mesh · particles —
+  a constellation field · waves — flowing lines). It reads as genuinely interactive without WebGL's
+  fragility. ONE hero per page, one effect, never stacked. It's correct-by-construction: the canvas
+  overlays a SOLID --fx-bg that is the no-JS/reduced-motion fallback AND what the legibility gate
+  measures — so set --fx-ink to contrast --fx-bg (WCAG AA) and set --fx-accent to your brand token
+  (never the demo blues). It's ambient polish, not the message; a calm/corporate brand should stick
+  to the free craft.css hero moments (.ken-burns / .gradient-drift / [data-tilt]) instead.
 - IMAGERY & ICONS: for a hero/section BACKGROUND image, call generate_image (it is
   TEXT-FREE by default) and let your HTML supply the headline — NEVER bake copy into the
   image, and NEVER use generate_creative as a website background (its composited

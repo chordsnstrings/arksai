@@ -34,6 +34,7 @@ import { scaffoldAppTool } from './scaffold';
 import { addPwaTool } from './pwa';
 import { designDirectionTool } from './design-direction';
 import { addWebComponentsTool } from './web-components';
+import { addHeroFxTool } from './hero-fx';
 import { createReactAppTool } from './react-app';
 import { inspectUiTool } from './inspect';
 import { buildApkTool } from './build';
@@ -111,6 +112,7 @@ export const ALL_TOOLS: ToolDef[] = [
   scaffoldAppTool,
   addPwaTool,
   addWebComponentsTool,
+  addHeroFxTool,
   createReactAppTool,
   inspectUiTool,
   createExpoAppTool,
