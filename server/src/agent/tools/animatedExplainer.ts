@@ -125,7 +125,7 @@ function latestId(repoDir: string): string | null {
  *  Seedance's 4–15s range (the composite clone-pads a short clip and cuts to the exact scene). */
 function clipSeconds(narration: string): number {
   const s = wordsOf(narration) / WPS + 1.2;
-  return Math.min(12, Math.max(4, Math.round(s)));
+  return Math.min(15, Math.max(4, Math.round(s))); // 4–15s = Seedance 2.0's verified range
 }
 
 async function ttsScene(m: AxManifest, s: AxScene, repoDir: string, signal: AbortSignal, addCost: (u: number) => void): Promise<void> {
@@ -188,6 +188,21 @@ async function renderScene(m: AxManifest, s: AxScene, repoDir: string, signal: A
     s.durationMs = Math.max(Math.round(audioS * 1000) + m.holdLeadMs + m.holdTailMs + (s.extraTailMs ?? 0), s.minMs ?? 0);
   } else {
     s.durationMs = Math.max(s.minMs ?? 0, 2500) + (s.extraTailMs ?? 0);
+  }
+
+  // FREEZE advisory: the generated clip maxes at 15s (Seedance 2.0), but a long narration can
+  // make the scene longer — the composite clone-pads the clip's last frame, so the illustration
+  // FREEZES for the overrun. Surface it (advisory, not fatal — a short freeze under the ending
+  // music tail is acceptable; a long one should be split).
+  {
+    const clipS = clipSeconds(s.narration);
+    const overS = s.durationMs / 1000 - clipS;
+    if (overS > 0.8) {
+      s.qcDefects = [
+        ...(s.qcDefects ?? []),
+        `scene runs ${(s.durationMs / 1000).toFixed(1)}s but the illustrated clip maxes at ${clipS}s — the last ~${overS.toFixed(1)}s FREEZE on the final frame; split this beat into two shorter scenes so every scene keeps moving`,
+      ];
+    }
   }
 
   // 3 · render the crisp OVERLAY layer (transparent) for the exact scene duration.
@@ -277,8 +292,11 @@ async function assemble(m: AxManifest, repoDir: string, signal: AbortSignal, add
   const okScenes = m.scenes.filter((s) => s.status === 'ok' && s.clip);
   const clips = okScenes.map((s) => path.join(repoDir, s.clip!));
   if (!clips.length) throw new Error('no scene rendered successfully — nothing to assemble');
-  const lastScene = m.scenes[m.scenes.length - 1];
-  if (lastScene && (lastScene.status !== 'ok' || !lastScene.clip)) {
+  // ANY failed scene leaves a hole (a missing MIDDLE scene breaks continuity + an authored
+  // act-transition spans the wrong seam) — assemble a -draft of the survivors, never a
+  // misleadingly-named -final. describe() then tells the agent to retake the failed scene(s).
+  const incomplete = m.scenes.some((s) => s.status !== 'ok' || !s.clip);
+  if (incomplete) {
     const draftRel = `${dirName(m.id)}/${m.slug}-draft.mp4`;
     await stitchClips(clips, path.join(repoDir, draftRel), { transition: 'cut', signal });
     m.totalMs = okScenes.reduce((a, s) => a + (s.durationMs ?? 0), 0);
@@ -446,8 +464,25 @@ export const renderAnimatedExplainerTool: ToolDef = {
         const src = args.scenes.find((x: any, i: number) => (x?.id ? Number(x.id) === retake : i === 0)) ?? args.scenes[0];
         const idx = m.scenes.findIndex((s) => s.id === retake);
         if (idx >= 0 && src) {
+          // The on-screen-text guard applies to retakes too — text belongs in the overlay, never
+          // the paid clip (the whole point of the two-layer design).
+          if (/\b(text|caption|title|words?|letters|writes?|says|label reading|sign reading)\b/i.test(String(src?.visual ?? '')))
+            return `Error: the retaken scene's "visual" asks for TEXT — the illustration is always wordless; put every word in the "overlay" instead (layout + kicker/title/sub/caption).`;
+          const old = m.scenes[idx];
           const rebuilt = buildScenes([src], m)[0];
-          m.scenes[idx] = { ...rebuilt, id: retake, extraTailMs: m.scenes[idx].extraTailMs };
+          // PRESERVE the cache fields so the per-field hash guards regenerate ONLY what actually
+          // changed: fixing the overlay text (same visual) reuses the paid Seedance clip; an
+          // unchanged narration reuses the TTS. Without this the most common retake — tightening
+          // the overlay copy after a legibility flag — silently re-pays for a full clip + TTS.
+          m.scenes[idx] = {
+            ...rebuilt,
+            id: retake,
+            extraTailMs: old.extraTailMs,
+            clipFile: old.clipFile,
+            visualHash: old.visualHash,
+            audioFile: old.audioFile,
+            narrationHash: old.narrationHash,
+          };
         }
       }
     }
