@@ -36,9 +36,54 @@ export function framesToVideoCmd(
   );
 }
 
+/**
+ * COMPOSITE a transparent OVERLAY frame sequence (crisp HTML/CSS text/callouts, rendered with
+ * an alpha channel) ON TOP of a base video CLIP (a generative illustrated scene), producing ONE
+ * uniform scene mp4 with the SAME params as framesToVideoCmd so the final join stays a lossless
+ * concat. This is the "animated explainer" keystone: the illustrated look comes from the clip,
+ * every WORD comes from the pixel-crisp overlay — never baked into the generated pixels.
+ *
+ * - The base clip is scaled+cropped to the exact WxH, and its last frame is CLONE-padded so a
+ *   clip shorter than the scene still fills it; the final `-t durationS` cuts to the exact length.
+ * - The clip's own audio is dropped (one narrator carries the piece): narration mp3 (padded to
+ *   the scene length) or generated silence, matching the motion pipeline.
+ * - Overlay PNGs are drawn at 0,0 over the clip; `format=yuv420p` at the end flattens for h264.
+ */
+export function compositeOverlayCmd(
+  baseClip: string,
+  overlayFramesDir: string,
+  fps: number,
+  out: string,
+  opts: { audioIn?: string; durationS: number; width: number; height: number },
+): string {
+  const overlayPattern = path.join(overlayFramesDir, 'o%05d.png');
+  const dur = opts.durationS.toFixed(3);
+  const audio = opts.audioIn
+    ? `-i ${q(opts.audioIn)}`
+    : `-f lavfi -t ${dur} -i anullsrc=r=44100:cl=stereo`;
+  const audioMap = '2:a'; // inputs: 0=clip, 1=overlay image seq, 2=audio (narration OR anullsrc)
+  const filter =
+    `[0:v]scale=${opts.width}:${opts.height}:force_original_aspect_ratio=increase,` +
+    `crop=${opts.width}:${opts.height},setsar=1,fps=${fps},tpad=stop_mode=clone:stop_duration=3600[bg];` +
+    `[1:v]scale=${opts.width}:${opts.height}[ov];` +
+    `[bg][ov]overlay=0:0:format=auto[v];[v]format=yuv420p[vout]`;
+  return (
+    `ffmpeg -v error -i ${q(baseClip)} -framerate ${fps} -i ${q(overlayPattern)} ${audio} ` +
+    `-filter_complex ${q(filter)} -map "[vout]" -map ${audioMap} ` +
+    `-c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -r ${fps} ` +
+    `-c:a aac -b:a 160k -ar 44100 -ac 2 ${opts.audioIn ? `-af "apad=whole_dur=${dur}" ` : ''}` +
+    `-t ${dur} -movflags +faststart -y ${q(out)}`
+  );
+}
+
 /** Number of frames a scene needs at fps for durationMs (last frame inclusive-safe). */
 export function frameCount(durationMs: number, fps: number): number {
   return Math.max(1, Math.round((durationMs / 1000) * fps));
+}
+
+/** Overlay frame file name (transparent PNGs: o00000.png …) — matches compositeOverlayCmd's pattern. */
+export function overlayFrameName(i: number): string {
+  return `o${String(i).padStart(5, '0')}.png`;
 }
 
 /** Zero-padded frame file name the pattern above expects (frame00000.jpg …). */
@@ -71,5 +116,26 @@ export async function encodeSceneVideo(
   const r = await execBash(framesToVideoCmd(framesDir, fps, outAbs, opts), { cwd, timeoutMs: 120_000, signal });
   if (!r.ok || !fs.existsSync(outAbs)) {
     throw new Error(`scene encode failed: ${(r.output || '').slice(-400)}`);
+  }
+}
+
+/** Composite a transparent overlay frame sequence over a base clip into one uniform scene mp4. */
+export async function compositeOverlayScene(
+  baseClip: string,
+  overlayFramesDir: string,
+  fps: number,
+  outAbs: string,
+  opts: { audioIn?: string; durationS: number; width: number; height: number },
+  cwd: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  fs.mkdirSync(path.dirname(outAbs), { recursive: true });
+  const r = await execBash(compositeOverlayCmd(baseClip, overlayFramesDir, fps, outAbs, opts), {
+    cwd,
+    timeoutMs: 180_000,
+    signal,
+  });
+  if (!r.ok || !fs.existsSync(outAbs)) {
+    throw new Error(`overlay composite failed: ${(r.output || '').slice(-400)}`);
   }
 }

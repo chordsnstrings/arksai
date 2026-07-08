@@ -859,3 +859,95 @@ body { background: var(--mg-bg); color: var(--mg-ink); font-family: var(--mg-fon
 .mg-portrait .mg-prop-hero { width: 44vw; height: 44vw; }
 .mg-portrait .mg-label-vox { max-width: 78vw; }
 .mg-portrait .mg-callout { max-width: 80vw; }
+
+/* ============================================================
+   OVERLAY LAYER (.ax-*) — the "animated explainer" text layer.
+   These compositions ride ON TOP of a generative illustrated CLIP (composited
+   server-side), so the body is TRANSPARENT and every text region carries a
+   built-in SCRIM. That scrim is the legibility guarantee: crisp overlay text
+   sits over an UNKNOWN moving illustration, so a dark (or light) veil behind
+   the copy keeps it WCAG-AA no matter what the clip shows underneath — exactly
+   the hero-fx / mg-plate-scrim principle, applied to video.
+   Tokens: --ax-ink (text, default near-white), --ax-accent (brand accent),
+   --ax-scrim (veil colour, default near-black). Set them per scene.
+   ============================================================ */
+.ax-stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  color: var(--ax-ink, #f6f7fb);
+  --ax-scrim-c: var(--ax-scrim, #06070c);
+  font-family: var(--mg-font, "Inter", system-ui, sans-serif);
+}
+/* body is transparent for overlay scenes — the clip shows through. */
+body.ax-body { background: transparent !important; }
+
+/* Scrims — a gradient veil so overlay text is legible over any clip. Pick the one
+   that matches where the copy sits; they only ADD a veil, never a solid block. */
+.ax-scrim { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.ax-scrim.bottom { background: linear-gradient(0deg, color-mix(in srgb, var(--ax-scrim-c) 78%, transparent) 0%, color-mix(in srgb, var(--ax-scrim-c) 40%, transparent) 32%, transparent 58%); }
+.ax-scrim.top { background: linear-gradient(180deg, color-mix(in srgb, var(--ax-scrim-c) 74%, transparent) 0%, color-mix(in srgb, var(--ax-scrim-c) 30%, transparent) 34%, transparent 56%); }
+.ax-scrim.full { background: radial-gradient(120% 100% at 50% 50%, color-mix(in srgb, var(--ax-scrim-c) 34%, transparent) 0%, color-mix(in srgb, var(--ax-scrim-c) 66%, transparent) 100%); }
+.ax-scrim.left { background: linear-gradient(90deg, color-mix(in srgb, var(--ax-scrim-c) 74%, transparent) 0%, color-mix(in srgb, var(--ax-scrim-c) 34%, transparent) 40%, transparent 66%); }
+
+.ax-content { position: absolute; z-index: 1; }
+.ax-kicker {
+  font-family: var(--mg-font-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: clamp(0.72rem, 1.5vh, 1.05rem);
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ax-accent, #7aa2ff); margin-bottom: 0.6em; font-weight: 600;
+}
+.ax-title { font-weight: 800; line-height: 1.02; letter-spacing: -0.02em; text-wrap: balance; }
+.ax-sub { margin-top: 0.55em; font-weight: 500; opacity: 0.94; line-height: 1.3; }
+
+/* (1) LOWER-THIRD — kicker + title low-left over a bottom scrim. The reliable workhorse. */
+.ax-lower .ax-content { left: 6%; right: 8%; bottom: 8%; }
+.ax-lower .ax-title { font-size: clamp(2rem, 6.4vh, 4.6rem); max-width: 20ch; }
+.ax-lower .ax-sub { font-size: clamp(1rem, 2.4vh, 1.5rem); max-width: 34ch; }
+
+/* (2) CENTER — kicker + big headline + sub, centered over a full soft scrim (title/hook beats). */
+.ax-center { text-align: center; }
+.ax-center .ax-content { left: 8%; right: 8%; top: 50%; transform: translateY(-50%); text-align: center; }
+.ax-center .ax-kicker { margin-inline: auto; }
+.ax-center .ax-title { font-size: clamp(2.4rem, 9vh, 6.2rem); max-width: 16ch; margin-inline: auto; }
+.ax-center .ax-sub { font-size: clamp(1.05rem, 2.6vh, 1.6rem); max-width: 32ch; margin-inline: auto; }
+
+/* (3) CORNER STAT — a big number + label in a scrim card (a proof point over the illustration). */
+.ax-stat .ax-card {
+  position: absolute; z-index: 1; left: 6%; bottom: 9%;
+  padding: 0.85em 1.1em; border-radius: 14px;
+  background: color-mix(in srgb, var(--ax-scrim-c) 62%, transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  border: 1px solid color-mix(in srgb, #fff 14%, transparent);
+}
+.ax-stat .ax-num { font-family: var(--mg-font-mono, "IBM Plex Mono", ui-monospace, monospace); font-weight: 800; font-variant-numeric: tabular-nums; font-size: clamp(2.6rem, 9vh, 5.4rem); line-height: 1; letter-spacing: -0.02em; color: var(--ax-ink, #f6f7fb); }
+.ax-stat .ax-num .u { color: var(--ax-accent, #7aa2ff); font-size: 0.5em; margin-left: 0.15em; }
+.ax-stat .ax-lbl { margin-top: 0.35em; font-family: var(--mg-font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: clamp(0.72rem, 1.5vh, 1rem); letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; }
+
+/* (4) CAPTION band — the narration line as a legible subtitle low in the frame (subtitles-on). */
+.ax-caption .ax-cap {
+  position: absolute; z-index: 1; left: 50%; bottom: 6%; transform: translateX(-50%);
+  max-width: 82%; text-align: center;
+  font-size: clamp(1rem, 2.5vh, 1.5rem); font-weight: 600; line-height: 1.35;
+  padding: 0.35em 0.8em; border-radius: 10px;
+  background: color-mix(in srgb, var(--ax-scrim-c) 58%, transparent);
+  text-wrap: balance;
+}
+
+/* Overlay entrances — reduced, seek-driven (reuse the kit's --scene-s timeline). Text rises +
+   fades in over the first ~0.6s; the caption cross-fades. These pair with .mg-reveal / motion.js. */
+.ax-content .ax-kicker, .ax-content .ax-title, .ax-content .ax-sub,
+.ax-stat .ax-card, .ax-caption .ax-cap {
+  animation: ax-rise 0.6s var(--mg-ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)) both;
+  animation-play-state: paused; animation-delay: calc(var(--scene-s, 8) * 0s);
+}
+.ax-content .ax-title { animation-delay: 0.12s; }
+.ax-content .ax-sub { animation-delay: 0.24s; }
+@keyframes ax-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+.ax-center .ax-content .ax-title { animation-name: ax-rise-c; }
+@keyframes ax-rise-c { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ax-content .ax-kicker, .ax-content .ax-title, .ax-content .ax-sub,
+  .ax-stat .ax-card, .ax-caption .ax-cap { animation: none !important; opacity: 1 !important; transform: none !important; }
+}

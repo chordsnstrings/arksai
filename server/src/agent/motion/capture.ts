@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { frameCount, frameName } from './encode';
+import { frameCount, frameName, overlayFrameName } from './encode';
 
 /**
  * Deterministic frame capture — the Remotion move, on our stack.
@@ -57,6 +57,56 @@ export async function captureScene(
       const t = Math.round((i * 1000) / opts.fps);
       await page.evaluate(`__seek(${t})`);
       await page.screenshot({ path: path.join(opts.framesDir, frameName(i)), type: 'jpeg', quality: 92 });
+    }
+    await ctx.close();
+  } finally {
+    await browser.close().catch(() => {});
+  }
+  return { frames: total, msPerFrame: (Date.now() - started) / total };
+}
+
+/**
+ * Capture a TRANSPARENT overlay scene as a PNG frame sequence (o00000.png …) for compositing
+ * over a generative clip. Identical seek-driven determinism to captureScene, but the page has a
+ * transparent body and we screenshot with `omitBackground: true` so only the crisp text/callouts
+ * carry an alpha channel — everything else is transparent and the clip shows through underneath.
+ * PNG (not JPEG) because alpha is the whole point.
+ */
+export async function captureOverlay(
+  htmlAbs: string,
+  opts: { width: number; height: number; fps: number; durationMs: number; framesDir: string },
+  signal: AbortSignal,
+): Promise<CaptureResult> {
+  let pw: typeof import('playwright');
+  try {
+    pw = await import('playwright');
+  } catch {
+    throw new Error('Playwright/Chromium is not installed in this environment — overlay capture unavailable.');
+  }
+  fs.mkdirSync(opts.framesDir, { recursive: true });
+  const total = frameCount(opts.durationMs, opts.fps);
+  const browser = await pw.chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  const started = Date.now();
+  try {
+    const ctx = await browser.newContext({
+      viewport: { width: opts.width, height: opts.height },
+      deviceScaleFactor: 1,
+    });
+    const page = await ctx.newPage();
+    await page.goto(`file://${htmlAbs}`, { waitUntil: 'load', timeout: 30_000 });
+    await page.evaluate('document.fonts && document.fonts.ready').catch(() => {});
+    const ready = await page.evaluate('!!(window.__seek && window.__motionReady)').catch(() => false);
+    if (!ready) {
+      throw new Error(
+        `${path.basename(htmlAbs)} did not load the motion-kit runtime (motion-kit/motion.js) — link it with a relative <script> tag.`,
+      );
+    }
+    await page.evaluate(`__setSceneMs(${Math.round(opts.durationMs)})`);
+    for (let i = 0; i < total; i++) {
+      if (signal.aborted) throw new Error('overlay capture aborted');
+      const t = Math.round((i * 1000) / opts.fps);
+      await page.evaluate(`__seek(${t})`);
+      await page.screenshot({ path: path.join(opts.framesDir, overlayFrameName(i)), type: 'png', omitBackground: true });
     }
     await ctx.close();
   } finally {
