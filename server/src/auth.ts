@@ -270,6 +270,11 @@ export function registerAuth(app: FastifyInstance) {
       /^\/api\/hooks\/sms\/[A-Za-z0-9_-]+$/.test(url) ||
       // Robot deliverable fetch (WhatsApp document-by-link): short-lived minted token.
       /^\/api\/robot-file\/[A-Za-z0-9_-]+$/.test(url) ||
+      // Meta (Facebook) compliance callbacks: Data Deletion Request + Deauthorize (POST,
+      // authenticated by the app-secret HMAC on signed_request) and the user-facing deletion
+      // status page (GET). The caller is Facebook / the end user, not a logged-in session.
+      url === '/api/connectors/meta/data-deletion' ||
+      url === '/api/connectors/meta/deauthorize' ||
       !isApi;
     if (open || req.identity) return;
     return reply.code(401).send({ error: 'Unauthorized' });

@@ -629,12 +629,27 @@ async function migrate() {
     expires_at ${INT},
     scopes TEXT,
     status TEXT NOT NULL,
+    external_user_id TEXT,
     created_by TEXT,
     created_at ${INT} NOT NULL,
     updated_at ${INT} NOT NULL
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_connectors_org ON connectors(org_id)`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_connectors_uniq ON connectors(org_id, provider, account_id)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_connectors_extuser ON connectors(provider, external_user_id)`);
+
+  // Data-deletion request log — backs the user-accessible status page a platform (Meta)
+  // requires the Data Deletion Callback to return a URL for. Metadata only (never content):
+  // which provider/app-scoped user asked, how many connectors were purged, when. Looked up
+  // by the confirmation code we hand back to the platform.
+  await q(`CREATE TABLE IF NOT EXISTS data_deletion_requests(
+    code TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    external_user_id TEXT,
+    connectors_deleted ${INT} NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    created_at ${INT} NOT NULL
+  )`);
 
   // GitHub OAuth links — per USER (each member connects their own GitHub account; their
   // sessions push generated code to repos they pick). Token stored ENCRYPTED (AES-256-GCM),
@@ -770,6 +785,9 @@ async function migrate() {
     `robot_commanders:notify ${INT} NOT NULL DEFAULT 1`,
     // When a delivered task was sent back for revision (collect-since + timeout anchor).
     `robot_tasks:revised_at ${INT}`,
+    // Provider app-scoped user id — used by the Meta Data Deletion / Deauthorize callbacks
+    // to locate the rows to purge when a user removes the app.
+    'connectors:external_user_id TEXT',
   ]) {
     const cut = spec.indexOf(':');
     const table = spec.slice(0, cut);

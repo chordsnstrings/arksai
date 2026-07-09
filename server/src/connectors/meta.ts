@@ -61,10 +61,18 @@ export const metaAdapter: Adapter = {
     const r2: any = await (await fetch(`${GRAPH}/oauth/access_token?${ex}`)).json();
     const access = r2.access_token || r1.access_token;
     const expiresIn = Number(r2.expires_in || r1.expires_in || 0);
-    // 3) resolve accessible ad accounts
+    // 3) resolve accessible ad accounts + the app-scoped user id (needed for the Data
+    //    Deletion / Deauthorize callbacks — Meta identifies the user by this id only).
     const accts: any = await (await fetch(`${GRAPH}/me/adaccounts?fields=account_id,name&access_token=${encodeURIComponent(access)}`)).json();
     const accounts = (accts.data ?? []).map((a: any) => ({ id: a.account_id, name: a.name || a.account_id }));
-    return { accessToken: access, refreshToken: null, expiresAt: expiresIn ? Date.now() + expiresIn * 1000 : null, scopes: SCOPES, accounts };
+    let externalUserId: string | null = null;
+    try {
+      const me: any = await (await fetch(`${GRAPH}/me?fields=id&access_token=${encodeURIComponent(access)}`)).json();
+      externalUserId = me?.id ? String(me.id) : null;
+    } catch {
+      /* non-fatal — the connector still works, only the deletion-callback targeting is weaker */
+    }
+    return { accessToken: access, refreshToken: null, expiresAt: expiresIn ? Date.now() + expiresIn * 1000 : null, scopes: SCOPES, accounts, externalUserId };
   },
 
   // Meta has no refresh token; re-extend the long-lived token via fb_exchange_token.

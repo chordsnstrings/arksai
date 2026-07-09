@@ -14,6 +14,7 @@ interface Row {
   expires_at: number | null;
   scopes: string | null;
   status: string;
+  external_user_id: string | null;
 }
 
 function toConnector(r: Row): Connector {
@@ -28,6 +29,7 @@ function toConnector(r: Row): Connector {
     expiresAt: r.expires_at ?? null,
     scopes: r.scopes,
     status: (r.status as Connector['status']) ?? 'active',
+    externalUserId: r.external_user_id ?? null,
   };
 }
 
@@ -59,20 +61,21 @@ export async function saveConnector(
     'SELECT id FROM connectors WHERE org_id = $1 AND provider = $2 AND account_id = $3',
     [orgId, provider, account.id],
   );
+  const extUser = tokens.externalUserId ?? null;
   if (existing) {
     await q(
       `UPDATE connectors SET account_name=$1, access_token_enc=$2, refresh_token_enc=$3, expires_at=$4,
-        scopes=$5, status='active', updated_at=$6 WHERE id=$7`,
-      [account.name, accessEnc, refreshEnc, tokens.expiresAt ?? null, tokens.scopes ?? null, now, existing.id],
+        scopes=$5, status='active', external_user_id=COALESCE($6, external_user_id), updated_at=$7 WHERE id=$8`,
+      [account.name, accessEnc, refreshEnc, tokens.expiresAt ?? null, tokens.scopes ?? null, extUser, now, existing.id],
     );
     return;
   }
   await q(
     `INSERT INTO connectors(id, org_id, provider, account_id, account_name, access_token_enc, refresh_token_enc,
-      expires_at, scopes, status, created_by, created_at, updated_at)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11,$12)`,
+      expires_at, scopes, status, external_user_id, created_by, created_at, updated_at)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11,$12,$13)`,
     [randomUUID(), orgId, provider, account.id, account.name, accessEnc, refreshEnc,
-      tokens.expiresAt ?? null, tokens.scopes ?? null, createdBy, now, now],
+      tokens.expiresAt ?? null, tokens.scopes ?? null, extUser, createdBy, now, now],
   );
 }
 
@@ -119,4 +122,51 @@ export async function deleteConnector(orgId: string, id: string): Promise<boolea
 /** Delete every connector for an org (used by org deletion cascade). */
 export async function deleteConnectorsForOrg(orgId: string): Promise<void> {
   await q('DELETE FROM connectors WHERE org_id = $1', [orgId]);
+}
+
+/** Purge every connector granted by a provider's app-scoped user (the Data Deletion /
+ *  Deauthorize callback path). Cross-org by design — one user may have connected accounts
+ *  in more than one org. Returns how many rows were removed. */
+export async function deleteConnectorsByExternalUser(provider: Provider, externalUserId: string): Promise<number> {
+  if (!externalUserId) return 0;
+  const rows = await q<{ id: string }>(
+    'SELECT id FROM connectors WHERE provider = $1 AND external_user_id = $2',
+    [provider, externalUserId],
+  );
+  if (rows.length) {
+    await q('DELETE FROM connectors WHERE provider = $1 AND external_user_id = $2', [provider, externalUserId]);
+  }
+  return rows.length;
+}
+
+/** Record a data-deletion request (backs the user-accessible status page). */
+export interface DeletionRecord {
+  code: string;
+  provider: Provider;
+  externalUserId: string | null;
+  connectorsDeleted: number;
+  status: 'completed' | 'pending';
+  createdAt: number;
+}
+export async function recordDeletionRequest(rec: DeletionRecord): Promise<void> {
+  await q(
+    `INSERT INTO data_deletion_requests(code, provider, external_user_id, connectors_deleted, status, created_at)
+     VALUES($1,$2,$3,$4,$5,$6)`,
+    [rec.code, rec.provider, rec.externalUserId, rec.connectorsDeleted, rec.status, rec.createdAt],
+  );
+}
+export async function getDeletionRequest(code: string): Promise<DeletionRecord | null> {
+  const r = await qOne<{
+    code: string; provider: string; external_user_id: string | null;
+    connectors_deleted: number; status: string; created_at: number;
+  }>('SELECT * FROM data_deletion_requests WHERE code = $1', [code]);
+  if (!r) return null;
+  return {
+    code: r.code,
+    provider: r.provider as Provider,
+    externalUserId: r.external_user_id ?? null,
+    connectorsDeleted: r.connectors_deleted ?? 0,
+    status: (r.status as DeletionRecord['status']) ?? 'completed',
+    createdAt: r.created_at,
+  };
 }

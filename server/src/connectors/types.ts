@@ -20,6 +20,10 @@ export interface Connector {
   expiresAt: number | null;
   scopes: string | null;
   status: 'active' | 'error' | 'revoked';
+  /** The provider's app-scoped user id for the person who granted this connector.
+   *  Meta sends this (and only this) in the Data Deletion / Deauthorize callbacks —
+   *  it's how we locate the rows to purge when a user removes the app. */
+  externalUserId?: string | null;
 }
 
 /** A normalized row of ad performance data — provider-agnostic, table-friendly. */
@@ -47,6 +51,8 @@ export interface TokenSet {
   scopes?: string | null;
   /** the ad accounts this grant covers (provider-resolved) */
   accounts?: { id: string; name: string }[];
+  /** the provider's app-scoped user id for the granting user (Meta: the `id` from /me) */
+  externalUserId?: string | null;
 }
 
 /** Each ad platform implements this. Pure URL/normalize helpers are exported separately

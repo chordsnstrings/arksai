@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildMetaAuthUrl, normalizeMeta, metaAdapter } from '../src/connectors/meta';
 import { __setMetaSecretForTest } from '../src/connectors/metaRuntime';
+import { parseSignedRequest, buildSignedRequest } from '../src/connectors/signedRequest';
 import { buildGoogleAuthUrl, buildGaql, normalizeGoogle } from '../src/connectors/google';
 import { buildTiktokAuthUrl, normalizeTiktok } from '../src/connectors/tiktok';
 
@@ -31,6 +32,34 @@ test('meta: connector availability tracks the runtime app secret (env-less activ
   __setMetaSecretForTest('a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6'); // dummy — NEVER the real secret in the repo
   assert.equal(metaAdapter.available(), true);
   __setMetaSecretForTest(''); // reset for other tests
+});
+
+test('meta: signed_request round-trips and yields the app-scoped user id (data-deletion callback)', () => {
+  const secret = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6'; // dummy — never the real app secret
+  const signed = buildSignedRequest({ user_id: '1234567890', issued_at: 1_700_000_000 }, secret);
+  const payload = parseSignedRequest(signed, secret);
+  assert.ok(payload);
+  assert.equal(payload!.user_id, '1234567890');
+  assert.equal(payload!.algorithm, 'HMAC-SHA256');
+});
+
+test('meta: signed_request with a tampered signature / wrong secret is rejected', () => {
+  const secret = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6';
+  const signed = buildSignedRequest({ user_id: '42' }, secret);
+  assert.equal(parseSignedRequest(signed, 'the-wrong-secret'), null); // wrong key → no match
+  const [, payload] = signed.split('.');
+  assert.equal(parseSignedRequest(`Zm9yZ2Vk.${payload}`, secret), null); // forged signature
+  assert.equal(parseSignedRequest('not-a-signed-request', secret), null); // malformed (no dot)
+  assert.equal(parseSignedRequest('', secret), null);
+});
+
+test('meta: signed_request with a non-HMAC-SHA256 algorithm is refused (downgrade guard)', () => {
+  const secret = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6';
+  // Hand-sign a payload that (correctly) HMACs but declares a different algorithm.
+  const { createHmac } = require('node:crypto') as typeof import('node:crypto');
+  const encodedPayload = Buffer.from(JSON.stringify({ algorithm: 'PLAINTEXT', user_id: '9' }), 'utf8').toString('base64url');
+  const sig = createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+  assert.equal(parseSignedRequest(`${sig}.${encodedPayload}`, secret), null);
 });
 
 test('meta: normalize flattens insights + expands actions', () => {
