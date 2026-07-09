@@ -636,7 +636,9 @@ async function migrate() {
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_connectors_org ON connectors(org_id)`);
   await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_connectors_uniq ON connectors(org_id, provider, account_id)`);
-  await q(`CREATE INDEX IF NOT EXISTS idx_connectors_extuser ON connectors(provider, external_user_id)`);
+  // NOTE: idx_connectors_extuser references external_user_id, which is added by the migration
+  // loop below on pre-existing DBs — so it is created AFTER that loop, not here (creating it
+  // here would throw on an old DB where the column doesn't exist yet).
 
   // Data-deletion request log — backs the user-accessible status page a platform (Meta)
   // requires the Data Deletion Callback to return a URL for. Metadata only (never content):
@@ -801,6 +803,9 @@ async function migrate() {
   for (const table of ['sessions', 'projects', 'deployments', 'schedules']) {
     await q(`CREATE INDEX IF NOT EXISTS idx_${table}_org ON ${table}(org_id)`).catch(() => {});
   }
+  // Now that external_user_id is guaranteed to exist (CREATE TABLE on fresh DBs, the migration
+  // ALTER above on old ones), the Meta deletion-lookup index is safe to create.
+  await q(`CREATE INDEX IF NOT EXISTS idx_connectors_extuser ON connectors(provider, external_user_id)`).catch(() => {});
 
   // custom_commands → ORG-SCOPED. The single-tenant schema keyed commands by `name`
   // (deployment-wide, so every org saw/edited/overwrote each other's). Rebuild it
