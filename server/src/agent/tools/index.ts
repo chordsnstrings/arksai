@@ -49,6 +49,8 @@ import { switchModeTool, submitPlanTool } from './mode';
 import { checkpointTool } from './checkpoint';
 import { fetchDataTool } from './data';
 import { fetchAdsTool } from './ads';
+import { publishPostTool, planCalendarTool, listPostsTool } from './social';
+import { META_CAMPAIGN_TOOLS } from './metaCampaigns';
 import { sendWebhookTool } from './outbound';
 import { readInboxTool, sendEmailTool } from './email';
 import { generateComplianceFileTool } from './compliance';
@@ -131,6 +133,10 @@ export const ALL_TOOLS: ToolDef[] = [
   submitPlanTool,
   fetchDataTool,
   fetchAdsTool,
+  publishPostTool,
+  planCalendarTool,
+  listPostsTool,
+  ...META_CAMPAIGN_TOOLS,
   sendWebhookTool,
   sendEmailTool,
   readInboxTool,
@@ -189,6 +195,9 @@ const REPORT_TOOLS = new Set([
   'read_presentation',
   'switch_mode',
   'fetch_data',
+  'list_posts',
+  'campaign_report',
+  'campaign_actions_log',
   'send_webhook',
   'send_email',
   'read_inbox',

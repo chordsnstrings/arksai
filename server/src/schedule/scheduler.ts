@@ -206,6 +206,14 @@ async function fire(s: Schedule, orgId: string | null) {
 let timer: ReturnType<typeof setInterval> | null = null;
 
 export async function tick(now = Date.now()) {
+  // Social Media Manager robots (Track A): publish any due scheduled Facebook/Instagram posts.
+  try {
+    const { publishDueSocialPosts } = await import('../robots/social');
+    const n = await publishDueSocialPosts(now);
+    if (n) console.log(`[schedule] published ${n} due social post(s)`);
+  } catch (e) {
+    console.error('[schedule] social publish tick failed:', e);
+  }
   let due: any[] = [];
   try {
     due = await q(`SELECT * FROM schedules WHERE enabled=1 AND next_run_at <= $1`, [now]);

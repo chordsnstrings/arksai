@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-08.65';
+export const WHATS_NEW_VERSION = '2026-07-09.66';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Animated illustrated explainer videos',
-    body: 'A new video style in the Video studio: flowing, AI-animated illustrated scenes — flat-vector, painterly, ink, paper-collage, silhouette and more — with a real voiceover. The clever part: the on-screen text is a separate crisp layer laid over the animation, never generated into it, so every title and number stays razor-sharp and on-brand (no garbled AI lettering). Pick "Illustrated", describe the topic, choose a look, and ArksAI writes the script, animates each scene and composites the text automatically.',
+    title: 'A Social Media Manager robot for Facebook & Instagram',
+    body: 'Hire a robot that runs your Facebook Page + Instagram end-to-end: it plans and posts content (generating the images/videos itself), replies to comments and DMs in your brand voice — escalating anything negative to you — and plans, creates and optimises paid ads within a spend cap. One autonomy slider sets how hands-on it is, from "propose everything for my approval" to "full autopilot within my caps". Two rules always hold: negative comments come to you, and no ad ever spends over your cap without a tap. Connect your Page under the robot\'s settings to begin.',
   },
 ];
 

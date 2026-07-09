@@ -61,6 +61,15 @@ export async function withSecrets(robotId: string, kind: RobotChannelKind): Prom
   return { channel, secrets: await channelSecrets(robotId, kind) };
 }
 
+/** The first enabled channel of a kind in an org, with its decrypted secrets (Track A/C use
+ *  this to publish/advertise on the org's connected Facebook Page + Instagram). */
+export async function findChannelForOrg(orgId: string, kind: RobotChannelKind): Promise<ChannelWithSecrets | null> {
+  const r = await qOne('SELECT * FROM robot_channels WHERE org_id = $1 AND kind = $2 AND enabled = 1 ORDER BY created_at LIMIT 1', [orgId, kind]);
+  if (!r) return null;
+  const channel = rowToChannel(r);
+  return { channel, secrets: await channelSecrets(channel.robotId, kind) };
+}
+
 export interface UpsertChannelInput {
   label?: string | null;
   /** New secret values to store (merged over existing — an omitted key keeps its value). */

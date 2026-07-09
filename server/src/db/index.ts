@@ -391,6 +391,47 @@ async function migrate() {
     UNIQUE(robot_id, kind)
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_robot_channels ON robot_channels(org_id, kind, enabled)`);
+
+  // Social Media Manager robot — ORGANIC posts (Track A): scheduled + published Facebook/
+  // Instagram posts. published_at also backs the Instagram 25/day rolling cap. Metadata only.
+  await q(`CREATE TABLE IF NOT EXISTS social_posts(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    robot_id TEXT,
+    platform TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    caption TEXT,
+    media_path TEXT,
+    object_id TEXT,
+    permalink TEXT,
+    status TEXT NOT NULL,
+    scheduled_at ${INT},
+    published_at ${INT},
+    error TEXT,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_social_posts_org ON social_posts(org_id, status, scheduled_at)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_social_posts_pub ON social_posts(org_id, platform, published_at)`);
+
+  // Social Media Manager robot — PAID (Track C): the ad-action audit trail + approval spine.
+  // Every create/launch/budget-change is a row: proposed → approved → executed (or rejected/
+  // failed). Metadata only (object ids, budgets) — never creative content.
+  await q(`CREATE TABLE IF NOT EXISTS campaign_actions(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    robot_id TEXT,
+    connector_id TEXT,
+    action TEXT NOT NULL,
+    object_ids TEXT,
+    requested_budget_usd ${REAL},
+    status TEXT NOT NULL,
+    approved_by TEXT,
+    detail TEXT,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_campaign_actions_org ON campaign_actions(org_id, status, created_at)`);
   // Reusable org-level personas a robot can speak as (picked via robot config.personaId).
   await q(`CREATE TABLE IF NOT EXISTS robot_personas(
     id TEXT PRIMARY KEY,

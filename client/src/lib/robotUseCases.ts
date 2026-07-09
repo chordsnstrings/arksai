@@ -161,6 +161,24 @@ export const ROBOT_USE_CASES: RobotUseCase[] = [
     commanderCentric: true,
     postHire: 'Set the rhythm under Settings → Routines (daily/weekly report briefs), and add your address below so it can deliver to you.',
   },
+  {
+    id: 'social',
+    emoji: '📣',
+    title: 'Social media manager',
+    blurb: 'Runs your Facebook & Instagram: plans and posts content, replies to comments and DMs, and creates & optimises ads — as hands-on or hands-off as you set the autonomy slider.',
+    chips: ['Posts & schedules', 'Replies to comments', 'Runs ads on a budget', 'Autonomy slider'],
+    group: 'make',
+    kind: 'custom',
+    name: 'Social Manager',
+    mandate:
+      'Manage our Facebook Page + Instagram: plan and publish on-brand posts, reply warmly to comments and DMs (escalating anything negative or sensitive), and plan/run paid ads within the budget. Generate the creative; never post placeholders. Follow the autonomy setting — propose when low, act when high.',
+    knowledgeHint: 'Your brand voice, products/offers, target audience, do-not-say topics, posting cadence, monthly ad budget…',
+    escalateOn: 'complaints, refunds, legal or press matters, anything negative or that you are unsure how to answer',
+    autonomy: 'ask_all',
+    replyTools: 'commanders',
+    commanderCentric: true,
+    postHire: 'Connect your Facebook Page + Instagram under Settings → Connections, then set the autonomy slider and a daily ad-spend cap under Settings → Social.',
+  },
 ];
 
 export const useCaseSpec = (id: string): RobotUseCase | undefined => ROBOT_USE_CASES.find((u) => u.id === id);
