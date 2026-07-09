@@ -8,6 +8,8 @@ import { api } from '../api/client';
  * robot ran on command. All backed by the org-gated /api/orgs/:id/robots/:rid/* routes.
  */
 
+import { SocialSettings } from './SocialSettings';
+
 const KIND_META: Record<RobotChannelKind, { label: string; blurb: string }> = {
   telegram: {
     label: 'Telegram',
@@ -142,12 +144,13 @@ function ChannelForm({ orgId, robotId, kind, channel, onSaved }: {
 export function ChannelsPanel({ orgId, robotId }: { orgId: string; robotId: string }) {
   const [channels, setChannels] = useState<RobotChannel[] | null>(null);
   const [voiceReplies, setVoiceReplies] = useState<string>('mirror');
+  const [robotType, setRobotType] = useState<string>('');
   const load = () => {
     api.listRobotChannels(orgId, robotId).then(setChannels).catch(() => setChannels([]));
   };
   useEffect(load, [orgId, robotId]);
   useEffect(() => {
-    api.getRobot(orgId, robotId).then((r) => setVoiceReplies(r.config?.voiceReplies ?? 'mirror')).catch(() => {});
+    api.getRobot(orgId, robotId).then((r) => { setVoiceReplies(r.config?.voiceReplies ?? 'mirror'); setRobotType(r.type); }).catch(() => {});
   }, [orgId, robotId]);
   // Read-merge-write (never clobber the rest of the config).
   const setVoice = async (v: string) => {
@@ -160,6 +163,17 @@ export function ChannelsPanel({ orgId, robotId }: { orgId: string; robotId: stri
     }
   };
   const byKind = (k: RobotChannelKind) => (channels ?? []).find((c) => c.kind === k) ?? null;
+  if (robotType === 'social') {
+    return (
+      <>
+        <h3>Social media manager</h3>
+        <p className="rb-mini-empty" style={{ marginBottom: 8 }}>
+          Set how much this robot does on its own, cap its ad spend, and connect the Facebook Page + Instagram it runs.
+        </p>
+        <SocialSettings orgId={orgId} robotId={robotId} />
+      </>
+    );
+  }
   return (
     <>
       <h3>Chat & SMS channels</h3>

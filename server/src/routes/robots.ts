@@ -248,6 +248,13 @@ export function registerRobotRoutes(app: FastifyInstance) {
       if (b.appSecret) secrets.appSecret = String(b.appSecret);
       if (b.phoneNumberId) meta.phoneNumberId = String(b.phoneNumberId).trim();
       if (b.verifyToken) meta.verifyToken = String(b.verifyToken).trim();
+    } else if (kind === 'meta') {
+      if (b.pageAccessToken) secrets.pageAccessToken = String(b.pageAccessToken);
+      if (b.appSecret) secrets.appSecret = String(b.appSecret);
+      if (b.pageId) meta.pageId = String(b.pageId).trim();
+      if (b.igUserId) meta.igUserId = String(b.igUserId).trim();
+      if (b.pageName) meta.pageName = String(b.pageName).trim();
+      if (b.verifyToken) meta.verifyToken = String(b.verifyToken).trim();
     } else {
       if (b.apiId) secrets.apiId = String(b.apiId);
       if (b.apiPassword) secrets.apiPassword = String(b.apiPassword);
