@@ -63,4 +63,9 @@ export const CHANNEL_STYLE: Record<RobotChannelKind, string> = {
   sms:
     'You are replying by SMS. Be brief and complete in at most ~450 characters — one compact ' +
     'message, plain text, no greetings/sign-offs, no links unless essential.',
+  meta:
+    'You are replying to a public comment on a Facebook or Instagram post (or a direct message). ' +
+    'Be warm, on-brand, and SHORT — one or two friendly sentences, plain text, no greetings or ' +
+    'sign-offs, at most one emoji. Never argue publicly. Anything angry, a complaint, a refund/ ' +
+    'legal/press matter, or a question you are unsure about must ESCALATE, not be answered.',
 };

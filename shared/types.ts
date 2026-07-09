@@ -614,7 +614,7 @@ export function isFreeEmailDomain(email: string): boolean {
 export type RobotRole = 'customer_service' | 'personal_assistant' | 'custom';
 /** The KIND of robot — drives its console view + runtime. Email is implemented; the rest are
  *  declared so the host/registry can route them as they're built. */
-export type RobotType = 'email' | 'scheduled' | 'ads' | 'monitor';
+export type RobotType = 'email' | 'scheduled' | 'ads' | 'monitor' | 'social';
 export type RobotStatus = 'draft' | 'active' | 'paused';
 export type RobotAutonomy = 'shadow' | 'ask' | 'auto';
 /** arksai-max = MiniMax M3, deepseek-v4 = DeepSeek, compare = run both (bake-off). */
@@ -646,10 +646,18 @@ export interface RobotConfig {
    *  reply lane: available to the owner's commander addresses (default), to everyone the
    *  robot talks to, or off. Heavy builds always go through the commander build lane. */
   replyTools?: 'commanders' | 'everyone' | 'off';
+  /** AUTONOMY SLIDER (0–100) for a Social Media Manager robot — the single control over how
+   *  much it does on its own: replies to comments, publishes posts, runs ads. See
+   *  server/src/robots/autonomy.ts. Default 30 ("Ask first"). */
+  autonomyLevel?: number;
+  /** Hard daily ad-spend cap in USD (Track C). No launch/budget change may exceed it. */
+  adDailyCapUsd?: number;
+  /** Hard per-campaign lifetime ad-spend cap in USD (Track C). */
+  adCampaignCapUsd?: number;
 }
 
 // ---- Robot channels (beyond email: chat/SMS auto-responders) ----
-export type RobotChannelKind = 'telegram' | 'whatsapp' | 'sms';
+export type RobotChannelKind = 'telegram' | 'whatsapp' | 'sms' | 'meta';
 /** Where a draft/conversation lives — email plus the chat/SMS channels. */
 export type RobotDraftChannel = 'email' | RobotChannelKind;
 

@@ -28,6 +28,7 @@ import { registerFeedbackRoutes } from './routes/feedback';
 import { registerEmailRoutes } from './routes/email';
 import { registerRobotRoutes } from './routes/robots';
 import { registerRobotHookRoutes } from './routes/robotHooks';
+import { registerMetaHookRoutes } from './routes/metaHooks';
 import { registerRobotFileRoutes } from './routes/robotFiles';
 import { registerVoiceChatRoutes } from './routes/voiceChat';
 import { registerDesignRoutes } from './routes/design';
@@ -118,6 +119,7 @@ export async function buildApp() {
   registerEmailRoutes(app);
   registerRobotRoutes(app);
   registerRobotHookRoutes(app);
+  registerMetaHookRoutes(app);
   registerRobotFileRoutes(app);
   registerVoiceChatRoutes(app);
   registerDesignRoutes(app);

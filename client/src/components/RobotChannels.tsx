@@ -21,6 +21,12 @@ const KIND_META: Record<RobotChannelKind, { label: string; blurb: string }> = {
     label: 'SMS',
     blurb: 'Uses SMSALA. Paste your API ID + password and registered sender ID. For replies to incoming SMS, set the inbound URL below in your SMSALA panel — and whitelist the ArksAI server IP in your SMSALA account.',
   },
+  // Meta (Facebook Page + Instagram) is configured through the Social robot's own settings,
+  // not this generic channel panel — but the record must be total over the channel kinds.
+  meta: {
+    label: 'Facebook / Instagram',
+    blurb: 'Connect a Facebook Page + Instagram in the Social robot settings.',
+  },
 };
 
 function ChannelForm({ orgId, robotId, kind, channel, onSaved }: {

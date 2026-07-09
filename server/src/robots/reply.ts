@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { config } from '../config';
-import type { Robot, RobotRole } from '../../../shared/types';
+import type { Robot, RobotChannelKind, RobotDraftChannel, RobotRole } from '../../../shared/types';
 import type { InboxMessage } from '../email/client';
 import { departmentPersona } from '../agent/expertise';
 
@@ -62,7 +62,7 @@ export interface ReplyOutcome {
 /** Channel/persona/knowledge extras threaded by the caller (poller/webhooks/routes). */
 export interface ReplyExtras {
   /** Non-email channels get a chat/SMS style note and skip email signature blocks. */
-  channel?: 'telegram' | 'whatsapp' | 'sms';
+  channel?: RobotChannelKind;
   /** A resolved org persona (voice + optional signature) — free-text config.persona wins. */
   personaVoice?: string;
   personaSignature?: string;
@@ -350,7 +350,7 @@ function errorDraft(label: string, e: any): DraftResult {
  */
 export async function regenerateDraft(
   robot: Robot,
-  draft: { inboundFrom: string; inboundName: string | null; inboundSubject: string | null; inboundBody: string | null; inboundSnippet: string | null; channel?: 'email' | 'telegram' | 'whatsapp' | 'sms' },
+  draft: { inboundFrom: string; inboundName: string | null; inboundSubject: string | null; inboundBody: string | null; inboundSnippet: string | null; channel?: RobotDraftChannel },
   instruction: string,
   signal: AbortSignal,
 ): Promise<DraftResult> {

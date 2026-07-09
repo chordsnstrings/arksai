@@ -8,6 +8,7 @@ import type {
   RobotRule,
 } from '../../../shared/types';
 import { q, qOne } from '../db';
+import { autonomyEnumFromLevel } from './autonomy';
 
 /**
  * Robots data layer: a standing email agent per org, and the drafts it produces.
@@ -157,6 +158,13 @@ export async function updateRobot(
   if (patch.config) {
     sets.push(`config = $${i++}`);
     vals.push(JSON.stringify(patch.config));
+    // Social robots: the AUTONOMY SLIDER (config.autonomyLevel) drives the coarse reply-engine
+    // enum, so the shared inbound handler auto-sends comment replies exactly when the slider
+    // says "auto-reply" or higher. An explicit autonomy patch still wins.
+    if (robot.type === 'social' && typeof patch.config.autonomyLevel === 'number' && patch.autonomy == null) {
+      sets.push(`autonomy = $${i++}`);
+      vals.push(autonomyEnumFromLevel(patch.config.autonomyLevel));
+    }
   }
   sets.push(`updated_at = $${i++}`);
   vals.push(Date.now());

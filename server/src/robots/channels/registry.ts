@@ -3,6 +3,7 @@ import type { ChannelAdapter } from './types';
 import { telegramAdapter } from './telegram';
 import { whatsappAdapter } from './whatsapp';
 import { smsAdapter } from './sms';
+import { metaAdapter } from './meta';
 
 /**
  * The channel adapter registry — its own module so the inbound handler, the notifier,
@@ -12,4 +13,5 @@ export const ADAPTERS: Record<RobotChannelKind, ChannelAdapter> = {
   telegram: telegramAdapter,
   whatsapp: whatsappAdapter,
   sms: smsAdapter,
+  meta: metaAdapter,
 };

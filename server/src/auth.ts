@@ -267,6 +267,7 @@ export function registerAuth(app: FastifyInstance) {
       // Robot channel webhooks: Meta (verify handshake + signed inbound) and SMSALA
       // (per-channel random hookKey in the URL is the gate). Validated inside the routes.
       url === '/api/hooks/whatsapp' ||
+      url === '/api/hooks/meta' ||
       /^\/api\/hooks\/sms\/[A-Za-z0-9_-]+$/.test(url) ||
       // Robot deliverable fetch (WhatsApp document-by-link): short-lived minted token.
       /^\/api\/robot-file\/[A-Za-z0-9_-]+$/.test(url) ||

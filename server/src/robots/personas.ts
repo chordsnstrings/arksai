@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { RobotKbDoc, RobotPersona } from '../../../shared/types';
+import type { RobotDraftChannel, RobotKbDoc, RobotPersona } from '../../../shared/types';
 import { q, qOne } from '../db';
 
 /**
@@ -223,7 +223,7 @@ export async function replyExtrasFor(
   robot: { id: string; config?: { personaId?: string } | null },
   orgId: string,
   messageText: string,
-  thread?: { channel: 'email' | 'telegram' | 'whatsapp' | 'sms'; fromAddr: string },
+  thread?: { channel: RobotDraftChannel; fromAddr: string },
 ): Promise<{ personaVoice?: string; personaSignature?: string; knowledgeSnippets?: string[]; history?: string[] }> {
   const out: { personaVoice?: string; personaSignature?: string; knowledgeSnippets?: string[]; history?: string[] } = {};
   const pid = robot.config?.personaId;
