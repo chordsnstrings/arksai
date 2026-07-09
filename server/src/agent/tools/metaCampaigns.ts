@@ -1,7 +1,7 @@
 import type { ToolDef, ToolCtx } from './common';
 import {
   createCampaignRequest, createAdSetRequest, createCreativeRequest, createAdRequest,
-  updateStatusRequest, updateBudgetRequest, graphPost, resolveAdCreds,
+  boostCreativeRequest, updateStatusRequest, updateBudgetRequest, graphPost, resolveAdCreds,
   type Objective, type Targeting,
 } from '../../connectors/metaCampaigns';
 import { guardCampaignAction, recordCampaignAction, listCampaignActions, type SpendCaps } from '../../robots/campaigns';
@@ -244,6 +244,72 @@ export const listCampaignActionsTool: ToolDef = {
   },
 };
 
+export const boostPostTool: ToolDef = {
+  name: 'boost_post',
+  description:
+    'Promote an EXISTING Facebook/Instagram post as a paid ad (a "boost"). post_id is the ' +
+    'published post id (Facebook: <pageId>_<postId>). daily_budget_usd + days set the spend and ' +
+    'run length; targeting: {countries:[ISO2], age_min, age_max, genders, interests, instagram}. ' +
+    'This SPENDS MONEY — requires approved:true and stays within the daily cap. Created then ' +
+    'launched on approval; use pause_campaign to stop it.',
+  parameters: {
+    type: 'object',
+    properties: {
+      post_id: { type: 'string' },
+      daily_budget_usd: { type: 'number' },
+      days: { type: 'number', description: 'How many days to run (default 7)' },
+      objective: { type: 'string', enum: ['engagement', 'traffic', 'awareness'], description: 'default engagement' },
+      targeting: { type: 'object' },
+      approved: { type: 'boolean' },
+      account_id: { type: 'string' },
+    },
+    required: ['post_id', 'daily_budget_usd', 'targeting'],
+  },
+  modes: ['chat', 'code'],
+  summarize: () => 'boost a post',
+  async run(args: any, ctx: ToolCtx): Promise<string> {
+    const orgId = ctx.session.orgId;
+    if (!orgId) return 'Error: organization-scoped.';
+    const t: Targeting = {
+      countries: Array.isArray(args.targeting?.countries) ? args.targeting.countries.map(String) : [],
+      ageMin: args.targeting?.age_min, ageMax: args.targeting?.age_max,
+      genders: args.targeting?.genders, interests: args.targeting?.interests,
+      instagram: !!args.targeting?.instagram,
+    };
+    if (!t.countries.length) return 'Error: targeting.countries is required (ISO-2 codes, e.g. ["AE"]).';
+    const daily = Number(args.daily_budget_usd) || 0;
+    const guard = guardCampaignAction({ action: 'boost', approved: !!args.approved, requestedDailyUsd: daily, wantsInstagram: t.instagram, hasPageAndIg: !!(await resolveSocialCreds(orgId))?.igUserId }, caps(daily));
+    if (!guard.ok) {
+      await recordCampaignAction({ orgId, action: 'boost', objectIds: JSON.stringify({ postId: args.post_id }), requestedBudgetUsd: daily, status: 'proposed', detail: guard.reason }).catch(() => {});
+      return `Not boosted — ${guard.reason}`;
+    }
+    const creds = await adCreds(orgId, args.account_id);
+    if (!creds) return 'Error: no Meta ad account is connected.';
+    const social = await resolveSocialCreds(orgId);
+    try {
+      const days = Math.max(1, Math.min(90, Number(args.days) || 7));
+      const now = Math.floor(Date.now() / 1000);
+      const objective = (String(args.objective || 'engagement')) as Objective;
+      const c = createCampaignRequest(creds.accountId, { name: `Boost ${String(args.post_id).slice(0, 24)}`, objective });
+      const campaign = await graphPost(c.url, creds.accessToken, c.body);
+      const s = createAdSetRequest(creds.accountId, { campaignId: String(campaign.id), name: 'Boost — ad set', dailyBudgetUsd: daily, targeting: t, optimizationGoal: 'POST_ENGAGEMENT', startAtSec: now, endAtSec: now + days * 86400 });
+      const adset = await graphPost(s.url, creds.accessToken, s.body);
+      const cr = boostCreativeRequest(creds.accountId, { name: 'Boost — creative', objectStoryId: String(args.post_id), instagramActorId: t.instagram ? social?.igUserId : undefined });
+      const creative = await graphPost(cr.url, creds.accessToken, cr.body);
+      const a = createAdRequest(creds.accountId, { name: 'Boost — ad', adSetId: String(adset.id), creativeId: String(creative.id) });
+      const ad = await graphPost(a.url, creds.accessToken, a.body);
+      // Approved + within cap → go live now (a boost is meant to run).
+      const u = updateStatusRequest(String(adset.id), 'ACTIVE');
+      await graphPost(u.url, creds.accessToken, u.body);
+      await recordCampaignAction({ orgId, action: 'boost', objectIds: JSON.stringify({ postId: args.post_id, campaignId: campaign.id, adsetId: adset.id, adId: ad.id }), requestedBudgetUsd: daily, status: 'executed', detail: `${days}d @ $${daily}/day` });
+      return `🚀 Boosted post ${args.post_id}: $${daily}/day for ${days} days, now LIVE.\ncampaign_id: ${campaign.id}\nad_set_id: ${adset.id}\nUse pause_campaign(${adset.id}) to stop it.`;
+    } catch (e: any) {
+      await recordCampaignAction({ orgId, action: 'boost', status: 'failed', detail: e?.message ?? String(e) }).catch(() => {});
+      return `Error boosting post: ${e?.message ?? e}`;
+    }
+  },
+};
+
 export const META_CAMPAIGN_TOOLS: ToolDef[] = [
-  planCampaignTool, createCampaignTool, launchCampaignTool, pauseCampaignTool, setBudgetTool, campaignReportTool, listCampaignActionsTool,
+  planCampaignTool, createCampaignTool, launchCampaignTool, pauseCampaignTool, setBudgetTool, boostPostTool, campaignReportTool, listCampaignActionsTool,
 ];

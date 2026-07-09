@@ -12,7 +12,7 @@ import {
 } from '../src/connectors/metaPublish';
 import {
   createCampaignRequest, buildTargeting, createAdSetRequest, createCreativeRequest,
-  createAdRequest, updateStatusRequest, updateBudgetRequest, usdToMinor,
+  createAdRequest, boostCreativeRequest, updateStatusRequest, updateBudgetRequest, usdToMinor,
 } from '../src/connectors/metaCampaigns';
 import { guardCampaignAction, capsFromConfig } from '../src/robots/campaigns';
 
@@ -93,6 +93,14 @@ test('ad set / creative / ad / status / budget builders', () => {
   assert.deepEqual(updateStatusRequest('OBJ', 'ACTIVE'), { url: 'OBJ', body: { status: 'ACTIVE' } });
   assert.equal(updateBudgetRequest('AS', 30).body.daily_budget, 3000);
   assert.equal(usdToMinor(9.99), 999);
+});
+
+test('boost creative promotes an existing post via object_story_id', () => {
+  const b = boostCreativeRequest('1', { name: 'boost', objectStoryId: 'PG_123', instagramActorId: 'IG' });
+  assert.equal(b.url, 'act_1/adcreatives');
+  assert.equal(b.body.object_story_id, 'PG_123');
+  assert.equal(b.body.instagram_actor_id, 'IG');
+  assert.equal(b.body.link_data, undefined); // a boost references the post, not new link_data
 });
 
 // ---- Track C: money guardrails ----

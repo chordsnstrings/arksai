@@ -101,6 +101,14 @@ export function createCreativeRequest(accountId: string, p: { name: string; page
   return { url: `${actId(accountId)}/adcreatives`, body: { name: p.name, object_story_spec: objectStorySpec } };
 }
 
+/** A creative that PROMOTES AN EXISTING post (a "boost") — references the post by its
+ *  object_story_id (`<pageId>_<postId>`) instead of composing new link_data. */
+export function boostCreativeRequest(accountId: string, p: { name: string; objectStoryId: string; instagramActorId?: string }): { url: string; body: Record<string, any> } {
+  const body: Record<string, any> = { name: p.name, object_story_id: p.objectStoryId };
+  if (p.instagramActorId) body.instagram_actor_id = p.instagramActorId;
+  return { url: `${actId(accountId)}/adcreatives`, body };
+}
+
 export function createAdRequest(accountId: string, p: { name: string; adSetId: string; creativeId: string }): { url: string; body: Record<string, any> } {
   return {
     url: `${actId(accountId)}/ads`,

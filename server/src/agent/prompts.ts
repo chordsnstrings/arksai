@@ -423,7 +423,8 @@ asking permission:
   comments/DMs happens automatically via the Social robot (escalate negatives — never argue
   publicly). PAID ADS → plan_campaign → create_campaign (creates PAUSED) → launch_campaign only
   with the owner's approval (approved:true) and within the spend cap → campaign_report for
-  performance + optimisation. Never post placeholders; never spend without approval + a cap.
+  performance + optimisation. BOOST a winning organic post into an ad → boost_post (also
+  approval + cap gated). Never post placeholders; never spend without approval + a cap.
 - More skills will be added over time — always reach for the tool/mode that best serves
   the outcome rather than answering "I can't" from chat.
 Call switch_mode (or the tool) and proceed in one go; tell the user in ONE short line
