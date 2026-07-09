@@ -100,3 +100,30 @@ test('meta webhook: parses IG comment', () => {
   assert.equal(rows[0].from, 'ig_c:IGC1');
   assert.equal(rows[0].fromName, 'buyer');
 });
+
+test('meta webhook: parses a Facebook Messenger DM (reply → sender, dedup → mid)', () => {
+  const entry = {
+    id: 'PAGE1',
+    messaging: [
+      { sender: { id: 'PSID9' }, recipient: { id: 'PAGE1' }, timestamp: 1_700_000_000_000, message: { mid: 'MID1', text: 'do you deliver?' } },
+      { sender: { id: 'PAGE1' }, recipient: { id: 'PSID9' }, message: { mid: 'MID2', text: 'our own echo', is_echo: true } }, // skip echoes
+      { sender: { id: 'PSID8' }, recipient: { id: 'PAGE1' }, message: { mid: 'MID3' } }, // no text (receipt) → skip
+    ],
+  };
+  const rows = parseMetaEntry('page', entry, new Set(['PAGE1']));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].id, 'MID1'); // dedup on the message id
+  assert.equal(rows[0].from, 'fb_dm:PSID9'); // reply goes to the sender
+  assert.equal(rows[0].text, 'do you deliver?');
+});
+
+test('meta webhook: parses an Instagram Direct message', () => {
+  const entry = {
+    id: 'IG1',
+    messaging: [{ sender: { id: 'IGSID7' }, recipient: { id: 'IG1' }, timestamp: 1_700_000_000_000, message: { mid: 'IGMID1', text: 'is this in stock?' } }],
+  };
+  const rows = parseMetaEntry('instagram', entry, new Set(['IG1']));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].from, 'ig_dm:IGSID7');
+  assert.equal(rows[0].id, 'IGMID1');
+});

@@ -11,9 +11,11 @@ import type { ChannelInbound } from '../robots/channels/types';
  * Auth-allowlisted (the caller is Facebook, not a logged-in user):
  *   - GET  /api/hooks/meta  — verify handshake: echo hub.challenge when hub.verify_token
  *     matches ANY enabled meta channel's stored verifyToken.
- *   - POST /api/hooks/meta  — inbound comments/messages; routed to the robot by the Page id
- *     (FB) or IG user id; authenticated via X-Hub-Signature-256 (HMAC-SHA256 of the raw body
- *     with the channel's app secret) whenever a secret is stored.
+ *   - POST /api/hooks/meta  — inbound COMMENTS (entry.changes) AND DIRECT MESSAGES
+ *     (entry.messaging — Messenger for a Page, Instagram Direct); routed to the robot by the
+ *     Page id (FB) or IG user id; authenticated via X-Hub-Signature-256 (HMAC-SHA256 of the
+ *     raw body with the channel's app secret) whenever a secret is stored. Both flow through
+ *     the same reply engine; a DM reply is addressed to the sender, a comment reply to the comment.
  * Always returns 200 fast and NEVER throws — a webhook error must not trigger a retry storm.
  */
 
@@ -22,29 +24,44 @@ async function robotFor(robotId: string): Promise<any | null> {
   return robot && robot.status === 'active' ? robot : null;
 }
 
-/** Pure: turn one Meta webhook entry into inbound comment messages (unit-tested). */
+/** Pure: turn one Meta webhook entry into inbound messages — comments (entry.changes) AND
+ *  direct messages (entry.messaging) for both Facebook and Instagram (unit-tested).
+ *  `target` is what a reply is addressed to (the comment id, or the DM sender's id); `dedup`
+ *  is the idempotency key (comment id, or message mid). */
 export function parseMetaEntry(object: string, entry: any, selfIds: Set<string>): ChannelInbound[] {
   const out: ChannelInbound[] = [];
-  const push = (kind: 'ig_c' | 'fb_c', id: string, text: string, fromId: string, fromName: string | null, ts: number) => {
-    if (!id || selfIds.has(fromId)) return; // never reply to our own comment
+  const add = (kind: 'ig_c' | 'fb_c' | 'ig_dm' | 'fb_dm', target: string, dedup: string, text: string, fromId: string, fromName: string | null, ts: number) => {
+    if (!target || !dedup || selfIds.has(fromId)) return; // never reply to ourselves
     if (!text.trim()) return;
-    out.push({ id, from: metaAddr(kind, id), fromName, text, ts });
+    out.push({ id: dedup, from: metaAddr(kind, target), fromName, text, ts });
   };
-  // Facebook Page feed changes (comments on a Page post).
+
+  // Comments (a reply is addressed to the comment itself → target === dedup === comment id).
   if (object === 'page') {
     for (const ch of entry?.changes || []) {
       const v = ch?.value;
       if (ch?.field !== 'feed' || v?.item !== 'comment' || v?.verb === 'remove') continue;
-      push('fb_c', String(v.comment_id || ''), String(v.message || ''), String(v.from?.id || ''), v.from?.name ? String(v.from.name) : null, (Number(v.created_time) || 0) * 1000 || Date.now());
+      const id = String(v.comment_id || '');
+      add('fb_c', id, id, String(v.message || ''), String(v.from?.id || ''), v.from?.name ? String(v.from.name) : null, (Number(v.created_time) || 0) * 1000 || Date.now());
     }
   }
-  // Instagram comments.
   if (object === 'instagram') {
     for (const ch of entry?.changes || []) {
       const v = ch?.value;
       if (ch?.field !== 'comments') continue;
-      push('ig_c', String(v.id || ''), String(v.text || ''), String(v.from?.id || ''), v.from?.username ? String(v.from.username) : null, Date.now());
+      const id = String(v.id || '');
+      add('ig_c', id, id, String(v.text || ''), String(v.from?.id || ''), v.from?.username ? String(v.from.username) : null, Date.now());
     }
+  }
+
+  // Direct messages (Messenger for a Page, Instagram Direct) — arrive in entry.messaging.
+  // A reply is addressed to the SENDER (target = sender id); dedup on the message mid.
+  const dmKind = object === 'instagram' ? 'ig_dm' : 'fb_dm';
+  for (const m of entry?.messaging || []) {
+    const msg = m?.message;
+    if (!msg || msg.is_echo) continue; // delivery/read receipts + our own outgoing echoes
+    const senderId = String(m?.sender?.id || '');
+    add(dmKind, senderId, String(msg.mid || `${dmKind}-${senderId}-${m.timestamp || ''}`), String(msg.text || ''), senderId, null, Number(m.timestamp) || Date.now());
   }
   return out;
 }
