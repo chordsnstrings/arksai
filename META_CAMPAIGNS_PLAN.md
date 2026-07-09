@@ -1,186 +1,164 @@
-# Meta Campaigns Robot — build plan (Facebook + Instagram ad automation)
+# Social Media Manager Robot — build plan (Facebook + Instagram: organic + engagement + paid)
 
-Goal: a robot that **creates, launches, monitors, and optimizes** Facebook + Instagram
-ad campaigns end-to-end from a plain-language brief — reusing ArksAI's creative engine,
-robot framework, and the existing (read-only) Meta connector, with **hard money guardrails**
-so it can never spend without an approval and a cap.
+Goal: a robot that runs a real social-media presence end-to-end — **publishes organic
+content, replies to comments & DMs, and buys/optimises paid ads** — for Facebook + Instagram,
+from a plain-language brief, reusing ArksAI's creative engine, robot inbound/reply engine,
+scheduler, and Meta connector. Approval-gated, spend-capped, audit-logged.
 
-Governing rule (same as every robot): **flawless or it isn't live.** And because this spends
-real money: **every campaign is created PAUSED, nothing goes live or has its budget raised
-without an explicit owner approval, every account has a hard spend cap, every action is
-audit-logged.**
+A real campaign is THREE jobs, not one: **Publish (organic) · Engage (community) · Advertise
+(paid)**, wrapped by listening/analytics. All three ride the SAME connector + robot spine.
 
-## Current state (what we reuse, verified in-repo)
+Governing rule: **flawless or it isn't live.** Paid spend AND public posts/replies are
+money- and brand-sensitive → **nothing goes public or spends without an approval (default),
+a cap on paid, and an audit row.**
 
-- `connectors/meta.ts` — Meta adapter: OAuth via Facebook Login for Business (`config_id`
-  `2004716123621967`, app `980303688203652`), long-lived token, `fetchReport` (insights).
-  Scope today = **`ads_read,business_management`** (READ only).
-- `connectors/store.ts` — encrypted per-org tokens, `findForProvider`, `saveConnector`,
-  now also `external_user_id` + the deletion callbacks.
-- `connectors/types.ts` — the `Adapter` interface + `Connector`/`TokenSet`.
-- `agent/tools/ads.ts` — `fetch_ads` (read insights, normalized table). **Reused as the
-  robot's read/measure loop.**
-- Robot framework: `robots/tasks.ts` (commander build lane), `robots/actions.ts` (gated
-  HTTPS actions + approval), `robots/notify.ts` (owner pings + remote APPROVE/dictate),
-  `robots/analytics.ts`, `schedule/scheduler.ts` (recurring), `robots/store.ts` (drafts).
-- Creative engine: `generate_creative` (finished image+text+logo, hook variants),
-  `generate_image` (text-free), `render_motion_video` / story video (for Reels).
-- `client/src/lib/robotUseCases.ts` — the 7-job hire catalog (extend to an 8th job).
+## Current state (reused, verified in-repo)
 
-## Meta-side prerequisites (operator checklist — one-time)
+- `connectors/meta.ts` — Meta OAuth (Facebook Login for Business, `config_id`
+  `2004716123621967`, app `980303688203652`), long-lived token, `fetchReport` (ad insights),
+  `external_user_id` + deletion callbacks. Scope today = `ads_read,business_management` (READ).
+- `connectors/store.ts` — encrypted per-org tokens; `findForProvider`, `saveConnector`.
+- Robot inbound/reply engine — `robots/channels/inbound.ts` (`handleChannelInbound`:
+  dedupe, ask/auto, escalate-not-guess, locked recipient), `robots/reply.ts`, personas +
+  knowledge base (`robots/personas.ts`), notify/approve (`robots/notify.ts`), gated actions
+  (`robots/actions.ts`), analytics, `schedule/scheduler.ts`. **Comment/DM handling reuses
+  this wholesale — a Page is just another channel.**
+- Creative engine — `generate_creative` (finished image+copy+logo, hook variants),
+  `generate_image` (text-free), `render_motion_video` / story video (Reels).
+- `agent/tools/ads.ts` `fetch_ads` — reused as the measure loop.
+- File hosting — published-app URLs (`/apps/<slug>/`) + minted `robot-file` token links →
+  the **public media URL** Instagram container publishing requires.
+- `client/src/lib/robotUseCases.ts` — hire catalog (add the social job).
 
-1. **`ads_management`** added to the Facebook Login for Business configuration
-   `2004716123621967` (App Dashboard → the config → Permissions). Keep `ads_read`.
-   → the connect flow then returns a token with WRITE.
-2. A **Business Portfolio** with: an **ad account** (funded payment method), a **Facebook
-   Page**, and a **connected Instagram account** (linked to that Page).
-3. **System User token** (recommended for unattended runs): Business Settings → System Users
-   → create → assign the ad account + Page (admin) → generate a long-lived token with
-   `ads_management,ads_read,business_management`. Stored encrypted like every secret.
-4. Scope tiers: **own accounts in Development mode → no App Review** (build + run now). Only
-   pointing at **clients'** accounts needs **App Review of `ads_management` + Business
-   Verification + Marketing API Access Tier** (≥500 calls/15d, <15% errors).
+## Meta-side prerequisites (operator, one-time)
 
-## Design decisions (defaults — flip on request)
+Business assets: a **Business Portfolio**, a **Facebook Page**, an **Instagram Business/
+Creator account linked to that Page**, and (for paid) an **ad account with a funded payment
+method**. Permissions added to the Login-for-Business configuration `2004716123621967`:
 
-- **Scope now:** OWN ad account(s), Development mode. No App Review this phase.
-- **Autonomy:** **approval-gated.** The robot proposes; the owner taps APPROVE (existing
-  notify lane) before anything goes live or a budget moves. A later "autopilot within cap"
-  mode is a config flag, off by default.
-- **Objective coverage v1:** traffic / engagement / leads (Instant Form) / sales
-  (conversions need a Pixel/CAPI — phase 4). Awareness + reach as simple extras.
+| Capability | Permissions | Token |
+| --- | --- | --- |
+| Organic FB posts | `pages_show_list`, `pages_read_engagement`, `pages_manage_posts` (+`pages_manage_engagement` for Reels) | Page token |
+| Organic IG posts | `instagram_basic`, `instagram_content_publish` | Page/IG token |
+| FB comments | `pages_manage_engagement`, `pages_read_user_content` | Page token |
+| IG comments | `instagram_manage_comments` | Page/IG token |
+| DMs (later) | `instagram_manage_messages`, `pages_messaging` | Page token |
+| Paid ads | `ads_read`, `ads_management`, `business_management` | user / system-user token |
 
----
+**Access tier:** your OWN Page/IG/ad account (app has a role) → Development mode, **no App
+Review**, build + run now. Managing OTHER businesses' assets → App Review of the above +
+Business Verification. Constraints designed-around: **IG = 25 published posts / rolling 24 h**;
+IG media must be a **public URL** (we host it); IG images JPEG, aspect 4:5–1.91:1.
 
-## Phase 1 — Marketing API WRITE layer (connector)
+## Design defaults (flip on request)
 
-New `server/src/connectors/metaCampaigns.ts` — pure request builders + thin I/O, mirroring
-`meta.ts`. All calls `POST ${GRAPH}/act_<id>/...` with the write token.
-
-Functions (each returns the created object id, or throws Meta's error message verbatim):
-- `createCampaign(acct, token, {name, objective, specialAdCategories, dailyCapUsd})`
-  → `/campaigns` (status ALWAYS `PAUSED`).
-- `createAdSet(acct, token, {campaignId, name, dailyBudgetUsd, schedule, optimizationGoal,
-  billingEvent, bidStrategy, targeting, placements})` → `/adsets` (PAUSED). **Instagram =
-  `publisher_platforms:['facebook','instagram']` + `instagram_positions:[…]`.**
-- `buildTargeting({geo, ageMin, ageMax, genders, interests, customAudienceIds})` — pure,
-  unit-tested (this is where money is wasted if wrong).
-- `createAdCreative(acct, token, {name, pageId, instagramActorId, creative})` — creative =
-  a workspace image/video (uploaded via `/adimages` or `/advideos`) + primary text +
-  headline + description + CTA + link. Reuses a `generate_creative` output file.
-- `createAd(acct, token, {adSetId, name, creativeId})` → `/ads` (PAUSED).
-- `updateStatus(id, token, 'ACTIVE'|'PAUSED')` — the ONLY path that turns spend on;
-  gated behind approval + cap check at the tool layer.
-- `updateBudget(adSetId, token, dailyBudgetUsd)` — gated behind approval + cap check.
-- `duplicateAdSet` / `getDeliveryEstimate` (nice-to-have).
-- Reads reuse the existing `fetchReport` (insights).
-
-Adapter interface: add OPTIONAL write methods to `Adapter` in `connectors/types.ts` (Meta
-implements; google/tiktok leave undefined) OR keep the write layer Meta-specific and call it
-directly from the tools. **Recommendation:** Meta-specific module now (google/tiktok write is
-a separate future arc), exposed via `connectors/index.ts` helpers.
-
-Token source: extend `saveConnector`/`Connector` with a `token_kind` (`user`|`system`) so a
-System User token can be stored per-org (superadmin endpoint `POST /api/admin/providers/
-meta-systemuser {adAccountId, token}`, encrypted). The write layer prefers the system token.
-
-Tests (`connectors/metaCampaigns.test.ts`, pure): campaign/adset/ad/creative request-shape
-locks, `buildTargeting` (geo/age/interests → correct spec, IG placements present), status +
-budget builders, "created PAUSED" invariant, USD→minor-unit conversion.
-
-## Phase 2 — money guardrails + audit (the safety spine)
-
-- New `campaign_actions` table (org-scoped, metadata only): id, org_id, robot_id, connector_id,
-  action (`create_campaign`|`launch`|`pause`|`budget_change`), object_ids, requested_budget,
-  status (`proposed`|`approved`|`executed`|`rejected`|`failed`), approved_by, ts. Backs the
-  audit trail + the approval loop + the "what did it spend" report.
-- Per-connector **spend caps** in config: `dailyCapUsd`, `campaignCapUsd`, `requireApproval`
-  (default true). Stored on the connector row / robot config.
-- Pure `guardCampaignAction(action, caps, todaySpend)` — throws on: launch without approval,
-  budget above cap, daily projected spend over cap, missing Page/IG for an IG placement.
-  Unit-tested with the money cases.
-- Wire into `robots/notify.ts`: a `launch`/`budget_change` proposal pings the owner with the
-  full plan (objective, audience, placements, budget, projected daily spend, the creative
-  preview) → owner replies **APPROVE** (executes `updateStatus ACTIVE`) / **IGNORE** /
-  free-text edit (adjust budget/targeting, re-propose). Exactly the existing draft-approval
-  mechanism, extended to campaign actions.
-
-## Phase 3 — agent tools (the robot's hands)
-
-New `server/src/agent/tools/metaCampaigns.ts`, gated `available: () => providerAvailable('meta')
-&& metaWriteConfigured()`, modes `chat`+`code` (so both the chat agent and a robot build
-session can use them):
-- `plan_campaign` — pure planner: brief → a structured campaign spec (objective, budget split,
-  audience, placements incl. IG, ad count, creative briefs). Returns the plan for approval;
-  writes nothing.
-- `create_campaign` — executes an approved plan via the Phase-1 layer: builds the
-  creative(s) (calls `generate_creative`), uploads media, creates campaign→adset→ad **PAUSED**,
-  records `campaign_actions`, returns the object ids + a preview. Never launches.
-- `launch_campaign` / `pause_campaign` / `set_budget` — the gated mutations (guard + audit +
-  approval). `launch` is the only spend-on switch.
-- `campaign_report` — thin wrapper over `fetch_ads` (spend/CTR/CPC/CPA/ROAS by ad) +
-  deterministic optimizer suggestions (pause ads with CTR<x after N impressions, shift budget
-  to the top ROAS ad) → proposals, not auto-executed (unless autopilot-within-cap is on).
-
-Prompt steering (`prompts.ts`): a MARKETING/ADS block — "campaign asks → plan_campaign →
-present for approval → create_campaign (paused) → launch only on approval; always name budget,
-audience, placements; generate the creative, never placeholder; read performance with fetch_ads
-before proposing changes."
-
-Tests: tool registry lock, gating (no write token → honest error), the create→paused→launch
-approval sequence source-locked, optimizer suggestion math.
-
-## Phase 4 — the Campaigns robot (surfacing)
-
-- `client/src/lib/robotUseCases.ts` — 8th job **`adsmanager`** ("Run your Facebook &
-  Instagram ads"), group `make`, `replyTools:'commanders'`, capability chips (plan / create /
-  launch-on-approval / optimize / weekly report), `postHire`: "Connect your Meta ad account
-  under Settings → Connections; set a daily spend cap under Settings → Campaign limits."
-- Hire flow: mounts the Connections panel (Meta) + a **Campaign limits** panel (daily/campaign
-  cap, approval toggle) in step 3.
-- New `client/src/components/CampaignLimits.tsx` + a small robot-ops panel showing live
-  campaigns (status, spend today, CTR) with Pause/Approve buttons (reads `campaign_report`,
-  writes go through the gated tools). Playwright-QA'd 1280+390.
-- Commander bridge (`robots/tasks.ts`): "launch a campaign for X, AED 50/day, target UAE
-  25–40 interested in fitness" → build session with the campaign tools → proposes → owner
-  approves on their channel → launches. Weekly optimization via `schedule/scheduler.ts`
-  (a `campaign` routine: pull performance → propose changes → ping owner).
-
-## Phase 5 — conversions (later, needs Pixel/CAPI)
-
-Sales-objective optimization needs a **Pixel + Conversions API** on the advertiser's site.
-Add `create_pixel` / server-side CAPI event forwarding + `custom_conversions`. Deferred —
-traffic/leads/engagement work without it.
+- Scope now: **own Page/IG/ad account**, Development mode (no review).
+- Autonomy: **approval-gated** — the robot proposes posts, replies, launches, budget moves;
+  owner taps APPROVE on their channel. Per-capability autopilot flags (e.g. "auto-reply to
+  comments within policy", "auto-publish the scheduled calendar") off by default.
+- Comment auto-reply obeys the §5c reply doctrine already in the engine (locked recipient,
+  data-minimised, escalate on anything sensitive/negative).
 
 ---
 
-## Verification
+## TRACK A — Organic publishing
 
-1. `npm run typecheck && npm test && npm run build` + new suites green.
-2. Sandbox: pure builders + guardrails fully unit-tested (no Meta egress needed). Request
-   shapes locked against Meta's documented Marketing API v21 schemas.
-3. **Live on your own ad account (Development mode, no review):**
-   - Reconnect Meta with `ads_management` → confirm the token carries write.
-   - `plan_campaign` → `create_campaign` produces a real **PAUSED** campaign visible in Ads
-     Manager (verify structure: campaign→adset with IG placement→ad→creative).
-   - Approval flow: propose launch → APPROVE on channel → adset goes ACTIVE → confirm in Ads
-     Manager → immediately pause; verify `campaign_actions` audit + cap enforcement (try to
-     exceed the cap → blocked).
-   - `campaign_report` returns live spend/CTR after a short run.
-4. Screenshots of the created campaign + the robot's approval message sent to the operator
-   (standing visual-QA rule).
+**A1. Connector: publish layer** `connectors/metaPublish.ts` (pure builders + I/O):
+- `getPageToken(connector)` — exchange the user token for the Page token (`/me/accounts`),
+  store per-connector.
+- FB: `publishFbPost({pageId, message, link?, mediaPaths?, scheduledAt?})` → `/feed|/photos|
+  /videos` (scheduled = `published:false,scheduled_publish_time`).
+- IG: `createIgContainer({igUserId, mediaUrl, caption, kind})` → `/media`; `publishIgContainer
+  (creationId)` → `/media_publish`; carousels = children containers then a carousel parent.
+  Enforce the **25/24 h** budget + container-expiry (24 h) with a pre-check.
+- Media hosting: `hostForPublish(workspacePath)` → a public URL via the deployments/robot-file
+  layer (IG can't take a local path).
+- Reads: `pagePostInsights`, `mediaInsights` (reach/likes/comments/saves).
 
-## Money-safety invariants (must all hold, test-locked)
+**A2. Tools** `agent/tools/social.ts` (chat+code, gated on the Page/IG scopes):
+- `publish_post` — {platforms:[fb,ig], caption, media?/generate?, schedule?} → generates the
+  creative if asked, hosts media, publishes or schedules; records a `social_posts` row;
+  returns the live permalink(s). Approval-gated by default.
+- `plan_content_calendar` — brief → a dated set of post specs (hook, copy, creative brief,
+  platform, time) for approval; writes nothing.
+- `list_posts` / `post_report` — recent posts + insights (+ deterministic "what worked").
 
-1. Every created object starts **PAUSED**.
-2. `launch` / `set_budget` **require an approval** unless autopilot-within-cap is explicitly
-   enabled, and **always** enforce the spend cap.
-3. No IG placement without a linked Page + Instagram account (checked before create).
-4. Every mutation writes a `campaign_actions` row (proposed→approved→executed).
-5. The write token is never returned by any API or shown to the model.
+**A3. Content-calendar routine** — a `schedule/scheduler.ts` `social` job: on cadence, take
+the approved calendar → generate creative → publish the due post (respecting the 25/24 h cap)
+→ report. The commander lane ("post 3 times this week about X") builds the calendar → approval
+→ scheduled publishing.
 
-## Scope / cost
+## TRACK B — Community management (comments + DMs)
 
-- Phases 1–4 are the shippable robot (own-accounts, approval-gated). ~4 focused arcs.
-- App Review + Business Verification is a separate track, only for the multi-tenant/client
-  offering (Phase "go-to-market").
+This is the existing robot reply engine pointed at a **new `social` channel** — minimal new
+code, maximum reuse.
+
+**B1. Webhooks** — extend `routes/robotHooks.ts` with `POST /api/hooks/meta` (page/IG comment
++ message fields; the deletion/deauthorize verify pattern for signature). Auth-allowlisted;
+HMAC-verified with the app secret (we already have `parseSignedRequest`/HMAC helpers).
+Subscribe the Page to `feed`/`comments`/`messages` webhook fields at connect time.
+
+**B2. Channel adapter** `robots/channels/meta.ts` implementing the channel interface:
+- inbound: a new comment/DM → `ChannelInbound` → `handleChannelInbound` (persona, knowledge,
+  ask/auto, escalate). Sentiment/negativity → escalate to the owner, never auto-reply.
+- outbound `sendOnChannel`: post the reply via `/{comment-id}/replies` (IG) or
+  `/{comment-id}/comments` (FB), or the Messenger send API for DMs; hide/delete for spam.
+- Dedupe on comment/message id (the engine already does message-id dedupe).
+
+**B3. Controls** — per-robot: auto-reply on/off, "reply to questions, escalate complaints",
+hide-spam keywords, quiet hours. Every posted reply is a `robot_drafts` row (audit + thread
+memory) — the conversation-memory feature already threads by sender.
+
+## TRACK C — Paid media buying (the original plan, unchanged)
+
+**C1. Write layer** `connectors/metaCampaigns.ts` — `createCampaign/createAdSet(+IG
+placements)/createAdCreative/createAd/updateStatus/updateBudget`, `buildTargeting` (pure).
+Everything created **PAUSED**. System-user token support.
+**C2. Money guardrails + audit** — `campaign_actions` table, per-connector spend caps, pure
+`guardCampaignAction` (no launch/budget without approval + cap; no IG ad without Page+IG),
+wired into the notify/approve lane.
+**C3. Tools** `agent/tools/metaCampaigns.ts` — `plan_campaign → create_campaign (paused) →
+launch_campaign/set_budget (gated) → campaign_report (fetch_ads + optimizer suggestions)`.
+**C4. Boost** — `boost_post` turns a top organic post into a paid ad (bridges Track A→C).
+
+## SHARED — surfacing + safety
+
+- New DB: `social_posts` (org, robot, platform, object_id, permalink, status, scheduled_at,
+  insights_json) + `campaign_actions` (Track C). Metadata only.
+- Hire job `client/src/lib/robotUseCases.ts` → **`social`** ("Run your Facebook & Instagram")
+  with capability chips: post & schedule / reply to comments & DMs / run ads / weekly report;
+  group `make`, `replyTools:'commanders'`. Hire step 3 mounts Connections (Meta) + a
+  **Social settings** panel (auto-reply toggles, spend cap, approval toggle, quiet hours).
+- New `client/src/components/SocialOps.tsx` — live posts (permalink, reach, comments),
+  pending replies (approve/edit), live campaigns (status/spend/CTR, pause/approve). Reuses the
+  "Needs You" inbox pattern. Playwright-QA'd 1280+390.
+- Prompt steering (`prompts.ts`): a SOCIAL block routing post/schedule/reply/ad asks to the
+  right tools; "generate the creative, never placeholder; respect the 25/day IG cap; escalate
+  negative comments; ads created paused, launched only on approval."
+
+## Safety invariants (test-locked)
+
+1. Organic posts + comment replies are **proposed for approval** unless the per-capability
+   autopilot flag is on; negative/sensitive comments **always** escalate.
+2. Paid: every object created **PAUSED**; launch/budget require approval + enforce the cap.
+3. No IG publish/ad without a linked Page+IG; IG publish respects the 25/24 h budget.
+4. Every publish / reply / ad mutation writes an audit row.
+5. Tokens never returned by any API or shown to the model; per-org isolation.
+
+## Phasing (shippable increments)
+
+1. **Track B first** (highest value, most reuse) — comment webhooks + `meta` channel +
+   auto/ask reply. "It answers your Facebook & Instagram comments."
+2. **Track A** — `publish_post` + calendar + scheduler. "It posts for you."
+3. **Track C** — the paid campaign engine + guardrails + boost.
+4. **DMs** (`instagram_manage_messages`) + **conversions/Pixel/CAPI** — later.
+5. Multi-tenant (clients' pages) = App Review + Business Verification track.
+
+## Verification (per track)
+
+- Pure builders + guardrails + the 25/day + container-expiry checks fully unit-tested (no
+  Meta egress needed); request shapes locked to Marketing/Pages/IG Graph v21 schemas.
+- Live on your OWN Page/IG/ad account (Dev mode, no review): publish a real FB + IG post
+  (permalink verified), post a comment from a second account → webhook → the robot's reply
+  appears under it, create a PAUSED campaign → approve → goes ACTIVE → pause. Screenshots to
+  the operator (standing visual-QA rule).
