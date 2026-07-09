@@ -4,13 +4,24 @@ import { buildMetaAuthUrl, normalizeMeta } from '../src/connectors/meta';
 import { buildGoogleAuthUrl, buildGaql, normalizeGoogle } from '../src/connectors/google';
 import { buildTiktokAuthUrl, normalizeTiktok } from '../src/connectors/tiktok';
 
-test('meta: auth URL carries client_id, redirect, state, ads_read scope', () => {
+test('meta: auth URL carries client_id, redirect, state, ads_read scope (classic, no config_id)', () => {
   const u = buildMetaAuthUrl('APPID', 'STATE123', 'https://arksai.studio/api/connectors/meta/callback');
   assert.match(u, /facebook\.com/);
   assert.match(u, /client_id=APPID/);
   assert.match(u, /state=STATE123/);
   assert.match(u, /ads_read/);
+  assert.match(u, /response_type=code/);
   assert.match(u, /redirect_uri=https%3A%2F%2Farksai\.studio/);
+  assert.doesNotMatch(u, /config_id/); // classic flow: scope, not config_id
+});
+
+test('meta: with a config_id it uses Facebook Login for Business (config_id replaces scope + override flag)', () => {
+  const u = buildMetaAuthUrl('APPID', 'STATE123', 'https://arksai.studio/api/connectors/meta/callback', '2004716123621967');
+  assert.match(u, /client_id=APPID/);
+  assert.match(u, /config_id=2004716123621967/);
+  assert.match(u, /override_default_response_type=true/); // required for the code grant with config_id
+  assert.match(u, /response_type=code/);
+  assert.doesNotMatch(u, /scope=/); // the configuration defines the permissions — scope is omitted
 });
 
 test('meta: normalize flattens insights + expands actions', () => {

@@ -13,9 +13,18 @@ const num = (v: any): number | string => {
   return Number.isFinite(n) && String(v).trim() !== '' ? n : String(v);
 };
 
-/** Pure: build the Meta OAuth consent URL (unit-tested). */
-export function buildMetaAuthUrl(clientId: string, state: string, redirectUri: string): string {
-  const p = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, state, response_type: 'code', scope: SCOPES });
+/** Pure: build the Meta OAuth consent URL (unit-tested).
+ *  With a Facebook-Login-for-Business `configId`, the configuration itself defines the requested
+ *  permissions/assets, so `config_id` REPLACES `scope` and `override_default_response_type=true`
+ *  is required to force the authorization-code grant (verified against developers.facebook.com). */
+export function buildMetaAuthUrl(clientId: string, state: string, redirectUri: string, configId?: string): string {
+  const p = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, state, response_type: 'code' });
+  if (configId) {
+    p.set('config_id', configId);
+    p.set('override_default_response_type', 'true');
+  } else {
+    p.set('scope', SCOPES);
+  }
   return `https://www.facebook.com/${V}/dialog/oauth?${p}`;
 }
 
@@ -39,7 +48,7 @@ export function normalizeMeta(data: any[]): AdsRow[] {
 export const metaAdapter: Adapter = {
   provider: 'meta',
   available: () => !!(config.metaAppId && config.metaAppSecret),
-  authUrl: (state, redirectUri) => buildMetaAuthUrl(config.metaAppId, state, redirectUri),
+  authUrl: (state, redirectUri) => buildMetaAuthUrl(config.metaAppId, state, redirectUri, config.metaConfigId || undefined),
 
   async exchangeCode(code, redirectUri): Promise<TokenSet> {
     // 1) code → short-lived token

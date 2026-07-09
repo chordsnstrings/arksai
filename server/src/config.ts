@@ -208,8 +208,14 @@ export const config = {
   walletEnforce: process.env.WALLET_ENFORCE === 'true',
   walletLowUsd: Number(process.env.WALLET_LOW_USD || '2') || 2,
   // Ad-platform connector apps (each connector lights up only when its creds are set).
-  metaAppId: process.env.META_APP_ID || '',
+  // Meta: app_id + the Facebook-Login-for-Business configuration id are NOT secrets (the app_id
+  // is public; the config_id just references a permissions/assets bundle) — baked as defaults so
+  // the connector is wired without touching .env; META_APP_ID / META_CONFIG_ID override them.
+  // The app SECRET is the only real credential and stays env-only (empty until set).
+  metaAppId: process.env.META_APP_ID || '980303688203652',
   metaAppSecret: process.env.META_APP_SECRET || '',
+  // When set, the OAuth authorize URL uses config_id (Facebook Login for Business) instead of scope.
+  metaConfigId: process.env.META_CONFIG_ID || '2004716123621967',
   googleAdsClientId: process.env.GOOGLE_ADS_CLIENT_ID || '',
   googleAdsClientSecret: process.env.GOOGLE_ADS_CLIENT_SECRET || '',
   googleAdsDeveloperToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN || '',
