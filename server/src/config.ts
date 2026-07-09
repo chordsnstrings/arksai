@@ -188,9 +188,11 @@ export const config = {
   // so we never hand out a non-resolving URL. Empty = path-based (always works).
   appsSubdomainBase: (process.env.APPS_SUBDOMAIN_BASE || '').trim().replace(/^\.+|\/+$/g, ''),
   // Key used to encrypt connector OAuth tokens at rest (AES-256-GCM). Any string;
-  // it's hashed to 32 bytes. MUST be set in production — without it connectors are
-  // disabled so tokens are never stored in plaintext.
-  connectorEncKey: process.env.CONNECTOR_ENC_KEY || '',
+  // it's hashed to 32 bytes. Falls back to ENCRYPTION_KEY / APP_PASSWORD (the same at-rest key
+  // the rest of the app uses) so connectors work without a dedicated env var — set a distinct
+  // CONNECTOR_ENC_KEY only to rotate connector-token encryption independently. Empty → connectors
+  // stay disabled (tokens are never stored in plaintext).
+  connectorEncKey: process.env.CONNECTOR_ENC_KEY || process.env.ENCRYPTION_KEY || process.env.APP_PASSWORD || '',
   // GitHub OAuth App — lets a user connect their own GitHub account and pick a repo to push
   // generated code to (per-user; tokens encrypted at rest via connectorEncKey). Dormant until
   // both creds are set + connectorEncKey. Callback: <publicBaseUrl>/api/github/callback.

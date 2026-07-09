@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMetaAuthUrl, normalizeMeta } from '../src/connectors/meta';
+import { buildMetaAuthUrl, normalizeMeta, metaAdapter } from '../src/connectors/meta';
+import { __setMetaSecretForTest } from '../src/connectors/metaRuntime';
 import { buildGoogleAuthUrl, buildGaql, normalizeGoogle } from '../src/connectors/google';
 import { buildTiktokAuthUrl, normalizeTiktok } from '../src/connectors/tiktok';
 
@@ -22,6 +23,14 @@ test('meta: with a config_id it uses Facebook Login for Business (config_id repl
   assert.match(u, /override_default_response_type=true/); // required for the code grant with config_id
   assert.match(u, /response_type=code/);
   assert.doesNotMatch(u, /scope=/); // the configuration defines the permissions — scope is omitted
+});
+
+test('meta: connector availability tracks the runtime app secret (env-less activation path)', () => {
+  __setMetaSecretForTest(''); // no secret → not available even though app_id is baked in config
+  assert.equal(metaAdapter.available(), false);
+  __setMetaSecretForTest('a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6'); // dummy — NEVER the real secret in the repo
+  assert.equal(metaAdapter.available(), true);
+  __setMetaSecretForTest(''); // reset for other tests
 });
 
 test('meta: normalize flattens insights + expands actions', () => {

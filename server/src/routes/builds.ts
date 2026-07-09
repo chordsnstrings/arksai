@@ -18,6 +18,8 @@ import {
 } from '../build/androidBuild';
 import { setBuildToken, setSnapshotId, doToken, snapshotId } from '../build/runtime';
 import { setByteplusKey, byteplusConfigured } from '../agent/byteplusRuntime';
+import { setMetaAppSecret, metaSecretConfigured } from '../connectors/metaRuntime';
+import { providerAvailable } from '../connectors';
 import { setMinimaxGroupId, minimaxGroupId } from '../engines/minimaxRuntime';
 import { setPexelsKey, pexelsKey } from '../agent/assets/photos';
 import { ttsAvailable } from '../engines/minimax';
@@ -103,6 +105,18 @@ export function registerBuildRoutes(app: FastifyInstance) {
     return { ok: true, configured: !!doToken() };
   });
 
+  // Operator only: store the Meta app SECRET (encrypted at rest, no SSH/redeploy) to activate the
+  // Meta ads connector. The app_id + Facebook-Login-for-Business config_id are non-secret and baked
+  // in config; only the secret lands here. providerAvailable also needs the connector encryption key
+  // (falls back to APP_PASSWORD), so this flips the connector fully on.
+  app.post('/api/admin/providers/meta', async (req, reply) => {
+    if (!req.identity?.isSuperadmin) return reply.code(403).send({ error: 'Forbidden' });
+    const secret = String((req.body as any)?.appSecret || '').trim();
+    if (!/^[a-f0-9]{16,}$/i.test(secret)) return reply.code(400).send({ error: 'Provide the Meta app secret (hex string from App Dashboard → Settings → Basic).' });
+    await setMetaAppSecret(secret);
+    return { ok: true, configured: metaSecretConfigured(), available: providerAvailable('meta') };
+  });
+
   // Operator only: read the configured-status of platform provider keys (NO secret values) +
   // the protected master droplet, so the admin UI can show what's set and what's locked.
   app.get('/api/admin/providers', async (req, reply) => {
@@ -112,6 +126,7 @@ export function registerBuildRoutes(app: FastifyInstance) {
       digitalocean: { label: 'DigitalOcean API', configured: !!doToken() },
       minimaxGroup: { label: 'MiniMax voice (T2A GroupId)', configured: !!minimaxGroupId(), ttsAvailable: ttsAvailable() },
       pexels: { label: 'Pexels stock photos/footage', configured: !!pexelsKey() },
+      meta: { label: 'Meta ads connector (app secret)', configured: metaSecretConfigured(), available: providerAvailable('meta') },
       protected: { masterDropletId: config.masterDropletId, masterDropletName: config.masterDropletName },
     };
   });

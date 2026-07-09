@@ -1,4 +1,5 @@
 import { config } from '../config';
+import { metaAppSecret } from './metaRuntime';
 import type { Adapter, AdsRow, Connector, ReportParams, TokenSet } from './types';
 
 // Graph/Marketing API version. Verify + bump against the live changelog at setup time.
@@ -47,16 +48,16 @@ export function normalizeMeta(data: any[]): AdsRow[] {
 
 export const metaAdapter: Adapter = {
   provider: 'meta',
-  available: () => !!(config.metaAppId && config.metaAppSecret),
+  available: () => !!(config.metaAppId && metaAppSecret()),
   authUrl: (state, redirectUri) => buildMetaAuthUrl(config.metaAppId, state, redirectUri, config.metaConfigId || undefined),
 
   async exchangeCode(code, redirectUri): Promise<TokenSet> {
     // 1) code → short-lived token
-    const t = new URLSearchParams({ client_id: config.metaAppId, client_secret: config.metaAppSecret, redirect_uri: redirectUri, code });
+    const t = new URLSearchParams({ client_id: config.metaAppId, client_secret: metaAppSecret(), redirect_uri: redirectUri, code });
     const r1: any = await (await fetch(`${GRAPH}/oauth/access_token?${t}`)).json();
     if (!r1.access_token) throw new Error(`Meta token exchange failed: ${JSON.stringify(r1).slice(0, 200)}`);
     // 2) short → long-lived (~60d)
-    const ex = new URLSearchParams({ grant_type: 'fb_exchange_token', client_id: config.metaAppId, client_secret: config.metaAppSecret, fb_exchange_token: r1.access_token });
+    const ex = new URLSearchParams({ grant_type: 'fb_exchange_token', client_id: config.metaAppId, client_secret: metaAppSecret(), fb_exchange_token: r1.access_token });
     const r2: any = await (await fetch(`${GRAPH}/oauth/access_token?${ex}`)).json();
     const access = r2.access_token || r1.access_token;
     const expiresIn = Number(r2.expires_in || r1.expires_in || 0);
@@ -68,7 +69,7 @@ export const metaAdapter: Adapter = {
 
   // Meta has no refresh token; re-extend the long-lived token via fb_exchange_token.
   async refresh(currentAccess): Promise<TokenSet> {
-    const ex = new URLSearchParams({ grant_type: 'fb_exchange_token', client_id: config.metaAppId, client_secret: config.metaAppSecret, fb_exchange_token: currentAccess });
+    const ex = new URLSearchParams({ grant_type: 'fb_exchange_token', client_id: config.metaAppId, client_secret: metaAppSecret(), fb_exchange_token: currentAccess });
     const r: any = await (await fetch(`${GRAPH}/oauth/access_token?${ex}`)).json();
     if (!r.access_token) throw new Error('Meta token re-extend failed');
     return { accessToken: r.access_token, refreshToken: null, expiresAt: r.expires_in ? Date.now() + r.expires_in * 1000 : null };
