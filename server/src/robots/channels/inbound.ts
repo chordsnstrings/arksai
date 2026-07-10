@@ -139,9 +139,31 @@ export async function handleChannelInbound(
     let outcome;
     try {
       const rules = await listActiveRules(robot.id).catch(() => []);
-      const extras = await replyExtrasFor(robot, robot.orgId, retrievalText, { channel: kind, fromAddr: msg.from }).catch(
+      const extras: any = await replyExtrasFor(robot, robot.orgId, retrievalText, { channel: kind, fromAddr: msg.from }).catch(
         () => ({}),
       );
+      // AD ATTRIBUTION (campaign bot): a comment/DM that came from a managed ad answers with
+      // that campaign's own instructions — the offer, the CTA nudge, the do-not-say list.
+      if (msg.adId || msg.postId) {
+        try {
+          const { campaignForAdOrPost } = await import('../socialCampaigns');
+          const hit = await campaignForAdOrPost({ adId: msg.adId, postId: msg.postId });
+          if (hit) {
+            const es = hit.campaign.engageSpecifics ?? {};
+            const brief = hit.campaign.brief;
+            const adCtx = [
+              `AD CONTEXT: this person is responding to the ad campaign "${hit.campaign.name}" (goal: ${hit.campaign.objective}). Answer their question, then guide them toward the campaign goal.`,
+              es.say ? `Emphasise: ${es.say}` : '',
+              es.doNotSay ? `Never say: ${es.doNotSay}` : '',
+              es.escalateIf ? `Escalate to the owner if: ${es.escalateIf}` : '',
+              brief?.cta || brief?.destination ? `Call to action: ${[brief?.cta, brief?.destination].filter(Boolean).join(' → ')}` : '',
+            ].filter(Boolean).join('\n');
+            extras.knowledgeSnippets = [...(extras.knowledgeSnippets ?? []), adCtx];
+          }
+        } catch {
+          /* attribution is best-effort — the normal KB reply stands */
+        }
+      }
       outcome = await draftReplyWithActions(robot, toInboxMessage(msg), ac.signal, rules, {
         ...extras,
         channel: kind,

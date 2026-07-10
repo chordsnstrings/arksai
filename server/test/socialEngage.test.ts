@@ -127,3 +127,46 @@ test('meta webhook: parses an Instagram Direct message', () => {
   assert.equal(rows[0].from, 'ig_dm:IGSID7');
   assert.equal(rows[0].id, 'IGMID1');
 });
+
+test('ad→DM attribution: a click-to-message referral carries ad_id + post_id', () => {
+  const entry = {
+    id: 'PAGE1',
+    messaging: [{
+      sender: { id: 'PSID9' }, recipient: { id: 'PAGE1' }, timestamp: 1_700_000_000_000,
+      message: {
+        mid: 'MID-AD', text: 'saw your ad — how much?',
+        referral: { source: 'ADS', type: 'OPEN_THREAD', ad_id: 'AD123', ads_context_data: { ad_title: 'Promo', post_id: 'PG_555' } },
+      },
+    }],
+  };
+  const rows = parseMetaEntry('page', entry, new Set(['PAGE1']));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].adId, 'AD123');
+  assert.equal(rows[0].postId, 'PG_555');
+  // Organic DMs carry no attribution.
+  const organic = parseMetaEntry('page', { id: 'PAGE1', messaging: [{ sender: { id: 'P2' }, message: { mid: 'M2', text: 'hi' } }] }, new Set(['PAGE1']));
+  assert.equal(organic[0].adId, undefined);
+});
+
+test('comment attribution: FB post_id + IG media id are captured', () => {
+  const fb = parseMetaEntry('page', {
+    id: 'PAGE1',
+    changes: [{ field: 'feed', value: { item: 'comment', verb: 'add', comment_id: 'C9', message: 'price?', from: { id: 'U1' }, post_id: 'PG_555' } }],
+  }, new Set(['PAGE1']));
+  assert.equal(fb[0].postId, 'PG_555');
+  const ig = parseMetaEntry('instagram', {
+    id: 'IG1',
+    changes: [{ field: 'comments', value: { id: 'IGC9', text: 'nice', from: { id: 'U2', username: 'u2' }, media: { id: 'MEDIA7' } } }],
+  }, new Set(['IG1']));
+  assert.equal(ig[0].postId, 'MEDIA7');
+});
+
+test('leadFieldsToRecord flattens Meta field_data', async () => {
+  const { leadFieldsToRecord } = await import('../src/routes/metaHooks');
+  const rec = leadFieldsToRecord([
+    { name: 'full_name', values: ['Sara K'] },
+    { name: 'phone_number', values: ['+97150', '+97155'] },
+    { name: '', values: ['ignored'] },
+  ]);
+  assert.deepEqual(rec, { full_name: 'Sara K', phone_number: '+97150, +97155' });
+});

@@ -19,6 +19,11 @@ export interface ChannelInbound {
   ts: number;
   /** Media the sender attached (downloaded to temp; the handler describes + cleans up). */
   attachments?: InboundAttachment[];
+  /** Meta ad attribution: a DM opened from a click-to-message ad carries referral.ad_id;
+   *  a comment carries its post id. The reply engine uses these to answer with the ad's
+   *  campaign-specific instructions (offer, CTA, do-not-say). */
+  adId?: string;
+  postId?: string;
 }
 
 /** The decrypted secret set for a channel (kind-specific keys; never leaves the server). */

@@ -119,7 +119,7 @@ export function SocialSettings({ orgId, robotId }: { orgId: string; robotId: str
           <button className="soc-btn ghost" disabled={busy === 'test' || !channel} onClick={testChannel}>{busy === 'test' ? 'Testing…' : 'Test connection'}</button>
         </div>
         {msg && <p className={`soc-msg ${msg.ok ? 'ok' : 'bad'}`}>{msg.text}</p>}
-        <p className="soc-hook">In the Meta App Dashboard, set the webhook callback URL to <code>{hookUrl}</code> and subscribe the Page to <code>feed</code>, <code>comments</code> and <code>messages</code>, using the verify token above.</p>
+        <p className="soc-hook">In the Meta App Dashboard, set the webhook callback URL to <code>{hookUrl}</code> and subscribe the Page to <code>feed</code>, <code>comments</code>, <code>messages</code>, <code>messaging_referrals</code> (ad→DM attribution) and <code>leadgen</code> (Instant-Form leads), using the verify token above.</p>
       </section>
     </div>
   );
