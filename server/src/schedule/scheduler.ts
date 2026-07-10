@@ -230,6 +230,15 @@ export async function tick(now = Date.now()) {
   } catch (e) {
     console.error('[schedule] social publish tick failed:', e);
   }
+  // Campaign bot: the 48h rebalance loop (status poll → pause losers → rotate fresh creatives
+  // → budget/lifecycle), lease-guarded per campaign.
+  try {
+    const { optimizeDueCampaigns } = await import('../robots/socialCampaigns');
+    const n = await optimizeDueCampaigns(now);
+    if (n) console.log(`[schedule] optimised ${n} managed campaign(s)`);
+  } catch (e) {
+    console.error('[schedule] campaign optimise tick failed:', e);
+  }
   let due: any[] = [];
   try {
     due = await q(`SELECT * FROM schedules WHERE enabled=1 AND next_run_at <= $1`, [now]);

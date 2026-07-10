@@ -597,3 +597,237 @@ export async function pauseManagedCampaign(campaignId: string, reason: string): 
 // mintRobotFileToken + uploadVideoRequest are used by the agent-driven video-pool path
 // (videos join the pool via public URLs); referenced here so the wiring stays in one module.
 export const __videoPoolHelpers = { mintRobotFileToken, uploadVideoRequest };
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// OPTIMISE LOOP (Phase 5) — every 48h per active campaign: status-poll → significance-gated
+// pause/rotate decisions → CBO-friendly budget behaviour → lifecycle. Pure decisions first.
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+export interface AdMetrics {
+  adId: string;
+  spend: number;
+  impressions: number;
+  ctr: number; // %
+  frequency: number;
+  results: number;
+  costPerResult: number | null;
+}
+
+export interface OptimizeDecision {
+  /** Ads to pause, with the plain-English reason. NEVER empties a campaign. */
+  pause: { adId: string; reason: string }[];
+  /** True → rebuild the Dynamic Creative ad with fresh pool creatives. */
+  rotate: boolean;
+  notes: string[];
+}
+
+/** Pure, unit-tested: the 48h rebalance decision. Significance-gated (never judges noise or
+ *  ads still in learning), pauses ADS not ad sets (no learning resets — CBO shifts budget),
+ *  and flags fatigue (freq>3.5 + weak CTR) for rotation. */
+export function decideOptimizations(
+  ads: AdMetrics[],
+  opts: { minSpendUsd?: number; minImpressions?: number } = {},
+): OptimizeDecision {
+  const minSpend = opts.minSpendUsd ?? 5;
+  const minImp = opts.minImpressions ?? 1000;
+  const out: OptimizeDecision = { pause: [], rotate: false, notes: [] };
+  const judged = ads.filter((a) => a.spend >= minSpend && a.impressions >= minImp);
+  const skipped = ads.length - judged.length;
+  if (skipped > 0) out.notes.push(`${skipped} ad(s) below the significance floor ($${minSpend}/${minImp} imp) — left to learn.`);
+  if (judged.length === 0) return out;
+
+  // Losers: clear cost-per-result laggards vs the best performer (needs ≥2 judged ads).
+  const withResults = judged.filter((a) => a.results > 0 && a.costPerResult != null);
+  if (withResults.length >= 2) {
+    const best = Math.min(...withResults.map((a) => a.costPerResult!));
+    for (const a of withResults) {
+      if (a.costPerResult! > best * 2.5) out.pause.push({ adId: a.adId, reason: `cost/result $${a.costPerResult} vs best $${best}` });
+    }
+  } else if (judged.length >= 2 && withResults.length === 0) {
+    // No results anywhere: pause only a CTR collapse vs a working sibling.
+    const bestCtr = Math.max(...judged.map((a) => a.ctr));
+    if (bestCtr >= 1) {
+      for (const a of judged) {
+        if (a.ctr < 0.4) out.pause.push({ adId: a.adId, reason: `CTR ${a.ctr}% vs best ${bestCtr}%` });
+      }
+    }
+  }
+
+  // Fatigue → rotation (fresh creatives), even when nothing is paused.
+  const fatigued = judged.filter((a) => a.frequency > 3.5 && a.ctr < 0.8);
+  if (fatigued.length) {
+    out.rotate = true;
+    out.notes.push(`${fatigued.length} ad(s) fatigued (frequency >3.5, weak CTR) — rotating fresh creatives.`);
+  }
+  if (out.pause.length) out.rotate = true;
+
+  // Never pause everything — a campaign must keep at least one live ad.
+  if (out.pause.length >= ads.length) {
+    out.pause = out.pause.slice(0, ads.length - 1);
+    out.notes.push('kept one ad live (never empty the campaign)');
+  }
+  return out;
+}
+
+/** Per-ad insights for OUR ads (last 7 days) via the Graph batch path. */
+async function fetchAdMetrics(token: string, accountId: string, adIds: string[]): Promise<AdMetrics[]> {
+  if (!adIds.length) return [];
+  const { graphGet } = await import('../connectors/metaCampaigns');
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  const until = new Date(Date.now() - 0).toISOString().slice(0, 10);
+  const acct = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+  const qstr = `${acct}/insights?level=ad&fields=ad_id,spend,impressions,clicks,ctr,frequency,actions&time_range=${encodeURIComponent(JSON.stringify({ since, until }))}&limit=200`;
+  const data = await graphGet(qstr, token);
+  const rows: any[] = Array.isArray(data?.data) ? data.data : [];
+  const mine = new Set(adIds);
+  return rows
+    .filter((r) => mine.has(String(r.ad_id)))
+    .map((r) => {
+      const spend = Number(r.spend) || 0;
+      const results = (Array.isArray(r.actions) ? r.actions : [])
+        .filter((a: any) => /lead|purchase|messaging_conversation_started/i.test(String(a.action_type)))
+        .reduce((s: number, a: any) => s + (Number(a.value) || 0), 0);
+      return {
+        adId: String(r.ad_id),
+        spend,
+        impressions: Number(r.impressions) || 0,
+        ctr: Number(r.ctr) || 0,
+        frequency: Number(r.frequency) || 0,
+        results,
+        costPerResult: results ? Math.round((spend / results) * 100) / 100 : null,
+      };
+    });
+}
+
+/** One campaign's optimise pass. Exported for tests via the early-return paths. */
+export async function optimizeCampaign(rec: SocialCampaign, now: number): Promise<string> {
+  const ad = await resolveAdCreds(rec.orgId);
+  if (!ad) {
+    // Best-effort Meta-side pause; ALWAYS mark paused + stamp the bookkeeping locally so a
+    // dead campaign can't spin the tick forever.
+    await pauseManagedCampaign(rec.id, 'Meta connection lost — re-authorize in Settings → Connections').catch(() => {});
+    await updateCampaignRecord(rec.id, { status: 'paused', lastOptimizedAt: now, leaseUntil: null });
+    return 'connection lost → paused';
+  }
+  const notes: string[] = [];
+  const ads = await listCampaignAds(rec.id, true);
+  const pool = [...rec.creativePool];
+
+  // 1) Review/rejection poll — a DISAPPROVED ad is dead weight; swap it out.
+  try {
+    const { fetchAdStatuses } = await import('../connectors/metaCampaigns');
+    const statuses = await fetchAdStatuses(ad.accessToken, ads.map((a) => a.adId));
+    for (const a of ads) {
+      const st = statuses[a.adId];
+      if (!st) continue;
+      await setAdState(a.adId, { effectiveStatus: st.effectiveStatus, postId: st.postId });
+      if (st.effectiveStatus === 'DISAPPROVED' || st.effectiveStatus === 'WITH_ISSUES') {
+        a.live = false;
+        await setAdState(a.adId, { live: false });
+        notes.push(`ad ${a.adId} ${st.effectiveStatus.toLowerCase()}${st.reviewFeedback ? ` (${st.reviewFeedback.slice(0, 120)})` : ''} — replacing`);
+      }
+    }
+  } catch (e: any) {
+    notes.push(`status poll failed: ${e?.message ?? e}`);
+  }
+
+  // 2) Performance decisions (significance-gated).
+  let decision: OptimizeDecision = { pause: [], rotate: false, notes: [] };
+  try {
+    const liveIds = ads.filter((a) => a.live).map((a) => a.adId);
+    const metrics = await fetchAdMetrics(ad.accessToken, ad.accountId, liveIds);
+    // Spend tracking + lifecycle first.
+    const spent = Math.round(metrics.reduce((s, m) => s + m.spend, 0) * 100) / 100;
+    if (spent > 0) await updateCampaignRecord(rec.id, { spentUsd: Math.max(rec.spentUsd, spent) });
+    if (rec.totalCapUsd && Math.max(rec.spentUsd, spent) >= rec.totalCapUsd) {
+      await pauseManagedCampaign(rec.id, `total budget $${rec.totalCapUsd} reached`);
+      await updateCampaignRecord(rec.id, { status: 'completed' });
+      return 'total budget reached → completed';
+    }
+    if (rec.endAt && now >= rec.endAt) {
+      await pauseManagedCampaign(rec.id, 'scheduled end date reached');
+      await updateCampaignRecord(rec.id, { status: 'completed' });
+      return 'end date reached → completed';
+    }
+    decision = decideOptimizations(metrics);
+    notes.push(...decision.notes);
+    for (const p of decision.pause) {
+      const u = updateStatusRequest(p.adId, 'PAUSED');
+      await graphPost(u.url, ad.accessToken, u.body).catch(() => {});
+      await setAdState(p.adId, { live: false });
+      pool.forEach((c) => { if (c.adId === p.adId) c.live = false; });
+      notes.push(`paused ${p.adId}: ${p.reason}`);
+      await recordCampaignAction({ orgId: rec.orgId, robotId: rec.robotId, action: 'pause', objectIds: JSON.stringify({ adId: p.adId }), status: 'executed', detail: p.reason });
+    }
+  } catch (e: any) {
+    notes.push(`insights failed: ${e?.message ?? e}`);
+  }
+
+  // 3) Rotation — rebuild the DCO ad on each ad set with fresh (never-used) hashed creatives.
+  const needsRotation = decision.rotate || ads.some((a) => !a.live);
+  if (needsRotation) {
+    const social = await resolveSocialCreds(rec.orgId);
+    const fresh = pool.filter((c) => c.imageHash && !c.used);
+    if (!social?.pageId) {
+      notes.push('rotation skipped: Page connection missing');
+    } else if (!fresh.length) {
+      notes.push('pool exhausted — no fresh creatives to rotate in (generate more via the campaign brief)');
+    } else {
+      for (const adsetId of rec.adsetIds) {
+        const slice = fresh.splice(0, 8);
+        if (!slice.length) break;
+        try {
+          const heads = [...new Set(slice.map((c) => c.headline).filter(Boolean))].slice(0, 5) as string[];
+          const bodies = [...new Set(slice.map((c) => c.body).filter(Boolean))].slice(0, 5) as string[];
+          const funnel = (rec.funnel ?? {}) as any;
+          const cr = dynamicCreativeRequest(ad.accountId, {
+            name: `${rec.name} — refresh ${new Date(now).toISOString().slice(0, 10)}`,
+            pageId: social.pageId, instagramActorId: social.igUserId || undefined,
+            feed: {
+              imageHashes: slice.map((c) => c.imageHash!),
+              bodies: bodies.length ? bodies : [rec.brief?.product ?? rec.name],
+              titles: heads.length ? heads : [rec.brief?.product ?? rec.name],
+              linkUrl: rec.brief?.destination && /^https?:\/\//.test(rec.brief.destination) ? rec.brief.destination : config.publicBaseUrl,
+              cta: typeof funnel.cta === 'string' ? funnel.cta : 'LEARN_MORE',
+            },
+          });
+          const creative = await graphPost(cr.url, ad.accessToken, cr.body);
+          const na = createAdRequest(ad.accountId, { name: `${rec.name} — rotated ad`, adSetId: adsetId, creativeId: String(creative.id) });
+          const newAd = await graphPost(na.url, ad.accessToken, na.body);
+          const act = updateStatusRequest(String(newAd.id), 'ACTIVE');
+          await graphPost(act.url, ad.accessToken, act.body).catch(() => {});
+          await recordCampaignAd({ orgId: rec.orgId, campaignId: rec.id, adId: String(newAd.id), adsetId, creativeRef: slice.map((c) => c.ref).join(',') });
+          slice.forEach((c) => { c.used = true; c.live = true; c.adId = String(newAd.id); });
+          notes.push(`rotated ${slice.length} fresh creative(s) into ad set ${adsetId}`);
+        } catch (e: any) {
+          notes.push(`rotation on ${adsetId} failed: ${e?.message ?? e}`);
+        }
+      }
+    }
+  }
+
+  const summary = notes.length ? notes.join('; ') : 'healthy — no changes needed';
+  await updateCampaignRecord(rec.id, {
+    creativePool: pool, lastOptimizedAt: now, leaseUntil: null,
+    funnel: { ...(rec.funnel ?? {}), lastOptimizeNote: summary, lastOptimizeAt: now },
+  });
+  return summary;
+}
+
+/** Scheduler entry point (next to publishDueSocialPosts): optimise every due campaign. */
+export async function optimizeDueCampaigns(now = Date.now()): Promise<number> {
+  let n = 0;
+  const due = await dueForOptimize(now).catch(() => [] as SocialCampaign[]);
+  for (const rec of due) {
+    if (!(await acquireCampaignLease(rec.id, now))) continue;
+    try {
+      const summary = await optimizeCampaign(rec, now);
+      console.log(`[campaign-bot] optimised "${rec.name}": ${summary}`);
+      n++;
+    } catch (e: any) {
+      console.error(`[campaign-bot] optimise ${rec.id} failed:`, e?.message ?? e);
+      await updateCampaignRecord(rec.id, { lastOptimizedAt: now, leaseUntil: null }).catch(() => {});
+    }
+  }
+  return n;
+}
