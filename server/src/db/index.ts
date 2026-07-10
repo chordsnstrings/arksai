@@ -432,6 +432,72 @@ async function migrate() {
     updated_at ${INT} NOT NULL
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_campaign_actions_org ON campaign_actions(org_id, status, created_at)`);
+
+  // Campaign bot — a MANAGED campaign's durable record: the brief, funnel, budget model +
+  // caps + cumulative spend, the Meta object ids, the rotating creative pool, the per-campaign
+  // reply instructions, and the 48h-optimise bookkeeping (last_optimized_at + lease).
+  await q(`CREATE TABLE IF NOT EXISTS social_campaigns(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    robot_id TEXT,
+    connector_id TEXT,
+    name TEXT NOT NULL,
+    brief TEXT,
+    objective TEXT NOT NULL,
+    funnel TEXT,
+    budget_model TEXT NOT NULL DEFAULT 'daily',
+    daily_cap_usd ${REAL},
+    total_cap_usd ${REAL},
+    spent_usd ${REAL} NOT NULL DEFAULT 0,
+    start_at ${INT},
+    end_at ${INT},
+    meta_campaign_id TEXT,
+    adset_ids TEXT,
+    form_id TEXT,
+    creative_pool TEXT,
+    engage_specifics TEXT,
+    status TEXT NOT NULL,
+    last_optimized_at ${INT},
+    lease_until ${INT},
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_social_campaigns_org ON social_campaigns(org_id, status)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_social_campaigns_opt ON social_campaigns(status, last_optimized_at)`);
+
+  // The ad_id/post_id → managed-campaign map: powers ad→comment/DM attribution (Loop 2) and
+  // the per-ad status/rotation bookkeeping (Loop 1).
+  await q(`CREATE TABLE IF NOT EXISTS campaign_ads(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    ad_id TEXT NOT NULL,
+    adset_id TEXT,
+    post_id TEXT,
+    creative_ref TEXT,
+    effective_status TEXT,
+    live ${INT} NOT NULL DEFAULT 1,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_campaign_ads_c ON campaign_ads(campaign_id)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_campaign_ads_ad ON campaign_ads(ad_id)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_campaign_ads_post ON campaign_ads(post_id)`);
+
+  // Lead Ads capture (leadgen webhook → fetched fields). Metadata + the submitted form fields
+  // (the user explicitly asked for them to be delivered — they are the product here).
+  await q(`CREATE TABLE IF NOT EXISTS social_leads(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    campaign_id TEXT,
+    leadgen_id TEXT NOT NULL,
+    form_id TEXT,
+    ad_id TEXT,
+    fields TEXT,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_social_leads_lg ON social_leads(leadgen_id)`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_social_leads_org ON social_leads(org_id, created_at)`);
   // Reusable org-level personas a robot can speak as (picked via robot config.personaId).
   await q(`CREATE TABLE IF NOT EXISTS robot_personas(
     id TEXT PRIMARY KEY,
