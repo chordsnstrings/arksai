@@ -1,15 +1,19 @@
 # CAMPAIGN CRAFT — funnels, neuromarketing & copy science → encodable rules
 
-Research distillation for the Campaign bot's "brain" (deep-research run 2026-07-10: 5 search
-angles → 22 sources → 88 extracted claims → 3-vote adversarial verification). Every rule below
-is tagged with its evidence level:
+Research distillation for the Campaign bot's "brain" (deep-research run 2026-07-10, completed
+in full: 5 search angles → 22 sources → 88 extracted claims → 3-vote adversarial verification
+→ 21 confirmed / 4 refuted / 0 unverified → 12 merged findings). Every rule below is tagged:
 
-- **[VERIFIED]** — survived 3-0 adversarial verification against the primary source.
-- **[META]** — quotes a peer-reviewed meta-analysis verbatim (verification pass was cut short
-  by a usage limit, but the quote↔source linkage was checked at extraction).
+- **[VERIFIED]** — survived unanimous adversarial verification against the primary source
+  (votes 3-0 up to 9-0 on merged claims).
 - **[PRACTITIONER]** — named practitioner/platform source (Motion 550k-ad study, PPC Hero,
   Stackmatix, Adyogi portfolio, CXL/Unbounce), plausible but not academically controlled.
-- **[REFUTED]** — killed in verification; listed so we never encode it.
+- **[REFUTED]** — killed 0-3 in verification; listed so we never encode it.
+
+**The meta-lesson from verification itself:** every blanket/universal rule that was tested got
+killed (vertical-agnostic gates, "always demand-framed scarcity", "loss framing always wins"),
+while every CONDITIONAL if/then rule survived. The brain must be a table of moderated rules
+keyed to vertical + product type, not universal constants.
 
 House rule (same as MOTION_CRAFT/SCRIPT_CRAFT): the MODEL composes within these rules; the
 ENGINE enforces them deterministically — benchmarks, checklists and bans live in code, not in
@@ -47,13 +51,23 @@ prompt vibes.
   delivery on a handful of SKUs. [PRACTITIONER, Adyogi 350-brand portfolio]
 - **Cost climate:** CPL rose ~21% YoY to $27.66 avg and 80% of industries saw CVR declines
   (competition + privacy + inflation) — rising CPL is the WEATHER, not necessarily campaign
-  failure; judge vs vertical benchmarks and own history, not vs last month alone. [VERIFIED]
+  failure; judge vs vertical benchmarks and own history, not vs last month alone. Verifier
+  refinement: a separate global tracker showed CPL roughly FLAT into early 2026, and some
+  verticals bucked the trend hard (restaurants CPL −93%) — encode as "expect drift,
+  recalibrate the priors quarterly", NOT "assume perpetual rises". [VERIFIED 3-0]
+- **Channel intent is a funnel-stage variable:** Amazon's ~11% CVR vs Meta's ~1.2–1.5%
+  purchase-CVR reflects arrival intent (BOFU vs intent-creation), not platform quality —
+  never compare CVRs across channels directly. [VERIFIED 3-0, medium confidence —
+  single-vendor panel]
 
 ## 2. Vertical benchmarks (the per-industry priors)
 
 WordStream/LocaliQ 2025 (MEDIANS, 726 US leads + 554 traffic campaigns, Apr 2024–Jun 2025 —
-small per-vertical samples, so encode as **soft priors, not hard gates** [VERIFIED incl. the
-methodology caveat]):
+small per-vertical samples with real volatility [restaurants CVR jumped ~341% YoY], so encode
+exact values as **noisy soft priors**; the ~24× CROSS-VERTICAL SPREAD itself is the stable,
+load-bearing fact. Two more verifier caveats: the 7.72% leads "CVR" is a FORM-COMPLETION
+rate (lead QUALITY declined ~11% YoY — the report bot should say so), and the sample skews
+US SMB. [VERIFIED 6-0 incl. methodology caveats]):
 
 | Vertical (leads objective) | CTR | CPC | CVR | CPL |
 |---|---|---|---|---|
@@ -80,28 +94,41 @@ HVAC ~$92, healthcare ~$361, real estate ~$448, legal ~$649, financial services 
 SaaS ~$237, higher-ed ~$982 per lead. Use only to SET USER EXPECTATIONS in the brief UI, not
 as optimizer gates. [PRACTITIONER]
 
-E-commerce (Triple Whale, ~33–35k DTC brands, $18.4B spend): per-vertical spreads are real
-(apparel CVR 1.46/ROAS 2.18 · electronics 1.20/1.92 · automotive 1.30/2.54) [VERIFIED], but
-the "global CPA $38.19 / ROAS 1.86" single-row claim FAILED verification — treat Triple
-Whale's global row as disputed; use their per-vertical rows only. [REFUTED: the global-row
-claim; also refuted: "Meta grew to 68.3% of ecommerce ad spend".]
+E-commerce (Triple Whale, ~35k DTC brands, Jan–Dec 2025): per-vertical spreads are real
+(apparel CVR 1.46/ROAS 2.18 · electronics 1.20/1.92 · automotive 1.30/2.54) [VERIFIED 6-0],
+but Triple Whale's VERTICAL-AGNOSTIC blend (CPA $38.19/ROAS 1.86) was **REJECTED 0-3** as a
+pause-gate baseline — use per-vertical rows only, and note they run Triple Whale's own
+attribution model (directional priors, not Meta-native constants). Also [REFUTED]: "Meta grew
+to 68.3% of ecommerce ad spend". CRITICAL metric-class rule: DTC purchase-CVR (~1.2–1.5%) and
+lead-form CVR (~8%) are DIFFERENT METRICS — the engine must never compare a sales campaign
+against a leads benchmark or vice versa.
 
 ## 3. Neuromarketing & persuasion science — what the evidence actually supports
 
 ### Scarcity (the most meta-analyzed lever)
-- Scarcity cues generally raise purchase intention (J. Retailing 2022 meta-analysis, 416
-  effect sizes / 131 studies). [META]
-- **Type ranking overall: supply-based ("limited edition") > time-based ("ends Friday") >
-  demand-based ("selling fast")** — but CATEGORY-CONDITIONAL: demand-based works best for
-  utilitarian products, supply-based for experiences, time-based for high-involvement
-  purchases. [META] (The opposite ranking — demand > supply, from Ladeira 2023 — was
-  **[REFUTED]** in verification; do not encode it.)
-- "Only 3 left" vs "ends soon" are statistically equivalent (SMD 0.287 vs 0.395, n.s. diff) —
-  don't burn variants on that distinction. [VERIFIED]
+- Scarcity cues generally raise purchase intention — TWO independent peer-reviewed
+  meta-analyses converge (Barton et al. 2022, J. Retailing, 416 effects/131 studies; Ladeira
+  et al. 2023, Psychology & Marketing). Boundary conditions to encode as guardrails: scarcity
+  BACKFIRES under reactance (restrictions that read as externally imposed on the buyer) and
+  for low need-for-uniqueness audiences; evidence is largely lab purchase-intention, not
+  measured ad-conversion lift. [VERIFIED 3-0]
+- **Scarcity TYPE is category-conditional — the core if/then rule:** demand-based ("selling
+  fast") for utilitarian products; supply-based ("limited edition") for experiences;
+  time-based (deadlines) for high-involvement purchases. Category-conditioning FIRST, wording
+  second. [VERIFIED 6-0] (The blanket "always prefer demand-framed" claim was **REFUTED
+  0-3** — do not encode it.)
+- "Only 3 left" vs "ends soon": no significant main-effect difference (SMD 0.287 vs 0.395) —
+  but non-significance ≠ equivalence (the time-based point estimate runs ~38% higher, possibly
+  underpowered), and secondary moderation exists (quantity-framing skews utilitarian,
+  time-framing skews high-involvement). Don't burn variant budget on this distinction; let
+  the category rule pick. [VERIFIED 6-0 incl. the nuance]
 - Scarcity is ~1.7× stronger when the product carries **social signaling value** (SMD 0.4575
   vs 0.2742) → pair scarcity with social-proof/status framing for visible products (fashion,
-  cars, venues). [VERIFIED]
-- Stronger for less-familiar brands and for seasonal/enduring-luxury goods. [META]
+  beauty, cars, venues). Verifier caveats: subgroup CIs overlap slightly, and effects are
+  weaker/non-significant in some cultures (Germany/Netherlands in Barton et al.) — relevant
+  for a UAE multi-market operator: treat as a weighting, not a law. [VERIFIED 3-0]
+- Stronger for less-familiar brands and for seasonal/enduring-luxury goods. [VERIFIED, same
+  meta-analyses]
 - **HARD ETHIC: only truthful scarcity.** The Princeton 11k-site crawl found >40% of
   countdown timers in the wild are fake (reset/no effect) and 234 outright deceptive
   instances; the FTC's Dark Patterns report targets exactly this. The engine must NEVER emit
@@ -110,23 +137,31 @@ claim; also refuted: "Meta grew to 68.3% of ecommerce ad spend".]
   stats; FTC named source]
 
 ### Framing & loss aversion
-- Loss aversion is real in product choice (33-study meta-analysis) but its MAGNITUDE varies
-  widely by category/context — no fixed multiplier, no "loss framing always wins". [META]
+- Loss aversion is real in product choice (Neumann & Böckenholt 2014, 33 studies; reinforced
+  by Brown et al. 2024 JEL: mean λ≈1.96 with WIDE heterogeneity) but its magnitude varies too
+  much by category/context for a fixed multiplier. λ≈2 is a reasonable central PRIOR only.
+  [VERIFIED 3-0] — and the mirror claim ("the same source justifies loss-framed messaging as
+  a blanket lever") was **REFUTED 0-3**: the evidence supports variability, not a universal
+  loss-framing rule.
 - Gain frames induce positive emotion (d=.31), loss frames negative emotion (d=.22), and the
-  persuasion effect runs THROUGH the emotion (Nabi et al. 2020, 25 studies / 5,772 people).
-  **Rule: choose the frame by the emotion the vertical needs** — gain/positive for
+  persuasion effect runs THROUGH the matched emotion (gain×positive b=.18, loss×negative
+  b=−.70); the DIRECT gain-vs-loss effect is "elusive" (consistent with O'Keefe & Jensen).
+  **Rule: choose the frame by the emotional register the ad needs** — gain/positive for
   aspiration verticals (travel, fitness goals, education), loss/protective for
-  prevention/risk verticals (insurance, security, health screening) — never default to fear.
-  [META]
-- Loss framing applies to quality/feature claims, not just price. [META]
+  prevention/risk verticals (insurance, security, screening) — never default to fear.
+  Caveats: effects are small, the corpus is mostly health communication (ad extrapolation is
+  an inference), and the gain-side mediation is marginal (p=.045). [VERIFIED 9-0]
+- Loss framing applies to quality/feature claims, not just price. [VERIFIED, same sources]
 
-### Visual attention (eye-tracking)
+### Visual attention (eye-tracking + field study)
 - Faces pull attention; a face with **AVERTED gaze looking AT the product/text** increases
   attention to the ad's text+product AND brand/message memory; a **direct-to-camera gaze**
-  traps attention on the face and WEAKENS message memory (format-dependent; worst on vertical
-  banners). Rule: when the goal is message recall, prefer averted-gaze-toward-content faces;
-  direct gaze only when the face IS the message (personal brand, testimonial). [META,
-  eye-tracking primary studies]
+  traps fixations on the face and WEAKENS message memory (Sajjacholapunt & Ball 2014
+  eye-tracking; corroborated by To & Patrick 2021, J. Consumer Research, whose **Facebook
+  field study found averted-gaze ads produced higher click-through AND purchase**). Encodable
+  exception: direct gaze wins when the goal is spokesperson CREDIBILITY in an informational
+  appeal (testimonial, expert). Encode as a default-with-exception, not an absolute (primary
+  lab evidence is one 2014 study, format-moderated). [VERIFIED 9-0, medium confidence]
 
 ### CTAs & microcopy
 - CTAs are the most-tested element (~30% of VWO tests) but a 6,700-experiment Qubit
@@ -196,9 +231,13 @@ claim; also refuted: "Meta grew to 68.3% of ecommerce ad spend".]
 | Expectation-setting in the brief UI | `CampaignBrief.tsx` | show vertical CPL range + "costs are rising ~20%/yr platform-wide" honesty note |
 | Report bot benchmarks column | `socialReport.ts reportObservations` | observations compare account metrics vs vertical prior ("your CPL $22 vs restaurant benchmark $3–17…") |
 
-**Do NOT encode:** demand>supply scarcity ranking [REFUTED]; Triple Whale global CPA/ROAS row
-[REFUTED]; Meta-68.3%-share claim [REFUTED]; fixed loss-aversion multipliers; fake
-urgency/countdown of any kind (FTC dark-pattern territory — hard ethical + legal line).
+**Do NOT encode (all killed 0-3 in verification):** blanket demand>supply scarcity
+preference; Triple Whale's vertical-agnostic CPA/ROAS blend as a pause-gate baseline;
+"Meta grew to 68.3% of ecommerce ad spend"; "loss framing is a blanket evidence-backed
+lever" (the loss-aversion literature supports VARIABILITY, not universal loss framing).
+Also never: fixed loss-aversion multipliers; cross-metric-class benchmark comparisons
+(purchase-CVR vs lead-form CVR); fake urgency/countdown/stock/activity claims of any kind
+(FTC dark-pattern territory — the hard ethical + legal line).
 
 ## 7. Current-engine gap table
 
@@ -214,12 +253,15 @@ urgency/countdown of any kind (FTC dark-pattern territory — hard ethical + leg
 
 ## 8. Source register (top)
 
-Verified-against: WordStream/LocaliQ Facebook Ads Benchmarks 2025 · Triple Whale benchmark +
-2025 ecommerce report (per-vertical rows only) · J. Retailing 2022 scarcity meta-analysis
-(416 effects/131 studies) · Ladeira 2023 Psychology & Marketing scarcity meta-analysis
-(partially refuted) · Nabi et al. 2020 Communication Research framing meta-analysis · J.
-Retailing 2014 loss-aversion meta-analysis · PMC eye-tracking gaze studies (averted vs mutual
-gaze) · Motion Thumbstop Pulse Creative Benchmarks 2026 (550k ads/$1.3B) · Meta Transparency
-Center ad standards · Princeton "Dark Patterns at Scale" (11k-site crawl) + FTC dark-patterns
-report · PPC Hero / Stackmatix / Adyogi / CXL / Unbounce practitioner playbooks · First Page
-Sage CPL 2026 (weak, expectations-only).
+Verified-against: WordStream/LocaliQ Facebook Ads Benchmarks 2025 (corroborated by Search
+Engine Land + PPC Land) · Triple Whale benchmark + 2025 ecommerce report (per-vertical rows
+only; global blend refuted) · Barton et al. 2022 J. Retailing scarcity meta-analysis (416
+effects/131 studies) · Ladeira et al. 2023 Psychology & Marketing scarcity meta-analysis
+(converges on positive scarcity + social-signaling moderator; its demand>supply ranking
+refuted) · Nabi et al. 2020 Communication Research framing meta-analysis (+ O'Keefe & Jensen)
+· Neumann & Böckenholt 2014 J. Retailing loss-aversion meta-analysis (+ Brown et al. 2024
+JEL, λ≈1.96) · Sajjacholapunt & Ball 2014 eye-tracking + To & Patrick 2021 J. Consumer
+Research field study (gaze) · Motion Thumbstop Pulse Creative Benchmarks 2026 (550k
+ads/$1.3B) · Meta Transparency Center ad standards · Princeton "Dark Patterns at Scale"
+(11k-site crawl) + FTC dark-patterns report · PPC Hero / Stackmatix / Adyogi / CXL / Unbounce
+practitioner playbooks · First Page Sage CPL 2026 (weak, expectations-only).
