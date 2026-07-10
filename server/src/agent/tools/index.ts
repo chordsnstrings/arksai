@@ -51,6 +51,7 @@ import { fetchDataTool } from './data';
 import { fetchAdsTool } from './ads';
 import { publishPostTool, planCalendarTool, listPostsTool } from './social';
 import { META_CAMPAIGN_TOOLS } from './metaCampaigns';
+import { SOCIAL_CAMPAIGN_BOT_TOOLS } from './socialCampaignBot';
 import { sendWebhookTool } from './outbound';
 import { readInboxTool, sendEmailTool } from './email';
 import { generateComplianceFileTool } from './compliance';
@@ -137,6 +138,7 @@ export const ALL_TOOLS: ToolDef[] = [
   planCalendarTool,
   listPostsTool,
   ...META_CAMPAIGN_TOOLS,
+  ...SOCIAL_CAMPAIGN_BOT_TOOLS,
   sendWebhookTool,
   sendEmailTool,
   readInboxTool,
@@ -198,6 +200,7 @@ const REPORT_TOOLS = new Set([
   'list_posts',
   'campaign_report',
   'campaign_actions_log',
+  'manage_campaign',
   'send_webhook',
   'send_email',
   'read_inbox',

@@ -47,16 +47,27 @@ const actId = (id: string): string => (id.startsWith('act_') ? id : `act_${id}`)
 
 // ---- pure builders ----
 
-export function createCampaignRequest(accountId: string, p: { name: string; objective: Objective; specialAdCategories?: string[] }): { url: string; body: Record<string, any> } {
-  return {
-    url: `${actId(accountId)}/campaigns`,
-    body: {
-      name: p.name,
-      objective: OBJECTIVE_MAP[p.objective],
-      status: 'PAUSED',
-      special_ad_categories: JSON.stringify(p.specialAdCategories ?? []),
-    },
+export function createCampaignRequest(accountId: string, p: {
+  name: string; objective: Objective; specialAdCategories?: string[];
+  /** Campaign-level (CBO/Advantage+) budget — Meta then shifts spend to the winning ad sets
+   *  automatically, which the 48h loop prefers over manual ad-set edits (no learning resets). */
+  dailyBudgetUsd?: number; lifetimeBudgetUsd?: number; stopTimeSec?: number;
+}): { url: string; body: Record<string, any> } {
+  const body: Record<string, any> = {
+    name: p.name,
+    objective: OBJECTIVE_MAP[p.objective],
+    status: 'PAUSED',
+    special_ad_categories: JSON.stringify(p.specialAdCategories ?? []),
   };
+  if (p.lifetimeBudgetUsd) {
+    body.lifetime_budget = usdToMinor(p.lifetimeBudgetUsd);
+    body.bid_strategy = 'LOWEST_COST_WITHOUT_CAP';
+    if (p.stopTimeSec) body.stop_time = p.stopTimeSec;
+  } else if (p.dailyBudgetUsd) {
+    body.daily_budget = usdToMinor(p.dailyBudgetUsd);
+    body.bid_strategy = 'LOWEST_COST_WITHOUT_CAP';
+  }
+  return { url: `${actId(accountId)}/campaigns`, body };
 }
 
 /** Pure: a Marketing-API targeting spec (unit-tested — this is where money is wasted if wrong). */

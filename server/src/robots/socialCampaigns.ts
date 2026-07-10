@@ -1,5 +1,17 @@
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
 import { q, qOne } from '../db';
+import { config } from '../config';
+import {
+  createCampaignRequest, createAdSetRequest, dynamicCreativeRequest, leadCreativeRequest,
+  createAdRequest, createLeadFormRequest, uploadImageRequest, uploadVideoRequest,
+  updateStatusRequest, graphPost, resolveAdCreds, type Objective, type Targeting,
+} from '../connectors/metaCampaigns';
+import { resolveSocialCreds } from './social';
+import { mintRobotFileToken } from '../routes/robotFiles';
+import { generateImagePool } from '../agent/social/creativeBatch';
+import { autonomyPolicy } from './autonomy';
+import { guardCampaignAction, recordCampaignAction } from './campaigns';
 
 /**
  * Campaign bot — the durable record of a MANAGED campaign (brief → funnel → creative pool →
@@ -266,3 +278,322 @@ export async function listLeads(orgId: string, limit = 100): Promise<{ leadgenId
     fields: pj(r.fields, {}), createdAt: r.created_at,
   }));
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// SETUP LOOP (Phase 4) — brief → objective/degrade → funnel → creative pool → assemble PAUSED
+// → launch decision. Pure planners first (unit-tested), then the I/O orchestrator.
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+/** Pure: detect Meta special-ad-category obligations from the brief's own words. */
+export function detectSpecialAdCategories(brief: CampaignBrief): string[] {
+  const text = `${brief.product} ${brief.topics.join(' ')}`.toLowerCase();
+  const out: string[] = [];
+  if (/\b(rent|rental|apartment|villa|property|real estate|housing|tenant)\b/.test(text)) out.push('HOUSING');
+  if (/\b(job|jobs|hiring|recruit|career|vacanc)\b/.test(text)) out.push('EMPLOYMENT');
+  if (/\b(loan|credit|mortgage|financing|refinanc)\b/.test(text)) out.push('CREDIT');
+  return out;
+}
+
+export interface ObjectivePlan {
+  objective: CampaignObjective;
+  optimizationGoal: string;
+  destinationType?: string;
+  needsLeadForm: boolean;
+  needsUrl: boolean;
+  cta: string;
+  /** Honest note when the requested outcome had to degrade (e.g. sales without a pixel). */
+  degradeNote?: string;
+}
+
+/** Pure: resolve the requested outcome into an executable Meta plan, degrading honestly.
+ *  `hasPixel` is false for v1 (Pixel/CAPI install is a later arc) — 'sales' therefore degrades. */
+export function resolveObjectivePlan(objective: CampaignObjective, destination: string | undefined, hasPixel = false): ObjectivePlan {
+  const url = destination && /^https?:\/\//.test(destination) ? destination : undefined;
+  switch (objective) {
+    case 'leads':
+      return { objective: 'leads', optimizationGoal: 'LEAD_GENERATION', needsLeadForm: true, needsUrl: false, cta: 'SIGN_UP' };
+    case 'messages': {
+      const dest = destination === 'instagram_direct' ? 'INSTAGRAM_DIRECT' : 'MESSENGER';
+      return { objective: 'messages', optimizationGoal: 'CONVERSATIONS', destinationType: dest, needsLeadForm: false, needsUrl: false, cta: 'MESSAGE_PAGE' };
+    }
+    case 'sales':
+      if (!hasPixel) {
+        return url
+          ? { objective: 'traffic', optimizationGoal: 'LINK_CLICKS', needsLeadForm: false, needsUrl: true, cta: 'SHOP_NOW', degradeNote: 'Sales optimisation needs a Meta Pixel + Conversions API on your site — running as website traffic until that is set up.' }
+          : { objective: 'leads', optimizationGoal: 'LEAD_GENERATION', needsLeadForm: true, needsUrl: false, cta: 'SIGN_UP', degradeNote: 'Sales optimisation needs a Meta Pixel and a website — collecting leads instead so you can close them directly.' };
+      }
+      return { objective: 'sales', optimizationGoal: 'OFFSITE_CONVERSIONS', needsLeadForm: false, needsUrl: true, cta: 'SHOP_NOW' };
+    case 'engagement':
+      return { objective: 'engagement', optimizationGoal: 'POST_ENGAGEMENT', needsLeadForm: false, needsUrl: false, cta: 'LEARN_MORE' };
+    case 'awareness':
+      return { objective: 'awareness', optimizationGoal: 'REACH', needsLeadForm: false, needsUrl: false, cta: 'LEARN_MORE' };
+    default:
+      return { objective: 'traffic', optimizationGoal: 'LINK_CLICKS', needsLeadForm: false, needsUrl: true, cta: 'LEARN_MORE' };
+  }
+}
+
+/** Pure: 2 ad sets when the daily budget supports two healthy learning floors, else 1. */
+export function adSetCountFor(dailyBudgetUsd: number): number {
+  return dailyBudgetUsd >= 14 ? 2 : 1;
+}
+
+/** Pure: validate a campaign brief before any spend. Returns human-fixable problems. */
+export function validateCampaignInput(p: {
+  brief: CampaignBrief; objective: CampaignObjective; budgetModel: 'daily' | 'lifetime';
+  budgetUsd: number; durationDays?: number;
+}): string[] {
+  const errs: string[] = [];
+  if (!p.brief.product?.trim()) errs.push('Say what you are promoting (product/service).');
+  if (!(p.budgetUsd > 0)) errs.push('Set a positive budget.');
+  if (p.budgetModel === 'lifetime' && !(p.durationDays && p.durationDays >= 1)) errs.push('A total budget needs a duration (days).');
+  const plan = resolveObjectivePlan(p.objective, p.brief.destination);
+  if (plan.needsUrl && !(p.brief.destination && /^https?:\/\//.test(p.brief.destination))) {
+    errs.push('This goal needs a website URL destination.');
+  }
+  const daily = p.budgetModel === 'daily' ? p.budgetUsd : p.budgetUsd / Math.max(1, p.durationDays ?? 1);
+  if (daily < 3) errs.push(`Budget works out to $${daily.toFixed(2)}/day — below Meta's healthy minimum (~$3/day).`);
+  return errs;
+}
+
+export interface SetupInput {
+  orgId: string;
+  robotId?: string | null;
+  name: string;
+  brief: CampaignBrief;
+  objective: CampaignObjective;
+  budgetModel: 'daily' | 'lifetime';
+  budgetUsd: number;
+  durationDays?: number;
+  engageSpecifics?: EngageSpecifics | null;
+  /** Autonomy slider value (≥80 = Autopilot auto-launches within caps). */
+  autonomyLevel: number;
+  /** Hard ad-spend cap (USD/day) — launch is blocked above it at ANY autonomy. */
+  adDailyCapUsd: number;
+  /** Hard creative-generation spend cap (USD), separate from ad spend. */
+  generationCapUsd?: number;
+  accountId?: string;
+  signal?: AbortSignal;
+  onProgress?: (line: string) => void;
+  addCost?: (usd: number) => void;
+}
+
+export interface SetupResult {
+  ok: boolean;
+  campaignId?: string;
+  status?: CampaignStatus;
+  launched?: boolean;
+  detail: string;
+  degradeNote?: string;
+  generatedCreatives?: number;
+  generationSpendUsd?: number;
+}
+
+const dailyOf = (p: { budgetModel: 'daily' | 'lifetime'; budgetUsd: number; durationDays?: number }): number =>
+  p.budgetModel === 'daily' ? p.budgetUsd : p.budgetUsd / Math.max(1, p.durationDays ?? 1);
+
+/** The whole setup loop. Assembles EVERYTHING PAUSED; only the launch step can turn spend on,
+ *  and only within the cap (+ approval unless Autopilot). Never throws — honest SetupResult. */
+export async function setupManagedCampaign(input: SetupInput, repoDir: string): Promise<SetupResult> {
+  const say = input.onProgress ?? (() => {});
+  const signal = input.signal ?? new AbortController().signal;
+  try {
+    // 1) Validate + resolve the outcome plan.
+    const errs = validateCampaignInput(input);
+    if (errs.length) return { ok: false, detail: `Fix before launch: ${errs.join(' ')}` };
+    const plan = resolveObjectivePlan(input.objective, input.brief.destination);
+    const specialCats = detectSpecialAdCategories(input.brief);
+    const daily = dailyOf(input);
+    if (daily > input.adDailyCapUsd) {
+      return { ok: false, detail: `Budget $${daily.toFixed(2)}/day exceeds the robot's $${input.adDailyCapUsd}/day cap — raise the cap or lower the budget.` };
+    }
+
+    // 2) Credentials.
+    const ad = await resolveAdCreds(input.orgId, input.accountId);
+    if (!ad) return { ok: false, detail: 'No Meta ad account is connected (Settings → Connections).' };
+    const social = await resolveSocialCreds(input.orgId);
+    if (!social?.pageId) return { ok: false, detail: 'Connect the Facebook Page (the ads run as the Page).' };
+    if (plan.needsLeadForm && !social.pageToken) return { ok: false, detail: 'Lead forms need the connected Page token.' };
+    const wantsInstagram = !!social.igUserId;
+
+    // 3) Durable record first (so a crash mid-setup is resumable/visible).
+    const rec = await createCampaignRecord({
+      orgId: input.orgId, robotId: input.robotId ?? null, name: input.name,
+      brief: input.brief, objective: plan.objective,
+      funnel: { optimizationGoal: plan.optimizationGoal, destinationType: plan.destinationType, cta: plan.cta, specialCats, degraded: plan.degradeNote ?? null },
+      budgetModel: input.budgetModel, dailyCapUsd: input.adDailyCapUsd,
+      totalCapUsd: input.budgetModel === 'lifetime' ? input.budgetUsd : null,
+      startAt: Date.now(),
+      endAt: input.durationDays ? Date.now() + input.durationDays * 86_400_000 : null,
+      engageSpecifics: input.engageSpecifics ?? null, status: 'generating',
+    });
+
+    // 4) Creative pool (budget-capped).
+    say('Generating the creative pool…');
+    const genCap = input.generationCapUsd ?? 3;
+    const batch = await generateImagePool(input.brief, input.brief.imageCount ?? 30, repoDir, signal, {
+      maxUsd: genCap, accent: input.brief.brand?.accent, logoAbsPath: input.brief.brand?.logo ?? null,
+      onProgress: (d, t) => say(`Creatives: background ${d}/${t}`),
+    });
+    input.addCost?.(batch.spentUsd);
+    if (!batch.pool.length) {
+      await updateCampaignRecord(rec.id, { status: 'failed' });
+      return { ok: false, campaignId: rec.id, detail: `Creative generation produced nothing: ${batch.errors.join('; ') || 'unknown error'}` };
+    }
+
+    // 5) Upload images → image_hash (chunk of the pool that made it).
+    say(`Uploading ${batch.pool.length} creatives to the ad account…`);
+    const pool: PoolCreative[] = [];
+    for (const c of batch.pool) {
+      try {
+        const b64 = fs.readFileSync(c.ref).toString('base64');
+        const up = uploadImageRequest(ad.accountId, b64);
+        const res = await graphPost(up.url, ad.accessToken, up.body);
+        const first = res?.images && Object.values<any>(res.images)[0];
+        pool.push({ ...c, imageHash: first?.hash ? String(first.hash) : undefined });
+      } catch (e: any) {
+        pool.push({ ...c }); // keep in the pool without a hash; rotation skips it
+      }
+    }
+    await updateCampaignRecord(rec.id, { creativePool: pool });
+
+    // 6) Lead form when the funnel needs one.
+    let formId: string | undefined;
+    if (plan.needsLeadForm) {
+      say('Creating the Instant Form…');
+      const lf = createLeadFormRequest(social.pageId, {
+        name: `${input.name} — lead form`,
+        fields: ['FULL_NAME', 'PHONE', 'EMAIL'],
+        privacyPolicyUrl: input.brief.destination && /^https?:\/\//.test(input.brief.destination)
+          ? input.brief.destination
+          : `${config.publicBaseUrl}/privacy`,
+      });
+      const res = await graphPost(lf.url, social.pageToken, lf.body);
+      formId = String(res.id);
+      await updateCampaignRecord(rec.id, { formId });
+    }
+
+    // 7) Assemble — campaign (CBO) + ad sets + Dynamic Creative ads, ALL PAUSED.
+    say('Assembling the campaign (paused)…');
+    const c = createCampaignRequest(ad.accountId, {
+      name: input.name, objective: plan.objective as Objective, specialAdCategories: specialCats,
+      ...(input.budgetModel === 'lifetime'
+        ? { lifetimeBudgetUsd: input.budgetUsd, stopTimeSec: Math.floor((Date.now() + (input.durationDays ?? 7) * 86_400_000) / 1000) }
+        : { dailyBudgetUsd: input.budgetUsd }),
+    });
+    const campaign = await graphPost(c.url, ad.accessToken, c.body);
+    const metaCampaignId = String(campaign.id);
+
+    const targeting: Targeting = {
+      countries: input.brief.audience?.countries?.length ? input.brief.audience.countries : ['AE'],
+      ageMin: input.brief.audience?.ageMin, ageMax: input.brief.audience?.ageMax,
+      genders: input.brief.audience?.genders,
+      interests: input.brief.audience?.broad === false ? input.brief.audience?.interests : undefined,
+      instagram: wantsInstagram,
+    };
+    const nAdSets = adSetCountFor(daily);
+    const adsetIds: string[] = [];
+    const usable = pool.filter((p) => p.imageHash);
+    for (let i = 0; i < nAdSets; i++) {
+      const s = createAdSetRequest(ad.accountId, {
+        campaignId: metaCampaignId, name: `${input.name} — ad set ${i + 1}`,
+        targeting, dynamicCreative: true,
+        optimizationGoal: plan.optimizationGoal,
+        promotedPageId: plan.needsLeadForm || plan.destinationType ? social.pageId : undefined,
+        destinationType: plan.destinationType,
+        endAtSec: input.durationDays ? Math.floor((Date.now() + input.durationDays * 86_400_000) / 1000) : undefined,
+      });
+      const adset = await graphPost(s.url, ad.accessToken, s.body);
+      adsetIds.push(String(adset.id));
+
+      // Slice the pool across ad sets: up to 8 images + 5 headlines/bodies each.
+      const slice = usable.filter((_, idx) => idx % nAdSets === i).slice(0, 8);
+      if (!slice.length) continue;
+      const heads = [...new Set(slice.map((p) => p.headline).filter(Boolean))].slice(0, 5) as string[];
+      const bodies = [...new Set(slice.map((p) => p.body).filter(Boolean))].slice(0, 5) as string[];
+      const cr = plan.needsLeadForm && formId && slice.length === 1
+        ? leadCreativeRequest(ad.accountId, { name: `${input.name} — creative ${i + 1}`, pageId: social.pageId, instagramActorId: social.igUserId || undefined, message: bodies[0] ?? input.brief.product, imageHash: slice[0].imageHash, leadFormId: formId, link: `${config.publicBaseUrl}` })
+        : dynamicCreativeRequest(ad.accountId, {
+            name: `${input.name} — creative ${i + 1}`, pageId: social.pageId, instagramActorId: social.igUserId || undefined,
+            feed: {
+              imageHashes: slice.map((p) => p.imageHash!) ,
+              bodies: bodies.length ? bodies : [input.brief.product],
+              titles: heads.length ? heads : [input.brief.product],
+              linkUrl: plan.needsUrl ? input.brief.destination : plan.needsLeadForm ? undefined : config.publicBaseUrl,
+              cta: plan.cta,
+            },
+          });
+      const creative = await graphPost(cr.url, ad.accessToken, cr.body);
+      const a = createAdRequest(ad.accountId, { name: `${input.name} — ad ${i + 1}`, adSetId: String(adset.id), creativeId: String(creative.id) });
+      const adObj = await graphPost(a.url, ad.accessToken, a.body);
+      await recordCampaignAd({ orgId: input.orgId, campaignId: rec.id, adId: String(adObj.id), adsetId: String(adset.id), creativeRef: slice.map((p) => p.ref).join(',') });
+      slice.forEach((p) => { p.used = true; p.live = true; p.adId = String(adObj.id); });
+    }
+    await updateCampaignRecord(rec.id, { metaCampaignId, adsetIds, creativePool: pool, status: 'pending_approval' });
+    await recordCampaignAction({ orgId: input.orgId, robotId: input.robotId ?? null, action: 'create_campaign', objectIds: JSON.stringify({ campaignId: metaCampaignId, adsetIds }), requestedBudgetUsd: daily, status: 'executed', detail: input.name });
+
+    // 8) Launch decision — Autopilot within the cap, else wait for approval.
+    const policy = autonomyPolicy(input.autonomyLevel);
+    const guard = guardCampaignAction(
+      { action: 'launch', approved: policy.autoLaunch, requestedDailyUsd: daily, wantsInstagram, hasPageAndIg: wantsInstagram ? !!social.igUserId : undefined },
+      { dailyCapUsd: input.adDailyCapUsd, requireApproval: !policy.autoLaunch },
+    );
+    if (policy.autoLaunch && guard.ok) {
+      say('Launching (autopilot, within your cap)…');
+      await graphPost(updateStatusRequest(metaCampaignId, 'ACTIVE').url, ad.accessToken, updateStatusRequest(metaCampaignId, 'ACTIVE').body);
+      for (const asid of adsetIds) {
+        const u = updateStatusRequest(asid, 'ACTIVE');
+        await graphPost(u.url, ad.accessToken, u.body);
+      }
+      await updateCampaignRecord(rec.id, { status: 'active' });
+      await recordCampaignAction({ orgId: input.orgId, robotId: input.robotId ?? null, action: 'launch', objectIds: JSON.stringify({ campaignId: metaCampaignId }), requestedBudgetUsd: daily, status: 'executed', detail: 'autopilot launch within cap' });
+      return { ok: true, campaignId: rec.id, status: 'active', launched: true, degradeNote: plan.degradeNote, generatedCreatives: pool.length, generationSpendUsd: batch.spentUsd, detail: `Live. ${pool.length} creatives in the pool, ${nAdSets} ad set(s), $${daily.toFixed(2)}/day. Ads enter Meta review; the 48h loop takes it from here.` };
+    }
+    return { ok: true, campaignId: rec.id, status: 'pending_approval', launched: false, degradeNote: plan.degradeNote, generatedCreatives: pool.length, generationSpendUsd: batch.spentUsd, detail: `Assembled PAUSED (${pool.length} creatives, ${nAdSets} ad set(s), $${daily.toFixed(2)}/day). ${guard.ok ? 'Awaiting your approval to launch.' : `Not launched: ${guard.reason}`}` };
+  } catch (e: any) {
+    return { ok: false, detail: `Setup failed: ${e?.message ?? e}` };
+  }
+}
+
+/** Approve + launch a pending campaign (the owner's tap / APPROVE reply). */
+export async function launchManagedCampaign(campaignId: string, approvedBy: string): Promise<{ ok: boolean; detail: string }> {
+  const rec = await getCampaignRecord(campaignId);
+  if (!rec) return { ok: false, detail: 'Unknown campaign.' };
+  if (rec.status === 'active') return { ok: true, detail: 'Already live.' };
+  if (!rec.metaCampaignId) return { ok: false, detail: 'Campaign was never assembled.' };
+  const ad = await resolveAdCreds(rec.orgId);
+  if (!ad) return { ok: false, detail: 'Meta ad account is no longer connected.' };
+  try {
+    const u = updateStatusRequest(rec.metaCampaignId, 'ACTIVE');
+    await graphPost(u.url, ad.accessToken, u.body);
+    for (const asid of rec.adsetIds) {
+      const su = updateStatusRequest(asid, 'ACTIVE');
+      await graphPost(su.url, ad.accessToken, su.body);
+    }
+    await updateCampaignRecord(rec.id, { status: 'active' });
+    await recordCampaignAction({ orgId: rec.orgId, robotId: rec.robotId, action: 'launch', objectIds: JSON.stringify({ campaignId: rec.metaCampaignId }), status: 'executed', detail: `approved by ${approvedBy}` });
+    return { ok: true, detail: 'Campaign is live. Ads enter Meta review.' };
+  } catch (e: any) {
+    return { ok: false, detail: `Launch failed: ${e?.message ?? e}` };
+  }
+}
+
+/** Pause a managed campaign (always allowed — stops spend). */
+export async function pauseManagedCampaign(campaignId: string, reason: string): Promise<{ ok: boolean; detail: string }> {
+  const rec = await getCampaignRecord(campaignId);
+  if (!rec?.metaCampaignId) return { ok: false, detail: 'Unknown or unassembled campaign.' };
+  const ad = await resolveAdCreds(rec.orgId);
+  if (!ad) return { ok: false, detail: 'Meta ad account is no longer connected.' };
+  try {
+    const u = updateStatusRequest(rec.metaCampaignId, 'PAUSED');
+    await graphPost(u.url, ad.accessToken, u.body);
+    await updateCampaignRecord(rec.id, { status: 'paused' });
+    await recordCampaignAction({ orgId: rec.orgId, robotId: rec.robotId, action: 'pause', objectIds: JSON.stringify({ campaignId: rec.metaCampaignId }), status: 'executed', detail: reason });
+    return { ok: true, detail: 'Paused — spend stopped.' };
+  } catch (e: any) {
+    return { ok: false, detail: `Pause failed: ${e?.message ?? e}` };
+  }
+}
+
+// mintRobotFileToken + uploadVideoRequest are used by the agent-driven video-pool path
+// (videos join the pool via public URLs); referenced here so the wiring stays in one module.
+export const __videoPoolHelpers = { mintRobotFileToken, uploadVideoRequest };
