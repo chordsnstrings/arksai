@@ -422,7 +422,7 @@ export interface OrgProfile {
 
 // ---- Scheduled / recurring tasks (durable server-side) ----
 
-export type ScheduleCadence = 'daily' | 'weekly' | 'interval';
+export type ScheduleCadence = 'daily' | 'weekly' | 'monthly' | 'interval';
 
 export interface Schedule {
   id: string;
@@ -723,13 +723,13 @@ export interface RobotCommander {
 
 /** A proactive routine: a scheduled DIGEST of the robot's activity, or a recurring BRIEF
  *  (a build run on schedule and delivered on a channel). */
-export type RobotJobKind = 'digest' | 'brief';
+export type RobotJobKind = 'digest' | 'brief' | 'ads_report';
 export interface RobotJob {
   id: string;
   robotId: string;
   orgId: string;
   kind: RobotJobKind;
-  cadence: 'daily' | 'weekly' | 'interval';
+  cadence: ScheduleCadence;
   atTime: string | null; // "HH:MM" for daily/weekly
   weekday: number | null; // 0-6 for weekly
   tz: string | null;

@@ -78,6 +78,22 @@ export function computeNextRun(
   const [hh0, mm0] = (at ?? '09:00').split(':').map((n) => parseInt(n, 10));
   const hh = Number.isFinite(hh0) ? hh0 : 9;
   const mm = Number.isFinite(mm0) ? mm0 : 0;
+
+  // Monthly: same day-of-month (clamped to 28 so short months never skip) at hh:mm, server-local.
+  if (cadence === 'monthly') {
+    // `weekday` is overloaded as an optional day-of-month (1-31); clamp to 28 so short months
+    // never skip a run. Null → use the creation day.
+    const requested = weekday && weekday >= 1 ? weekday : from.getDate();
+    const day = Math.min(28, Math.max(1, requested));
+    const next = new Date(from);
+    next.setHours(hh, mm, 0, 0);
+    next.setDate(day);
+    if (next.getTime() <= from.getTime()) {
+      next.setMonth(next.getMonth() + 1);
+      next.setDate(day);
+    }
+    return next.getTime();
+  }
   const target = ((weekday ?? 1) % 7 + 7) % 7;
   const fromMs = from.getTime();
 

@@ -46,8 +46,8 @@ function rowToJob(r: any): RobotJob {
 }
 
 export interface JobInput {
-  kind: 'digest' | 'brief';
-  cadence: 'daily' | 'weekly';
+  kind: 'digest' | 'brief' | 'ads_report';
+  cadence: 'daily' | 'weekly' | 'monthly';
   atTime: string; // "HH:MM"
   weekday?: number | null;
   tz?: string | null;
@@ -204,6 +204,19 @@ export async function runDueJobs(getRobotById: (id: string) => Promise<Robot | n
           await sendOnChannel(robot, t.channel, t.address, text).catch((e) =>
             console.error(`[robot-job ${job.id}] digest via ${t.channel} failed:`, e?.message ?? e),
           );
+        }
+        continue;
+      }
+
+      // 'ads_report': the Report bot — deterministic Meta performance report, emailed.
+      if (job.kind === 'ads_report') {
+        try {
+          const cfg = job.prompt ? JSON.parse(job.prompt) : {};
+          const recipients = (await targetsFor(job, robot)).map((t) => t.address);
+          const { runAdsReport } = await import('./socialReport');
+          await runAdsReport(robot, cfg, recipients);
+        } catch (e: any) {
+          console.error(`[robot-job ${job.id}] ads_report failed:`, e?.message ?? e);
         }
         continue;
       }
