@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-09.66';
+export const WHATS_NEW_VERSION = '2026-07-10.67';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A Social Media Manager robot for Facebook & Instagram',
-    body: 'Hire a robot that runs your Facebook Page + Instagram end-to-end: it plans and posts content (generating the images/videos itself), replies to comments and DMs in your brand voice — escalating anything negative to you — and plans, creates and optimises paid ads within a spend cap. One autonomy slider sets how hands-on it is, from "propose everything for my approval" to "full autopilot within my caps". Two rules always hold: negative comments come to you, and no ad ever spends over your cap without a tap. Connect your Page under the robot\'s settings to begin.',
+    title: 'Campaign bot — brief it once, it runs the whole ad campaign',
+    body: 'In your Social Media Manager\'s office, fill one guided brief — what you\'re promoting, the outcome you want (leads, messages, website visits or sales), your budget and how it should reply to people — and the bot generates a whole rotating pool of ad creatives, launches on Facebook + Instagram within your spend caps, rebalances every 48 hours (pausing tired ads, rotating fresh ones in, replacing rejected ones), answers comments and DMs on its own ads with your instructions, and captures leads the moment they arrive.',
+  },
+  {
+    title: 'Report bot — your ad performance, emailed on schedule',
+    body: 'Same office, Reports panel: pick daily, weekly or monthly, add recipients, and a designed PDF arrives — spend, reach, leads, cost-per-result, per-campaign breakdown, what changed since last time, and plain-English recommendations. "Send me one now" proves the whole pipeline instantly.',
   },
 ];
 

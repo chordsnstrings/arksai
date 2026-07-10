@@ -28,6 +28,8 @@ export interface RobotUseCase {
   group: UseCaseGroup;
   /** Server role this maps onto (custom roles carry the persona in config). */
   kind: 'customer_service' | 'personal_assistant' | 'custom';
+  /** Robot KIND (console view) — 'social' mounts the Social/Campaigns/Reports office. Default 'email'. */
+  type?: 'email' | 'social';
   /** True for the department-specialist card — the dept picker appears. */
   wantsDept?: boolean;
   name: string;
@@ -165,10 +167,11 @@ export const ROBOT_USE_CASES: RobotUseCase[] = [
     id: 'social',
     emoji: '📣',
     title: 'Social media manager',
-    blurb: 'Runs your Facebook & Instagram: plans and posts content, replies to comments and DMs, and creates & optimises ads — as hands-on or hands-off as you set the autonomy slider.',
-    chips: ['Posts & schedules', 'Replies to comments', 'Runs ads on a budget', 'Autonomy slider'],
+    blurb: 'Runs your Facebook & Instagram: plans and posts content, replies to comments and DMs, and runs whole ad campaigns — brief it once and it generates the creatives, launches within your caps, rebalances every 48h, and emails you performance reports.',
+    chips: ['Posts & schedules', 'Replies to comments & DMs', 'Autonomous ad campaigns', 'Emailed reports'],
     group: 'make',
     kind: 'custom',
+    type: 'social',
     name: 'Social Manager',
     mandate:
       'Manage our Facebook Page + Instagram: plan and publish on-brand posts, reply warmly to comments and DMs (escalating anything negative or sensitive), and plan/run paid ads within the budget. Generate the creative; never post placeholders. Follow the autonomy setting — propose when low, act when high.',
@@ -177,7 +180,7 @@ export const ROBOT_USE_CASES: RobotUseCase[] = [
     autonomy: 'ask_all',
     replyTools: 'commanders',
     commanderCentric: true,
-    postHire: 'Connect your Facebook Page + Instagram under Settings → Connections, then set the autonomy slider and a daily ad-spend cap under Settings → Social.',
+    postHire: 'Connect your Facebook Page + Instagram in its office, set the autonomy slider and a daily ad-spend cap, then brief its first campaign under Ad campaigns — or schedule a performance report.',
   },
 ];
 

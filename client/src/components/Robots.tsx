@@ -16,6 +16,8 @@ import { confirmDialog } from '../state/confirmStore';
 import { EmailSettings } from './EmailSettings';
 import { ChannelsPanel, CommandersPanel, KnowledgePanel, PersonaPanel, TasksPanel } from './RobotChannels';
 import { ActionsPanel, PerformancePanel, RoutinesPanel } from './RobotOps';
+import { CampaignMonitor } from './CampaignMonitor';
+import { ReportSetup } from './ReportSetup';
 import { api } from '../api/client';
 import { useEscClose } from '../hooks/useEscClose';
 import { ROBOT_TYPES, robotType } from '../lib/robotTypes';
@@ -126,7 +128,7 @@ export function Robots({ onClose }: { onClose: () => void }) {
         {view.v === 'office' &&
           (office ? (
             // Host routes by robot TYPE → the type's console view (the registry seam).
-            robotType(office.type).available && office.type === 'email' ? (
+            robotType(office.type).available && (office.type === 'email' || office.type === 'social') ? (
               <Office robot={office} onBack={() => open({ v: 'home' })} />
             ) : (
               <TypedConsole robot={office} onBack={() => open({ v: 'home' })} />
@@ -310,6 +312,7 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
     try {
       const r = await hire({
         kind: kind!,
+        type: uc?.type,
         dept: dept ?? undefined,
         name,
         mandate,
@@ -553,7 +556,11 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
           <div className="rb-mini-empty">Loading…</div>
         ) : !robot.mailboxReady ? (
           <div className="rb-allclear">
-            <p>Connect a channel in ⚙ Settings — email, Telegram, WhatsApp or SMS — so {robot.name} can start reading and replying.</p>
+            <p>
+              {robot.type === 'social'
+                ? <>Connect the Facebook Page + Instagram in ⚙ Settings so {robot.name} can reply to comments &amp; DMs and run campaigns — and a mailbox so it can email reports.</>
+                : <>Connect a channel in ⚙ Settings — email, Telegram, WhatsApp or SMS — so {robot.name} can start reading and replying.</>}
+            </p>
           </div>
         ) : needsYou.length === 0 ? (
           <div className="rb-allclear">
@@ -591,6 +598,18 @@ function Office({ robot, onBack }: { robot: Robot; onBack: () => void }) {
           </>
         )}
       </section>
+
+      {/* SOCIAL BOTS — campaigns (the Campaign bot) + emailed performance reports (the Report bot) */}
+      {orgId && robot.type === 'social' && (
+        <>
+          <section className="rb-panel rb-span">
+            <SocialCampaignPanel orgId={orgId} robotId={robot.id} />
+          </section>
+          <section className="rb-panel rb-span">
+            <ReportSetup orgId={orgId} robotId={robot.id} />
+          </section>
+        </>
+      )}
 
       {/* PERFORMANCE — proof of work (renders only once there's real activity) */}
       {orgId && <PerformancePanel orgId={orgId} robotId={robot.id} />}
@@ -980,6 +999,18 @@ function RobotSettings({ robot, orgId, onBack, onRemoved }: { robot: Robot; orgI
       </div>
     </div>
   );
+}
+
+/* ---------------- Social campaign bot (loads the spend cap from the robot's config) ---------------- */
+function SocialCampaignPanel({ orgId, robotId }: { orgId: string; robotId: string }) {
+  const [cap, setCap] = useState(20);
+  useEffect(() => {
+    api.getRobot(orgId, robotId).then((r) => {
+      const c = (r.config || {}) as any;
+      if (typeof c.adDailyCapUsd === 'number') setCap(c.adDailyCapUsd);
+    }).catch(() => {});
+  }, [orgId, robotId]);
+  return <CampaignMonitor orgId={orgId} robotId={robotId} dailyCapUsd={cap} />;
 }
 
 /* ---------------- Forward allowlist (org-level; who robots may forward to) ---------------- */

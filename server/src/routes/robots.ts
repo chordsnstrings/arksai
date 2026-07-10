@@ -64,6 +64,7 @@ import { deliverDraft } from '../robots/outbound';
 import { createJob, deleteJob, listJobs } from '../robots/jobs';
 import { deleteAction, listActions, upsertAction } from '../robots/actions';
 import { robotStats } from '../robots/analytics';
+import { config } from '../config';
 
 /**
  * Robots + drafts API, org-scoped. Any member of the org (or the operator) can manage
@@ -100,8 +101,10 @@ export function registerRobotRoutes(app: FastifyInstance) {
     if (!b.name || !b.role || !ROLES.includes(b.role)) {
       return reply.code(400).send({ error: 'A name and a valid role are required.' });
     }
+    const TYPES = ['email', 'scheduled', 'ads', 'monitor', 'social'];
     const robot = await createRobot(orgId(req), {
       name: String(b.name).slice(0, 80),
+      type: b.type && TYPES.includes(b.type) ? b.type : undefined,
       role: b.role,
       model: b.model,
       autonomy: b.autonomy,
@@ -701,5 +704,144 @@ export function registerRobotRoutes(app: FastifyInstance) {
     } finally {
       clearTimeout(timer);
     }
+  });
+
+  // ═══════════ Social bots: managed campaigns (Campaign bot) + ads reports (Report bot) ═══════════
+
+  // List managed campaigns (with the last optimise note surfaced for the monitor).
+  app.get('/api/orgs/:id/robots/:rid/campaigns', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const { listCampaignRecords } = await import('../robots/socialCampaigns');
+    const campaigns = await listCampaignRecords(orgId(req));
+    return { campaigns };
+  });
+
+  // Campaign detail: record + ads + this campaign's recent leads.
+  app.get('/api/orgs/:id/robots/:rid/campaigns/:cid', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const { getCampaignRecord, listCampaignAds, listLeads } = await import('../robots/socialCampaigns');
+    const campaign = await getCampaignRecord((req.params as any).cid);
+    if (!campaign || campaign.orgId !== orgId(req)) return reply.code(404).send({ error: 'Unknown campaign.' });
+    const ads = await listCampaignAds(campaign.id);
+    const leads = (await listLeads(orgId(req), 50)).filter((l) => l.campaignId === campaign.id);
+    return { campaign, ads, leads };
+  });
+
+  // Create + run the campaign bot. Validation is synchronous (the form shows exact fixes);
+  // the multi-minute setup (creative generation → assemble → launch decision) runs in the
+  // background — the monitor polls the list for status.
+  app.post('/api/orgs/:id/robots/:rid/campaigns', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const b = (req.body as any) || {};
+    const { validateCampaignInput, setupManagedCampaign } = await import('../robots/socialCampaigns');
+    const { autonomyLevelOf } = await import('../robots/autonomy');
+    const { capsFromConfig } = await import('../robots/campaigns');
+    const brief = {
+      product: String(b.product ?? ''),
+      topics: Array.isArray(b.topics) ? b.topics.map(String) : [],
+      cta: b.cta ? String(b.cta) : undefined,
+      destination: b.destination ? String(b.destination) : undefined,
+      audience: b.audience && typeof b.audience === 'object' ? b.audience : undefined,
+      imageCount: b.image_count ? Number(b.image_count) : 30,
+      brand: b.brand && typeof b.brand === 'object' ? b.brand : undefined,
+    };
+    const budgetModel = b.budget_model === 'lifetime' ? ('lifetime' as const) : ('daily' as const);
+    const input = {
+      brief, objective: String(b.objective ?? 'leads') as any, budgetModel,
+      budgetUsd: Number(b.budget_usd) || 0,
+      durationDays: b.duration_days ? Number(b.duration_days) : undefined,
+    };
+    const errs = validateCampaignInput(input);
+    if (errs.length) return reply.code(400).send({ error: errs.join(' ') });
+    const caps = capsFromConfig(robot.config as any);
+    const level = typeof b.autonomy_level === 'number' ? Number(b.autonomy_level) : autonomyLevelOf(robot.config as any);
+    const mediaDir = path.join(config.dataDir, 'campaign-media', orgId(req));
+    fs.mkdirSync(path.join(mediaDir, 'images'), { recursive: true });
+    // Fire-and-forget: the setup loop persists its own state (generating → pending/active/failed).
+    void setupManagedCampaign(
+      {
+        orgId: orgId(req), robotId: robot.id, name: String(b.name || brief.product || 'Campaign'),
+        ...input,
+        engageSpecifics: b.engage_say || b.engage_do_not_say || b.engage_escalate_if
+          ? { say: b.engage_say, doNotSay: b.engage_do_not_say, escalateIf: b.engage_escalate_if }
+          : null,
+        autonomyLevel: level, adDailyCapUsd: caps.dailyCapUsd,
+        generationCapUsd: b.generation_cap_usd ? Number(b.generation_cap_usd) : 3,
+        onProgress: (line) => console.log(`[campaign-bot ${robot.id}] ${line}`),
+      },
+      mediaDir,
+    ).then((r) => console.log(`[campaign-bot ${robot.id}] setup: ${r.detail}`))
+      .catch((e) => console.error(`[campaign-bot ${robot.id}] setup crashed:`, e?.message ?? e));
+    return { ok: true, started: true };
+  });
+
+  app.post('/api/orgs/:id/robots/:rid/campaigns/:cid/approve', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const { getCampaignRecord, launchManagedCampaign } = await import('../robots/socialCampaigns');
+    const rec = await getCampaignRecord((req.params as any).cid);
+    if (!rec || rec.orgId !== orgId(req)) return reply.code(404).send({ error: 'Unknown campaign.' });
+    const r = await launchManagedCampaign(rec.id, req.identity?.userId ?? 'owner');
+    if (!r.ok) return reply.code(400).send({ error: r.detail });
+    return { ok: true, detail: r.detail };
+  });
+
+  app.post('/api/orgs/:id/robots/:rid/campaigns/:cid/pause', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const { getCampaignRecord, pauseManagedCampaign } = await import('../robots/socialCampaigns');
+    const rec = await getCampaignRecord((req.params as any).cid);
+    if (!rec || rec.orgId !== orgId(req)) return reply.code(404).send({ error: 'Unknown campaign.' });
+    const r = await pauseManagedCampaign(rec.id, String((req.body as any)?.reason ?? 'owner request'));
+    if (!r.ok) return reply.code(400).send({ error: r.detail });
+    return { ok: true, detail: r.detail };
+  });
+
+  // ---- Report bot: ads_report jobs on this robot ----
+  app.get('/api/orgs/:id/robots/:rid/reports', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const { listJobs } = await import('../robots/jobs');
+    const jobs = (await listJobs((req.params as any).rid, orgId(req))).filter((j) => j.kind === 'ads_report');
+    return { jobs };
+  });
+
+  app.post('/api/orgs/:id/robots/:rid/reports', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const b = (req.body as any) || {};
+    const recipients: string[] = Array.isArray(b.recipients) ? b.recipients.map(String).filter(Boolean) : [];
+    if (!recipients.length) return reply.code(400).send({ error: 'Add at least one recipient email.' });
+    const cadence = ['daily', 'weekly', 'monthly'].includes(b.cadence) ? b.cadence : 'weekly';
+    const { createJob } = await import('../robots/jobs');
+    const job = await createJob(robot.id, orgId(req), {
+      kind: 'ads_report', cadence, atTime: String(b.at_time || '09:00'),
+      weekday: b.weekday != null ? Number(b.weekday) : undefined,
+      tz: b.tz ? String(b.tz) : undefined,
+      prompt: JSON.stringify({ accountId: b.account_id || undefined, scope: b.scope || 'account+campaign' }),
+      deliverTo: recipients.map((address) => ({ channel: 'email' as const, address })),
+    });
+    return { job };
+  });
+
+  app.delete('/api/orgs/:id/robots/:rid/reports/:jid', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const { deleteJob } = await import('../robots/jobs');
+    await deleteJob((req.params as any).jid, orgId(req));
+    return { ok: true };
+  });
+
+  // "Send me one now" — run the report immediately (validates the whole pipeline live).
+  app.post('/api/orgs/:id/robots/:rid/reports/run-now', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const robot = await getRobot((req.params as any).rid, orgId(req));
+    if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
+    const b = (req.body as any) || {};
+    const recipients: string[] = Array.isArray(b.recipients) ? b.recipients.map(String).filter(Boolean) : [];
+    if (!recipients.length) return reply.code(400).send({ error: 'Add at least one recipient email.' });
+    const { runAdsReport } = await import('../robots/socialReport');
+    const r = await runAdsReport(robot, { accountId: b.account_id || undefined }, recipients);
+    if (!r.ok) return reply.code(400).send({ error: r.detail });
+    return { ok: true, detail: r.detail };
   });
 }

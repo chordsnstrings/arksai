@@ -8,7 +8,7 @@ import type { IconName } from './departments';
  *
  * Keep this in lockstep with shared/types.ts RobotType.
  */
-export type RobotTypeId = 'email' | 'scheduled' | 'ads' | 'monitor';
+export type RobotTypeId = 'email' | 'scheduled' | 'ads' | 'monitor' | 'social';
 
 export interface RobotTypeSpec {
   id: RobotTypeId;
@@ -65,6 +65,16 @@ export const ROBOT_TYPES: Record<RobotTypeId, RobotTypeSpec> = {
     trigger: 'When something crosses a threshold',
     available: false,
     itemNoun: 'alert',
+  },
+  social: {
+    id: 'social',
+    label: 'Social media manager',
+    icon: 'megaphone',
+    accent: '#b0533f',
+    tagline: 'Runs your Facebook & Instagram — posts, replies, autonomous ad campaigns and emailed reports.',
+    trigger: 'Comments, DMs, the content calendar and the 48h ad-optimise loop',
+    available: true,
+    itemNoun: 'reply',
   },
 };
 

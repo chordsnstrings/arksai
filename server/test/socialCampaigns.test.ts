@@ -126,12 +126,13 @@ test('social_campaigns: create → patch → lease → due-for-optimize', async 
 
   // Never optimized → due; lease is exclusive; a fresh lastOptimizedAt takes it out of the due set.
   const now = Date.now();
-  const due = await store.dueForOptimize(now);
+  // High limit: the test DB is shared across suite files, so other actives may exist.
+  const due = await store.dueForOptimize(now, undefined, 10_000);
   assert.ok(due.some((d) => d.id === c.id));
   assert.equal(await store.acquireCampaignLease(c.id, now), true);
   assert.equal(await store.acquireCampaignLease(c.id, now), false); // held
   await store.updateCampaignRecord(c.id, { lastOptimizedAt: now, leaseUntil: null });
-  assert.equal((await store.dueForOptimize(now)).some((d) => d.id === c.id), false);
+  assert.equal((await store.dueForOptimize(now, undefined, 10_000)).some((d) => d.id === c.id), false);
 });
 
 test('campaign_ads: attribution map by ad_id and post_id + state updates', async () => {

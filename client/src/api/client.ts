@@ -37,6 +37,9 @@ import type {
   CreateScheduleRequest,
   SessionDetail,
   SessionMeta,
+  SocialCampaignAdView,
+  SocialCampaignView,
+  SocialLeadView,
 } from '@shared/types';
 
 export interface PubUser {
@@ -532,6 +535,36 @@ export const api = {
     request<{ job: RobotJob }>(`/api/orgs/${orgId}/robots/${rid}/jobs`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.job),
   deleteRobotJob: (orgId: string, rid: string, jobId: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/jobs/${jobId}`, { method: 'DELETE' }),
+  // ---- social bots: managed campaigns (Campaign bot) + ads reports (Report bot) ----
+  listSocialCampaigns: (orgId: string, rid: string) =>
+    request<{ campaigns: SocialCampaignView[] }>(`/api/orgs/${orgId}/robots/${rid}/campaigns`).then((r) => r.campaigns),
+  getSocialCampaign: (orgId: string, rid: string, cid: string) =>
+    request<{ campaign: SocialCampaignView; ads: SocialCampaignAdView[]; leads: SocialLeadView[] }>(
+      `/api/orgs/${orgId}/robots/${rid}/campaigns/${cid}`,
+    ),
+  createSocialCampaign: (orgId: string, rid: string, body: Record<string, unknown>) =>
+    request<{ ok: true; started: boolean }>(`/api/orgs/${orgId}/robots/${rid}/campaigns`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  approveSocialCampaign: (orgId: string, rid: string, cid: string) =>
+    request<{ ok: true; detail: string }>(`/api/orgs/${orgId}/robots/${rid}/campaigns/${cid}/approve`, { method: 'POST' }),
+  pauseSocialCampaign: (orgId: string, rid: string, cid: string, reason?: string) =>
+    request<{ ok: true; detail: string }>(`/api/orgs/${orgId}/robots/${rid}/campaigns/${cid}/pause`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+  listAdsReports: (orgId: string, rid: string) =>
+    request<{ jobs: RobotJob[] }>(`/api/orgs/${orgId}/robots/${rid}/reports`).then((r) => r.jobs),
+  createAdsReport: (orgId: string, rid: string, body: Record<string, unknown>) =>
+    request<{ job: RobotJob }>(`/api/orgs/${orgId}/robots/${rid}/reports`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.job),
+  deleteAdsReport: (orgId: string, rid: string, jobId: string) =>
+    request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/reports/${jobId}`, { method: 'DELETE' }),
+  runAdsReportNow: (orgId: string, rid: string, body: Record<string, unknown>) =>
+    request<{ ok: true; detail: string }>(`/api/orgs/${orgId}/robots/${rid}/reports/run-now`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   listRobotActions: (orgId: string, rid: string) =>
     request<{ actions: RobotAction[] }>(`/api/orgs/${orgId}/robots/${rid}/actions`).then((r) => r.actions),
   saveRobotAction: (orgId: string, rid: string, body: Record<string, unknown>) =>

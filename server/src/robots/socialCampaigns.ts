@@ -182,10 +182,12 @@ export async function acquireCampaignLease(id: string, now: number, leaseMs = 10
 }
 
 /** Active campaigns due a 48h optimise pass. */
-export async function dueForOptimize(now: number, intervalMs = 48 * 3600_000): Promise<SocialCampaign[]> {
+export async function dueForOptimize(now: number, intervalMs = 48 * 3600_000, limit = 10): Promise<SocialCampaign[]> {
+  // Longest-unoptimized first so the per-tick batch bound can never starve a campaign.
   const rows = await q(
-    "SELECT * FROM social_campaigns WHERE status = 'active' AND (last_optimized_at IS NULL OR last_optimized_at <= $1) LIMIT 10",
-    [now - intervalMs],
+    `SELECT * FROM social_campaigns WHERE status = 'active' AND (last_optimized_at IS NULL OR last_optimized_at <= $1)
+     ORDER BY COALESCE(last_optimized_at, 0) ASC, created_at ASC LIMIT $2`,
+    [now - intervalMs, limit],
   );
   return rows.map(rowToCampaign);
 }

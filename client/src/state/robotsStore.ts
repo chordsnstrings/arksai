@@ -59,6 +59,8 @@ export interface HireInput {
   triggers: TriggerKind[];
   /** Studio-tools policy preset from the use-case card (commanders/everyone/off). */
   replyTools?: 'commanders' | 'everyone' | 'off';
+  /** Robot KIND (console view). 'social' mounts the social office (campaigns/reports/settings). */
+  type?: 'email' | 'social';
 }
 
 interface RobotsState {
@@ -125,7 +127,7 @@ export const useRobots = create<RobotsState>((set, get) => ({
         // Created PAUSED: the wizard connects a mailbox, then Activate flips it on.
         const created = await api.createRobot(orgId, {
           name: displayName,
-          type: 'email', // all robots today are email; the picker will choose this explicitly later
+          type: input.type ?? 'email',
           role: input.kind,
           model: 'arksai-max',
           autonomy: toApiAutonomy(input.autonomy),
@@ -139,7 +141,7 @@ export const useRobots = create<RobotsState>((set, get) => ({
       }
     }
     const robot: Robot = {
-      id: uid(), type: 'email', role: input.dept || input.kind, name: displayName, mandate: input.mandate.trim(),
+      id: uid(), type: input.type ?? 'email', role: input.dept || input.kind, name: displayName, mandate: input.mandate.trim(),
       status: 'paused', autonomy: input.autonomy, triggers: input.triggers.length ? input.triggers : ['event'],
       createdAt: Date.now(), kind: input.kind, mailboxReady: false, journal: [], outputs: [],
     };

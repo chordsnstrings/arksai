@@ -742,6 +742,46 @@ export interface RobotJob {
   createdAt: number;
 }
 
+/** Client view of a managed social campaign (the Campaign bot's durable record).
+ *  Mirrors server/src/robots/socialCampaigns.ts SocialCampaign — keep field names in sync. */
+export type SocialCampaignStatus = 'draft' | 'generating' | 'pending_approval' | 'active' | 'paused' | 'completed' | 'failed';
+export interface SocialCampaignView {
+  id: string;
+  name: string;
+  objective: string;
+  status: SocialCampaignStatus;
+  budgetModel: 'daily' | 'lifetime';
+  dailyCapUsd: number | null;
+  totalCapUsd: number | null;
+  spentUsd: number;
+  startAt: number | null;
+  endAt: number | null;
+  metaCampaignId: string | null;
+  formId: string | null;
+  creativePool: { ref: string; type: 'image' | 'video'; format: string; headline?: string; live?: boolean; used?: boolean; adId?: string }[];
+  engageSpecifics: { say?: string; doNotSay?: string; escalateIf?: string } | null;
+  funnel: Record<string, unknown> | null;
+  brief: { product?: string; topics?: string[]; cta?: string; destination?: string } | null;
+  lastOptimizedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+export interface SocialCampaignAdView {
+  adId: string;
+  adsetId: string | null;
+  postId: string | null;
+  creativeRef: string | null;
+  effectiveStatus: string | null;
+  live: boolean;
+}
+export interface SocialLeadView {
+  leadgenId: string;
+  campaignId: string | null;
+  adId: string | null;
+  fields: Record<string, string>;
+  createdAt: number;
+}
+
 /** An org-defined HTTPS action the robot may take mid-reply (order lookup, stock check…).
  *  'ask' escalates for approval; 'auto' executes (logged + rate-capped). */
 export interface RobotAction {
