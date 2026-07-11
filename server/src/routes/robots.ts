@@ -783,7 +783,17 @@ export function registerRobotRoutes(app: FastifyInstance) {
       brand: b.brand && typeof b.brand === 'object' ? b.brand : undefined,
       vertical: b.vertical ? String(b.vertical) : undefined,
       targetCprUsd: typeof b.target_cpr_usd === 'number' && b.target_cpr_usd > 0 ? Number(b.target_cpr_usd) : undefined,
+      offerEndsAt: undefined as number | undefined,
+      limitedCount: typeof b.limited_count === 'number' && b.limited_count > 0 ? Math.floor(b.limited_count) : undefined,
+      limitedUnit: b.limited_unit ? String(b.limited_unit).slice(0, 20) : undefined,
     };
+    // Truthful-scarcity grounding: a stated offer end must be a real FUTURE date.
+    if (b.offer_ends_at) {
+      const ts = Date.parse(String(b.offer_ends_at));
+      if (!Number.isFinite(ts)) return reply.code(400).send({ error: 'The offer end date is not a valid date.' });
+      if (ts <= Date.now()) return reply.code(400).send({ error: 'The offer end date is in the past — urgency must be true.' });
+      brief.offerEndsAt = ts;
+    }
     // Remember the confirmed business type as this robot's default (pre-fills the next brief).
     if (brief.vertical && brief.vertical !== (robot.config as any)?.defaultVertical) {
       await updateRobot(robot.id, orgId(req), { config: { ...(robot.config as any), defaultVertical: brief.vertical } }).catch(() => {});

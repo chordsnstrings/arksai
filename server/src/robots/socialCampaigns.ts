@@ -53,6 +53,11 @@ export interface CampaignBrief {
   vertical?: string;
   /** The user's target cost-per-result (USD) — the optimizer's North Star when set. */
   targetCprUsd?: number;
+  /** TRUTHFUL-SCARCITY grounding (the fact IS the enable): a REAL offer end (epoch ms) and/or
+   *  a REAL limited quantity. Absent = the engine never writes urgency/scarcity copy. */
+  offerEndsAt?: number;
+  limitedCount?: number;
+  limitedUnit?: string;
 }
 
 export interface EngageSpecifics {
@@ -441,6 +446,9 @@ export async function setupManagedCampaign(input: SetupInput, repoDir: string): 
       onProgress: (d, t) => say(`Creatives: background ${d}/${t}`),
     });
     input.addCost?.(batch.spentUsd);
+    // Trust-line counters: every headline passed the copy gate; rejections were rewritten.
+    rec.funnel = { ...(rec.funnel ?? {}), qc: batch.qc };
+    await updateCampaignRecord(rec.id, { funnel: rec.funnel }).catch(() => {});
     if (!batch.pool.length) {
       await updateCampaignRecord(rec.id, { status: 'failed' });
       return { ok: false, campaignId: rec.id, detail: `Creative generation produced nothing: ${batch.errors.join('; ') || 'unknown error'}` };

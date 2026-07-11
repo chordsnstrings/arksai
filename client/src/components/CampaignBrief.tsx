@@ -77,6 +77,11 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
   const [say, setSay] = useState('');
   const [doNotSay, setDoNotSay] = useState('');
   const [escalateIf, setEscalateIf] = useState('');
+  // Truthful scarcity: the FACT is the enable — empty means the robot writes zero urgency.
+  const [showScarcity, setShowScarcity] = useState(false);
+  const [offerEnds, setOfferEnds] = useState('');
+  const [limitedCount, setLimitedCount] = useState('');
+  const [limitedUnit, setLimitedUnit] = useState('spots');
   const [autoLaunch, setAutoLaunch] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -148,6 +153,7 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
     if (needsUrl && !/^https?:\/\//.test(destination.trim())) return setErr('This goal needs a website URL (https://…).');
     if (!(budgetN > 0)) return setErr('Set a positive budget.');
     if (!countries.length) return setErr('Pick at least one country to run the ads in.');
+    if (offerEnds && Date.parse(offerEnds) <= Date.now()) return setErr('The offer end date is in the past — urgency must be true.');
     if (overCap) return setErr(`That works out to $${perDay.toFixed(2)}/day — over the robot's $${dailyCapUsd}/day cap. Raise the cap in Settings or lower the budget.`);
     setBusy(true);
     try {
@@ -174,6 +180,9 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
         autonomy_level: autoLaunch ? 85 : 30,
         vertical: preview?.verticalId ?? verticalOverride ?? undefined,
         target_cpr_usd: Number(target) > 0 ? Number(target) : undefined,
+        offer_ends_at: offerEnds || undefined,
+        limited_count: Number(limitedCount) > 0 ? Number(limitedCount) : undefined,
+        limited_unit: Number(limitedCount) > 0 ? limitedUnit : undefined,
       });
       onStarted();
     } catch (e: any) {
@@ -388,6 +397,34 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
         <p className="soc-sub" style={{ margin: '6px 0 0' }}>
           Mobile + web formats automatically. 3–5 run at a time; tired ones are swapped for fresh pool creatives every 48h.
         </p>
+        {!showScarcity ? (
+          <button className="soc-brain-fix" style={{ alignSelf: 'flex-start', marginTop: 8 }} onClick={() => setShowScarcity(true)}>
+            + Real deadline or limited spots? The robot can use honest urgency.
+          </button>
+        ) : (
+          <div style={{ marginTop: 8 }}>
+            <div className="soc-grid2">
+              <label>Offer really ends on
+                <input type="date" value={offerEnds} onChange={(e) => setOfferEnds(e.target.value)} />
+              </label>
+              <label>Only this many available
+                <span className="soc-age">
+                  <input type="number" min={1} value={limitedCount} onChange={(e) => setLimitedCount(e.target.value)} placeholder="e.g. 12" />
+                  <select value={limitedUnit} onChange={(e) => setLimitedUnit(e.target.value)}>
+                    <option value="spots">spots</option>
+                    <option value="seats">seats</option>
+                    <option value="slots">slots</option>
+                    <option value="items">items</option>
+                  </select>
+                </span>
+              </label>
+            </div>
+            <p className="soc-sub" style={{ margin: '6px 0 0' }}>
+              Only add these if they're true. The robot never invents urgency — "ends Friday" or "only 6 spots"
+              appears in ads only when it can point to a fact you gave it.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="soc-field">
