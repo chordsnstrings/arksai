@@ -3313,6 +3313,17 @@ button { font-family: inherit; cursor: pointer; }
 .soc-report-list li span { overflow-wrap: anywhere; }
 .soc-x { border: none; background: transparent; color: var(--label); font-size: 12px; cursor: pointer; }
 .soc-x:hover { color: #b23f2e; }
+/* The brain line: the engine's detected business + country-priced expectations, one sentence. */
+.soc-brain { border-style: solid; background: var(--bg-input); transition: opacity .2s ease; }
+.soc-brain p { margin: 0; line-height: 1.55; color: var(--text); font-size: 12.5px; }
+.soc-brain.thinking { opacity: .55; animation: socBrainPulse 1.2s ease-in-out infinite; }
+@keyframes socBrainPulse { 0%,100% { opacity: .55; } 50% { opacity: .8; } }
+.soc-brain-fix { border: none; background: transparent; color: var(--accent); cursor: pointer; font-size: 12.5px; padding: 0; text-decoration: underline; text-underline-offset: 2px; }
+/* Selectable chips (countries, business-type corrector) — same chip skin, button behavior. */
+.soc-chip-btn { cursor: pointer; border: 1px solid var(--border); background: var(--bg); color: var(--text); transition: background .14s ease, border-color .14s ease; padding: 4px 11px; }
+.soc-chip-btn:hover { border-color: var(--accent); }
+.soc-chip-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.soc-markets { background: transparent; border: none; padding: 0; }
 @media (max-width: 560px) {
   .soc-camp-meta { flex-direction: column; gap: 3px; }
 }

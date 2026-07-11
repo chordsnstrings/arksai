@@ -536,6 +536,17 @@ export const api = {
   deleteRobotJob: (orgId: string, rid: string, jobId: string) =>
     request<{ ok: true }>(`/api/orgs/${orgId}/robots/${rid}/jobs/${jobId}`, { method: 'DELETE' }),
   // ---- social bots: managed campaigns (Campaign bot) + ads reports (Report bot) ----
+  classifyCampaignPreview: (orgId: string, rid: string, body: Record<string, unknown>) =>
+    request<{
+      verticalId: string;
+      label: string;
+      confidence: number;
+      benchmark: { metric: 'lead' | 'sale' | 'click'; lowUsd: number; highUsd: number; global: boolean; basis: 'industry-estimate' | 'your-own-results'; local?: { code: string; low: number; high: number } } | null;
+      suggestedTargetUsd: number | null;
+      targetAmbition: 'ok' | 'ambitious';
+      complianceNote?: string;
+      styleResolved: string;
+    }>(`/api/orgs/${orgId}/robots/${rid}/campaigns/classify-preview`, { method: 'POST', body: JSON.stringify(body) }),
   listSocialCampaigns: (orgId: string, rid: string) =>
     request<{ campaigns: SocialCampaignView[] }>(`/api/orgs/${orgId}/robots/${rid}/campaigns`).then((r) => r.campaigns),
   getSocialCampaign: (orgId: string, rid: string, cid: string) =>

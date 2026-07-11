@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 
 /**
@@ -7,6 +7,12 @@ import { api } from '../api/client';
  * audience, budget + duration, creative-pool size (with a live generation-cost estimate), the
  * per-campaign reply instructions (what Loop 2 injects into ad-originated comments/DMs), and the
  * launch decision (autopilot within caps vs ask first).
+ *
+ * THE BRAIN LINE: as the user types, the engine classifies the business, prices the outcome
+ * for the SELECTED COUNTRIES (never US numbers for a UAE audience), prefers the account's own
+ * past results over any industry estimate, and translates it all into their budget ("expect
+ * roughly 4–10 leads"). One tap fixes a wrong detection; the target price is pre-suggested
+ * and becomes the optimizer's North Star.
  */
 
 const GOALS = [
@@ -16,13 +22,37 @@ const GOALS = [
   { id: 'sales', label: 'Sales', blurb: 'Needs a Meta Pixel on your site — runs as traffic/leads until then.' },
 ] as const;
 
+/** Common ad markets for the location chips (GCC-first — the operator's audience). */
+const MARKETS: { code: string; label: string }[] = [
+  { code: 'AE', label: 'UAE' }, { code: 'SA', label: 'Saudi Arabia' }, { code: 'QA', label: 'Qatar' },
+  { code: 'KW', label: 'Kuwait' }, { code: 'BH', label: 'Bahrain' }, { code: 'OM', label: 'Oman' },
+  { code: 'EG', label: 'Egypt' }, { code: 'IN', label: 'India' }, { code: 'PK', label: 'Pakistan' },
+  { code: 'GB', label: 'UK' }, { code: 'US', label: 'USA' },
+];
+
+/** Plain-named business types for the "Not right?" corrector (mirrors verticals.ts). */
+const VERTICAL_CHOICES: { id: string; label: string }[] = [
+  { id: 'restaurant', label: 'Restaurant / café' }, { id: 'dental', label: 'Dental clinic' },
+  { id: 'clinic', label: 'Health clinic' }, { id: 'fitness', label: 'Fitness / gym' },
+  { id: 'beauty', label: 'Beauty & salon' }, { id: 'realestate', label: 'Real estate' },
+  { id: 'legal', label: 'Legal services' }, { id: 'education', label: 'Education / courses' },
+  { id: 'homeservices', label: 'Home services' }, { id: 'ecom_fashion', label: 'Clothing & fashion shop' },
+  { id: 'ecom_other', label: 'Online store (other)' }, { id: 'generic', label: 'Something else' },
+];
+
+type Preview = Awaited<ReturnType<typeof api.classifyCampaignPreview>>;
+
+const RESULT_NOUN: Record<string, [string, string]> = { lead: ['lead', 'leads'], sale: ['sale', 'sales'], click: ['visit', 'visits'] };
+
 // Mirror of the server's estimate: 1 background composites 3 headline variants ≈ $0.09/background.
 const genEstimate = (images: number) => Math.round(Math.ceil(Math.max(0, images) / 3) * 0.09 * 100) / 100;
 
-export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel }: {
+export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, onStarted, onCancel }: {
   orgId: string;
   robotId: string;
   dailyCapUsd: number;
+  /** The robot's remembered business type (set on first confirmed campaign). */
+  defaultVertical?: string;
   onStarted: () => void;
   onCancel?: () => void;
 }) {
@@ -34,7 +64,9 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel
   const [destination, setDestination] = useState('');
   const [dmSurface, setDmSurface] = useState<'messenger' | 'instagram_direct'>('messenger');
   const [cta, setCta] = useState('');
-  const [countries, setCountries] = useState('AE');
+  const [countries, setCountries] = useState<string[]>(['AE']);
+  const [countryDraft, setCountryDraft] = useState('');
+  const [showCountryOther, setShowCountryOther] = useState(false);
   const [ageMin, setAgeMin] = useState('18');
   const [ageMax, setAgeMax] = useState('65');
   const [broad, setBroad] = useState(true);
@@ -49,6 +81,36 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // The brain line: detected business type + country-priced expectations + target suggestion.
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [verticalOverride, setVerticalOverride] = useState<string | null>(defaultVertical ?? null);
+  const [showCorrector, setShowCorrector] = useState(false);
+  const [target, setTarget] = useState(''); // user-set target cost per result (USD)
+  const [targetTouched, setTargetTouched] = useState(false);
+  const previewSeq = useRef(0);
+
+  useEffect(() => {
+    const text = `${product} ${topics.join(' ')}`.trim();
+    if (text.length < 8) { setPreview(null); return; }
+    const seq = ++previewSeq.current;
+    setPreviewBusy(true);
+    const t = setTimeout(() => {
+      api.classifyCampaignPreview(orgId, robotId, {
+        product, topics, countries,
+        vertical_override: verticalOverride ?? undefined,
+        target_cpr_usd: Number(target) > 0 ? Number(target) : undefined,
+      }).then((p) => {
+        if (seq !== previewSeq.current) return;
+        setPreview(p);
+        // Pre-suggest the target once (own history → country-adjusted midpoint); edits stick.
+        if (!targetTouched && p.suggestedTargetUsd) setTarget(String(p.suggestedTargetUsd));
+      }).catch(() => {}).finally(() => { if (seq === previewSeq.current) setPreviewBusy(false); });
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, topics.join('|'), countries.join('|'), verticalOverride, target, orgId, robotId]);
+
   const budgetN = Number(budget) || 0;
   const daysN = Math.max(1, Number(days) || 1);
   const perDay = budgetModel === 'daily' ? budgetN : budgetN / daysN;
@@ -57,10 +119,27 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel
   const genCost = useMemo(() => genEstimate(Number(images) || 0), [images]);
   const needsUrl = goal === 'traffic' || goal === 'sales';
 
+  // Expected results from the country-adjusted band, translated into THEIR budget.
+  const expected = useMemo(() => {
+    const b = preview?.benchmark;
+    if (!b || total <= 0) return null;
+    const lo = Math.floor(total / b.highUsd);
+    const hi = Math.max(1, Math.ceil(total / b.lowUsd));
+    return { lo, hi, noun: RESULT_NOUN[b.metric] ?? RESULT_NOUN.lead };
+  }, [preview, total]);
+
   const addTopic = () => {
     const t = topicDraft.trim();
     if (t && !topics.includes(t)) setTopics((ts) => [...ts, t]);
     setTopicDraft('');
+  };
+  const toggleCountry = (code: string) =>
+    setCountries((cs) => (cs.includes(code) ? cs.filter((c) => c !== code) : [...cs, code]));
+  const addCustomCountry = () => {
+    const c = countryDraft.trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(c) && !countries.includes(c)) setCountries((cs) => [...cs, c]);
+    setCountryDraft('');
+    setShowCountryOther(false);
   };
 
   const launch = async () => {
@@ -68,6 +147,7 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel
     if (!product.trim()) return setErr('Say what you are promoting.');
     if (needsUrl && !/^https?:\/\//.test(destination.trim())) return setErr('This goal needs a website URL (https://…).');
     if (!(budgetN > 0)) return setErr('Set a positive budget.');
+    if (!countries.length) return setErr('Pick at least one country to run the ads in.');
     if (overCap) return setErr(`That works out to $${perDay.toFixed(2)}/day — over the robot's $${dailyCapUsd}/day cap. Raise the cap in Settings or lower the budget.`);
     setBusy(true);
     try {
@@ -79,7 +159,7 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel
         destination: goal === 'messages' ? dmSurface : needsUrl ? destination.trim() : undefined,
         cta: cta.trim() || undefined,
         audience: {
-          countries: countries.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean),
+          countries,
           ageMin: Number(ageMin) || 18,
           ageMax: Number(ageMax) || 65,
           broad,
@@ -92,6 +172,8 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel
         engage_do_not_say: doNotSay.trim() || undefined,
         engage_escalate_if: escalateIf.trim() || undefined,
         autonomy_level: autoLaunch ? 85 : 30,
+        vertical: preview?.verticalId ?? verticalOverride ?? undefined,
+        target_cpr_usd: Number(target) > 0 ? Number(target) : undefined,
       });
       onStarted();
     } catch (e: any) {
@@ -99,6 +181,55 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel
     } finally {
       setBusy(false);
     }
+  };
+
+  // The brain line, assembled in plain sentences (never jargon, never scary).
+  const brainLine = () => {
+    if (!preview) return null;
+    const b = preview.benchmark;
+    const noun = b ? (RESULT_NOUN[b.metric] ?? RESULT_NOUN.lead) : RESULT_NOUN.lead;
+    const ARTICLED = new Set(['AE', 'US', 'GB', 'UK']); // "the UAE", "the USA", "the UK"
+    const where = countries.length === 1
+      ? `${ARTICLED.has(countries[0]) ? 'the ' : ''}${MARKETS.find((m) => m.code === countries[0])?.label ?? countries[0]}`
+      : countries.length > 1 ? 'your selected countries' : null;
+    const money = (n: number) => (n >= 10 ? String(Math.round(n)) : String(Math.round(n * 10) / 10));
+    const range = b
+      ? `$${money(b.lowUsd)}–${money(b.highUsd)}${b.local ? ` (≈ ${b.local.code} ${b.local.low}–${b.local.high})` : ''}`
+      : null;
+    return (
+      <div className={`soc-note soc-brain ${previewBusy ? 'thinking' : ''}`} role="status">
+        <p>
+          {preview.confidence >= 0.6 ? <>Sounds like a <strong>{preview.label.toLowerCase()}</strong>. </>
+            : preview.verticalId === 'generic' ? <>No industry match — the robot will judge results against this campaign's own history. </>
+              : <>Best guess: <strong>{preview.label.toLowerCase()}</strong> — tap below if that's off. </>}
+          {b && range && (
+            b.basis === 'your-own-results'
+              ? <>Based on <strong>your own past campaign</strong>, each {noun[0]} costs around {range}{expected && <> — at ${perDay.toFixed(0)}/day × {daysN} days expect roughly <strong>{expected.lo === 0 ? `up to ${expected.hi}` : `${expected.lo}–${expected.hi}`} {noun[1]}</strong></>}. </>
+              : <>{where ? <>In <strong>{where}</strong>, </> : <></>}{noun[1]} in this industry typically run <strong>{range}</strong>{b.global ? ' (global estimate)' : ''}{expected && <> — at ${perDay.toFixed(0)}/day × {daysN} days expect roughly <strong>{expected.lo === 0 ? `up to ${expected.hi}` : `${expected.lo}–${expected.hi}`} {noun[1]}</strong></>}. </>
+          )}
+          {expected && expected.hi <= 1 && <>Budgets this size rarely produce results in this industry — consider a longer run or higher daily amount. </>}
+          {preview.complianceNote && <>{preview.complianceNote} </>}
+          {preview.verticalId !== 'generic' && (
+            <button className="soc-brain-fix" onClick={() => setShowCorrector((s) => !s)}>
+              Not {/^[aeiou]/i.test(preview.label) ? 'an' : 'a'} {preview.label.toLowerCase()}?
+            </button>
+          )}
+        </p>
+        {showCorrector && (
+          <div className="soc-chip-row" style={{ marginTop: 8 }}>
+            {VERTICAL_CHOICES.map((v) => (
+              <button
+                key={v.id}
+                className={`soc-chip soc-chip-btn ${preview.verticalId === v.id ? 'on' : ''}`}
+                onClick={() => { setVerticalOverride(v.id); setShowCorrector(false); setTargetTouched(false); }}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -128,6 +259,8 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel
           />
         </div>
       </label>
+
+      {brainLine()}
 
       <div className="soc-field">
         <span className="soc-lab">Goal — what should this campaign produce?</span>
@@ -169,11 +302,31 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel
       )}
 
       <div className="soc-field">
-        <span className="soc-lab">Audience</span>
-        <div className="soc-grid2">
-          <label>Countries (comma-separated codes)
-            <input value={countries} onChange={(e) => setCountries(e.target.value)} placeholder="AE, SA" />
-          </label>
+        <span className="soc-lab">Where the ads run</span>
+        <div className="soc-chip-row soc-markets" role="group" aria-label="Ad countries">
+          {MARKETS.map((m) => (
+            <button key={m.code} className={`soc-chip soc-chip-btn ${countries.includes(m.code) ? 'on' : ''}`} onClick={() => toggleCountry(m.code)} aria-pressed={countries.includes(m.code)}>
+              {m.label}
+            </button>
+          ))}
+          {countries.filter((c) => !MARKETS.some((m) => m.code === c)).map((c) => (
+            <span key={c} className="soc-chip">{c}
+              <button onClick={() => toggleCountry(c)} aria-label={`Remove ${c}`}>×</button>
+            </span>
+          ))}
+          {showCountryOther ? (
+            <input
+              autoFocus value={countryDraft} maxLength={2}
+              onChange={(e) => setCountryDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomCountry(); } }}
+              onBlur={addCustomCountry}
+              placeholder="Code (e.g. FR)" style={{ width: 110, flex: 'none' }}
+            />
+          ) : (
+            <button className="soc-chip soc-chip-btn" onClick={() => setShowCountryOther(true)}>Other…</button>
+          )}
+        </div>
+        <div className="soc-grid2" style={{ marginTop: 8 }}>
           <label>Age range
             <span className="soc-age">
               <input type="number" min={13} max={65} value={ageMin} onChange={(e) => setAgeMin(e.target.value)} aria-label="Minimum age" />
@@ -206,6 +359,22 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, onStarted, onCancel
           ≈ ${perDay.toFixed(2)}/day × {daysN} days = ${total.toFixed(2)} total
           {dailyCapUsd > 0 && <> · robot cap ${dailyCapUsd}/day{overCap && ' — OVER CAP'}</>}
         </p>
+        <div className="soc-grid2" style={{ marginTop: 8 }}>
+          <label>Target cost per {preview?.benchmark ? (RESULT_NOUN[preview.benchmark.metric]?.[0] ?? 'result') : 'result'} (USD, optional)
+            <input
+              type="number" min={0} step="0.5" value={target}
+              onChange={(e) => { setTarget(e.target.value); setTargetTouched(true); }}
+              placeholder={preview?.suggestedTargetUsd ? String(preview.suggestedTargetUsd) : 'e.g. 15'}
+            />
+          </label>
+          <span className="soc-readout" style={{ alignSelf: 'end' }}>
+            {preview?.targetAmbition === 'ambitious' && Number(target) > 0
+              ? <span className="soc-warn">Ambitious — the robot will chase it, but expect fewer results.</span>
+              : preview?.suggestedTargetUsd
+                ? <>Suggested: ${preview.suggestedTargetUsd}{preview.benchmark?.basis === 'your-own-results' ? ' (from your last campaign)' : ''}</>
+                : <>The robot steers every 48h toward this price.</>}
+          </span>
+        </div>
       </div>
 
       <div className="soc-field">

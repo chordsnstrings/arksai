@@ -49,6 +49,10 @@ export interface CampaignBrief {
   videoCount?: number;
   brand?: { accent?: string; logo?: string };
   knowledge?: string;
+  /** Industry vertical id (verticals.ts) — user-confirmed or auto-detected at brief time. */
+  vertical?: string;
+  /** The user's target cost-per-result (USD) — the optimizer's North Star when set. */
+  targetCprUsd?: number;
 }
 
 export interface EngageSpecifics {
@@ -625,13 +629,21 @@ export interface OptimizeDecision {
 
 /** Pure, unit-tested: the 48h rebalance decision. Significance-gated (never judges noise or
  *  ads still in learning), pauses ADS not ad sets (no learning resets — CBO shifts budget),
- *  and flags fatigue (freq>3.5 + weak CTR) for rotation. */
+ *  and flags fatigue (freq>3.5 + weak CTR) for rotation.
+ *
+ *  TARGET-PRICE STEERING (operator directive: "the agent should thrive to come closer to the
+ *  set price"): when the user set a target cost-per-result, it is the North Star — ads
+ *  clearly over it get paused (2× target, significance-gated), the whole campaign running
+ *  above it rotates HARDER, and at/below target the engine enters stability mode (don't
+ *  churn what's working). A vertical benchmark prior (country-adjusted) backstops campaigns
+ *  with no explicit target. */
 export function decideOptimizations(
   ads: AdMetrics[],
-  opts: { minSpendUsd?: number; minImpressions?: number } = {},
+  opts: { minSpendUsd?: number; minImpressions?: number; targetCprUsd?: number | null; priorHighUsd?: number | null } = {},
 ): OptimizeDecision {
   const minSpend = opts.minSpendUsd ?? 5;
   const minImp = opts.minImpressions ?? 1000;
+  const target = opts.targetCprUsd && opts.targetCprUsd > 0 ? opts.targetCprUsd : null;
   const out: OptimizeDecision = { pause: [], rotate: false, notes: [] };
   const judged = ads.filter((a) => a.spend >= minSpend && a.impressions >= minImp);
   const skipped = ads.length - judged.length;
@@ -645,12 +657,44 @@ export function decideOptimizations(
     for (const a of withResults) {
       if (a.costPerResult! > best * 2.5) out.pause.push({ adId: a.adId, reason: `cost/result $${a.costPerResult} vs best $${best}` });
     }
+    // Prior backstop (no user target): an ad far above the vertical's plausible ceiling is a
+    // loser even when its siblings are equally bad (best×2.5 alone can't see that).
+    if (!target && opts.priorHighUsd && opts.priorHighUsd > 0) {
+      for (const a of withResults) {
+        if (a.costPerResult! > opts.priorHighUsd * 2 && !out.pause.some((p) => p.adId === a.adId)) {
+          out.pause.push({ adId: a.adId, reason: `cost/result $${a.costPerResult} vs the ~$${opts.priorHighUsd} typical ceiling for this industry` });
+        }
+      }
+    }
   } else if (judged.length >= 2 && withResults.length === 0) {
     // No results anywhere: pause only a CTR collapse vs a working sibling.
     const bestCtr = Math.max(...judged.map((a) => a.ctr));
     if (bestCtr >= 1) {
       for (const a of judged) {
         if (a.ctr < 0.4) out.pause.push({ adId: a.adId, reason: `CTR ${a.ctr}% vs best ${bestCtr}%` });
+      }
+    }
+  }
+
+  // Target steering: judge the CAMPAIGN's blended cost-per-result against the user's target.
+  if (target && withResults.length) {
+    const spend = withResults.reduce((s, a) => s + a.spend, 0);
+    const results = withResults.reduce((s, a) => s + a.results, 0);
+    const campaignCpr = results > 0 ? Math.round((spend / results) * 100) / 100 : null;
+    if (campaignCpr != null) {
+      // Ads clearly over the target are losers even if their siblings are too (best×2.5 can't see that).
+      for (const a of withResults) {
+        if (a.costPerResult! > target * 2 && !out.pause.some((p) => p.adId === a.adId)) {
+          out.pause.push({ adId: a.adId, reason: `cost/result $${a.costPerResult} vs your $${target} target` });
+        }
+      }
+      if (campaignCpr <= target) {
+        out.notes.push(`beating your $${target} target ($${campaignCpr}/result) — keeping the winning mix stable.`);
+      } else if (campaignCpr > target * 1.3) {
+        out.rotate = true;
+        out.notes.push(`running $${campaignCpr}/result against your $${target} target — rotating harder to close the gap.`);
+      } else {
+        out.notes.push(`$${campaignCpr}/result vs your $${target} target — within reach, holding course.`);
       }
     }
   }
@@ -751,8 +795,22 @@ export async function optimizeCampaign(rec: SocialCampaign, now: number): Promis
       await updateCampaignRecord(rec.id, { status: 'completed' });
       return 'end date reached → completed';
     }
-    decision = decideOptimizations(metrics);
+    // The user's target price (if set) + the country-adjusted vertical prior steer judging.
+    const { verticalById, adjustedBenchmark } = await import('../agent/social/verticals');
+    const prior = adjustedBenchmark(verticalById(rec.brief?.vertical), rec.brief?.audience?.countries ?? []);
+    decision = decideOptimizations(metrics, {
+      targetCprUsd: rec.brief?.targetCprUsd ?? null,
+      priorHighUsd: prior?.highUsd ?? null,
+    });
     notes.push(...decision.notes);
+    // The campaign's blended cost-per-result this pass — the report bot, the monitor's
+    // benchmark line, and next campaign's "your own results" suggestion all read this.
+    const totalResults = metrics.reduce((s, m) => s + m.results, 0);
+    if (totalResults > 0 && spent > 0) {
+      const cpr = Math.round((spent / totalResults) * 100) / 100;
+      await updateCampaignRecord(rec.id, { funnel: { ...(rec.funnel ?? {}), lastCprUsd: cpr } });
+      rec.funnel = { ...(rec.funnel ?? {}), lastCprUsd: cpr };
+    }
     for (const p of decision.pause) {
       const u = updateStatusRequest(p.adId, 'PAUSED');
       await graphPost(u.url, ad.accessToken, u.body).catch(() => {});

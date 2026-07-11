@@ -727,6 +727,41 @@ export function registerRobotRoutes(app: FastifyInstance) {
     return { campaign, ads, leads };
   });
 
+  // The brief's live "brain line": classify the vertical, price it for the chosen countries,
+  // and prefer the account's OWN results over any industry estimate. Pure + fast — the client
+  // calls it per debounce while the user types.
+  app.post('/api/orgs/:id/robots/:rid/campaigns/classify-preview', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const b = (req.body as any) || {};
+    const { classifyVertical, verticalById, adjustedBenchmark, suggestTargetCpr, targetAmbition } = await import('../agent/social/verticals');
+    const detected = classifyVertical(String(b.product ?? ''), Array.isArray(b.topics) ? b.topics.map(String) : []);
+    const profile = b.vertical_override ? verticalById(String(b.vertical_override)) : detected.profile;
+    const countries: string[] = Array.isArray(b.countries) ? b.countries.map(String) : [];
+    // Own history: the most recent campaign in this vertical that actually measured a cost.
+    const { listCampaignRecords } = await import('../robots/socialCampaigns');
+    const past = (await listCampaignRecords(orgId(req)))
+      .filter((c) => c.brief?.vertical === profile.id && typeof (c.funnel as any)?.lastCprUsd === 'number')
+      .sort((a, c) => c.updatedAt - a.updatedAt);
+    const ownCpr = past.length ? Number((past[0].funnel as any).lastCprUsd) : null;
+    const benchmark = adjustedBenchmark(profile, countries, ownCpr);
+    const complianceNote = profile.compliance.specialCategory
+      ? `This counts as a ${profile.compliance.specialCategory.toLowerCase()} ad — Meta limits age and location targeting for fairness. The robot files it correctly; your age range widens automatically.`
+      : profile.compliance.healthRules
+        ? 'Health-related ads run 18+ only, and the robot keeps every line positive — Meta bans copy that plays on insecurities.'
+        : undefined;
+    const target = typeof b.target_cpr_usd === 'number' && b.target_cpr_usd > 0 ? b.target_cpr_usd : null;
+    return {
+      verticalId: profile.id,
+      label: profile.label,
+      confidence: b.vertical_override ? 1 : detected.confidence,
+      benchmark,
+      suggestedTargetUsd: suggestTargetCpr(benchmark),
+      targetAmbition: target ? targetAmbition(target, benchmark) : 'ok',
+      complianceNote,
+      styleResolved: profile.visualStyle,
+    };
+  });
+
   // Create + run the campaign bot. Validation is synchronous (the form shows exact fixes);
   // the multi-minute setup (creative generation → assemble → launch decision) runs in the
   // background — the monitor polls the list for status.
@@ -746,7 +781,13 @@ export function registerRobotRoutes(app: FastifyInstance) {
       audience: b.audience && typeof b.audience === 'object' ? b.audience : undefined,
       imageCount: b.image_count ? Number(b.image_count) : 30,
       brand: b.brand && typeof b.brand === 'object' ? b.brand : undefined,
+      vertical: b.vertical ? String(b.vertical) : undefined,
+      targetCprUsd: typeof b.target_cpr_usd === 'number' && b.target_cpr_usd > 0 ? Number(b.target_cpr_usd) : undefined,
     };
+    // Remember the confirmed business type as this robot's default (pre-fills the next brief).
+    if (brief.vertical && brief.vertical !== (robot.config as any)?.defaultVertical) {
+      await updateRobot(robot.id, orgId(req), { config: { ...(robot.config as any), defaultVertical: brief.vertical } }).catch(() => {});
+    }
     const budgetModel = b.budget_model === 'lifetime' ? ('lifetime' as const) : ('daily' as const);
     const input = {
       brief, objective: String(b.objective ?? 'leads') as any, budgetModel,

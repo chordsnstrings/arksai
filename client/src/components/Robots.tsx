@@ -1004,13 +1004,15 @@ function RobotSettings({ robot, orgId, onBack, onRemoved }: { robot: Robot; orgI
 /* ---------------- Social campaign bot (loads the spend cap from the robot's config) ---------------- */
 function SocialCampaignPanel({ orgId, robotId }: { orgId: string; robotId: string }) {
   const [cap, setCap] = useState(20);
+  const [vertical, setVertical] = useState<string | undefined>(undefined);
   useEffect(() => {
     api.getRobot(orgId, robotId).then((r) => {
       const c = (r.config || {}) as any;
       if (typeof c.adDailyCapUsd === 'number') setCap(c.adDailyCapUsd);
+      if (typeof c.defaultVertical === 'string') setVertical(c.defaultVertical);
     }).catch(() => {});
   }, [orgId, robotId]);
-  return <CampaignMonitor orgId={orgId} robotId={robotId} dailyCapUsd={cap} />;
+  return <CampaignMonitor orgId={orgId} robotId={robotId} dailyCapUsd={cap} defaultVertical={vertical} />;
 }
 
 /* ---------------- Forward allowlist (org-level; who robots may forward to) ---------------- */

@@ -28,7 +28,7 @@ const ago = (ts: number | null) => {
   return h < 48 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
 };
 
-export function CampaignMonitor({ orgId, robotId, dailyCapUsd }: { orgId: string; robotId: string; dailyCapUsd: number }) {
+export function CampaignMonitor({ orgId, robotId, dailyCapUsd, defaultVertical }: { orgId: string; robotId: string; dailyCapUsd: number; defaultVertical?: string }) {
   const [campaigns, setCampaigns] = useState<SocialCampaignView[] | null>(null);
   const [leads, setLeads] = useState<SocialLeadView[]>([]);
   const [showBrief, setShowBrief] = useState(false);
@@ -85,7 +85,7 @@ export function CampaignMonitor({ orgId, robotId, dailyCapUsd }: { orgId: string
         <div className="soc-card" style={{ marginTop: 10 }}>
           <h4>New campaign brief</h4>
           <CampaignBrief
-            orgId={orgId} robotId={robotId} dailyCapUsd={dailyCapUsd}
+            orgId={orgId} robotId={robotId} dailyCapUsd={dailyCapUsd} defaultVertical={defaultVertical}
             onStarted={() => { setShowBrief(false); setMsg('Campaign started — generating creatives now.'); load(); }}
             onCancel={() => setShowBrief(false)}
           />
