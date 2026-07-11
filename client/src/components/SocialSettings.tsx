@@ -16,10 +16,35 @@ const BANDS = [
 ];
 const bandOf = (v: number) => BANDS.reduce((b, cur) => (v >= cur.min ? cur : b), BANDS[0]);
 
+/** Ad voice choices — Auto resolves from the business type's researched visual style. */
+const VOICES = [
+  { id: 'auto', label: 'Auto' },
+  { id: 'playful', label: 'Friendly & fun' },
+  { id: 'credibility', label: 'Straight & credible' },
+  { id: 'demo', label: 'Show it working' },
+] as const;
+
+const VERTICAL_LABELS: Record<string, string> = {
+  restaurant: 'Restaurant / café', dental: 'Dental clinic', clinic: 'Health clinic',
+  fitness: 'Fitness / gym', beauty: 'Beauty & salon', realestate: 'Real estate',
+  legal: 'Legal services', education: 'Education / courses', homeservices: 'Home services',
+  ecom_fashion: 'Clothing & fashion shop', ecom_other: 'Online store (other)', generic: 'Something else',
+};
+/** What Auto resolves to per business type (mirror of the server's visualStyle). */
+const AUTO_VOICE: Record<string, string> = {
+  restaurant: 'friendly & fun', beauty: 'friendly & fun', ecom_fashion: 'friendly & fun',
+  dental: 'straight & credible', clinic: 'straight & credible', realestate: 'straight & credible',
+  legal: 'straight & credible', education: 'straight & credible',
+  fitness: 'show it working', homeservices: 'show it working', ecom_other: 'show it working',
+};
+
 export function SocialSettings({ orgId, robotId }: { orgId: string; robotId: string }) {
   const [level, setLevel] = useState(30);
   const [dailyCap, setDailyCap] = useState('20');
   const [campaignCap, setCampaignCap] = useState('');
+  const [adVoice, setAdVoice] = useState('auto');
+  const [casualMix, setCasualMix] = useState(true);
+  const [vertical, setVertical] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [channel, setChannel] = useState<RobotChannel | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -33,6 +58,9 @@ export function SocialSettings({ orgId, robotId }: { orgId: string; robotId: str
       if (typeof c.autonomyLevel === 'number') setLevel(c.autonomyLevel);
       if (typeof c.adDailyCapUsd === 'number') setDailyCap(String(c.adDailyCapUsd));
       if (typeof c.adCampaignCapUsd === 'number') setCampaignCap(String(c.adCampaignCapUsd));
+      if (typeof c.adVoice === 'string') setAdVoice(c.adVoice);
+      if (typeof c.adCasualMix === 'boolean') setCasualMix(c.adCasualMix);
+      if (typeof c.defaultVertical === 'string') setVertical(c.defaultVertical);
     }).catch(() => {});
     api.listRobotChannels(orgId, robotId).then((cs) => setChannel(cs.find((c) => c.kind === 'meta') ?? null)).catch(() => {});
   };
@@ -101,6 +129,35 @@ export function SocialSettings({ orgId, robotId }: { orgId: string; robotId: str
           </label>
         </div>
         {saved && <span className="soc-saved">Saved ✓</span>}
+      </section>
+
+      <section className="soc-card">
+        <h4>Ad style</h4>
+        <p className="soc-sub">How the campaign bot's ads look and sound. Auto picks by industry — you can override it here for every campaign this robot runs.</p>
+        <div className="soc-seg soc-seg-sm" role="radiogroup" aria-label="Ad voice">
+          {VOICES.map((v) => (
+            <button key={v.id} className={adVoice === v.id ? 'on' : ''} role="radio" aria-checked={adVoice === v.id}
+              onClick={() => { setAdVoice(v.id); void persist({ adVoice: v.id }); }}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+        {adVoice === 'auto' && (
+          <p className="soc-sub" style={{ margin: '8px 0 0' }}>
+            {vertical && AUTO_VOICE[vertical]
+              ? <>Auto picks by industry — for a {VERTICAL_LABELS[vertical]?.toLowerCase()} that means <strong>{AUTO_VOICE[vertical]}</strong>.</>
+              : <>Auto picks by industry once the robot knows your business type (set on your first campaign).</>}
+          </p>
+        )}
+        <label className="soc-check" style={{ marginTop: 10 }}>
+          <input type="checkbox" checked={casualMix} onChange={(e) => { setCasualMix(e.target.checked); void persist({ adCasualMix: e.target.checked }); }} />
+          Mix in casual, phone-shot-style images (these often beat polished ones)
+        </label>
+        {vertical && (
+          <p className="soc-sub" style={{ margin: '10px 0 0' }}>
+            Business type: <strong>{VERTICAL_LABELS[vertical] ?? vertical}</strong> · set from your last campaign — change it on any new brief.
+          </p>
+        )}
       </section>
 
       <section className="soc-card">

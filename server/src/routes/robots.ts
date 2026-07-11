@@ -820,6 +820,13 @@ export function registerRobotRoutes(app: FastifyInstance) {
           : null,
         autonomyLevel: level, adDailyCapUsd: caps.dailyCapUsd,
         generationCapUsd: b.generation_cap_usd ? Number(b.generation_cap_usd) : 3,
+        // Robot-level Ad style + hidden expert overrides (config keys, no UI).
+        plan: {
+          voice: (robot.config as any)?.adVoice ?? 'auto',
+          casualMix: (robot.config as any)?.adCasualMix !== false,
+          hookWeights: (robot.config as any)?.hookWeights ?? undefined,
+          frame: (robot.config as any)?.adFrame ?? undefined,
+        },
         onProgress: (line) => console.log(`[campaign-bot ${robot.id}] ${line}`),
       },
       mediaDir,

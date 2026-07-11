@@ -382,6 +382,8 @@ export interface SetupInput {
   adDailyCapUsd: number;
   /** Hard creative-generation spend cap (USD), separate from ad spend. */
   generationCapUsd?: number;
+  /** Robot-level ad style + expert overrides (creativeBatch PlanOptions shape). */
+  plan?: import('../agent/social/creativeBatch').PlanOptions;
   accountId?: string;
   signal?: AbortSignal;
   onProgress?: (line: string) => void;
@@ -444,10 +446,11 @@ export async function setupManagedCampaign(input: SetupInput, repoDir: string): 
     const batch = await generateImagePool(input.brief, input.brief.imageCount ?? 30, repoDir, signal, {
       maxUsd: genCap, accent: input.brief.brand?.accent, logoAbsPath: input.brief.brand?.logo ?? null,
       onProgress: (d, t) => say(`Creatives: background ${d}/${t}`),
+      plan: input.plan,
     });
     input.addCost?.(batch.spentUsd);
-    // Trust-line counters: every headline passed the copy gate; rejections were rewritten.
-    rec.funnel = { ...(rec.funnel ?? {}), qc: batch.qc };
+    // Trust-line counters + review-panel copy samples.
+    rec.funnel = { ...(rec.funnel ?? {}), qc: batch.qc, copySamples: batch.samples };
     await updateCampaignRecord(rec.id, { funnel: rec.funnel }).catch(() => {});
     if (!batch.pool.length) {
       await updateCampaignRecord(rec.id, { status: 'failed' });

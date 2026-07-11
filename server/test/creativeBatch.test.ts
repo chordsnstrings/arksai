@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   planCreativeBatch, hookHeadline, estimateBatchCostUsd, generateImagePool,
   HOOK_ARCHETYPES, BATCH_FORMATS, EST_COST_PER_BACKGROUND_USD,
+  archetypeCycle, bodyShape, imageryPrompt, COPY_SHAPES,
 } from '../src/agent/social/creativeBatch';
 
 const BRIEF = { product: 'FreshCrate', topics: ['weekly veg boxes', 'same-day delivery'], cta: 'Order now' };
@@ -81,4 +82,56 @@ test('generateImagePool: an aborted signal stops the loop', async () => {
   const out = await generateImagePool(BRIEF, 30, '/tmp', ac.signal, { maxUsd: 100 });
   assert.equal(out.pool.length, 0);
   assert.equal(out.skippedSpecs, 10);
+});
+
+// ---- Phase C: the vertical-tuned copy engine ----
+
+test('archetypeCycle: weights differ by style; urgency earns NO slots without grounded facts', () => {
+  const playful = archetypeCycle('playful', { grounded: true });
+  const cred = archetypeCycle('credibility', { grounded: true });
+  const count = (c: string[], a: string) => c.filter((x) => x === a).length;
+  assert.ok(count(playful, 'offer') > count(playful, 'proof'), 'playful leads with offers');
+  assert.ok(count(cred, 'proof') > count(cred, 'question'), 'credibility leads with proof');
+  // Ungrounded → urgency stripped entirely from the cycle.
+  assert.equal(count(archetypeCycle('playful', { grounded: false }), 'urgency'), 0);
+  assert.ok(count(archetypeCycle('playful', { grounded: true }), 'urgency') > 0);
+  // Expert override wins.
+  const forced = archetypeCycle('credibility', { grounded: false, override: { question: 5, proof: 0 } });
+  assert.ok(count(forced, 'question') >= 5 && count(forced, 'proof') === 0);
+});
+
+test('bodyShape: structurally distinct copy, frame-aware PAS', () => {
+  const bodies = COPY_SHAPES.map((s) => bodyShape(s, 'FreshCrate', 'weekly veg boxes', 'gain', 'Order now.'));
+  assert.equal(new Set(bodies).size, COPY_SHAPES.length); // real structural diversity
+  assert.ok(bodies.every((b) => b.includes('Order now.'))); // the CTA rides every shape
+  const loss = bodyShape('pas', 'Al Marwa Legal', 'contract review', 'loss');
+  assert.match(loss, /too important to leave to chance/);
+  const gain = bodyShape('pas', 'FreshCrate', 'weekly veg boxes', 'gain');
+  assert.match(gain, /shouldn't be this hard/);
+});
+
+test('imageryPrompt: gaze rule + no-text rule on every style; casual mix switches the look', () => {
+  for (const s of ['playful', 'credibility', 'demo'] as const) {
+    const p = imageryPrompt(s, 'FreshCrate', 'veg boxes');
+    assert.match(p, /never directly at the camera/); // the averted-gaze rule
+    assert.match(p, /no words or lettering/);
+  }
+  assert.match(imageryPrompt('playful', 'X', 'y', { casual: true }), /smartphone photo style/);
+  assert.doesNotMatch(imageryPrompt('playful', 'X', 'y', { casual: false }), /smartphone/);
+});
+
+test('planCreativeBatch: vertical tunes the pool; samples carry distinct plain-language angles', () => {
+  // A dental brief → credibility style + proof-led headlines; casual mix appears every 3rd bg.
+  const dental = planCreativeBatch({ product: 'Marina Dental', topics: ['teeth whitening'], vertical: 'dental' }, 30);
+  assert.ok(dental.specs.some((s) => /calm and credible/.test(s.prompt)));
+  assert.ok(dental.specs.some((s) => /smartphone photo style/.test(s.prompt)), 'UGC mix on by default');
+  assert.ok(dental.samples.length >= 2);
+  assert.equal(new Set(dental.samples.map((x) => x.angle)).size, dental.samples.length);
+  // Voice override beats the vertical's auto style.
+  const forced = planCreativeBatch({ product: 'Marina Dental', topics: ['whitening'], vertical: 'dental' }, 12, { voice: 'playful', casualMix: false });
+  assert.ok(forced.specs.every((s) => !/smartphone/.test(s.prompt)));
+  assert.ok(forced.specs.some((s) => /playful energy/.test(s.prompt)));
+  // Structural body diversity across backgrounds.
+  const bodies = new Set(dental.specs.map((s) => s.body.split('.')[0]));
+  assert.ok(bodies.size >= 2);
 });

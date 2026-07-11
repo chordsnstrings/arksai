@@ -231,6 +231,14 @@ against a leads benchmark or vice versa.
 | Expectation-setting in the brief UI | `CampaignBrief.tsx` | show vertical CPL range + "costs are rising ~20%/yr platform-wide" honesty note |
 | Report bot benchmarks column | `socialReport.ts reportObservations` | observations compare account metrics vs vertical prior ("your CPL $22 vs restaurant benchmark $3–17…") |
 
+**Expert override config keys (robot config JSON — no UI, the power-user escape hatch):**
+`adVoice` ('auto'|'playful'|'credibility'|'demo' — the Ad style card sets this too) ·
+`adCasualMix` (boolean, UGC-style backgrounds every 3rd) · `hookWeights`
+({question|benefit|proof|offer|urgency: number} — replaces the vertical's weighted cycle) ·
+`adFrame` ('gain'|'loss' — overrides the vertical's emotional register; health verticals still
+hard-ban negative self-perception at the copy gate) · `defaultVertical` (set automatically
+from the last confirmed brief). All read at campaign-create time in routes/robots.ts.
+
 **Do NOT encode (all killed 0-3 in verification):** blanket demand>supply scarcity
 preference; Triple Whale's vertical-agnostic CPA/ROAS blend as a pause-gate baseline;
 "Meta grew to 68.3% of ecommerce ad spend"; "loss framing is a blanket evidence-backed
