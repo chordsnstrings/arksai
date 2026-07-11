@@ -3324,6 +3324,16 @@ button { font-family: inherit; cursor: pointer; }
 .soc-chip-btn:hover { border-color: var(--accent); }
 .soc-chip-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .soc-markets { background: transparent; border: none; padding: 0; }
+/* Review panel: what the brain made — creatives strip, copy samples, plan + trust lines. */
+.soc-review { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px; }
+.soc-review-strip { display: flex; gap: 8px; align-items: center; overflow-x: auto; padding-bottom: 4px; }
+.soc-review-strip img { height: 84px; width: auto; border-radius: 8px; border: 1px solid var(--border); flex: none; }
+.soc-review-copy { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; }
+.soc-review-sample { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; }
+.soc-review-sample .soc-chip { flex: none; margin-top: 1px; }
+.soc-trust { color: #2f7d5b; }
+.soc-log { list-style: none; margin: 6px 0 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text); }
+.soc-log-when { color: var(--label); margin-right: 8px; font-variant-numeric: tabular-nums; }
 @media (max-width: 560px) {
   .soc-camp-meta { flex-direction: column; gap: 3px; }
 }

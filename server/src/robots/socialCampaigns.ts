@@ -348,6 +348,44 @@ export function adSetCountFor(dailyBudgetUsd: number): number {
   return dailyBudgetUsd >= 14 ? 2 : 1;
 }
 
+/** Pure: the funnel structure for a brief — prospecting first, a retargeting layer once
+ *  engagement audiences have real volume (never at launch: retargeting an empty audience
+ *  burns learning budget). Returns the plain-English summary the review panel shows. */
+export function planFunnel(p: {
+  verticalLabel: string; objective: CampaignObjective; dailyBudgetUsd: number; hasWarmAudience?: boolean;
+}): { stages: { name: string; sharePct: number }[]; summary: string } {
+  const noun = p.objective === 'leads' ? 'leads' : p.objective === 'messages' ? 'chats' : p.objective === 'sales' ? 'sales' : 'visits';
+  if (p.hasWarmAudience && p.dailyBudgetUsd >= 14) {
+    return {
+      stages: [{ name: 'prospecting', sharePct: 80 }, { name: 'retargeting', sharePct: 20 }],
+      summary: `Plan: 80% finding new people, 20% re-showing ads to people who already engaged — optimized for ${noun}. Meta shifts budget to whichever works (CBO).`,
+    };
+  }
+  return {
+    stages: [{ name: 'prospecting', sharePct: 100 }],
+    summary: `Plan: start 100% on finding new people (optimized for ${noun}); once enough people have engaged, the robot adds a re-showing layer for warm audiences.`,
+  };
+}
+
+/** Plain-language decision log (the monitor's "Robot's log") — capped, newest first. */
+export async function logDecision(rec: SocialCampaign, summary: string, statusReason?: string): Promise<void> {
+  const prev = Array.isArray((rec.funnel as any)?.decisions) ? ((rec.funnel as any).decisions as { at: number; summary: string }[]) : [];
+  const decisions = [{ at: Date.now(), summary }, ...prev].slice(0, 20);
+  rec.funnel = { ...(rec.funnel ?? {}), decisions, ...(statusReason !== undefined ? { statusReason } : {}) };
+  await updateCampaignRecord(rec.id, { funnel: rec.funnel }).catch(() => {});
+}
+
+/** First-campaign trust rule: the robot's FIRST campaign always waits for review, regardless
+ *  of autonomy — trust is built by seeing what the brain makes, once. */
+export async function robotHasLaunchedBefore(robotId: string | null | undefined): Promise<boolean> {
+  if (!robotId) return false;
+  const rows = await q(
+    "SELECT COUNT(*) AS n FROM social_campaigns WHERE robot_id = $1 AND status IN ('active','paused','completed')",
+    [robotId],
+  );
+  return Number(rows[0]?.n ?? 0) > 0;
+}
+
 /** Pure: validate a campaign brief before any spend. Returns human-fixable problems. */
 export function validateCampaignInput(p: {
   brief: CampaignBrief; objective: CampaignObjective; budgetModel: 'daily' | 'lifetime';
@@ -548,12 +586,25 @@ export async function setupManagedCampaign(input: SetupInput, repoDir: string): 
     await updateCampaignRecord(rec.id, { metaCampaignId, adsetIds, creativePool: pool, status: 'pending_approval' });
     await recordCampaignAction({ orgId: input.orgId, robotId: input.robotId ?? null, action: 'create_campaign', objectIds: JSON.stringify({ campaignId: metaCampaignId, adsetIds }), requestedBudgetUsd: daily, status: 'executed', detail: input.name });
 
+    // Funnel summary for the review panel (pure).
+    const { verticalById: vById } = await import('../agent/social/verticals');
+    const funnelPlan = planFunnel({ verticalLabel: vById(input.brief.vertical).label, objective: input.objective, dailyBudgetUsd: daily });
+    rec.funnel = { ...(rec.funnel ?? {}), funnelSummary: funnelPlan.summary };
+    await updateCampaignRecord(rec.id, { funnel: rec.funnel }).catch(() => {});
+
     // 8) Launch decision — Autopilot within the cap, else wait for approval.
+    // FIRST-CAMPAIGN TRUST RULE: this robot's first campaign always waits for review.
+    const firstCampaign = !(await robotHasLaunchedBefore(input.robotId));
     const policy = autonomyPolicy(input.autonomyLevel);
     const guard = guardCampaignAction(
       { action: 'launch', approved: policy.autoLaunch, requestedDailyUsd: daily, wantsInstagram, hasPageAndIg: wantsInstagram ? !!social.igUserId : undefined },
       { dailyCapUsd: input.adDailyCapUsd, requireApproval: !policy.autoLaunch },
     );
+    if (firstCampaign && policy.autoLaunch) {
+      await logDecision(rec, 'First campaign always waits for your OK — Autopilot takes over after this.');
+      say('First campaign — holding for your review (Autopilot takes over after this).');
+      return { ok: true, campaignId: rec.id, status: 'pending_approval', launched: false, degradeNote: plan.degradeNote, generatedCreatives: pool.length, generationSpendUsd: batch.spentUsd, detail: `Assembled PAUSED (${pool.length} creatives, ${nAdSets} ad set(s), $${daily.toFixed(2)}/day). First campaign always waits for your OK — review and tap Approve.` };
+    }
     if (policy.autoLaunch && guard.ok) {
       say('Launching (autopilot, within your cap)…');
       await graphPost(updateStatusRequest(metaCampaignId, 'ACTIVE').url, ad.accessToken, updateStatusRequest(metaCampaignId, 'ACTIVE').body);
@@ -587,6 +638,7 @@ export async function launchManagedCampaign(campaignId: string, approvedBy: stri
       await graphPost(su.url, ad.accessToken, su.body);
     }
     await updateCampaignRecord(rec.id, { status: 'active' });
+    await logDecision(rec, 'Launched — ads entered Meta review.', '');
     await recordCampaignAction({ orgId: rec.orgId, robotId: rec.robotId, action: 'launch', objectIds: JSON.stringify({ campaignId: rec.metaCampaignId }), status: 'executed', detail: `approved by ${approvedBy}` });
     return { ok: true, detail: 'Campaign is live. Ads enter Meta review.' };
   } catch (e: any) {
@@ -604,6 +656,7 @@ export async function pauseManagedCampaign(campaignId: string, reason: string): 
     const u = updateStatusRequest(rec.metaCampaignId, 'PAUSED');
     await graphPost(u.url, ad.accessToken, u.body);
     await updateCampaignRecord(rec.id, { status: 'paused' });
+    await logDecision(rec, `Paused — ${reason}.`, reason);
     await recordCampaignAction({ orgId: rec.orgId, robotId: rec.robotId, action: 'pause', objectIds: JSON.stringify({ campaignId: rec.metaCampaignId }), status: 'executed', detail: reason });
     return { ok: true, detail: 'Paused — spend stopped.' };
   } catch (e: any) {
@@ -878,9 +931,13 @@ export async function optimizeCampaign(rec: SocialCampaign, now: number): Promis
   }
 
   const summary = notes.length ? notes.join('; ') : 'healthy — no changes needed';
+  const prevDecisions = Array.isArray((rec.funnel as any)?.decisions) ? ((rec.funnel as any).decisions as { at: number; summary: string }[]) : [];
   await updateCampaignRecord(rec.id, {
     creativePool: pool, lastOptimizedAt: now, leaseUntil: null,
-    funnel: { ...(rec.funnel ?? {}), lastOptimizeNote: summary, lastOptimizeAt: now },
+    funnel: {
+      ...(rec.funnel ?? {}), lastOptimizeNote: summary, lastOptimizeAt: now,
+      decisions: [{ at: now, summary }, ...prevDecisions].slice(0, 20),
+    },
   });
   return summary;
 }

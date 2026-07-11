@@ -164,3 +164,46 @@ test('social_leads: idempotent on leadgen_id + listable', async () => {
   assert.equal(leads.length, 1);
   assert.equal(leads[0].fields.full_name, 'Sara');
 });
+
+// ---- Phase D: funnel planning, decision log, first-campaign trust rule ----
+
+test('planFunnel: prospecting-only until warm audiences exist; 80/20 once they do', async () => {
+  const cold = store.planFunnel({ verticalLabel: 'Dental clinic', objective: 'leads', dailyBudgetUsd: 20 });
+  assert.equal(cold.stages.length, 1);
+  assert.match(cold.summary, /100% on finding new people/);
+  assert.match(cold.summary, /leads/);
+  const warm = store.planFunnel({ verticalLabel: 'Dental clinic', objective: 'messages', dailyBudgetUsd: 20, hasWarmAudience: true });
+  assert.equal(warm.stages.length, 2);
+  assert.equal(warm.stages[0].sharePct + warm.stages[1].sharePct, 100);
+  assert.match(warm.summary, /80%.*20%/);
+  // A tiny budget can't afford two ad sets even with a warm audience (learning floors).
+  assert.equal(store.planFunnel({ verticalLabel: 'X', objective: 'leads', dailyBudgetUsd: 5, hasWarmAudience: true }).stages.length, 1);
+});
+
+test('decision log: newest first, capped, statusReason set on pause + cleared on launch', async () => {
+  const org = `org-${randomUUID()}`;
+  const c = await store.createCampaignRecord({ orgId: org, name: 'Log', objective: 'leads', status: 'active' });
+  for (let i = 1; i <= 25; i++) await store.logDecision(c, `decision ${i}`);
+  const after = (await store.getCampaignRecord(c.id))!;
+  const decisions = (after.funnel as any).decisions as { at: number; summary: string }[];
+  assert.equal(decisions.length, 20); // capped
+  assert.equal(decisions[0].summary, 'decision 25'); // newest first
+  await store.logDecision(after, 'Paused — spend cap reached.', 'spend cap reached');
+  const paused = (await store.getCampaignRecord(c.id))!;
+  assert.equal((paused.funnel as any).statusReason, 'spend cap reached');
+  await store.logDecision(paused, 'Launched.', '');
+  assert.equal(((await store.getCampaignRecord(c.id))!.funnel as any).statusReason, '');
+});
+
+test('first-campaign trust rule: robotHasLaunchedBefore flips only on a real launch', async () => {
+  const robotId = `rb-${randomUUID()}`;
+  const org = `org-${randomUUID()}`;
+  assert.equal(await store.robotHasLaunchedBefore(robotId), false);
+  // generating / pending_approval / failed don't count as "launched before".
+  await store.createCampaignRecord({ orgId: org, robotId, name: 'P', objective: 'leads', status: 'pending_approval' });
+  await store.createCampaignRecord({ orgId: org, robotId, name: 'F', objective: 'leads', status: 'failed' });
+  assert.equal(await store.robotHasLaunchedBefore(robotId), false);
+  await store.createCampaignRecord({ orgId: org, robotId, name: 'A', objective: 'leads', status: 'active' });
+  assert.equal(await store.robotHasLaunchedBefore(robotId), true);
+  assert.equal(await store.robotHasLaunchedBefore(null), false);
+});

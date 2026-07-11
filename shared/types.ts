@@ -760,11 +760,27 @@ export interface SocialCampaignView {
   formId: string | null;
   creativePool: { ref: string; type: 'image' | 'video'; format: string; headline?: string; live?: boolean; used?: boolean; adId?: string }[];
   engageSpecifics: { say?: string; doNotSay?: string; escalateIf?: string } | null;
+  /** Engine state (qc counters, copySamples, decisions, funnelSummary, lastCprUsd, statusReason…). */
   funnel: Record<string, unknown> | null;
-  brief: { product?: string; topics?: string[]; cta?: string; destination?: string } | null;
+  brief: {
+    product?: string; topics?: string[]; cta?: string; destination?: string;
+    vertical?: string; targetCprUsd?: number;
+    audience?: { countries?: string[] };
+  } | null;
   lastOptimizedAt: number | null;
   createdAt: number;
   updatedAt: number;
+}
+
+/** Typed reader for the campaign's engine-state blob (funnel JSON) — keeps the client honest. */
+export interface CampaignEngineState {
+  qc?: { checksRun: number; draftsRejected: number };
+  copySamples?: { headline: string; body: string; angle: string }[];
+  decisions?: { at: number; summary: string }[];
+  funnelSummary?: string;
+  statusReason?: string;
+  lastCprUsd?: number;
+  lastOptimizeNote?: string;
 }
 export interface SocialCampaignAdView {
   adId: string;

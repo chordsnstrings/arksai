@@ -835,6 +835,20 @@ export function registerRobotRoutes(app: FastifyInstance) {
     return { ok: true, started: true };
   });
 
+  // Serve a pool creative's image for the review panel's strip (org-gated; path locked to
+  // the campaign's own pool refs — never a client-supplied path).
+  app.get('/api/orgs/:id/robots/:rid/campaigns/:cid/creatives/:idx', async (req, reply) => {
+    if (!(await guard(req, reply))) return undefined;
+    const { getCampaignRecord } = await import('../robots/socialCampaigns');
+    const rec = await getCampaignRecord((req.params as any).cid);
+    if (!rec || rec.orgId !== orgId(req)) return reply.code(404).send({ error: 'Unknown campaign.' });
+    const idx = Number((req.params as any).idx);
+    const item = Number.isInteger(idx) ? rec.creativePool[idx] : undefined;
+    if (!item?.ref || !fs.existsSync(item.ref)) return reply.code(404).send({ error: 'No such creative.' });
+    const type = item.ref.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    return reply.type(type).send(fs.createReadStream(item.ref));
+  });
+
   app.post('/api/orgs/:id/robots/:rid/campaigns/:cid/approve', async (req, reply) => {
     if (!(await guard(req, reply))) return undefined;
     const { getCampaignRecord, launchManagedCampaign } = await import('../robots/socialCampaigns');
