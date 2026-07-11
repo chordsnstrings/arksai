@@ -789,8 +789,12 @@ export function registerRobotRoutes(app: FastifyInstance) {
     };
     // Truthful-scarcity grounding: a stated offer end must be a real FUTURE date.
     if (b.offer_ends_at) {
-      const ts = Date.parse(String(b.offer_ends_at));
+      const raw = String(b.offer_ends_at);
+      let ts = Date.parse(raw);
       if (!Number.isFinite(ts)) return reply.code(400).send({ error: 'The offer end date is not a valid date.' });
+      // A date-only value means "through that day" — anchor to END of day, or a truthful
+      // ends-today offer would read "in the past" from just after UTC midnight.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) ts += 86_399_999;
       if (ts <= Date.now()) return reply.code(400).send({ error: 'The offer end date is in the past — urgency must be true.' });
       brief.offerEndsAt = ts;
     }
@@ -839,14 +843,17 @@ export function registerRobotRoutes(app: FastifyInstance) {
   // the campaign's own pool refs — never a client-supplied path).
   app.get('/api/orgs/:id/robots/:rid/campaigns/:cid/creatives/:idx', async (req, reply) => {
     if (!(await guard(req, reply))) return undefined;
-    const { getCampaignRecord } = await import('../robots/socialCampaigns');
+    const { getCampaignRecord, resolveCreativeRef } = await import('../robots/socialCampaigns');
     const rec = await getCampaignRecord((req.params as any).cid);
     if (!rec || rec.orgId !== orgId(req)) return reply.code(404).send({ error: 'Unknown campaign.' });
     const idx = Number((req.params as any).idx);
-    const item = Number.isInteger(idx) ? rec.creativePool[idx] : undefined;
-    if (!item?.ref || !fs.existsSync(item.ref)) return reply.code(404).send({ error: 'No such creative.' });
-    const type = item.ref.endsWith('.png') ? 'image/png' : 'image/jpeg';
-    return reply.type(type).send(fs.createReadStream(item.ref));
+    const item = Number.isInteger(idx) && idx >= 0 ? rec.creativePool[idx] : undefined;
+    // Pool refs are stored RELATIVE to the campaign's media dir; resolveCreativeRef anchors
+    // there and refuses anything outside the org's own media root.
+    const abs = resolveCreativeRef(rec.orgId, item?.ref);
+    if (!abs) return reply.code(404).send({ error: 'No such creative.' });
+    const type = abs.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    return reply.type(type).send(fs.createReadStream(abs));
   });
 
   app.post('/api/orgs/:id/robots/:rid/campaigns/:cid/approve', async (req, reply) => {

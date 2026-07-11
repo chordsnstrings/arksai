@@ -97,7 +97,9 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
 
   useEffect(() => {
     const text = `${product} ${topics.join(' ')}`.trim();
-    if (text.length < 8) { setPreview(null); return; }
+    // Bump the seq even on the short-text early return so an in-flight response for text
+    // the user already deleted can't resurrect the brain line over an empty form.
+    if (text.length < 8) { previewSeq.current++; setPreview(null); setPreviewBusy(false); return; }
     const seq = ++previewSeq.current;
     setPreviewBusy(true);
     const t = setTimeout(() => {
@@ -153,7 +155,9 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
     if (needsUrl && !/^https?:\/\//.test(destination.trim())) return setErr('This goal needs a website URL (https://…).');
     if (!(budgetN > 0)) return setErr('Set a positive budget.');
     if (!countries.length) return setErr('Pick at least one country to run the ads in.');
-    if (offerEnds && Date.parse(offerEnds) <= Date.now()) return setErr('The offer end date is in the past — urgency must be true.');
+    // Date-only input means "through that day" — judge against END of day (mirrors the server),
+    // so a truthful ends-today deadline stays valid all day.
+    if (offerEnds && Date.parse(offerEnds) + 86_399_999 <= Date.now()) return setErr('The offer end date is in the past — urgency must be true.');
     if (overCap) return setErr(`That works out to $${perDay.toFixed(2)}/day — over the robot's $${dailyCapUsd}/day cap. Raise the cap in Settings or lower the budget.`);
     setBusy(true);
     try {
@@ -178,7 +182,9 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
         engage_do_not_say: doNotSay.trim() || undefined,
         engage_escalate_if: escalateIf.trim() || undefined,
         autonomy_level: autoLaunch ? 85 : 30,
-        vertical: preview?.verticalId ?? verticalOverride ?? undefined,
+        // The user's explicit correction ALWAYS wins — the preview lags it by a debounce +
+        // fetch, and launching inside that window must not resurrect the rejected detection.
+        vertical: verticalOverride ?? preview?.verticalId ?? undefined,
         target_cpr_usd: Number(target) > 0 ? Number(target) : undefined,
         offer_ends_at: offerEnds || undefined,
         limited_count: Number(limitedCount) > 0 ? Number(limitedCount) : undefined,

@@ -69,3 +69,25 @@ test('gateCopyBatch: rewrites hard failures, counts them, drops a rewrite that s
   assert.equal(stubborn.draftsRejected, 1);
   assert.ok(stubborn.notes.some((n) => /dropped/.test(n)));
 });
+
+// ---- Review-fix locks: the scarcity lexicon covers realistic phrasings ----
+
+test('scarcity gaps closed: generic nouns, weekdays, N-days-left all need grounding', async () => {
+  const { checkAdCopy } = await import('../src/agent/social/copyCheck');
+  // The doctrine's own canonical example + realistic variants — all hard-fail ungrounded.
+  for (const line of [
+    'Only 12 boxes left — order today.',
+    'Only 3 rooms left at this rate. Book direct.',
+    'Sale ends Monday — do not wait.',
+    'Only 2 days left to claim your spot.',
+    'Offer ends Jan 15 — book your slot.',
+  ]) {
+    assert.ok(checkAdCopy(line, 'Body.').hard.length >= 1, `should hard-fail ungrounded: "${line}"`);
+  }
+  // "Only 2 days left" is TIME urgency, not a count claim: a real end date grounds it fully.
+  const timed = checkAdCopy('Only 2 days left to claim your spot.', 'Body.', { offerEndsAt: Date.now() + 86_400_000 });
+  assert.equal(timed.hard.length, 0);
+  // A real count grounds the generic-noun form, and the number must still match the fact.
+  assert.equal(checkAdCopy('Only 12 boxes left.', 'Body.', { limitedCount: 12 }).hard.length, 0);
+  assert.ok(checkAdCopy('Only 30 boxes left.', 'Body.', { limitedCount: 12 }).hard.length >= 1, 'overclaimed count still rejected');
+});

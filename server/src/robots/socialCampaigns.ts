@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
+import path from 'node:path';
 import { q, qOne } from '../db';
 import { config } from '../config';
 import {
@@ -9,7 +10,8 @@ import {
 } from '../connectors/metaCampaigns';
 import { resolveSocialCreds } from './social';
 import { mintRobotFileToken } from '../routes/robotFiles';
-import { generateImagePool } from '../agent/social/creativeBatch';
+import { copyFactsOf, generateImagePool } from '../agent/social/creativeBatch';
+import { checkAdCopy, type CopyFacts } from '../agent/social/copyCheck';
 import { autonomyPolicy } from './autonomy';
 import { guardCampaignAction, recordCampaignAction } from './campaigns';
 
@@ -375,6 +377,44 @@ export async function logDecision(rec: SocialCampaign, summary: string, statusRe
   await updateCampaignRecord(rec.id, { funnel: rec.funnel }).catch(() => {});
 }
 
+/** TRUTHFUL SCARCITY HAS A CLOCK: once the stated offer end passes, copy claiming it is no
+ *  longer grounded. Pure helpers the 48h pass uses to (a) never rotate a dated creative back
+ *  in, and (b) retire live ads that still claim the expired deadline. */
+export function scarcityFactsNow(brief: CampaignBrief | null | undefined, now: number): CopyFacts {
+  const base = brief ? copyFactsOf(brief) : {};
+  const expired = !!(brief?.offerEndsAt && brief.offerEndsAt < now);
+  return { ...base, offerEndsAt: expired ? null : brief?.offerEndsAt ?? null };
+}
+
+/** Fresh pool creatives that are still SHIPPABLE right now (hash present, never used, and
+ *  their copy still passes the gate against today's facts — an expired "Offer ends Jan 15"
+ *  creative can never rotate back in). */
+export function rotatableCreatives(pool: PoolCreative[], brief: CampaignBrief | null | undefined, now: number): PoolCreative[] {
+  const facts = scarcityFactsNow(brief, now);
+  return pool.filter((c) => c.imageHash && !c.used && !checkAdCopy(c.headline ?? '', c.body ?? '', facts).hard.length);
+}
+
+/** Live ads whose creatives claim an offer date that has now passed — they must be retired
+ *  (a public false deadline is exactly the fabricated urgency the engine promises never runs). */
+export function expiredUrgencyAdIds(pool: PoolCreative[], brief: CampaignBrief | null | undefined, now: number): string[] {
+  if (!(brief?.offerEndsAt && brief.offerEndsAt < now)) return [];
+  const facts = scarcityFactsNow(brief, now);
+  return [...new Set(pool
+    .filter((c) => c.live && c.adId && checkAdCopy(c.headline ?? '', c.body ?? '', facts).hard.length)
+    .map((c) => c.adId!))];
+}
+
+/** Resolve a pool creative's stored ref to a servable absolute path — refs are written
+ *  RELATIVE to the campaign's media dir (the generator's workspace), and nothing outside
+ *  that org's media root is ever served. Returns null when the ref escapes or is missing. */
+export function resolveCreativeRef(orgId: string, ref: string | undefined | null): string | null {
+  if (!ref) return null;
+  const root = path.resolve(config.dataDir, 'campaign-media', orgId);
+  const abs = path.isAbsolute(ref) ? path.resolve(ref) : path.resolve(root, ref);
+  if (!abs.startsWith(root + path.sep)) return null;
+  return fs.existsSync(abs) ? abs : null;
+}
+
 /** First-campaign trust rule: the robot's FIRST campaign always waits for review, regardless
  *  of autonomy — trust is built by seeing what the brain makes, once. */
 export async function robotHasLaunchedBefore(robotId: string | null | undefined): Promise<boolean> {
@@ -500,7 +540,8 @@ export async function setupManagedCampaign(input: SetupInput, repoDir: string): 
     const pool: PoolCreative[] = [];
     for (const c of batch.pool) {
       try {
-        const b64 = fs.readFileSync(c.ref).toString('base64');
+        // Refs are relative to the campaign media dir (this run's repoDir).
+        const b64 = fs.readFileSync(path.isAbsolute(c.ref) ? c.ref : path.resolve(repoDir, c.ref)).toString('base64');
         const up = uploadImageRequest(ad.accountId, b64);
         const res = await graphPost(up.url, ad.accessToken, up.body);
         const first = res?.images && Object.values<any>(res.images)[0];
@@ -594,7 +635,9 @@ export async function setupManagedCampaign(input: SetupInput, repoDir: string): 
 
     // 8) Launch decision — Autopilot within the cap, else wait for approval.
     // FIRST-CAMPAIGN TRUST RULE: this robot's first campaign always waits for review.
-    const firstCampaign = !(await robotHasLaunchedBefore(input.robotId));
+    // Only ROBOT-driven campaigns carry the rule — the agent-tool path has no robotId, and
+    // treating it as "first" forever would permanently disable its documented autopilot.
+    const firstCampaign = input.robotId ? !(await robotHasLaunchedBefore(input.robotId)) : false;
     const policy = autonomyPolicy(input.autonomyLevel);
     const guard = guardCampaignAction(
       { action: 'launch', approved: policy.autoLaunch, requestedDailyUsd: daily, wantsInstagram, hasPageAndIg: wantsInstagram ? !!social.igUserId : undefined },
@@ -741,9 +784,11 @@ export function decideOptimizations(
   }
 
   // Target steering: judge the CAMPAIGN's blended cost-per-result against the user's target.
+  // Blended over ALL judged ads (a significant ad burning spend with ZERO results counts
+  // against the target — excluding it would wrongly declare stability while money burns).
   if (target && withResults.length) {
-    const spend = withResults.reduce((s, a) => s + a.spend, 0);
-    const results = withResults.reduce((s, a) => s + a.results, 0);
+    const spend = judged.reduce((s, a) => s + a.spend, 0);
+    const results = judged.reduce((s, a) => s + a.results, 0);
     const campaignCpr = results > 0 ? Math.round((spend / results) * 100) / 100 : null;
     if (campaignCpr != null) {
       // Ads clearly over the target are losers even if their siblings are too (best×2.5 can't see that).
@@ -771,10 +816,18 @@ export function decideOptimizations(
   }
   if (out.pause.length) out.rotate = true;
 
-  // Never pause everything — a campaign must keep at least one live ad.
+  // Never pause everything — a campaign must keep at least one live ad, and the survivor
+  // must be the BEST performer (lowest cost/result, then highest CTR), never whichever rule
+  // happened to push last (the absolute target/prior rules can catch every ad at once).
   if (out.pause.length >= ads.length) {
-    out.pause = out.pause.slice(0, ads.length - 1);
-    out.notes.push('kept one ad live (never empty the campaign)');
+    const rank = new Map(ads.map((a) => [a.adId, { cpr: a.costPerResult ?? Number.POSITIVE_INFINITY, ctr: a.ctr }]));
+    const keep = [...out.pause].sort((a, b) => {
+      const ra = rank.get(a.adId) ?? { cpr: Infinity, ctr: 0 };
+      const rb = rank.get(b.adId) ?? { cpr: Infinity, ctr: 0 };
+      return ra.cpr - rb.cpr || rb.ctr - ra.ctr;
+    })[0];
+    out.pause = out.pause.filter((p) => p.adId !== keep.adId);
+    out.notes.push('kept the best-performing ad live (never empty the campaign)');
   }
   return out;
 }
@@ -814,8 +867,12 @@ export async function optimizeCampaign(rec: SocialCampaign, now: number): Promis
   const ad = await resolveAdCreds(rec.orgId);
   if (!ad) {
     // Best-effort Meta-side pause; ALWAYS mark paused + stamp the bookkeeping locally so a
-    // dead campaign can't spin the tick forever.
-    await pauseManagedCampaign(rec.id, 'Meta connection lost — re-authorize in Settings → Connections').catch(() => {});
+    // dead campaign can't spin the tick forever. pauseManagedCampaign itself needs the very
+    // creds that are gone, so it can't log the reason — write it here so the monitor never
+    // shows a paused campaign with no explanation.
+    const reason = 'Meta connection lost — re-authorize in Settings → Connections';
+    const paused = await pauseManagedCampaign(rec.id, reason).catch(() => ({ ok: false }));
+    if (!paused.ok) await logDecision(rec, `Paused — ${reason}.`, reason);
     await updateCampaignRecord(rec.id, { status: 'paused', lastOptimizedAt: now, leaseUntil: null });
     return 'connection lost → paused';
   }
@@ -887,11 +944,25 @@ export async function optimizeCampaign(rec: SocialCampaign, now: number): Promis
     notes.push(`insights failed: ${e?.message ?? e}`);
   }
 
-  // 3) Rotation — rebuild the DCO ad on each ad set with fresh (never-used) hashed creatives.
+  // 2b) TRUTHFUL SCARCITY EXPIRY — the moment the stated offer end passes, live ads whose
+  // copy still claims it are retired (rotation then replaces them with undated creatives).
+  for (const expiredId of expiredUrgencyAdIds(pool, rec.brief, now)) {
+    const u = updateStatusRequest(expiredId, 'PAUSED');
+    await graphPost(u.url, ad.accessToken, u.body).catch(() => {});
+    await setAdState(expiredId, { live: false }).catch(() => {});
+    pool.forEach((c) => { if (c.adId === expiredId) c.live = false; });
+    ads.forEach((a) => { if (a.adId === expiredId) a.live = false; });
+    decision.rotate = true;
+    notes.push(`paused ${expiredId}: the offer date has passed — ads claiming it are retired`);
+    await recordCampaignAction({ orgId: rec.orgId, robotId: rec.robotId, action: 'pause', objectIds: JSON.stringify({ adId: expiredId }), status: 'executed', detail: 'offer end date passed' }).catch(() => {});
+  }
+
+  // 3) Rotation — rebuild the DCO ad on each ad set with fresh (never-used) hashed creatives
+  // that are still SHIPPABLE today (an expired "Offer ends …" creative can never rotate in).
   const needsRotation = decision.rotate || ads.some((a) => !a.live);
   if (needsRotation) {
     const social = await resolveSocialCreds(rec.orgId);
-    const fresh = pool.filter((c) => c.imageHash && !c.used);
+    const fresh = rotatableCreatives(pool, rec.brief, now);
     if (!social?.pageId) {
       notes.push('rotation skipped: Page connection missing');
     } else if (!fresh.length) {
@@ -931,11 +1002,16 @@ export async function optimizeCampaign(rec: SocialCampaign, now: number): Promis
   }
 
   const summary = notes.length ? notes.join('; ') : 'healthy — no changes needed';
-  const prevDecisions = Array.isArray((rec.funnel as any)?.decisions) ? ((rec.funnel as any).decisions as { at: number; summary: string }[]) : [];
+  // Re-read before the final funnel write: a multi-second pass can race a user action (a
+  // Pause tap writes statusReason + a decision) — spreading the stale tick-start snapshot
+  // would erase it wholesale.
+  const latest = await getCampaignRecord(rec.id).catch(() => null);
+  const baseFunnel = ((latest?.funnel ?? rec.funnel ?? {}) as Record<string, unknown>);
+  const prevDecisions = Array.isArray((baseFunnel as any).decisions) ? ((baseFunnel as any).decisions as { at: number; summary: string }[]) : [];
   await updateCampaignRecord(rec.id, {
     creativePool: pool, lastOptimizedAt: now, leaseUntil: null,
     funnel: {
-      ...(rec.funnel ?? {}), lastOptimizeNote: summary, lastOptimizeAt: now,
+      ...baseFunnel, lastOptimizeNote: summary, lastOptimizeAt: now,
       decisions: [{ at: now, summary }, ...prevDecisions].slice(0, 20),
     },
   });

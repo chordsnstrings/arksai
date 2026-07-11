@@ -135,3 +135,42 @@ test('planCreativeBatch: vertical tunes the pool; samples carry distinct plain-l
   const bodies = new Set(dental.specs.map((s) => s.body.split('.')[0]));
   assert.ok(bodies.size >= 2);
 });
+
+// ---- Review-fix locks: no gate bypass, sanitized expert weights, no fabricated proof ----
+
+test('gate bypass closed: a poisoned CTA never ships — dropped from body, image AND spec', async () => {
+  const { checkAdCopy } = await import('../src/agent/social/copyCheck');
+  const poisoned = { product: 'FreshCrate', topics: ['weekly veg boxes'], cta: "Hurry — don't miss out!" };
+  const { specs, notes } = planCreativeBatch(poisoned as any, 12);
+  assert.ok(specs.length >= 1, 'clean product/topic still produces ads');
+  for (const s of specs) {
+    assert.equal(s.cta, undefined, 'the failing CTA is composited on no image');
+    for (const h of s.headlines) {
+      assert.equal(checkAdCopy(h, s.body, {}).hard.length, 0, `shipped copy re-passes the gate: "${h}" / "${s.body}"`);
+    }
+  }
+  assert.ok(notes.some((n) => /call-to-action/.test(n)), 'the user is told why their CTA was dropped');
+});
+
+test('gate bypass closed: wording that can never pass produces NOTHING, with an honest note', () => {
+  // 'miracle' in the product name poisons every body that mentions it — nothing may ship.
+  const { specs, notes } = planCreativeBatch({ product: 'Miracle Cleaning Services', topics: [] } as any, 6);
+  assert.equal(specs.length, 0, 'failing copy never ships, period');
+  assert.ok(notes.length >= 1 && notes.every((n) => /Reword/.test(n)), 'actionable skip notes');
+});
+
+test('archetypeCycle sanitizes the expert override: unknown keys, huge and non-finite weights', () => {
+  // An unknown archetype name must not hang the loop (it could never decrement).
+  const typo = archetypeCycle('playful', { grounded: false, override: { offers: 3 } as any });
+  assert.ok(typo.length > 0 && typo.length <= 25);
+  // A fat-fingered 1e9 clamps instead of materializing a billion-entry array.
+  const huge = archetypeCycle('playful', { grounded: true, override: { offer: 1e9 } });
+  assert.ok(huge.length <= 25, `clamped cycle, got ${huge.length}`);
+  // Non-finite and negative weights are ignored / floored.
+  assert.ok(archetypeCycle('demo', { grounded: true, override: { urgency: Infinity } }).length <= 25);
+  assert.equal(archetypeCycle('demo', { grounded: true, override: { benefit: -5 } }).filter((a) => a === 'benefit').length, 0);
+});
+
+test('proof hook makes no fabricated countable claim', () => {
+  assert.doesNotMatch(hookHeadline('proof', 'Marina Dental', 'whitening'), /hundreds|thousands|\d/i);
+});

@@ -121,3 +121,24 @@ test('optimizer: significance gate still guards target judging', () => {
   assert.equal(d.pause.length, 0);
   assert.ok(d.notes.some((n) => /significance floor/.test(n)));
 });
+
+// ---- Review-fix locks: word-boundary classification + sub-unit currency display ----
+
+test('classifier matches at word starts — no substring false positives', () => {
+  // 'rent' inside 'parents' must NOT read as real estate; 'tuition' wins for education.
+  const tuition = classifyVertical('Maths tuition for kids — parents love us');
+  assert.equal(tuition.profile.id, 'education');
+  // 'hair' inside 'chairs' must NOT read as beauty.
+  assert.notEqual(classifyVertical('Ergonomic office chairs for startups').profile.id, 'beauty');
+  // Prefix stems still work ('rental' is real estate, 'plumbing' is home services).
+  assert.equal(classifyVertical('Short-term rental apartments in Marina').profile.id, 'realestate');
+  assert.equal(classifyVertical('Emergency plumbing repairs').profile.id, 'homeservices');
+});
+
+test('sub-unit currencies never display a 0 floor (KWD/BHD/OMR)', () => {
+  const rest = verticalById('restaurant');
+  const kw = adjustedBenchmark(rest, ['KW'])!;
+  assert.equal(kw.local?.code, 'KWD');
+  assert.ok((kw.local?.low ?? 0) >= 0.1, `KWD low must be >= 0.1, got ${kw.local?.low}`);
+  assert.ok((kw.local?.high ?? 0) > (kw.local?.low ?? 0));
+});

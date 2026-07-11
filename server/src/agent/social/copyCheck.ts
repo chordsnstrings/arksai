@@ -41,8 +41,10 @@ const NEG_SELF_RE = /\b(embarrass\w*|ashamed|ugly|flabby|gross|hate (?:your|my)|
 const SENSATIONAL_RE = /\b(you won'?t believe|shocking|miracle|doctors hate|secret trick|one weird trick|instant(?:ly)? cure\w*|100% guaranteed|guaranteed results|risk[- ]?free forever)\b/i;
 
 /** Urgency/scarcity tokens — allowed ONLY with a grounding fact. */
-const TIME_URGENCY_RE = /\b(ends? (?:soon|today|tonight|tomorrow|this week|friday|sunday)|last chance|final (?:hours|days?|call)|limited time|hurry|don'?t miss out|closing soon|offer expires|deadline)\b/i;
-const COUNT_SCARCITY_RE = /\bonly (\d+) (?:left|spots?|seats?|slots?|items?|units?|places?|remain\w*)\b/i;
+const TIME_URGENCY_RE = /\b(ends? (?:soon|today|tonight|tomorrow|this week(?:end)?|monday|tuesday|wednesday|thursday|friday|saturday|sunday|(?:on )?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\.? \d{1,2})|last chance|final (?:hours|days?|call)|limited time|hurry|don'?t miss out|closing soon|offer expires|deadline|\d+ (?:hours?|days?|weeks?) (?:left|remain\w*|to go))\b/i;
+// "only N <anything> left" is count-scarcity for ANY noun ("boxes", "rooms") — but time nouns
+// ("only 2 days left") belong to the TIME class above, never judged against limitedCount.
+const COUNT_SCARCITY_RE = /\bonly (\d+) (?:(?:spots?|seats?|slots?|items?|units?|places?)\b|(?!hours?\b|days?\b|weeks?\b|minutes?\b)\w+ (?:left|remain\w*)|left\b|remain\w*)/i;
 const SUPPLY_SCARCITY_RE = /\b(limited edition|while (?:stocks?|supplies) last|selling fast|almost (?:gone|sold out)|running out)\b/i;
 
 const VAGUE_RE = /\b(discover a better way|take your \w+ to the next level|unlock your (?:potential|best)|elevate your|transform your life|like never before)\b/i;

@@ -207,3 +207,61 @@ test('first-campaign trust rule: robotHasLaunchedBefore flips only on a real lau
   assert.equal(await store.robotHasLaunchedBefore(robotId), true);
   assert.equal(await store.robotHasLaunchedBefore(null), false);
 });
+
+// ---- Review-fix locks: scarcity expiry, ref resolution, keep-best guard, tool-path gate ----
+
+test('truthful scarcity has a clock: dated urgency creatives never rotate in after expiry', async () => {
+  const endsAt = Date.UTC(2026, 0, 15);
+  const brief = { product: 'FreshCrate', topics: ['veg boxes'], offerEndsAt: endsAt } as any;
+  const pool = [
+    { ref: 'images/a.jpg', type: 'image', format: '1:1', headline: 'Offer ends Jan 15 — veg boxes', body: 'FreshCrate. Order now.', imageHash: 'h1' },
+    { ref: 'images/b.jpg', type: 'image', format: '1:1', headline: 'veg boxes — done for you', body: 'FreshCrate. Order now.', imageHash: 'h2' },
+  ] as any[];
+  // Before the date: both shippable.
+  assert.equal(store.rotatableCreatives(pool, brief, endsAt - 86_400_000).length, 2);
+  // After: the dated creative is out for good; the benefit one still rotates.
+  const after = store.rotatableCreatives(pool, brief, endsAt + 86_400_000);
+  assert.equal(after.length, 1);
+  assert.match(after[0].headline!, /done for you/);
+  // Live ads still claiming the expired date are named for retirement.
+  const livePool = pool.map((c, i) => ({ ...c, live: true, adId: `ad-${i}` }));
+  assert.deepEqual(store.expiredUrgencyAdIds(livePool, brief, endsAt + 1), ['ad-0']);
+  assert.deepEqual(store.expiredUrgencyAdIds(livePool, brief, endsAt - 1), []); // not yet
+});
+
+test('resolveCreativeRef: anchors at the org media root, refuses escapes', async () => {
+  const { config } = await import('../src/config');
+  const org = `org-${randomUUID()}`;
+  const root = path.join(config.dataDir, 'campaign-media', org);
+  fs.mkdirSync(path.join(root, 'images'), { recursive: true });
+  const file = path.join(root, 'images', 'creative-1.jpg');
+  fs.writeFileSync(file, 'jpg');
+  assert.equal(store.resolveCreativeRef(org, 'images/creative-1.jpg'), file); // the generator's relative shape
+  assert.equal(store.resolveCreativeRef(org, file), file); // absolute inside the root
+  assert.equal(store.resolveCreativeRef(org, '../other-org/images/creative-1.jpg'), null); // traversal
+  assert.equal(store.resolveCreativeRef(org, '/etc/passwd'), null); // absolute outside
+  assert.equal(store.resolveCreativeRef(org, 'images/missing.jpg'), null); // missing file
+});
+
+test('never-empty guard keeps the BEST ad; zero-result judged spend counts against the target', () => {
+  const mk = (adId: string, cpr: number | null, over: any = {}) => ({
+    adId, spend: 40, impressions: 5000, ctr: 1.4, frequency: 2,
+    results: cpr ? Math.round((40 / cpr) * 100) / 100 : 0, costPerResult: cpr, ...over,
+  });
+  // Both ads over 2x the $10 target: the survivor must be the CHEAPER ad, never last-pushed.
+  const d = store.decideOptimizations([mk('GOOD-21', 21), mk('BAD-45', 45)] as any, { targetCprUsd: 10 });
+  assert.deepEqual(d.pause.map((p) => p.adId), ['BAD-45']);
+  assert.ok(d.notes.some((n) => /best-performing ad live/.test(n)));
+  // A judged ad burning spend with ZERO results counts against the target (no false stability).
+  const burn = store.decideOptimizations([mk('A', 8), mk('B', null, { spend: 100 })] as any, { targetCprUsd: 10 });
+  assert.ok(!burn.notes.some((n) => /keeping the winning mix stable/.test(n)), 'no stability claim while $100 burns');
+  assert.ok(burn.rotate, 'blended CPR over 1.3x target -> rotate harder');
+});
+
+test('first-campaign trust rule applies only to robot-driven campaigns (tool path keeps autopilot)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../src/robots/socialCampaigns.ts'), 'utf8');
+  assert.match(src, /input\.robotId \? !\(await robotHasLaunchedBefore\(input\.robotId\)\) : false/);
+  // The optimize pass re-reads the record before its final funnel write (mid-pass user
+  // actions must never be clobbered by a stale spread).
+  assert.match(src, /const latest = await getCampaignRecord\(rec\.id\)/);
+});

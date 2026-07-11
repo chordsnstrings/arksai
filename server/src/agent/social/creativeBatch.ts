@@ -1,6 +1,6 @@
 import { composeCreative } from '../creative';
 import type { CampaignBrief, PoolCreative } from '../../robots/socialCampaigns';
-import { gateCopyBatch, type CopyFacts } from './copyCheck';
+import { checkAdCopy, gateCopyBatch, type CopyFacts } from './copyCheck';
 import { verticalById, type AdFrame, type VisualStyle } from './verticals';
 
 /**
@@ -36,7 +36,8 @@ export function hookHeadline(
   switch (archetype) {
     case 'question': return `Still putting up with ${t.toLowerCase()}?`;
     case 'benefit': return `${t} — done for you`;
-    case 'proof': return `Why hundreds choose ${product}`;
+    // No fabricated counts ("hundreds") — proof copy must never claim numbers we can't back.
+    case 'proof': return `See why people choose ${product}`;
     case 'offer': return `${product}: your ${t.toLowerCase()}, sorted`;
     case 'urgency': {
       if (facts?.limitedCount && facts.limitedCount > 0) {
@@ -75,12 +76,20 @@ export const HOOK_WEIGHTS: Record<VisualStyle, Record<HookArchetype, number>> = 
   demo: { benefit: 3, offer: 2, proof: 2, question: 1, urgency: 1 },
 };
 
-/** Deterministic weighted archetype cycle (largest-weight-first interleave, no RNG). */
+/** Deterministic weighted archetype cycle (largest-weight-first interleave, no RNG).
+ *  The `override` comes from unvalidated robot-config JSON (the hidden expert key), so it is
+ *  SANITIZED here: unknown archetype names are dropped (an unknown key could never decrement
+ *  → infinite loop) and weights clamp to integers 0–5 (a fat-fingered 1e9 would otherwise
+ *  materialize a billion-entry array on the event loop). */
 export function archetypeCycle(
   style: VisualStyle,
   opts: { grounded?: boolean; override?: Partial<Record<HookArchetype, number>> } = {},
 ): HookArchetype[] {
-  const base = { ...HOOK_WEIGHTS[style], ...(opts.override ?? {}) };
+  const base = { ...HOOK_WEIGHTS[style] };
+  for (const a of HOOK_ARCHETYPES) {
+    const w = opts.override?.[a];
+    if (typeof w === 'number' && Number.isFinite(w)) base[a] = Math.max(0, Math.min(5, Math.floor(w)));
+  }
   if (!opts.grounded) base.urgency = 0; // no grounded fact → urgency earns no slots at all
   const cycle: HookArchetype[] = [];
   const remaining = { ...base };
@@ -169,7 +178,7 @@ export function planCreativeBatch(
   brief: CampaignBrief,
   imageCount: number,
   opts: PlanOptions = {},
-): { specs: BatchSpec[]; qc: { checksRun: number; draftsRejected: number }; samples: CopySample[] } {
+): { specs: BatchSpec[]; qc: { checksRun: number; draftsRejected: number }; samples: CopySample[]; notes: string[] } {
   const topics = brief.topics.length ? brief.topics : [brief.product];
   const product = brief.product;
   const facts = copyFactsOf(brief);
@@ -182,6 +191,11 @@ export function planCreativeBatch(
   const backgrounds = Math.max(1, Math.ceil(Math.min(50, Math.max(1, imageCount)) / 3));
   const specs: BatchSpec[] = [];
   const samples: CopySample[] = [];
+  const notes: string[] = [];
+  // The cta is ALSO composited on the image by itself — gate it standalone (the batch gate
+  // only ever sees it embedded in bodies; the fallback path drops it from the body).
+  const ctaSafe = !brief.cta?.trim() || !checkAdCopy('', brief.cta, facts).hard.length;
+  if (!ctaSafe) notes.push(`the call-to-action text ("${brief.cta}") fails the honesty/compliance gate — it was left off the ads. Reword it, or add the real deadline/count if the urgency is true.`);
   const sampleAngles = new Set<string>();
   let checksRun = 0;
   let draftsRejected = 0;
@@ -195,7 +209,7 @@ export function planCreativeBatch(
     }
     while (picks.length < 3) picks.push('benefit');
     const rawHeads = picks.map((a) => ({ archetype: a, headline: hookHeadline(a, product, topic, facts) }));
-    const body = bodyShape(COPY_SHAPES[i % COPY_SHAPES.length], product, topic, frame, brief.cta);
+    let body = bodyShape(COPY_SHAPES[i % COPY_SHAPES.length], product, topic, frame, ctaSafe ? brief.cta : undefined);
     const gated = gateCopyBatch(
       rawHeads.map((h) => ({ headline: h.headline, body, archetype: h.archetype })),
       facts,
@@ -205,7 +219,24 @@ export function planCreativeBatch(
     draftsRejected += gated.draftsRejected;
     const seen = new Set<string>();
     const kept = gated.items.filter((g) => !seen.has(g.headline) && seen.add(g.headline));
-    if (!kept.length) kept.push({ headline: hookHeadline('benefit', product, topic), body, archetype: 'benefit' });
+    if (!kept.length) {
+      // Nothing survived — the violation lives in the SHARED body (usually the user's own
+      // cta/product/topic wording). The fallback must itself pass the gate: failing copy
+      // never ships, period. Try dropping the cta, then the barest product line; if even
+      // that fails, this background is SKIPPED with an actionable note — never shipped dirty.
+      const candidates = [
+        { headline: hookHeadline('benefit', product, topic), body: bodyShape('offer_first', product, topic, frame, undefined) },
+        { headline: product.trim(), body: `${product.trim()}.` },
+      ];
+      const safe = candidates.find((c) => !checkAdCopy(c.headline, c.body, facts).hard.length);
+      if (!safe) {
+        const why = checkAdCopy(candidates[1].headline, candidates[1].body, facts).hard[0] ?? 'compliance rule';
+        notes.push(`background ${i + 1} skipped — the campaign's own wording fails the honesty/compliance gate (${why}). Reword the product/topics/CTA, or add the real deadline/count if the urgency is true.`);
+        continue;
+      }
+      body = safe.body;
+      kept.push({ headline: safe.headline, body: safe.body, archetype: 'benefit' });
+    }
     // Review-panel samples: first occurrence of up to 3 DISTINCT angles across the pool.
     for (const g of kept) {
       const angle = ANGLE_LABEL[(g as any).archetype as HookArchetype] ?? 'Benefit';
@@ -219,11 +250,11 @@ export function planCreativeBatch(
       aspect: BATCH_FORMATS[i % BATCH_FORMATS.length],
       headlines: kept.slice(0, 3).map((g) => g.headline),
       body,
-      cta: brief.cta,
+      cta: ctaSafe ? brief.cta : undefined,
       topic,
     });
   }
-  return { specs, qc: { checksRun, draftsRejected }, samples };
+  return { specs, qc: { checksRun, draftsRejected }, samples, notes };
 }
 
 /** ≈ cost per background call (1–2 image gens + 3–4 vision calls); variants are free. */
@@ -253,8 +284,8 @@ export async function generateImagePool(
   signal: AbortSignal,
   opts: { maxUsd: number; accent?: string; logoAbsPath?: string | null; onProgress?: (done: number, total: number) => void; plan?: PlanOptions },
 ): Promise<BatchOutcome> {
-  const { specs, qc, samples } = planCreativeBatch(brief, imageCount, opts.plan ?? {});
-  const out: BatchOutcome = { pool: [], spentUsd: 0, generatedBackgrounds: 0, skippedSpecs: 0, errors: [], qc, samples };
+  const { specs, qc, samples, notes } = planCreativeBatch(brief, imageCount, opts.plan ?? {});
+  const out: BatchOutcome = { pool: [], spentUsd: 0, generatedBackgrounds: 0, skippedSpecs: 0, errors: [...notes], qc, samples };
   for (let i = 0; i < specs.length; i++) {
     if (signal.aborted) { out.skippedSpecs = specs.length - i; break; }
     // Hard cap: stop BEFORE a call that could exceed the generation budget.

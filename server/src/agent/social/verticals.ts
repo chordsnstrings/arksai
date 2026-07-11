@@ -126,6 +126,14 @@ export const VERTICALS: VerticalProfile[] = [
 export const verticalById = (id: string | undefined | null): VerticalProfile =>
   VERTICALS.find((v) => v.id === id) ?? VERTICALS[VERTICALS.length - 1];
 
+/** Keywords match at a WORD START, not as raw substrings — 'rent' must never fire inside
+ *  'parents' nor 'hair' inside 'chairs'. Stems still work ('plumb' → 'plumbing') because the
+ *  boundary is only anchored at the front. Compiled once at module load. */
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const KEYWORD_RE = new Map<string, RegExp>(
+  VERTICALS.flatMap((v) => v.keywords).map((k) => [k, new RegExp(`\\b${escapeRe(k)}`, 'i')]),
+);
+
 /** Pure keyword classifier — cheap enough to run per keystroke-debounce, no LLM.
  *  Confidence = share of the winning score over a small floor; ≥2 keyword hits reads firm. */
 export function classifyVertical(product: string, topics: string[] = []): { profile: VerticalProfile; confidence: number } {
@@ -135,7 +143,7 @@ export function classifyVertical(product: string, topics: string[] = []): { prof
   for (const v of VERTICALS) {
     if (!v.keywords.length) continue;
     let score = 0;
-    for (const k of v.keywords) if (text.includes(k)) score += k.includes(' ') ? 2 : 1; // phrases weigh double
+    for (const k of v.keywords) if (KEYWORD_RE.get(k)!.test(text)) score += k.includes(' ') ? 2 : 1; // phrases weigh double
     if (score > bestScore) { best = v; bestScore = score; }
   }
   if (!best || bestScore === 0) return { profile: verticalById('generic'), confidence: 0 };
@@ -220,7 +228,10 @@ export function adjustedBenchmark(
     if (codes.length !== 1) return undefined;
     const cur = DISPLAY_CURRENCY[codes[0]];
     if (!cur) return undefined;
-    return { code: cur.code, low: Math.round(low * cur.perUsd), high: Math.round(high * cur.perUsd) };
+    // Sub-unit currencies (KWD/BHD/OMR ≈ 0.3/USD) round to 1dp — whole-unit rounding would
+    // floor a real KWD 0.16 to a nonsense 0.
+    const rl = (n: number) => (n >= 10 ? Math.round(n) : Math.max(0.1, Math.round(n * 10) / 10));
+    return { code: cur.code, low: rl(low * cur.perUsd), high: rl(high * cur.perUsd) };
   };
   if (ownCprUsd && ownCprUsd > 0) {
     // A real observed cost: a tight ±30% band around what THIS account actually pays.
