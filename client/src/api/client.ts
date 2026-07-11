@@ -542,6 +542,8 @@ export const api = {
       label: string;
       confidence: number;
       benchmark: { metric: 'lead' | 'sale' | 'click'; lowUsd: number; highUsd: number; global: boolean; basis: 'industry-estimate' | 'your-own-results'; local?: { code: string; low: number; high: number } } | null;
+      historySource: 'campaign' | 'account' | null;
+      historyN?: number;
       suggestedTargetUsd: number | null;
       targetAmbition: 'ok' | 'ambitious';
       complianceNote?: string;

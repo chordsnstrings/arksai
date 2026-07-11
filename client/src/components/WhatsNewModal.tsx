@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-11.68';
+export const WHATS_NEW_VERSION = '2026-07-11.69';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -20,7 +20,7 @@ export function shouldShowWhatsNew(): boolean {
 const ITEMS: { title: string; body: string }[] = [
   {
     title: 'The Campaign bot got a brain — and it knows your market',
-    body: 'Start a campaign brief and it recognises your business ("Sounds like a dental clinic"), then quotes what results really cost WHERE YOUR ADS RUN — UAE prices for UAE audiences, in dirhams too, never American numbers — and translates it into your budget ("expect roughly 4–10 leads"). Pick the countries with one tap; once you\'ve run a campaign, its real costs replace every estimate. Set a target price per lead and the robot steers toward it every 48 hours, telling you plainly what it did and why in its log.',
+    body: 'Start a campaign brief and it recognises your business ("Sounds like a dental clinic"), then quotes what results really cost WHERE YOUR ADS RUN — UAE prices for UAE audiences, in dirhams too, never American numbers — and translates it into your budget ("expect roughly 4–10 leads"). Better still: if your ad account ran ads last month, the robot reads those real results and predicts from YOUR actual cost per lead, not an industry estimate. Set a target price per lead and it steers toward it every 48 hours, telling you plainly what it did and why in its log.',
   },
   {
     title: 'Ads written by research, checked for honesty',

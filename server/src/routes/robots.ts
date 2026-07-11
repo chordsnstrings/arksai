@@ -737,12 +737,25 @@ export function registerRobotRoutes(app: FastifyInstance) {
     const detected = classifyVertical(String(b.product ?? ''), Array.isArray(b.topics) ? b.topics.map(String) : []);
     const profile = b.vertical_override ? verticalById(String(b.vertical_override)) : detected.profile;
     const countries: string[] = Array.isArray(b.countries) ? b.countries.map(String) : [];
-    // Own history: the most recent campaign in this vertical that actually measured a cost.
+    // Own history beats any prior. Most specific first: a managed campaign in this SAME
+    // vertical → else the connected ad account's last-30-days observed cost (whatever ran
+    // there, managed by us or not — cached per org, honesty-floored, metric-matched).
     const { listCampaignRecords } = await import('../robots/socialCampaigns');
     const past = (await listCampaignRecords(orgId(req)))
       .filter((c) => c.brief?.vertical === profile.id && typeof (c.funnel as any)?.lastCprUsd === 'number')
       .sort((a, c) => c.updatedAt - a.updatedAt);
-    const ownCpr = past.length ? Number((past[0].funnel as any).lastCprUsd) : null;
+    let ownCpr = past.length ? Number((past[0].funnel as any).lastCprUsd) : null;
+    let historySource: 'campaign' | 'account' | null = ownCpr ? 'campaign' : null;
+    let historyN: number | undefined;
+    if (!ownCpr) {
+      const { accountCostLast30d } = await import('../agent/social/history');
+      const acct = await accountCostLast30d(orgId(req)).catch(() => null);
+      if (acct && (!profile.prior || acct.metric === profile.prior.metric)) {
+        ownCpr = acct.costUsd;
+        historySource = 'account';
+        historyN = acct.n;
+      }
+    }
     const benchmark = adjustedBenchmark(profile, countries, ownCpr);
     const complianceNote = profile.compliance.specialCategory
       ? `This counts as a ${profile.compliance.specialCategory.toLowerCase()} ad — Meta limits age and location targeting for fairness. The robot files it correctly; your age range widens automatically.`
@@ -755,6 +768,9 @@ export function registerRobotRoutes(app: FastifyInstance) {
       label: profile.label,
       confidence: b.vertical_override ? 1 : detected.confidence,
       benchmark,
+      // Where a "your own results" basis came from — the brain line phrases each differently.
+      historySource,
+      historyN,
       suggestedTargetUsd: suggestTargetCpr(benchmark),
       targetAmbition: target ? targetAmbition(target, benchmark) : 'ok',
       complianceNote,

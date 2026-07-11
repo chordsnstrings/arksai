@@ -219,7 +219,9 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
               : <>Best guess: <strong>{preview.label.toLowerCase()}</strong> — tap below if that's off. </>}
           {b && range && (
             b.basis === 'your-own-results'
-              ? <>Based on <strong>your own past campaign</strong>, each {noun[0]} costs around {range}{expected && <> — at ${perDay.toFixed(0)}/day × {daysN} days expect roughly <strong>{expected.lo === 0 ? `up to ${expected.hi}` : `${expected.lo}–${expected.hi}`} {noun[1]}</strong></>}. </>
+              ? <>Based on {preview.historySource === 'account'
+                  ? <><strong>your ad account's last 30 days</strong>{preview.historyN ? ` (${preview.historyN} ${noun[1]})` : ''}</>
+                  : <strong>your own past campaign</strong>}, each {noun[0]} costs around {range}{expected && <> — at ${perDay.toFixed(0)}/day × {daysN} days expect roughly <strong>{expected.lo === 0 ? `up to ${expected.hi}` : `${expected.lo}–${expected.hi}`} {noun[1]}</strong></>}. </>
               : <>{where ? <>In <strong>{where}</strong>, </> : <></>}{noun[1]} in this industry typically run <strong>{range}</strong>{b.global ? ' (global estimate)' : ''}{expected && <> — at ${perDay.toFixed(0)}/day × {daysN} days expect roughly <strong>{expected.lo === 0 ? `up to ${expected.hi}` : `${expected.lo}–${expected.hi}`} {noun[1]}</strong></>}. </>
           )}
           {expected && expected.hi <= 1 && <>Budgets this size rarely produce results in this industry — consider a longer run or higher daily amount. </>}
@@ -386,7 +388,7 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
             {preview?.targetAmbition === 'ambitious' && Number(target) > 0
               ? <span className="soc-warn">Ambitious — the robot will chase it, but expect fewer results.</span>
               : preview?.suggestedTargetUsd
-                ? <>Suggested: ${preview.suggestedTargetUsd}{preview.benchmark?.basis === 'your-own-results' ? ' (from your last campaign)' : ''}</>
+                ? <>Suggested: ${preview.suggestedTargetUsd}{preview.benchmark?.basis === 'your-own-results' ? (preview.historySource === 'account' ? " (from your account's last 30 days)" : ' (from your last campaign)') : ''}</>
                 : <>The robot steers every 48h toward this price.</>}
           </span>
         </div>
