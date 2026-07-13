@@ -79,6 +79,80 @@ export async function saveConnector(
   );
 }
 
+/** Same as saveConnector but returns the connector id (so Pages can be linked to it). */
+export async function saveConnectorReturningId(
+  orgId: string,
+  provider: Provider,
+  account: { id: string; name: string },
+  tokens: TokenSet,
+  createdBy: string | null,
+): Promise<string> {
+  await saveConnector(orgId, provider, account, tokens, createdBy);
+  const row = await qOne<{ id: string }>(
+    'SELECT id FROM connectors WHERE org_id = $1 AND provider = $2 AND account_id = $3',
+    [orgId, provider, account.id],
+  );
+  return row!.id;
+}
+
+export interface MetaPageRow {
+  id: string;
+  pageId: string;
+  name: string | null;
+  category: string | null;
+  igUserId: string | null;
+  igUsername: string | null;
+}
+
+/** Upsert the Pages a Meta connection manages (page tokens encrypted at rest). Idempotent
+ *  on (connector, page) — a reconnect refreshes tokens + names without duplicating. */
+export async function saveMetaPages(
+  orgId: string,
+  connectorId: string,
+  pages: NonNullable<TokenSet['pages']>,
+): Promise<void> {
+  const now = Date.now();
+  for (const p of pages) {
+    if (!p.id) continue;
+    const enc = encryptSecret(p.accessToken || '');
+    const existing = await qOne<{ id: string }>(
+      'SELECT id FROM meta_pages WHERE connector_id = $1 AND page_id = $2',
+      [connectorId, p.id],
+    );
+    if (existing) {
+      await q(
+        `UPDATE meta_pages SET name=$1, category=$2, page_token_enc=$3, ig_user_id=$4, ig_username=$5, updated_at=$6 WHERE id=$7`,
+        [p.name, p.category, enc, p.igUserId, p.igUsername, now, existing.id],
+      );
+    } else {
+      await q(
+        `INSERT INTO meta_pages(id, org_id, connector_id, page_id, name, category, page_token_enc, ig_user_id, ig_username, created_at, updated_at)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [randomUUID(), orgId, connectorId, p.id, p.name, p.category, enc, p.igUserId, p.igUsername, now, now],
+      );
+    }
+  }
+}
+
+/** All Pages across an org's Meta connections (token-free view for the API/UI). */
+export async function listMetaPages(orgId: string): Promise<MetaPageRow[]> {
+  const rows = await q<{ id: string; page_id: string; name: string | null; category: string | null; ig_user_id: string | null; ig_username: string | null }>(
+    'SELECT id, page_id, name, category, ig_user_id, ig_username FROM meta_pages WHERE org_id = $1 ORDER BY name',
+    [orgId],
+  );
+  return rows.map((r) => ({ id: r.id, pageId: r.page_id, name: r.name, category: r.category, igUserId: r.ig_user_id, igUsername: r.ig_username }));
+}
+
+/** One Page WITH its decrypted token (server-side only — for insights/posts). */
+export async function getMetaPageWithToken(orgId: string, pageRowId: string): Promise<(MetaPageRow & { pageToken: string }) | null> {
+  const r = await qOne<{ id: string; page_id: string; name: string | null; category: string | null; page_token_enc: string; ig_user_id: string | null; ig_username: string | null }>(
+    'SELECT id, page_id, name, category, page_token_enc, ig_user_id, ig_username FROM meta_pages WHERE id = $1 AND org_id = $2',
+    [pageRowId, orgId],
+  );
+  if (!r) return null;
+  return { id: r.id, pageId: r.page_id, name: r.name, category: r.category, igUserId: r.ig_user_id, igUsername: r.ig_username, pageToken: decryptSecret(r.page_token_enc) };
+}
+
 /** Persist refreshed tokens for an existing connector. */
 export async function updateTokens(id: string, tokens: TokenSet): Promise<void> {
   await q(
@@ -115,12 +189,14 @@ export async function findForProvider(orgId: string, provider: Provider, account
 export async function deleteConnector(orgId: string, id: string): Promise<boolean> {
   const c = await getConnector(orgId, id);
   if (!c) return false;
+  await q('DELETE FROM meta_pages WHERE connector_id = $1 AND org_id = $2', [id, orgId]);
   await q('DELETE FROM connectors WHERE id = $1 AND org_id = $2', [id, orgId]);
   return true;
 }
 
 /** Delete every connector for an org (used by org deletion cascade). */
 export async function deleteConnectorsForOrg(orgId: string): Promise<void> {
+  await q('DELETE FROM meta_pages WHERE org_id = $1', [orgId]);
   await q('DELETE FROM connectors WHERE org_id = $1', [orgId]);
 }
 
@@ -134,6 +210,7 @@ export async function deleteConnectorsByExternalUser(provider: Provider, externa
     [provider, externalUserId],
   );
   if (rows.length) {
+    for (const r of rows) await q('DELETE FROM meta_pages WHERE connector_id = $1', [r.id]);
     await q('DELETE FROM connectors WHERE provider = $1 AND external_user_id = $2', [provider, externalUserId]);
   }
   return rows.length;

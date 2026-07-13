@@ -12,6 +12,12 @@ test('meta: auth URL carries client_id, redirect, state, ads_read scope (classic
   assert.match(u, /client_id=APPID/);
   assert.match(u, /state=STATE123/);
   assert.match(u, /ads_read/);
+  // The classic-flow scope now also requests Pages + insights so one login covers ad
+  // accounts AND Pages (+ linked Instagram) + their organic performance.
+  assert.match(u, /pages_show_list/);
+  assert.match(u, /pages_read_engagement/);
+  assert.match(u, /read_insights/);
+  assert.match(u, /instagram_basic/);
   assert.match(u, /response_type=code/);
   assert.match(u, /redirect_uri=https%3A%2F%2Farksai\.studio/);
   assert.doesNotMatch(u, /config_id/); // classic flow: scope, not config_id

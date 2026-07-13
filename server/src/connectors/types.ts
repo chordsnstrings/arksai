@@ -53,6 +53,8 @@ export interface TokenSet {
   accounts?: { id: string; name: string }[];
   /** the provider's app-scoped user id for the granting user (Meta: the `id` from /me) */
   externalUserId?: string | null;
+  /** Facebook Pages (+ linked Instagram) this grant manages — Meta only; page tokens carried. */
+  pages?: { id: string; name: string; category: string | null; accessToken: string; igUserId: string | null; igUsername: string | null }[];
 }
 
 /** Each ad platform implements this. Pure URL/normalize helpers are exported separately

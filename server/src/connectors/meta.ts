@@ -5,7 +5,12 @@ import type { Adapter, AdsRow, Connector, ReportParams, TokenSet } from './types
 // Graph/Marketing API version. Verify + bump against the live changelog at setup time.
 const V = process.env.META_API_VERSION || 'v21.0';
 const GRAPH = `https://graph.facebook.com/${V}`;
-const SCOPES = 'ads_read,business_management';
+// Ad reading + PAGE reading/insights + Instagram insights — so ONE Facebook login covers ad
+// accounts AND the Pages (and linked IG) the user manages, plus their organic performance.
+// NOTE: when a Login-for-Business `config_id` is set, Facebook IGNORES this scope string and
+// takes permissions from the app-dashboard configuration — so these same permissions must be
+// added to that config for the config_id path (and they are advanced-access → App Review).
+const SCOPES = 'ads_read,business_management,pages_show_list,pages_read_engagement,read_insights,instagram_basic,instagram_manage_insights';
 const DEFAULT_METRICS = ['impressions', 'clicks', 'spend', 'ctr', 'cpc', 'reach', 'actions'];
 
 const num = (v: any): number | string => {
@@ -72,7 +77,11 @@ export const metaAdapter: Adapter = {
     } catch {
       /* non-fatal — the connector still works, only the deletion-callback targeting is weaker */
     }
-    return { accessToken: access, refreshToken: null, expiresAt: expiresIn ? Date.now() + expiresIn * 1000 : null, scopes: SCOPES, accounts, externalUserId };
+    // Also enumerate the Pages (+ linked Instagram) this login manages — fail-soft so a grant
+    // without page permissions still connects the ad accounts.
+    const { fetchPages } = await import('./metaPages');
+    const pages = await fetchPages(access);
+    return { accessToken: access, refreshToken: null, expiresAt: expiresIn ? Date.now() + expiresIn * 1000 : null, scopes: SCOPES, accounts, externalUserId, pages };
   },
 
   // Meta has no refresh token; re-extend the long-lived token via fb_exchange_token.

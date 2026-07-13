@@ -747,6 +747,24 @@ async function migrate() {
   // loop below on pre-existing DBs — so it is created AFTER that loop, not here (creating it
   // here would throw on an old DB where the column doesn't exist yet).
 
+  // Facebook Pages enumerated when a Meta account connects (page token encrypted at rest).
+  // Backs Page enumeration + organic Page/IG insights; purged with the connector.
+  await q(`CREATE TABLE IF NOT EXISTS meta_pages(
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    connector_id TEXT NOT NULL,
+    page_id TEXT NOT NULL,
+    name TEXT,
+    category TEXT,
+    page_token_enc TEXT NOT NULL,
+    ig_user_id TEXT,
+    ig_username TEXT,
+    created_at ${INT} NOT NULL,
+    updated_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_meta_pages_org ON meta_pages(org_id)`);
+  await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_meta_pages_uniq ON meta_pages(connector_id, page_id)`);
+
   // Data-deletion request log — backs the user-accessible status page a platform (Meta)
   // requires the Data Deletion Callback to return a URL for. Metadata only (never content):
   // which provider/app-scoped user asked, how many connectors were purged, when. Looked up

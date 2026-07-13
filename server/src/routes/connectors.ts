@@ -8,7 +8,8 @@ import {
   adapterFor, availableProviders, connectorsEnabled, providerAvailable, redirectUri,
 } from '../connectors';
 import {
-  saveConnector, listConnectors, deleteConnector, toPublic,
+  saveConnectorReturningId, saveMetaPages, listMetaPages, getMetaPageWithToken,
+  listConnectors, deleteConnector, toPublic,
   deleteConnectorsByExternalUser, recordDeletionRequest, getDeletionRequest,
 } from '../connectors/store';
 import { metaAppSecret } from '../connectors/metaRuntime';
@@ -81,8 +82,14 @@ export function registerConnectorRoutes(app: FastifyInstance) {
     try {
       const tokens = await adapterFor(provider).exchangeCode(code, redirectUri(provider));
       const accounts = tokens.accounts?.length ? tokens.accounts : [{ id: 'default', name: 'Default account' }];
+      let firstId: string | null = null;
       for (const acct of accounts) {
-        await saveConnector(claims.orgId, provider, acct, tokens, claims.userId ?? null);
+        const id = await saveConnectorReturningId(claims.orgId, provider, acct, tokens, claims.userId ?? null);
+        if (!firstId) firstId = id;
+      }
+      // Attach any enumerated Facebook Pages to the first connector of this grant.
+      if (tokens.pages?.length && firstId) {
+        await saveMetaPages(claims.orgId, firstId, tokens.pages).catch(() => {});
       }
       return back('connected');
     } catch (e: any) {
@@ -98,6 +105,39 @@ export function registerConnectorRoutes(app: FastifyInstance) {
     const ok = await deleteConnector(s.orgId, id);
     if (!ok) return reply.code(404).send({ error: 'Not found' });
     return { ok: true };
+  });
+
+  // The Facebook Pages enumerated across this org's Meta connections (token-free view).
+  app.get('/api/connectors/meta/pages', async (req, reply) => {
+    const s = scopeOf(req);
+    if (!s?.orgId) return reply.code(403).send({ error: 'Sign in first.' });
+    return { pages: await listMetaPages(s.orgId) };
+  });
+
+  // Organic performance for ONE connected Page over a window (reach/impressions/engagement/
+  // follower change). The page token stays server-side; the caller passes the stored page row id.
+  app.get('/api/connectors/meta/pages/:pageRowId/insights', async (req, reply) => {
+    const s = scopeOf(req);
+    if (!s?.orgId) return reply.code(403).send({ error: 'Sign in first.' });
+    const page = await getMetaPageWithToken(s.orgId, (req.params as any).pageRowId);
+    if (!page) return reply.code(404).send({ error: 'Unknown page.' });
+    const qy = (req.query ?? {}) as { since?: string; until?: string };
+    const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+    const since = /^\d{4}-\d{2}-\d{2}$/.test(qy.since ?? '') ? qy.since! : day(31);
+    const until = /^\d{4}-\d{2}-\d{2}$/.test(qy.until ?? '') ? qy.until! : day(1);
+    try {
+      const { fetchPageInsights } = await import('../connectors/metaPages');
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 20_000);
+      try {
+        const insights = await fetchPageInsights(page.pageId, page.pageToken, since, until, ac.signal);
+        return { page: { id: page.id, pageId: page.pageId, name: page.name }, since, until, insights };
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (e: any) {
+      return reply.code(502).send({ error: e?.message ?? 'Page insights failed.' });
+    }
   });
 
   // ---- Meta (Facebook) compliance callbacks ----------------------------------------------
