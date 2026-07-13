@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { Robot } from '../../../shared/types';
+import type { Robot, RobotDraftChannel } from '../../../shared/types';
 import { config } from '../config';
 import { findForProvider } from '../connectors/store';
 import { fetchReport } from '../connectors';
 import { normalizeInsights, toSnapshotMetrics, type NormalizedRow } from '../agent/social/insights';
 import { saveSnapshot, listSnapshots, computeSeriesDeltas } from '../agent/metricSnapshots';
-import { sendFileOnChannel } from './outbound';
+import { sendFileOnChannel, sendOnChannel } from './outbound';
 
 /**
  * The Report bot — a scheduled, DETERMINISTIC Meta performance report emailed as a designed PDF.
@@ -20,6 +20,25 @@ export interface AdsReportConfig {
   accountId?: string;
   scope?: 'account' | 'account+campaign';
   include?: { reach?: boolean; leads?: boolean; conversions?: boolean; topCreatives?: boolean };
+  /** Reporting window — daily=1d, weekly=7d, monthly=30d (defaults to weekly). */
+  period?: ReportPeriod;
+}
+
+/** A delivery target — the report goes to the channel it was requested/scheduled on, not
+ *  only email. Telegram/WhatsApp get a text glance + the PDF document; email gets the PDF. */
+export interface ReportTarget {
+  channel: RobotDraftChannel;
+  address: string;
+}
+
+export type ReportPeriod = 'daily' | 'weekly' | 'monthly';
+
+/** Pure: the window (days back through yesterday) + human label for a reporting period. */
+export function reportWindow(period: ReportPeriod | undefined, now = Date.now()): { since: string; until: string; label: string } {
+  const days = period === 'daily' ? 1 : period === 'monthly' ? 30 : 7;
+  const day = (n: number) => new Date(now - n * 86_400_000).toISOString().slice(0, 10);
+  const label = period === 'daily' ? 'Yesterday' : period === 'monthly' ? 'Last 30 days' : 'Last 7 days';
+  return { since: day(days), until: day(1), label };
 }
 
 const iso = (n: number): string => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
@@ -44,6 +63,30 @@ export function reportObservations(total: NormalizedRow, campaigns: NormalizedRo
   else if (spendDelta?.deltaPct != null) out.push(`Spend ${spendDelta.deltaPct >= 0 ? 'up' : 'down'} ${Math.abs(spendDelta.deltaPct)}% vs the previous period.`);
   if (!out.length) out.push('Performance is steady — no action needed this period.');
   return out;
+}
+
+/** Pure: a plain-text KPI glance for chat channels (Telegram/WhatsApp) — the number
+ *  headline + a couple of observations, so the reader sees the gist without opening the PDF.
+ *  Deterministic (never LLM-authored), same source data as the document. */
+export function buildReportSummaryText(inp: {
+  accountName: string; periodLabel: string; since: string; until: string;
+  total: NormalizedRow; deltas: { metric: string; deltaPct: number | null }[]; campaigns: NormalizedRow[];
+}): string {
+  const d = (m: string) => {
+    const x = inp.deltas.find((y) => y.metric === m);
+    return x?.deltaPct == null ? '' : ` (${x.deltaPct >= 0 ? '▲' : '▼'}${Math.abs(x.deltaPct)}%)`;
+  };
+  const lines = [
+    `📊 ${inp.accountName} — ${inp.periodLabel} (${inp.since} → ${inp.until})`,
+    ``,
+    `Spend: ${money(inp.total.spend)}${d('spend')}`,
+    `Results: ${fmt(inp.total.results)}${d('results')}${inp.total.costPerResult != null ? ` · ${money(inp.total.costPerResult)}/result` : ''}`,
+    `CTR: ${fmt(inp.total.ctr)}%${d('ctr')} · Reach: ${fmt(inp.total.reach)}${d('reach')}`,
+  ];
+  const obs = reportObservations(inp.total, inp.campaigns, inp.deltas).slice(0, 3);
+  if (obs.length) { lines.push(``); for (const o of obs) lines.push(`• ${o}`); }
+  lines.push(``, `Full PDF attached.`);
+  return lines.join('\n');
 }
 
 function kpiCard(label: string, value: string, delta?: number | null): string {
@@ -143,15 +186,28 @@ export async function renderReportPdf(html: string): Promise<string> {
   return pdfPath;
 }
 
-/** Fired by the ads_report robot job: pull → normalise → deltas → PDF → email. Never throws fatally. */
-export async function runAdsReport(robot: Robot, cfg: AdsReportConfig, recipients: string[]): Promise<{ ok: boolean; detail: string }> {
+/** Normalize the caller's recipients into channel targets: a bare string list = emails
+ *  (back-compat), a ReportTarget[] rides through. Blank addresses dropped. */
+export function toReportTargets(recipients: Array<string | ReportTarget>): ReportTarget[] {
+  return recipients
+    .map((r) => (typeof r === 'string' ? { channel: 'email' as RobotDraftChannel, address: r } : r))
+    .filter((t) => t.address && t.address.trim());
+}
+
+/** Fired by the ads_report robot job / on-demand command: pull → normalise → deltas → PDF,
+ *  then deliver to each target ON ITS OWN CHANNEL (email = PDF attachment; Telegram/WhatsApp =
+ *  a text KPI glance + the PDF document). Never throws fatally. */
+export async function runAdsReport(
+  robot: Robot,
+  cfg: AdsReportConfig,
+  recipients: Array<string | ReportTarget>,
+): Promise<{ ok: boolean; detail: string }> {
   const conn = await findForProvider(robot.orgId, 'meta', cfg.accountId);
   if (!conn) return { ok: false, detail: 'No Meta ad account connected.' };
-  const to = recipients.filter(Boolean);
-  if (!to.length) return { ok: false, detail: 'No report recipients set.' };
+  const targets = toReportTargets(recipients);
+  if (!targets.length) return { ok: false, detail: 'No report recipients set.' };
 
-  const since = iso(8); // last 7 full days, through yesterday
-  const until = iso(1);
+  const { since, until, label } = reportWindow(cfg.period);
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 120_000);
   try {
@@ -166,19 +222,27 @@ export async function runAdsReport(robot: Robot, cfg: AdsReportConfig, recipient
       .filter((d) => d.period === period)
       .map((d) => ({ metric: d.metric, value: d.value, deltaPct: d.deltaPct }));
 
-    const html = buildReportHtml({
-      robotName: robot.name,
-      accountName: conn.accountName || conn.accountId,
-      periodLabel: 'Last 7 days',
-      since, until, total: acct.total, campaigns: camp.rows, deltas,
-    });
+    const accountName = conn.accountName || conn.accountId;
+    const html = buildReportHtml({ robotName: robot.name, accountName, periodLabel: label, since, until, total: acct.total, campaigns: camp.rows, deltas });
     const pdf = await renderReportPdf(html);
-    for (const addr of to) {
-      await sendFileOnChannel(robot, 'email', addr, pdf, `${robot.name} — performance report ${until}`).catch((e: any) =>
-        console.error(`[ads_report] email to ${addr} failed:`, e?.message ?? e),
-      );
+    const glance = buildReportSummaryText({ accountName, periodLabel: label, since, until, total: acct.total, deltas, campaigns: camp.rows });
+
+    let sent = 0;
+    for (const t of targets) {
+      try {
+        // Chat channels get the text glance first (so the number is visible without opening
+        // the file), then the PDF as a document. Email carries the PDF as an attachment.
+        if (t.channel === 'telegram' || t.channel === 'whatsapp') {
+          await sendOnChannel(robot, t.channel, t.address, glance).catch(() => {});
+        }
+        await sendFileOnChannel(robot, t.channel, t.address, pdf, `${robot.name} — ${label} report ${until}`);
+        sent++;
+      } catch (e: any) {
+        console.error(`[ads_report] ${t.channel} to ${t.address} failed:`, e?.message ?? e);
+      }
     }
-    return { ok: true, detail: `Report emailed to ${to.length} recipient(s).` };
+    if (!sent) return { ok: false, detail: 'Report generated but every delivery failed — check the channel connections.' };
+    return { ok: true, detail: `${label} report sent to ${sent} recipient(s).` };
   } catch (e: any) {
     return { ok: false, detail: e?.message ?? String(e) };
   } finally {

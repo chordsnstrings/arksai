@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-11.69';
+export const WHATS_NEW_VERSION = '2026-07-13.70';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,12 +19,8 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'The Campaign bot got a brain — and it knows your market',
-    body: 'Start a campaign brief and it recognises your business ("Sounds like a dental clinic"), then quotes what results really cost WHERE YOUR ADS RUN — UAE prices for UAE audiences, in dirhams too, never American numbers — and translates it into your budget ("expect roughly 4–10 leads"). Better still: if your ad account ran ads last month, the robot reads those real results and predicts from YOUR actual cost per lead, not an industry estimate. Set a target price per lead and it steers toward it every 48 hours, telling you plainly what it did and why in its log.',
-  },
-  {
-    title: 'Ads written by research, checked for honesty',
-    body: 'Ad styles now follow what actually wins per industry (offers lead for restaurants and shops, proof leads for clinics and legal), every headline passes honesty and Meta-compliance checks before it can ship, and urgency like "only 6 spots left" appears ONLY when you\'ve told the robot it\'s true. Your first campaign always pauses to show you what it made — the actual images, the copy, the plan — before a single dirham is spent.',
+    title: 'Reports on Telegram — and just ask for them',
+    body: 'Your ad performance report can now go straight to Telegram, not only email: a quick text glance of the headline numbers, then the full designed PDF, on your daily/weekly/monthly schedule. Even better — message your robot on Telegram any time ("how are the ads doing?" or "send me this month\'s report") and it builds and sends the report right there in the chat. Set it up in the robot\'s Reports panel; pick email addresses, your Telegram chats, or both.',
   },
 ];
 

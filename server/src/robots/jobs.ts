@@ -208,13 +208,15 @@ export async function runDueJobs(getRobotById: (id: string) => Promise<Robot | n
         continue;
       }
 
-      // 'ads_report': the Report bot — deterministic Meta performance report, emailed.
+      // 'ads_report': the Report bot — deterministic Meta performance report, delivered to
+      // each target ON ITS OWN CHANNEL (email attachment, Telegram/WhatsApp glance + PDF).
       if (job.kind === 'ads_report') {
         try {
           const cfg = job.prompt ? JSON.parse(job.prompt) : {};
-          const recipients = (await targetsFor(job, robot)).map((t) => t.address);
+          if (cfg.period == null) cfg.period = job.cadence; // schedule cadence = the window
+          const targets = await targetsFor(job, robot);
           const { runAdsReport } = await import('./socialReport');
-          await runAdsReport(robot, cfg, recipients);
+          await runAdsReport(robot, cfg, targets);
         } catch (e: any) {
           console.error(`[robot-job ${job.id}] ads_report failed:`, e?.message ?? e);
         }

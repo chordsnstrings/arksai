@@ -163,6 +163,19 @@ export interface Command {
 /** Deterministic commander CONTROLS — no model involved, so they always work. */
 export const STATUS_RE = /^\s*(status|progress|update|how('?s| is)\s+(it|the|my)\s*(build|task|going)?( going)?)\s*\??\s*$/i;
 export const CANCEL_RE = /^\s*(cancel|stop|abort|kill)(\s+(it|that|the\s+build|the\s+task))?\s*[.!]?\s*$/i;
+/** On-demand ads report — REQUESTS for performance data, not "build a report dashboard".
+ *  A bare "report" needs a fetch/query verb in front (send/show/get me the report); the
+ *  ads-doing / numbers / performance-report phrasings stand on their own. Because "report"
+ *  is also a build keyword, the fetch-verb gate is what keeps "build a report app" out. */
+export const REPORT_RE = /\b((send|show|get|give|share|email|pull|fetch|want|need|see|check)\b[^.?!]{0,40}\b(report|ad\s*performance|ads?\s+(numbers?|stats?|results?|summary))|how\s+(are|is|'?re)\s+(the\s+|my\s+)?(ads?|campaigns?)\s+(doing|performing|going)|(this|last)\s+(week|month)'?s?\s+(ad\s+)?(numbers?|report|stats?|results?|performance)|(ad|campaign)\s+performance\s+(report|summary|numbers?))\b/i;
+
+/** Pure: the reporting window a commander asked for in free text (defaults to weekly). */
+export function reportPeriodFromText(text: string): 'daily' | 'weekly' | 'monthly' {
+  const t = text.toLowerCase();
+  if (/\b(month|monthly|30\s*days?|last\s+month|this\s+month)\b/.test(t)) return 'monthly';
+  if (/\b(today|yesterday|daily|last\s+day|24\s*h)\b/.test(t)) return 'daily';
+  return 'weekly';
+}
 
 /** Cheap prefilter: only messages that plausibly ask to CREATE something reach the model.
  *  Covers the FULL production surface (operator 2026-07-06: "robots that can connect to all
@@ -537,6 +550,21 @@ export async function tryCommand(
       await say('Cancelled ✓ — I stopped that build.');
     } else {
       await say('Nothing is building right now, so there was nothing to cancel.');
+    }
+    return true;
+  }
+
+  // ---- on-demand ads report (social robots): "send me this month's report" → PDF right here ----
+  if (REPORT_RE.test(text)) {
+    const period = reportPeriodFromText(text);
+    const label = period === 'monthly' ? "this month's" : period === 'daily' ? "today's" : "this week's";
+    await say(`Pulling ${label} ad performance report — one moment…`);
+    try {
+      const { runAdsReport } = await import('./socialReport');
+      const r = await runAdsReport(robot, { period }, [{ channel, address: from }]);
+      if (!r.ok) await say(`I couldn't build the report: ${r.detail}`);
+    } catch (e: any) {
+      await say(`I couldn't build the report right now (${e?.message ?? 'error'}). Try again shortly.`);
     }
     return true;
   }

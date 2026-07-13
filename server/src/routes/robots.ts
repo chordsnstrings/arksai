@@ -905,8 +905,8 @@ export function registerRobotRoutes(app: FastifyInstance) {
     const robot = await getRobot((req.params as any).rid, orgId(req));
     if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
     const b = (req.body as any) || {};
-    const recipients: string[] = Array.isArray(b.recipients) ? b.recipients.map(String).filter(Boolean) : [];
-    if (!recipients.length) return reply.code(400).send({ error: 'Add at least one recipient email.' });
+    const deliverTo = await reportTargetsFromBody(robot.id, orgId(req), b);
+    if (!deliverTo.length) return reply.code(400).send({ error: 'Add at least one recipient — an email or a connected Telegram chat.' });
     const cadence = ['daily', 'weekly', 'monthly'].includes(b.cadence) ? b.cadence : 'weekly';
     const { createJob } = await import('../robots/jobs');
     const job = await createJob(robot.id, orgId(req), {
@@ -914,7 +914,7 @@ export function registerRobotRoutes(app: FastifyInstance) {
       weekday: b.weekday != null ? Number(b.weekday) : undefined,
       tz: b.tz ? String(b.tz) : undefined,
       prompt: JSON.stringify({ accountId: b.account_id || undefined, scope: b.scope || 'account+campaign' }),
-      deliverTo: recipients.map((address) => ({ channel: 'email' as const, address })),
+      deliverTo,
     });
     return { job };
   });
@@ -932,11 +932,33 @@ export function registerRobotRoutes(app: FastifyInstance) {
     const robot = await getRobot((req.params as any).rid, orgId(req));
     if (!robot) return reply.code(404).send({ error: 'Unknown robot.' });
     const b = (req.body as any) || {};
-    const recipients: string[] = Array.isArray(b.recipients) ? b.recipients.map(String).filter(Boolean) : [];
-    if (!recipients.length) return reply.code(400).send({ error: 'Add at least one recipient email.' });
+    const targets = await reportTargetsFromBody(robot.id, orgId(req), b);
+    if (!targets.length) return reply.code(400).send({ error: 'Add at least one recipient — an email or a connected Telegram chat.' });
     const { runAdsReport } = await import('../robots/socialReport');
-    const r = await runAdsReport(robot, { accountId: b.account_id || undefined }, recipients);
+    const period = ['daily', 'weekly', 'monthly'].includes(b.period) ? b.period : undefined;
+    const r = await runAdsReport(robot, { accountId: b.account_id || undefined, period }, targets);
     if (!r.ok) return reply.code(400).send({ error: r.detail });
     return { ok: true, detail: r.detail };
   });
+}
+
+/** Build report delivery targets from a request body: email chips + selected Telegram
+ *  commander chats. Telegram addresses are validated against the robot's OWN commanders
+ *  (never a caller-supplied chat id) so a report can only be sent where the owner enrolled. */
+async function reportTargetsFromBody(
+  robotId: string,
+  org: string,
+  b: any,
+): Promise<{ channel: 'email' | 'telegram' | 'whatsapp'; address: string }[]> {
+  const emails: string[] = Array.isArray(b.recipients) ? b.recipients.map(String).filter(Boolean) : [];
+  const out: { channel: 'email' | 'telegram' | 'whatsapp'; address: string }[] =
+    emails.map((address) => ({ channel: 'email' as const, address }));
+  const chatIds: string[] = Array.isArray(b.telegram_chat_ids) ? b.telegram_chat_ids.map(String).filter(Boolean) : [];
+  if (chatIds.length) {
+    const { listCommanders } = await import('../robots/tasks');
+    const cmds = await listCommanders(robotId, org).catch(() => []);
+    const allowed = new Set(cmds.filter((c) => c.channel === 'telegram').map((c) => String(c.address)));
+    for (const id of chatIds) if (allowed.has(id)) out.push({ channel: 'telegram', address: id });
+  }
+  return out;
 }

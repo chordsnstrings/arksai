@@ -81,3 +81,53 @@ test('computeNextRun: monthly advances to the same day next month', () => {
 });
 
 function round(n: number): number { return Math.round(n * 100) / 100; }
+
+// ---- Reports over any channel (Telegram/email) + on-demand report command ----
+
+test('reportWindow: daily/weekly/monthly windows with human labels', async () => {
+  const { reportWindow } = await import('../src/robots/socialReport');
+  const now = Date.UTC(2026, 5, 30); // fixed clock
+  assert.deepEqual(reportWindow('daily', now).label, 'Yesterday');
+  assert.deepEqual(reportWindow('weekly', now).label, 'Last 7 days');
+  assert.deepEqual(reportWindow('monthly', now).label, 'Last 30 days');
+  assert.equal(reportWindow(undefined, now).label, 'Last 7 days'); // default
+  // window widens with the period; all end yesterday.
+  const w = reportWindow('monthly', now), d = reportWindow('daily', now);
+  assert.equal(w.until, d.until);
+  assert.ok(w.since < d.since, 'monthly reaches further back');
+});
+
+test('toReportTargets: bare emails map to email channel; ReportTargets ride through; blanks dropped', async () => {
+  const { toReportTargets } = await import('../src/robots/socialReport');
+  assert.deepEqual(toReportTargets(['a@x.com', '', '  ']), [{ channel: 'email', address: 'a@x.com' }]);
+  assert.deepEqual(
+    toReportTargets(['a@x.com', { channel: 'telegram', address: '12345' }]),
+    [{ channel: 'email', address: 'a@x.com' }, { channel: 'telegram', address: '12345' }],
+  );
+});
+
+test('buildReportSummaryText: a plain-text KPI glance for chat channels', async () => {
+  const { buildReportSummaryText } = await import('../src/robots/socialReport');
+  const total = { name: 'All', impressions: 90000, reach: 60000, clicks: 900, spend: 300, ctr: 1, cpc: 0.33, cpm: 3.3, frequency: 1.5, leads: 20, conversions: 0, results: 20, costPerResult: 15 };
+  const txt = buildReportSummaryText({
+    accountName: 'Acme', periodLabel: 'Last 7 days', since: '2026-06-23', until: '2026-06-29',
+    total, deltas: [{ metric: 'spend', deltaPct: 12 }], campaigns: [total],
+  });
+  assert.match(txt, /Acme — Last 7 days/);
+  assert.match(txt, /Spend: \$300 \(▲12%\)/);
+  assert.match(txt, /\$15\/result/);
+  assert.match(txt, /Full PDF attached/);
+});
+
+test('report command: REPORT_RE catches requests but NOT "build a report dashboard"', async () => {
+  const { REPORT_RE, reportPeriodFromText } = await import('../src/robots/tasks');
+  for (const yes of ['send me the report', 'show me this month\'s numbers', 'how are the ads doing?', 'get me the ad performance report', 'this week\'s ad results']) {
+    assert.ok(REPORT_RE.test(yes), `should match: "${yes}"`);
+  }
+  for (const no of ['build a report dashboard', 'make me a website', 'create an ad for my shop', 'design a report template']) {
+    assert.ok(!REPORT_RE.test(no), `should NOT match: "${no}"`);
+  }
+  assert.equal(reportPeriodFromText('send this month\'s report'), 'monthly');
+  assert.equal(reportPeriodFromText('yesterday\'s numbers'), 'daily');
+  assert.equal(reportPeriodFromText('how are the ads doing'), 'weekly');
+});
