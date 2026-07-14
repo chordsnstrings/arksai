@@ -310,6 +310,15 @@ export const boostPostTool: ToolDef = {
   },
 };
 
+// RETIRED from the general agent (2026-07-13, after a live FXP disaster): the piecemeal
+// CREATION footguns `plan_campaign` + `create_campaign` let a fast model hand-roll a broken
+// campaign (an empty shell) and then hallucinate that ad sets/ads/creatives existed. All
+// "build me a campaign" work now routes through `launch_managed_campaign` (the managed bot:
+// generate → gate → UPLOAD → assemble PAUSED → real ids). `boost_post` (creates an ad around
+// an existing post) is also retired from the surface for the same reason. The remaining tools
+// only READ or MANAGE EXISTING objects by their real Graph id — they can't fabricate a build.
 export const META_CAMPAIGN_TOOLS: ToolDef[] = [
-  planCampaignTool, createCampaignTool, launchCampaignTool, pauseCampaignTool, setBudgetTool, boostPostTool, campaignReportTool, listCampaignActionsTool,
+  launchCampaignTool, pauseCampaignTool, setBudgetTool, campaignReportTool, listCampaignActionsTool,
 ];
+/** Kept exported for tests + the (unused) code path; NOT registered in any mode toolset. */
+export const RETIRED_CAMPAIGN_TOOLS: ToolDef[] = [planCampaignTool, createCampaignTool, boostPostTool];

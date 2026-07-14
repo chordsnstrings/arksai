@@ -63,6 +63,12 @@ export function complexityTier(task: string, mode: SessionMode): Tier {
   // looped the failing render call — this work needs the heavy lane (M3).
   if (/\b(motion graphics|explainer video|animated (video|explainer|infographic)|render_motion_video)\b/.test(t)) score += 4;
 
+  // META AD-ACCOUNT OPERATIONS = high-stakes, real-money, multi-step Graph API work. Seen
+  // live 2026-07-13: the Swift fast lane hand-rolled a broken campaign and HALLUCINATED
+  // success (fake campaign id, fake pages, "created" objects that never existed). This work
+  // needs the heavy lane (M3) — careful multi-step tool use + honest failure reporting.
+  if (/\b(campaign|ad ?set|ad account|launch (an? )?ad|run (an? )?ad|boost (the |this )?post|facebook ads?|meta ads?|instagram ads?|advertis)/.test(t)) score += 4;
+
   if (score <= 0) return 'light';
   if (score >= 3) return 'heavy';
   return 'standard';

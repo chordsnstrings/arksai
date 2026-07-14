@@ -5,12 +5,14 @@ import type { Adapter, AdsRow, Connector, ReportParams, TokenSet } from './types
 // Graph/Marketing API version. Verify + bump against the live changelog at setup time.
 const V = process.env.META_API_VERSION || 'v21.0';
 const GRAPH = `https://graph.facebook.com/${V}`;
-// Ad reading + PAGE reading/insights + Instagram insights — so ONE Facebook login covers ad
-// accounts AND the Pages (and linked IG) the user manages, plus their organic performance.
+// Ad reading + WRITING (create/upload/launch) + PAGE reading/insights + Instagram insights —
+// so ONE Facebook login covers ad accounts AND the Pages (and linked IG) the user manages,
+// plus their organic performance. `ads_management` is the WRITE scope: without it every
+// create-campaign / upload-image / launch call is rejected by Meta (ads_read is read-only).
 // NOTE: when a Login-for-Business `config_id` is set, Facebook IGNORES this scope string and
 // takes permissions from the app-dashboard configuration — so these same permissions must be
 // added to that config for the config_id path (and they are advanced-access → App Review).
-const SCOPES = 'ads_read,business_management,pages_show_list,pages_read_engagement,read_insights,instagram_basic,instagram_manage_insights';
+const SCOPES = 'ads_read,ads_management,business_management,pages_show_list,pages_read_engagement,pages_manage_ads,read_insights,instagram_basic,instagram_manage_insights';
 const DEFAULT_METRICS = ['impressions', 'clicks', 'spend', 'ctr', 'cpc', 'reach', 'actions'];
 
 const num = (v: any): number | string => {
