@@ -48,7 +48,7 @@ import { createArtifactTool } from './artifact';
 import { switchModeTool, submitPlanTool } from './mode';
 import { checkpointTool } from './checkpoint';
 import { fetchDataTool } from './data';
-import { fetchAdsTool } from './ads';
+import { fetchAdsTool, listAdAccountsTool } from './ads';
 import { publishPostTool, planCalendarTool, listPostsTool } from './social';
 import { META_CAMPAIGN_TOOLS } from './metaCampaigns';
 import { SOCIAL_CAMPAIGN_BOT_TOOLS } from './socialCampaignBot';
@@ -135,6 +135,7 @@ export const ALL_TOOLS: ToolDef[] = [
   submitPlanTool,
   fetchDataTool,
   fetchAdsTool,
+  listAdAccountsTool,
   publishPostTool,
   planCalendarTool,
   listPostsTool,
@@ -201,6 +202,7 @@ const REPORT_TOOLS = new Set([
   'switch_mode',
   'fetch_data',
   'list_posts',
+  'list_ad_accounts',
   'campaign_report',
   'campaign_actions_log',
   'manage_campaign',

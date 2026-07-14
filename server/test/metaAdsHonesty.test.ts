@@ -61,3 +61,29 @@ test('the chat prompt carries the absolute Meta honesty rule', () => {
   assert.match(src, /returned its REAL id in THIS turn/);
   assert.match(src, /launch_managed_campaign[\s\S]{0,120}ONLY way to create ads/);
 });
+
+// ---- Multi-account targeting: list_ad_accounts + name/id resolution + honest errors ----
+
+test('list_ad_accounts is registered for chat/code/report (agent can discover every account)', () => {
+  for (const mode of ['chat', 'code'] as const) assert.ok(registered('list_ad_accounts', mode), `list_ad_accounts in ${mode}`);
+  assert.ok(ALL_TOOLS.some((t) => t.name === 'list_ad_accounts'), 'list_ad_accounts registered');
+});
+
+test('fetch_ads accepts an account by NAME or id, and its error lists real accounts (never "reconnect")', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../src/agent/tools/ads.ts'), 'utf8');
+  // Resolution matches by exact id OR account name (fuzzy).
+  assert.match(src, /accountId\.toLowerCase\(\) === q/);
+  assert.match(src, /accountName ?\?\?? ''\)\.toLowerCase\(\)\.includes\(q\)/);
+  // A no-match-among-connected error lists the real accounts and forbids the reconnect lie.
+  assert.match(src, /These \$\{provider\} accounts ARE connected/);
+  assert.match(src, /Do NOT tell the user to reconnect/);
+  // list_ad_accounts reads the store (never guesses) and shows ids.
+  assert.match(src, /listAdAccountsTool/);
+  assert.match(src, /id \$\{c\.accountId\}/);
+});
+
+test('prompt steers list-then-target and forbids the reconnect lie for connected accounts', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../src/agent/prompts.ts'), 'utf8');
+  assert.match(src, /call\s+\*\*list_ad_accounts\*\*\s+FIRST/);
+  assert.match(src, /NEVER tell the user to reconnect[\s\S]{0,80}when list_ad_accounts already returns them/);
+});
