@@ -612,7 +612,25 @@ export async function tryCommand(
     // Personal/owner-driven bot with no owner yet → adopt this first chat sender, then continue
     // as its commander (so their very first "make me an image" builds instead of falling to the
     // toolless reply lane). A non-personal bot, or one that already has an owner, still returns.
-    if (!(await maybeAutoAdoptCommander(robot, channel, from, fromName, text))) return false;
+    if (!(await maybeAutoAdoptCommander(robot, channel, from, fromName, text))) {
+      // Not adopted. If an UNCLAIMED commanders-only chat bot gets a clear build request, the
+      // reply lane (toolless for this sender) would just narrate a fake "generating now…". Instead
+      // tell them the truth and how to unlock it — one word. (Only on a build-shaped ask, so a
+      // support bot's normal Q&A is never hijacked.)
+      if (SELF_CLAIM_CHANNELS.has(channel) && isCommandersOnly(robot) && deterministicBuildCommand(text)) {
+        const unowned = (await listCommanders(robot.id, robot.orgId).catch(() => [] as RobotCommander[])).length === 0;
+        if (unowned) {
+          await sendOnChannel(
+            robot,
+            channel,
+            from,
+            `I'd love to make that — but I only take build orders from my owner. Reply with the single word “claim” to become my owner, then send that again and I'll build it and drop it right here.`,
+          ).catch(() => {});
+          return true;
+        }
+      }
+      return false;
+    }
     // If the message was JUST the claim word, we've onboarded them — nothing more to build.
     if (CLAIM_RE.test(text)) return true;
   }
