@@ -335,6 +335,9 @@ test('the reply lane forbids false async promises (no background render)', () =>
   assert.match(src, /you have NO background or "later"/);
   assert.match(src, /generating now/);
   assert.match(src, /There is no async render/);
+  // And when NO tools are offered to the sender, the reply must not promise media at all.
+  assert.match(src, /CANNOT generate images, videos, documents or any file in this reply/);
+  assert.match(src, /NO background job that will produce one later/);
 });
 
 test('collectDeliverables: produced files only, intermediates skipped, newest-first + dedupe', () => {
