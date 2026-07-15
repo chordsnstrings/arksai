@@ -609,30 +609,20 @@ export async function tryCommand(
   inboundMessageId: string | null,
 ): Promise<boolean> {
   if (!(await isCommander(robot.id, channel, from))) {
-    // Personal/owner-driven bot with no owner yet → adopt this first chat sender, then continue
-    // as its commander (so their very first "make me an image" builds instead of falling to the
-    // toolless reply lane). A non-personal bot, or one that already has an owner, still returns.
-    if (!(await maybeAutoAdoptCommander(robot, channel, from, fromName, text))) {
-      // Not adopted. If an UNCLAIMED commanders-only chat bot gets a clear build request, the
-      // reply lane (toolless for this sender) would just narrate a fake "generating now…". Instead
-      // tell them the truth and how to unlock it — one word. (Only on a build-shaped ask, so a
-      // support bot's normal Q&A is never hijacked.)
-      if (SELF_CLAIM_CHANNELS.has(channel) && isCommandersOnly(robot) && deterministicBuildCommand(text)) {
-        const unowned = (await listCommanders(robot.id, robot.orgId).catch(() => [] as RobotCommander[])).length === 0;
-        if (unowned) {
-          await sendOnChannel(
-            robot,
-            channel,
-            from,
-            `I'd love to make that — but I only take build orders from my owner. Reply with the single word “claim” to become my owner, then send that again and I'll build it and drop it right here.`,
-          ).catch(() => {});
-          return true;
-        }
-      }
-      return false;
+    if (await maybeAutoAdoptCommander(robot, channel, from, fromName, text)) {
+      // Adopted an owner (auto for a personal bot, or the explicit "claim" word). If the message
+      // was JUST "claim", we're done onboarding; otherwise continue as that commander.
+      if (CLAIM_RE.test(text)) return true;
+    } else {
+      // OPEN-FOR-NOW: until a bot has a registered owner, it takes commands from ANYONE on a chat
+      // channel — so a brand-new personal bot works immediately without hunting for a chat id.
+      // Owner-only locking is opt-in later: the moment someone claims it (or an address is added
+      // in the office), this bot has commanders and non-commanders are rejected here again.
+      const unowned =
+        SELF_CLAIM_CHANNELS.has(channel) &&
+        (await listCommanders(robot.id, robot.orgId).catch(() => [] as RobotCommander[])).length === 0;
+      if (!unowned) return false;
     }
-    // If the message was JUST the claim word, we've onboarded them — nothing more to build.
-    if (CLAIM_RE.test(text)) return true;
   }
 
   // Receipt drafts are marked 'sent' immediately — they're the audit trail of the command

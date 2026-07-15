@@ -358,18 +358,17 @@ test('self-claim: a personal bot auto-adopts its first chat sender; older bots c
   await store.updateRobot(o.id, 'o-claim', { status: 'active' });
   await chStore.upsertChannel(o.id, 'o-claim', 'telegram', { secrets: { botToken: 't' } });
   const old = (await store.getRobot(o.id, 'o-claim'))!;
-  // A normal (non-build) message does NOT self-promote a stranger and isn't hijacked.
-  assert.equal(await tasks.tryCommand(old, 'telegram', '999', 'X', 'how are the ads', 'm3'), false);
-  assert.equal(await tasks.isCommander(o.id, 'telegram', '999'), false);
-  // A BUILD request to the still-unclaimed bot → honest claim guidance (NOT a fake render), and
-  // it does NOT adopt the requester — they must send "claim".
+  // OPEN-FOR-NOW: while unclaimed, ANY sender's commands are accepted — a deterministic control
+  // ("status") is handled (proves the lane is open) without adopting them or starting a build.
   sent.length = 0;
-  assert.equal(await tasks.tryCommand(old, 'telegram', '555', 'Y', 'make me a logo', 'm3b'), true);
-  assert.ok(sent.some((m) => /become my owner/i.test(m.text)), 'claim guidance sent, not a fake render');
-  assert.equal(await tasks.isCommander(o.id, 'telegram', '555'), false, 'guidance never adopts');
-  // The word "claim" adopts them and returns handled.
+  assert.equal(await tasks.tryCommand(old, 'telegram', '555', 'Y', 'status', 'm3b'), true, 'open while unclaimed');
+  assert.ok(sent.some((m) => /Nothing is building/i.test(m.text)));
+  assert.equal(await tasks.isCommander(o.id, 'telegram', '555'), false, 'openness never adopts');
+  // The word "claim" LOCKS the bot to that sender.
   assert.equal(await tasks.tryCommand(old, 'telegram', '999', 'X', 'claim', 'm4'), true);
   assert.equal(await tasks.isCommander(o.id, 'telegram', '999'), true, 'claim adopted');
+  // Now it has an owner → a different non-commander is rejected (locked down).
+  assert.equal(await tasks.tryCommand(old, 'telegram', '555', 'Y', 'status', 'm5'), false, 'locked after claim');
 });
 
 // ---- #5 routines ----

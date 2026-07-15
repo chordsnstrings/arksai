@@ -44,6 +44,9 @@ export async function senderMayUseTools(robot: Robot, fromAddr: string): Promise
   if (mode === 'everyone') return true;
   try {
     const rows = await q('SELECT address FROM robot_commanders WHERE robot_id = $1', [robot.id]);
+    // OPEN-FOR-NOW: a bot with no registered owner yet lets anyone use its studio tools (owner
+    // locking is opt-in — the moment an owner is registered, this reverts to commanders-only).
+    if (!rows.length) return true;
     const from = normalizeAddr(fromAddr);
     return rows.some((r: any) => normalizeAddr(String(r.address ?? '')) === from);
   } catch {

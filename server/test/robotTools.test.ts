@@ -93,7 +93,7 @@ test('studio adapters map flat params onto real tool args (and validate)', () =>
   }
 });
 
-test('replyTools gating: default commanders-only, fail-closed on unknown senders', async () => {
+test('replyTools gating: open until claimed, then commanders-only', async () => {
   const robot = await store.createRobot(orgId, {
     name: 'Toolsy',
     role: 'custom',
@@ -102,14 +102,17 @@ test('replyTools gating: default commanders-only, fail-closed on unknown senders
     config: {},
   } as any);
   assert.equal(tools.replyToolsMode(robot), 'commanders', 'default policy');
-  assert.equal(await tools.senderMayUseTools(robot, 'stranger@example.com'), false, 'unknown sender blocked');
+  // OPEN-FOR-NOW: with no owner registered yet, anyone may use the tools.
+  assert.equal(await tools.senderMayUseTools(robot, 'stranger@example.com'), true, 'unclaimed bot is open to anyone');
 
   await db.q(
     `INSERT INTO robot_commanders(id, robot_id, org_id, channel, address, label, notify, created_at)
      VALUES ('rc1', $1, $2, 'email', 'Owner@Example.com', NULL, 1, $3)`,
     [robot.id, orgId, Date.now()],
   );
+  // Now it has an owner → locked to commanders.
   assert.equal(await tools.senderMayUseTools(robot, 'owner@example.com'), true, 'commander matches case-insensitively');
+  assert.equal(await tools.senderMayUseTools(robot, 'stranger@example.com'), false, 'once claimed, strangers are blocked');
 
   const off = { ...robot, config: { replyTools: 'off' } } as any;
   assert.equal(await tools.senderMayUseTools(off, 'owner@example.com'), false, 'off blocks even commanders');

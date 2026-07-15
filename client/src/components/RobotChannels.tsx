@@ -414,9 +414,10 @@ export function CommandersPanel({ orgId, robotId }: { orgId: string; robotId: st
         YOUR OWN addresses. From them you can order builds by message (“make me a landing page and email it
         to X”), check status, cancel, or revise — and the robot pings you HERE when something needs you:
         reply APPROVE to send its draft, IGNORE to drop it, or just tell it how to respond. Only these
-        senders have that power; everyone else just gets replies. <strong>Easiest way to add yourself on
-        Telegram/WhatsApp/SMS: message the bot the single word “claim”</strong> — it registers you as the
-        owner on the spot (no need to hunt down your numeric chat id). Or enter an address below.
+        senders have that power; everyone else just gets replies. <strong>Right now a bot with no address
+        listed here is OPEN — anyone who messages it on Telegram/WhatsApp/SMS can command it.</strong> To
+        lock it to just you, message the bot the single word “claim” (it registers you as the owner on the
+        spot — no chat-id hunting), or enter an address below.
       </p>
       <div className="rb-persona-row" style={{ marginBottom: 8 }}>
         <span className="rb-rule-when" style={{ alignSelf: 'center' }}>Ping me about:</span>
