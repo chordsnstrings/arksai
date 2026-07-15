@@ -106,8 +106,12 @@ async function adoptFirstCommander(
   fromName: string | null,
 ): Promise<boolean> {
   if (!SELF_CLAIM_CHANNELS.has(channel) || !from.trim()) return false;
-  const existing = await listCommanders(robot.id, robot.orgId).catch(() => [] as RobotCommander[]);
-  if (existing.length) return false; // already has an owner — never re-adopt
+  // Per-channel: this channel can be claimed even if another channel (e.g. email) already has an
+  // owner — a stray commander on a different channel must not block claiming THIS one.
+  const existing = (await listCommanders(robot.id, robot.orgId).catch(() => [] as RobotCommander[])).filter(
+    (c) => c.channel === channel,
+  );
+  if (existing.length) return false; // this channel already has an owner — never re-adopt
   try {
     await addCommander(robot.id, robot.orgId, channel, from, fromName ? `${fromName} (auto)` : 'auto', true);
   } catch {
@@ -614,13 +618,15 @@ export async function tryCommand(
       // was JUST "claim", we're done onboarding; otherwise continue as that commander.
       if (CLAIM_RE.test(text)) return true;
     } else {
-      // OPEN-FOR-NOW: until a bot has a registered owner, it takes commands from ANYONE on a chat
-      // channel — so a brand-new personal bot works immediately without hunting for a chat id.
-      // Owner-only locking is opt-in later: the moment someone claims it (or an address is added
-      // in the office), this bot has commanders and non-commanders are rejected here again.
-      const unowned =
-        SELF_CLAIM_CHANNELS.has(channel) &&
-        (await listCommanders(robot.id, robot.orgId).catch(() => [] as RobotCommander[])).length === 0;
+      // OPEN-FOR-NOW: until a bot has a registered owner ON THIS CHANNEL, it takes commands from
+      // ANYONE on that chat channel — so a brand-new personal bot works immediately without hunting
+      // for a chat id (and a stray email owner can't lock the Telegram lane). Owner-only locking is
+      // opt-in later: once someone claims THIS channel (or an address is added in the office),
+      // non-commanders are rejected here again.
+      const ownersHere = (await listCommanders(robot.id, robot.orgId).catch(() => [] as RobotCommander[])).filter(
+        (c) => c.channel === channel,
+      );
+      const unowned = SELF_CLAIM_CHANNELS.has(channel) && ownersHere.length === 0;
       if (!unowned) return false;
     }
   }

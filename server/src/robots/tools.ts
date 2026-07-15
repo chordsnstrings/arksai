@@ -38,17 +38,19 @@ export function replyToolsMode(robot: Robot): ReplyToolsMode {
 }
 
 /** May THIS sender use studio tools on this robot? (commanders = the owner's addresses) */
-export async function senderMayUseTools(robot: Robot, fromAddr: string): Promise<boolean> {
+export async function senderMayUseTools(robot: Robot, fromAddr: string, channel?: string): Promise<boolean> {
   const mode = replyToolsMode(robot);
   if (mode === 'off') return false;
   if (mode === 'everyone') return true;
   try {
-    const rows = await q('SELECT address FROM robot_commanders WHERE robot_id = $1', [robot.id]);
-    // OPEN-FOR-NOW: a bot with no registered owner yet lets anyone use its studio tools (owner
-    // locking is opt-in — the moment an owner is registered, this reverts to commanders-only).
-    if (!rows.length) return true;
+    const rows = await q('SELECT channel, address FROM robot_commanders WHERE robot_id = $1', [robot.id]);
     const from = normalizeAddr(fromAddr);
-    return rows.some((r: any) => normalizeAddr(String(r.address ?? '')) === from);
+    // An owner is an owner on any channel — a matching address always clears.
+    if (rows.some((r: any) => normalizeAddr(String(r.address ?? '')) === from)) return true;
+    // OPEN-FOR-NOW: if no owner is registered on THIS sender's channel, the channel is unclaimed →
+    // anyone may use its tools. (Per-channel so a stray email owner can't lock the Telegram lane.)
+    if (channel) return !rows.some((r: any) => r.channel === channel);
+    return !rows.length;
   } catch {
     return false; // fail closed — no commander table, no tools
   }

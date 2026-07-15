@@ -251,7 +251,7 @@ export async function draftReplyWithActions(
   const actions = (await listActions(robot.id).catch(() => [])).filter((a) => a.enabled);
   // STUDIO TOOLS: the system's quick production tools ride the same request lane as org
   // actions — offered only when the robot's replyTools policy clears THIS sender.
-  const mayUseTools = await senderMayUseTools(robot, msg.from).catch(() => false);
+  const mayUseTools = await senderMayUseTools(robot, msg.from, extras.channel).catch(() => false);
   const studio = mayUseTools ? availableStudioTools().filter((s) => !actions.some((a) => a.name.toLowerCase() === s.name.toLowerCase())) : [];
   if (!actions.length && !studio.length) return draftReply(robot, msg, signal, rules, extras);
 

@@ -114,6 +114,11 @@ test('replyTools gating: open until claimed, then commanders-only', async () => 
   assert.equal(await tools.senderMayUseTools(robot, 'owner@example.com'), true, 'commander matches case-insensitively');
   assert.equal(await tools.senderMayUseTools(robot, 'stranger@example.com'), false, 'once claimed, strangers are blocked');
 
+  // PER-CHANNEL: the owner registered on EMAIL must not lock the Telegram lane — a Telegram
+  // sender is still open (that channel has no owner), while email stays locked to the owner.
+  assert.equal(await tools.senderMayUseTools(robot, '99887766', 'telegram'), true, 'telegram lane still open (owner only on email)');
+  assert.equal(await tools.senderMayUseTools(robot, 'stranger@example.com', 'email'), false, 'email lane locked to its owner');
+
   const off = { ...robot, config: { replyTools: 'off' } } as any;
   assert.equal(await tools.senderMayUseTools(off, 'owner@example.com'), false, 'off blocks even commanders');
   const everyone = { ...robot, config: { replyTools: 'everyone' } } as any;
