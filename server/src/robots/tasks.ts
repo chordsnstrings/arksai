@@ -220,7 +220,11 @@ const CLASSIFY_SYSTEM =
   'REVISE the thing it recently delivered, or just chatting/asking a question.\n' +
   'Respond with STRICT JSON only: {"action":"chat"|"build"|"revise","mode":"code"|"report",' +
   '"brief":string,"deliver_to":[{"channel":"email"|"whatsapp"|"telegram"|"sms","address":string}]}.\n' +
-  '- action="build" ONLY for a concrete NEW creation request; questions, chit-chat, status checks → "chat".\n' +
+  '- action="build" for ANY request to create/make/generate/design a deliverable, INCLUDING polite or ' +
+  'question forms — "can you create an image of…", "could you make me a logo", "I want a website for…", ' +
+  '"a chart of X please" are ALL builds. The wording "can you"/"could you" does NOT make it chat. Only ' +
+  'genuinely INFORMATIONAL questions ("what can you do?", "how much does an ad cost?"), chit-chat, and ' +
+  'status checks are "chat". When in doubt about a make-request, choose "build".\n' +
   '- action="revise" ONLY when a recently delivered build is mentioned below AND the owner is asking to ' +
   'change/fix/adjust THAT thing ("make the header blue", "add a pricing section"). No recent build → never "revise".\n' +
   '- mode: "report" for a designed PDF report/deck; "code" for everything else (websites, apps, ' +

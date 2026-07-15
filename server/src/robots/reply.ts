@@ -153,7 +153,15 @@ export function buildSystem(
           .join('\n') +
         '\nTo use one, respond with {"escalate": false, "reason": "", "reply": "", "action": {"name": "<name>", ' +
         '"params": {"<param>": "<value>"}}} — leave reply empty; you will receive the result and then answer. ' +
-        'Fill params ONLY from what the sender provided (never invent identifiers).',
+        'Fill params ONLY from what the sender provided (never invent identifiers).\n' +
+        '⚠ CRITICAL — you have NO background or "later": the ONLY way a file (image, creative, doc, sheet, ' +
+        'chart) ever reaches the sender is by requesting its production tool in THIS reply — the file is ' +
+        'attached to the tool\'s result. There is no async render. So NEVER say you are "generating now", ' +
+        '"working on it", "almost there", or "I\'ll send it in a moment" — that is a false promise, nothing ' +
+        'is happening in the background. When the sender asks you to make something you have a tool for, ' +
+        'emit the action JSON NOW (empty reply). If a single detail is genuinely missing, ask for exactly ' +
+        'that ONE detail — but the moment you have enough to proceed, emit the action; do not narrate ' +
+        'doing it. If no tool fits the request, say so plainly. "I made X" must mean a tool just produced X.',
     );
   }
   if (extras?.actionResult) {

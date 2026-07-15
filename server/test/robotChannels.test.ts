@@ -281,7 +281,29 @@ test('commanders: CRUD + case-insensitive match; classify fails CLOSED without a
 test('BUILD_HINT_RE prefilter: creation asks pass, chit-chat does not', () => {
   assert.ok(tasks.BUILD_HINT_RE.test('make me a website for the cafe'));
   assert.ok(tasks.BUILD_HINT_RE.test('create a presentation about Q3'));
+  // Polite/question-form creation asks still pass the prefilter (reach the classifier).
+  assert.ok(tasks.BUILD_HINT_RE.test('can you create an image of a cat?'));
+  assert.ok(tasks.BUILD_HINT_RE.test('could you make me a logo please'));
   assert.ok(!tasks.BUILD_HINT_RE.test('what time is my meeting tomorrow?'));
+});
+
+test('the classifier prompt routes polite/question-form creation asks to build (not chat)', () => {
+  // The Telegram-image bug: a polite "can you make an image…" was classified as chat and fell
+  // to the reply lane, which then narrated a false async promise. The classifier must route
+  // creation requests — including "can you"/"could you" forms — to the reliable build bridge.
+  const src = fs.readFileSync(path.join(__dirname, '../src/robots/tasks.ts'), 'utf8');
+  assert.match(src, /INCLUDING polite or/);
+  assert.match(src, /"can you"\/"could you" does NOT make it chat/);
+  assert.match(src, /When in doubt about a make-request, choose "build"/);
+});
+
+test('the reply lane forbids false async promises (no background render)', () => {
+  // The studio-tool reply lane has NO background: a file only reaches the sender when its tool
+  // runs THIS turn. The system prompt must forbid "generating now / almost there" stalling.
+  const src = fs.readFileSync(path.join(__dirname, '../src/robots/reply.ts'), 'utf8');
+  assert.match(src, /you have NO background or "later"/);
+  assert.match(src, /generating now/);
+  assert.match(src, /There is no async render/);
 });
 
 test('collectDeliverables: produced files only, intermediates skipped, newest-first + dedupe', () => {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-13.70';
+export const WHATS_NEW_VERSION = '2026-07-14.71';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,8 +19,12 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'Reports on Telegram — and just ask for them',
-    body: 'Your ad performance report can now go straight to Telegram, not only email: a quick text glance of the headline numbers, then the full designed PDF, on your daily/weekly/monthly schedule. Even better — message your robot on Telegram any time ("how are the ads doing?" or "send me this month\'s report") and it builds and sends the report right there in the chat. Set it up in the robot\'s Reports panel; pick email addresses, your Telegram chats, or both.',
+    title: 'Your own ArksAI on Telegram',
+    body: 'Hire the new "Personal ArksAI" robot — a private bot only you command. Message it like a person and it MAKES what you ask (an image, ad creative, document, spreadsheet or chart) or runs a full build (a website, video, deck or report) and sends it right back in the chat. Images arrive as real photos and videos play inline — no opaque file blobs. Connect a Telegram bot in its office and add your own chat.',
+  },
+  {
+    title: 'It does the thing — no more "generating now…"',
+    body: 'When you ask a robot to make something, it now actually produces and delivers it instead of promising to "send it in a moment." Polite requests like "can you make an image of…" go straight to the real builder, and the bot will never claim it made something it didn\'t.',
   },
 ];
 
