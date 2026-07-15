@@ -297,6 +297,37 @@ test('the classifier prompt routes polite/question-form creation asks to build (
   assert.match(src, /When in doubt about a make-request, choose "build"/);
 });
 
+test('deterministicBuildCommand: clear creation asks build WITHOUT the LLM classifier', () => {
+  const b = tasks.deterministicBuildCommand;
+  // The exact live failure: a polite "create an image" must resolve to a build with no model call.
+  const img = b('Can you create an image of a dog baking a cake');
+  assert.equal(img?.action, 'build');
+  assert.equal(img?.mode, 'code');
+  assert.match(img!.brief, /dog baking a cake/);
+  assert.deepEqual(img?.deliverTo, []); // delivers back to the commander's own channel
+  // Other unambiguous make-requests across the deliverable surface.
+  assert.equal(b('make me a logo')?.action, 'build');
+  assert.equal(b('generate a short video of a sunset')?.mode, 'code');
+  assert.equal(b('design a poster for our launch')?.action, 'build');
+  assert.equal(b('write me a poem about the sea')?.action, 'build');
+  // Report/deck deliverables route to report mode — but a "report app" stays a code build.
+  assert.equal(b('create a pitch deck for investors')?.mode, 'report');
+  assert.equal(b('build me a report app for sales')?.mode, 'code');
+});
+
+test('deterministicBuildCommand: questions, chit-chat, and named destinations do NOT fast-path', () => {
+  const b = tasks.deterministicBuildCommand;
+  // Questions and status — never a build.
+  assert.equal(b('how long does it take?'), null);
+  assert.equal(b('can it send images to chat?'), null);
+  assert.equal(b('what can you do?'), null);
+  assert.equal(b('hello'), null);
+  assert.equal(b('did you send the image yet'), null); // "send", not a creation verb
+  // A named third-party destination needs the LLM to extract deliverTo → defer (returns null).
+  assert.equal(b('make a logo and email it to bob@acme.com'), null);
+  assert.equal(b('create a flyer and send it to +971501234567'), null);
+});
+
 test('the reply lane forbids false async promises (no background render)', () => {
   // The studio-tool reply lane has NO background: a file only reaches the sender when its tool
   // runs THIS turn. The system prompt must forbid "generating now / almost there" stalling.

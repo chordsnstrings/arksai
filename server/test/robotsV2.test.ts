@@ -325,8 +325,12 @@ test('controls: STATUS/CANCEL regexes are precise; status with no tasks answers 
   assert.match(sent[0].text, /Nothing is building/);
   assert.equal(await tasks.tryCommand(robot, 'telegram', '42', null, 'cancel', '<s2@t>'), true);
   assert.match(sent[1].text, /nothing to cancel/);
-  // Without a model, a build-ish message fails CLOSED (no task starts, falls to reply lane).
-  assert.equal(await tasks.tryCommand(robot, 'telegram', '42', null, 'build me a website', '<s3@t>'), false);
+  // A build-ish message with no clear deliverable noun still needs the LLM classifier, which
+  // fails CLOSED without a model (no task starts, falls to the reply lane). A CLEAR creation ask
+  // ("build me a website") now takes the deterministic build fast-path instead — that's asserted
+  // as a pure function in robotChannels.test.ts (it would start a real run here).
+  assert.equal(await tasks.tryCommand(robot, 'telegram', '42', null, 'build something for my shop', '<s3@t>'), false);
+  assert.equal(tasks.deterministicBuildCommand('build me a website')?.action, 'build');
 });
 
 // ---- #5 routines ----

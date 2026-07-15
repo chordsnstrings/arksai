@@ -177,6 +177,47 @@ export function reportPeriodFromText(text: string): 'daily' | 'weekly' | 'monthl
   return 'weekly';
 }
 
+/** An UNAMBIGUOUS "make a <deliverable>" request — a creation verb immediately followed (within
+ *  a few words) by a concrete deliverable noun. This is the deterministic build trigger: it must
+ *  NOT depend on the LLM classifier, which fail-closes to chat on any hiccup and hands the ask to
+ *  the reply lane where the model narrates "generating now…" forever. Deliberately conservative
+ *  so it never fires on a question ("how long does it take", "can it send images"). */
+const DELIVERABLE_NOUN =
+  'image|picture|photo|logo|illustration|graphic|creative|banner|poster|icon|mockup|wallpaper|' +
+  'video|clip|animation|animated|explainer|reel|gif|' +
+  'document|doc|report|letter|essay|article|pdf|spreadsheet|sheet|excel|' +
+  'chart|graph|infographic|diagram|deck|slides?|presentation|' +
+  'website|web ?app|web ?page|landing ?page|app|' +
+  'song|music|track|jingle|soundtrack|voice ?over|' +
+  'flyer|brochure|pamphlet|resume|cv|poem|story|script';
+export const CREATE_RE = new RegExp(
+  `\\b(make|create|generate|design|build|draw|produce|render|write|compose|craft|mock up|whip up|put together|come up with)\\b[^.?!\\n]{0,30}?\\b(${DELIVERABLE_NOUN})\\b`,
+  'i',
+);
+/** A named third-party destination (an email address or a phone number) means the LLM must parse
+ *  it — the deterministic path only delivers back to the commander's own channel. */
+const EXPLICIT_DEST_RE = /@[\w.-]+\.[a-z]{2,}|\bto\s+\+?\d[\d\s()-]{6,}/i;
+/** Report/deck asks route through report mode; everything else is a code build. */
+const REPORT_MODE_RE = /\b(report|deck|slides?|presentation|pitch\s*deck|one[- ]?pager|white ?paper)\b/i;
+
+/** Pure: turn an unambiguous creation request into a build Command WITHOUT the LLM classifier.
+ *  Returns null when the text isn't a clear creation ask, or names an explicit third-party
+ *  destination (which needs the classifier to extract deliverTo). The full message becomes the
+ *  brief — the build agent proceeds on it directly. */
+export function deterministicBuildCommand(text: string): Command | null {
+  const t = text.trim();
+  if (!t || !CREATE_RE.test(t) || EXPLICIT_DEST_RE.test(t)) return null;
+  // A designed PDF/deck routes to report mode — unless it's actually an app/site/dashboard
+  // (e.g. "build a report app" is a code build, not a PDF).
+  const isReport = REPORT_MODE_RE.test(t) && !/\b(app|web ?app|website|web ?page|dashboard|tool|platform|site)\b/i.test(t);
+  return {
+    action: 'build',
+    mode: isReport ? 'report' : 'code',
+    brief: t.slice(0, 4000),
+    deliverTo: [],
+  };
+}
+
 /** Cheap prefilter: only messages that plausibly ask to CREATE something reach the model.
  *  Covers the FULL production surface (operator 2026-07-06: "robots that can connect to all
  *  the new tools") — media asks (video/creative/image/logo/music) route to a build session,
@@ -575,13 +616,19 @@ export async function tryCommand(
 
   // ---- classify (build / revise / chat) with the revisable-task context ----
   const revisable = await latestRevisable(robot.id);
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), CLASSIFY_TIMEOUT_MS);
-  let cmd: Command;
-  try {
-    cmd = await classifyCommand(text, ac.signal, revisable?.request);
-  } finally {
-    clearTimeout(timer);
+  // DETERMINISTIC build fast-path: an unambiguous "make me an image/logo/video/…" goes straight
+  // to a build without gambling on the LLM classifier (which fail-closes to chat on any hiccup,
+  // leaving the reply lane to narrate "generating now…" and never deliver). Skipped when a
+  // revisable task exists so "make the logo bigger" still routes through revise below.
+  let cmd: Command | null = revisable ? null : deterministicBuildCommand(text);
+  if (!cmd) {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), CLASSIFY_TIMEOUT_MS);
+    try {
+      cmd = await classifyCommand(text, ac.signal, revisable?.request);
+    } finally {
+      clearTimeout(timer);
+    }
   }
   if (cmd.action !== 'build' && cmd.action !== 'revise') return false;
 
