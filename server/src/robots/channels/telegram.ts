@@ -56,6 +56,23 @@ function tokenOf(ch: ChannelWithSecrets): string {
   return t;
 }
 
+const PHOTO_EXT = new Set(['jpg', 'jpeg', 'png', 'webp']);
+const VIDEO_EXT = new Set(['mp4', 'mov', 'm4v']);
+// Telegram bot-API multipart size ceilings for inline rendering; over these → sendDocument.
+const PHOTO_MAX = 10 * 1024 * 1024;
+const VIDEO_MAX = 50 * 1024 * 1024;
+
+/** Pure: choose the Telegram send method so images/videos render inline (photo bubble /
+ *  playable video) instead of as opaque file attachments. Oversized or other types degrade
+ *  to sendDocument so a file is never dropped. (gif → sendDocument on purpose: sendPhoto
+ *  would flatten an animation to a still.) */
+export function pickTelegramMedia(name: string, size: number): { method: 'sendPhoto' | 'sendVideo' | 'sendDocument'; field: 'photo' | 'video' | 'document' } {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  if (PHOTO_EXT.has(ext) && size <= PHOTO_MAX) return { method: 'sendPhoto', field: 'photo' };
+  if (VIDEO_EXT.has(ext) && size <= VIDEO_MAX) return { method: 'sendVideo', field: 'video' };
+  return { method: 'sendDocument', field: 'document' };
+}
+
 export const telegramAdapter: ChannelAdapter = {
   kind: 'telegram',
 
@@ -85,12 +102,17 @@ export const telegramAdapter: ChannelAdapter = {
 
   async sendFile(ch, to, filePath, caption) {
     const token = tokenOf(ch);
+    const name = path.basename(filePath);
+    const buf = fs.readFileSync(filePath);
+    // Deliver images as real PHOTO bubbles and videos as PLAYABLE video — not opaque file
+    // attachments. Telegram's own limits: sendPhoto ≤10MB, sendVideo ≤50MB (multipart);
+    // anything larger, or any other type, degrades to sendDocument so nothing is ever lost.
+    const { method, field } = pickTelegramMedia(name, buf.length);
     const form = new FormData();
     form.set('chat_id', to);
     if (caption) form.set('caption', caption.slice(0, 1024));
-    const buf = fs.readFileSync(filePath);
-    form.set('document', new Blob([new Uint8Array(buf)]), path.basename(filePath));
-    await call(token, 'sendDocument', form);
+    form.set(field, new Blob([new Uint8Array(buf)]), name);
+    await call(token, method, form);
   },
 
   // A real Telegram VOICE bubble (requires ogg/opus — the caller converts).

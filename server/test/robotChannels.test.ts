@@ -456,3 +456,18 @@ test('robot-file token route: mint → fetch → expiry-shaped 404 for junk', as
   fs.writeFileSync(outside, 'x');
   assert.throws(() => rf.mintRobotFileToken(outside));
 });
+
+test('telegram sendFile renders images/videos inline (sendPhoto/sendVideo), else sendDocument', async () => {
+  const { pickTelegramMedia } = telegram;
+  assert.deepEqual(pickTelegramMedia('creative-123.jpg', 2_000_000), { method: 'sendPhoto', field: 'photo' });
+  assert.deepEqual(pickTelegramMedia('logo.png', 500_000), { method: 'sendPhoto', field: 'photo' });
+  assert.deepEqual(pickTelegramMedia('explainer-final.mp4', 8_000_000), { method: 'sendVideo', field: 'video' });
+  // A .docx / .pdf / .xlsx always a document.
+  assert.deepEqual(pickTelegramMedia('report.pdf', 300_000), { method: 'sendDocument', field: 'document' });
+  assert.deepEqual(pickTelegramMedia('model.xlsx', 40_000), { method: 'sendDocument', field: 'document' });
+  // Oversized image/video degrade to a document (never dropped).
+  assert.equal(pickTelegramMedia('huge.png', 20 * 1024 * 1024).method, 'sendDocument');
+  assert.equal(pickTelegramMedia('big.mp4', 80 * 1024 * 1024).method, 'sendDocument');
+  // gif stays a document (sendPhoto would flatten the animation).
+  assert.equal(pickTelegramMedia('loop.gif', 1_000_000).method, 'sendDocument');
+});
