@@ -83,6 +83,68 @@ export async function isCommander(robotId: string, channel: RobotDraftChannel, a
   return Number(r?.n ?? 0) > 0;
 }
 
+/** Chat channels where the owner controls the endpoint (a bot token / a business number) — safe
+ *  to auto-adopt the first sender. Email is excluded (knowable address, higher spam risk). */
+const SELF_CLAIM_CHANNELS = new Set<RobotDraftChannel>(['telegram', 'whatsapp', 'sms']);
+
+/** True when the robot restricts commands/tools to its own commander addresses (the default). */
+function isCommandersOnly(robot: Robot): boolean {
+  const m = (robot.config as any)?.replyTools;
+  return m !== 'off' && m !== 'everyone';
+}
+
+/** The word an owner sends to claim an unowned commanders-only chat bot ("claim" / "claim me"). */
+export const CLAIM_RE = /^\s*\/?claim(\s+(me|this|it|owner))?\s*[.!]*$/i;
+
+/** Adopt `from` as the robot's commander — but only while it has NO commanders yet (so this can
+ *  never hijack a bot that already has an owner). Sends a one-line welcome. Returns true if it
+ *  adopted. Shared by the automatic (personal-bot) and explicit ("claim") paths. */
+async function adoptFirstCommander(
+  robot: Robot,
+  channel: RobotDraftChannel,
+  from: string,
+  fromName: string | null,
+): Promise<boolean> {
+  if (!SELF_CLAIM_CHANNELS.has(channel) || !from.trim()) return false;
+  const existing = await listCommanders(robot.id, robot.orgId).catch(() => [] as RobotCommander[]);
+  if (existing.length) return false; // already has an owner — never re-adopt
+  try {
+    await addCommander(robot.id, robot.orgId, channel, from, fromName ? `${fromName} (auto)` : 'auto', true);
+  } catch {
+    return false;
+  }
+  await sendOnChannel(
+    robot,
+    channel,
+    from,
+    `👋 You're set — I'm now your personal ArksAI, and only you can command me from here. Ask me to make anything (an image, a doc, a video, a website) and I'll build it and send it right back.`,
+  ).catch(() => {});
+  return true;
+}
+
+/**
+ * The "Personal ArksAI" onboarding trap fix: a personal/owner-driven bot defaults to
+ * `replyTools:'commanders'`, so until an owner is registered NOBODY can command it or use its
+ * tools — and a normal user can't register because they don't know their numeric Telegram chat
+ * id. For a `selfClaimOwner` bot with ZERO commanders, the FIRST person to message it on a chat
+ * channel is adopted automatically (their real chat id captured). Older personal bots (created
+ * before this flag) claim explicitly with the word "claim". Returns true if it adopted.
+ */
+export async function maybeAutoAdoptCommander(
+  robot: Robot,
+  channel: RobotDraftChannel,
+  from: string,
+  fromName: string | null,
+  text = '',
+): Promise<boolean> {
+  // New personal bots: the flag opts them into silent first-contact adoption.
+  if ((robot.config as any)?.selfClaimOwner) return adoptFirstCommander(robot, channel, from, fromName);
+  // Any unclaimed commanders-only chat bot: an explicit "claim" adopts the sender (covers bots
+  // made before the flag). Explicit-only so a random customer message can never self-promote.
+  if (isCommandersOnly(robot) && CLAIM_RE.test(text)) return adoptFirstCommander(robot, channel, from, fromName);
+  return false;
+}
+
 // ---- tasks ----
 
 function parseJson<T>(s: any, fallback: T): T {
@@ -546,7 +608,14 @@ export async function tryCommand(
   text: string,
   inboundMessageId: string | null,
 ): Promise<boolean> {
-  if (!(await isCommander(robot.id, channel, from))) return false;
+  if (!(await isCommander(robot.id, channel, from))) {
+    // Personal/owner-driven bot with no owner yet → adopt this first chat sender, then continue
+    // as its commander (so their very first "make me an image" builds instead of falling to the
+    // toolless reply lane). A non-personal bot, or one that already has an owner, still returns.
+    if (!(await maybeAutoAdoptCommander(robot, channel, from, fromName, text))) return false;
+    // If the message was JUST the claim word, we've onboarded them — nothing more to build.
+    if (CLAIM_RE.test(text)) return true;
+  }
 
   // Receipt drafts are marked 'sent' immediately — they're the audit trail of the command
   // lane (and the message-id dedupe so an unread email / provider retry can't re-trigger),

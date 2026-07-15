@@ -333,6 +333,39 @@ test('controls: STATUS/CANCEL regexes are precise; status with no tasks answers 
   assert.equal(tasks.deterministicBuildCommand('build me a website')?.action, 'build');
 });
 
+test('self-claim: a personal bot auto-adopts its first chat sender; older bots claim with "claim"', async () => {
+  const sent: any[] = [];
+  telegram.__setTelegramFetch(tgMock(sent));
+
+  // (1) selfClaimOwner personal bot with NO commanders → the first Telegram sender is adopted.
+  const p = await store.createRobot('o-claim', {
+    name: 'Personal', role: 'custom', config: { replyTools: 'commanders', selfClaimOwner: true } as any,
+  });
+  await store.updateRobot(p.id, 'o-claim', { status: 'active' });
+  await chStore.upsertChannel(p.id, 'o-claim', 'telegram', { secrets: { botToken: 't' } });
+  const personal = (await store.getRobot(p.id, 'o-claim'))!;
+  assert.equal(await tasks.isCommander(p.id, 'telegram', '777'), false);
+  // "hi" isn't a build, but the sender still gets adopted (then falls through to the reply lane).
+  await tasks.tryCommand(personal, 'telegram', '777', 'Kamran', 'hi', 'm1');
+  assert.equal(await tasks.isCommander(p.id, 'telegram', '777'), true, 'first sender adopted');
+  assert.ok(sent.some((m) => /now your personal ArksAI/i.test(m.text)), 'welcome sent');
+  // A SECOND, different sender is NOT adopted (the bot already has an owner).
+  await tasks.tryCommand(personal, 'telegram', '888', 'Stranger', 'hi', 'm2');
+  assert.equal(await tasks.isCommander(p.id, 'telegram', '888'), false, 'no second owner');
+
+  // (2) An OLDER bot (no flag) is commanders-only but unclaimed → an explicit "claim" adopts.
+  const o = await store.createRobot('o-claim', { name: 'Old', role: 'custom', config: { replyTools: 'commanders' } as any });
+  await store.updateRobot(o.id, 'o-claim', { status: 'active' });
+  await chStore.upsertChannel(o.id, 'o-claim', 'telegram', { secrets: { botToken: 't' } });
+  const old = (await store.getRobot(o.id, 'o-claim'))!;
+  // A normal message does NOT self-promote a stranger (explicit-only).
+  assert.equal(await tasks.tryCommand(old, 'telegram', '999', 'X', 'how are the ads', 'm3'), false);
+  assert.equal(await tasks.isCommander(o.id, 'telegram', '999'), false);
+  // The word "claim" adopts them and returns handled.
+  assert.equal(await tasks.tryCommand(old, 'telegram', '999', 'X', 'claim', 'm4'), true);
+  assert.equal(await tasks.isCommander(o.id, 'telegram', '999'), true, 'claim adopted');
+});
+
 // ---- #5 routines ----
 
 test('routines: composeDigest — quiet day → null; activity + stale items → readable text', () => {

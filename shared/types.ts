@@ -654,6 +654,10 @@ export interface RobotConfig {
   adDailyCapUsd?: number;
   /** Hard per-campaign lifetime ad-spend cap in USD (Track C). */
   adCampaignCapUsd?: number;
+  /** A PERSONAL/owner-driven bot (the "Personal ArksAI"/Studio/Reporter cards): the first person
+   *  to message it on a chat channel is auto-adopted as its commander, so the owner never has to
+   *  hunt down their own numeric Telegram chat id. Fires once, only while it has no commanders. */
+  selfClaimOwner?: boolean;
 }
 
 // ---- Robot channels (beyond email: chat/SMS auto-responders) ----

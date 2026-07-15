@@ -61,6 +61,8 @@ export interface HireInput {
   replyTools?: 'commanders' | 'everyone' | 'off';
   /** Robot KIND (console view). 'social' mounts the social office (campaigns/reports/settings). */
   type?: 'email' | 'social';
+  /** Personal/owner-driven bot: auto-adopt the first chat-channel sender as commander. */
+  selfClaimOwner?: boolean;
 }
 
 interface RobotsState {
@@ -120,6 +122,7 @@ export const useRobots = create<RobotsState>((set, get) => ({
       signature: input.signature?.trim() || undefined,
       triggers: input.triggers.length ? input.triggers : ['event'],
       replyTools: input.replyTools,
+      selfClaimOwner: input.selfClaimOwner || undefined,
     };
     const displayName = input.name || spec?.name || 'Agent';
     if (orgId) {

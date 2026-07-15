@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-14.71';
+export const WHATS_NEW_VERSION = '2026-07-14.72';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -25,6 +25,10 @@ const ITEMS: { title: string; body: string }[] = [
   {
     title: 'It does the thing — no more "generating now…"',
     body: 'When you ask a robot to make something, it now actually produces and delivers it instead of promising to "send it in a moment." Polite requests like "can you make an image of…" go straight to the real builder, and the bot will never claim it made something it didn\'t.',
+  },
+  {
+    title: 'Become your bot\'s owner in one word',
+    body: 'A new personal Telegram bot now recognizes you as its owner the moment you first message it — no hunting for a chat id. Already made one? Just message it the single word "claim" and you\'re in control: only you can command it, and "make me an image…" builds and sends right there.',
   },
 ];
 

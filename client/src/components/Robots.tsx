@@ -322,6 +322,7 @@ function Hire({ onDone, onCancel }: { onDone: (id: string) => void; onCancel: ()
         autonomy,
         triggers,
         replyTools: uc?.replyTools,
+        selfClaimOwner: uc?.commanderCentric,
       });
       setCreatedId(r.id);
       setStep(2);
