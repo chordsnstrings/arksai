@@ -16,7 +16,7 @@
  *    builds), remote approval, per-robot analytics.
  */
 
-export type UseCaseGroup = 'talk' | 'make' | 'schedule';
+export type UseCaseGroup = 'me' | 'talk' | 'make' | 'schedule';
 
 export interface RobotUseCase {
   id: string;
@@ -47,12 +47,31 @@ export interface RobotUseCase {
 }
 
 export const USE_CASE_GROUPS: { id: UseCaseGroup; label: string; sub: string }[] = [
+  { id: 'me', label: 'Your own ArksAI', sub: 'A private bot only you command — message it on Telegram and it makes or builds whatever you ask, right there.' },
   { id: 'talk', label: 'Answer people', sub: 'It watches its channels and replies for you — around the clock.' },
   { id: 'make', label: 'Make things on command', sub: 'You message it; it produces and delivers real work.' },
   { id: 'schedule', label: 'Run on a schedule', sub: 'It works on a rhythm and reports in — no prompting.' },
 ];
 
 export const ROBOT_USE_CASES: RobotUseCase[] = [
+  {
+    id: 'personal',
+    emoji: '🤖',
+    title: 'Personal ArksAI',
+    blurb:
+      'Your own ArksAI on Telegram (or WhatsApp). Message it like you message a person and it MAKES what you ask — an image, ad creative, document, spreadsheet or chart — or runs a FULL build (a website, a video, a deck, a report) and delivers it right back in the chat. Voice notes work too. It only takes orders from you.',
+    chips: ['Makes images, docs, sheets', 'Builds sites, videos, decks', 'Understands voice notes', 'Only you can command it'],
+    group: 'me',
+    kind: 'custom',
+    name: 'ArksAI',
+    mandate:
+      'You are my personal ArksAI — my private, do-everything assistant. When I ask you to make something (an image, ad creative, document, spreadsheet or chart), make it and send it here. When I ask for something bigger — a website, video, deck, report or song — build it completely and deliver it. Answer my questions directly and remember our thread. Keep chat replies short; the work is the answer. Only I can give you these commands.',
+    knowledgeHint: 'Anything you want it to know about you or your business: company, brand, colors, tone, standard footer, preferences…',
+    autonomy: 'autonomous',
+    replyTools: 'commanders',
+    commanderCentric: true,
+    postHire: 'Connect Telegram in its office, then add YOUR OWN Telegram chat below — you are the only one who can command it.',
+  },
   {
     id: 'support',
     emoji: '🎧',
