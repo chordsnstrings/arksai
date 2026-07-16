@@ -93,8 +93,9 @@ function isCommandersOnly(robot: Robot): boolean {
   return m !== 'off' && m !== 'everyone';
 }
 
-/** The word an owner sends to claim an unowned commanders-only chat bot ("claim" / "claim me"). */
-export const CLAIM_RE = /^\s*\/?claim(\s+(me|this|it|owner))?\s*[.!]*$/i;
+/** The phrase a person sends to claim a private chat bot and become its owner
+ *  ("claim" / "claim my bot" / "claim me"). */
+export const CLAIM_RE = /^\s*\/?claim(\s+(my\s+bot|me|this|it|owner))?\s*[.!]*$/i;
 
 /** Adopt `from` as the robot's commander — but only while it has NO commanders yet (so this can
  *  never hijack a bot that already has an owner). Sends a one-line welcome. Returns true if it
@@ -121,18 +122,16 @@ async function adoptFirstCommander(
     robot,
     channel,
     from,
-    `👋 You're set — I'm now your personal ArksAI, and only you can command me from here. Ask me to make anything (an image, a doc, a video, a website) and I'll build it and send it right back.`,
+    `👋 Done — you're now my owner. From here I answer only to you. Ask me to make anything — an image, a document, a spreadsheet, a report, a website, a video — and I'll build it and send it right back.`,
   ).catch(() => {});
   return true;
 }
 
 /**
- * The "Personal ArksAI" onboarding trap fix: a personal/owner-driven bot defaults to
- * `replyTools:'commanders'`, so until an owner is registered NOBODY can command it or use its
- * tools — and a normal user can't register because they don't know their numeric Telegram chat
- * id. For a `selfClaimOwner` bot with ZERO commanders, the FIRST person to message it on a chat
- * channel is adopted automatically (their real chat id captured). Older personal bots (created
- * before this flag) claim explicitly with the word "claim". Returns true if it adopted.
+ * OWNER-SPECIFIC bots (operator 2026-07-15): a private chat bot is attached to the FIRST person who
+ * sends an explicit "claim my bot" — after that it answers only to them. Adoption is claim-only
+ * (never silent/auto) so nobody is claimed by accident, and only while THIS channel has no owner
+ * yet (per-channel, so it can't hijack an already-owned channel). Returns true if it adopted.
  */
 export async function maybeAutoAdoptCommander(
   robot: Robot,
@@ -141,12 +140,8 @@ export async function maybeAutoAdoptCommander(
   fromName: string | null,
   text = '',
 ): Promise<boolean> {
-  // New personal bots: the flag opts them into silent first-contact adoption.
-  if ((robot.config as any)?.selfClaimOwner) return adoptFirstCommander(robot, channel, from, fromName);
-  // Any unclaimed commanders-only chat bot: an explicit "claim" adopts the sender (covers bots
-  // made before the flag). Explicit-only so a random customer message can never self-promote.
-  if (isCommandersOnly(robot) && CLAIM_RE.test(text)) return adoptFirstCommander(robot, channel, from, fromName);
-  return false;
+  if (!SELF_CLAIM_CHANNELS.has(channel) || !CLAIM_RE.test(text)) return false;
+  return adoptFirstCommander(robot, channel, from, fromName);
 }
 
 // ---- tasks ----
@@ -284,6 +279,20 @@ export function deterministicBuildCommand(text: string): Command | null {
   };
 }
 
+/** A plain-English time estimate for what the brief asks to build, so the acknowledgment can tell
+ *  the owner roughly how long to wait (videos take longest; a quick image is a minute or two). */
+export function etaForBrief(text: string): string {
+  const t = text.toLowerCase();
+  if (/\b(video|animation|animated|explainer|reel|clip|motion|movie|short)\b/.test(t)) return 'about 5–10 minutes (video takes longest)';
+  if (/\b(website|web ?app|web ?page|landing ?page|app|platform|dashboard|site)\b/.test(t)) return 'about 3–6 minutes';
+  if (/\b(song|music|track|jingle|soundtrack|voice ?over|audio)\b/.test(t)) return 'about 2–3 minutes';
+  if (/\b(report|deck|slides?|presentation|pitch)\b/.test(t)) return 'about 2–4 minutes';
+  if (/\b(spreadsheet|excel|sheet|chart|infographic|dashboard)\b/.test(t)) return 'about 1–2 minutes';
+  if (/\b(image|picture|photo|logo|illustration|creative|banner|poster|icon|graphic|mockup|wallpaper)\b/.test(t)) return 'about a minute or two';
+  if (/\b(document|doc|letter|essay|article|pdf|resume|cv|brochure|flyer|proposal|memo)\b/.test(t)) return 'about 1–2 minutes';
+  return 'a few minutes';
+}
+
 /** Cheap prefilter: only messages that plausibly ask to CREATE something reach the model.
  *  Covers the FULL production surface (operator 2026-07-06: "robots that can connect to all
  *  the new tools") — media asks (video/creative/image/logo/music) route to a build session,
@@ -411,7 +420,7 @@ export async function startTask(
 
 // ---- deliverable collection ----
 
-const DELIVERABLE_EXT = new Set(['.pdf', '.docx', '.xlsx', '.pptx', '.zip', '.png', '.mp4']);
+const DELIVERABLE_EXT = new Set(['.pdf', '.docx', '.xlsx', '.pptx', '.zip', '.png', '.jpg', '.jpeg', '.mp4', '.mp3', '.wav', '.m4a']);
 const SKIP_DIRS = new Set(['node_modules', '.git', 'uploads', 'ui-kit', 'knowledge', '.arksai']);
 
 /** Files produced by the run (mtime after the task started), newest first, capped. */
@@ -613,22 +622,32 @@ export async function tryCommand(
   inboundMessageId: string | null,
 ): Promise<boolean> {
   if (!(await isCommander(robot.id, channel, from))) {
-    if (await maybeAutoAdoptCommander(robot, channel, from, fromName, text)) {
-      // Adopted an owner (auto for a personal bot, or the explicit "claim" word). If the message
-      // was JUST "claim", we're done onboarding; otherwise continue as that commander.
-      if (CLAIM_RE.test(text)) return true;
-    } else {
-      // OPEN-FOR-NOW: until a bot has a registered owner ON THIS CHANNEL, it takes commands from
-      // ANYONE on that chat channel — so a brand-new personal bot works immediately without hunting
-      // for a chat id (and a stray email owner can't lock the Telegram lane). Owner-only locking is
-      // opt-in later: once someone claims THIS channel (or an address is added in the office),
-      // non-commanders are rejected here again.
+    // An explicit "claim my bot" on an unowned chat channel attaches this bot to the sender.
+    if (await maybeAutoAdoptCommander(robot, channel, from, fromName, text)) return true;
+
+    // OWNER-SPECIFIC: a chat bot (Telegram/WhatsApp/SMS) in commanders mode is PRIVATE — it serves
+    // only its owner. (Email/Meta bots and 'everyone' bots stay public and fall through to the
+    // reply lane, so support desks and ad-comment replies are unaffected.)
+    if (isCommandersOnly(robot) && SELF_CLAIM_CHANNELS.has(channel)) {
       const ownersHere = (await listCommanders(robot.id, robot.orgId).catch(() => [] as RobotCommander[])).filter(
         (c) => c.channel === channel,
       );
-      const unowned = SELF_CLAIM_CHANNELS.has(channel) && ownersHere.length === 0;
-      if (!unowned) return false;
+      if (ownersHere.length === 0) {
+        // Not claimed yet → only accept a claim; guide anyone else to claim it (don't serve strangers).
+        await sendOnChannel(
+          robot,
+          channel,
+          from,
+          'Hi! I’m a private ArksAI assistant. Send me “claim my bot” to make me yours — then I’ll build ' +
+            'whatever you ask (images, documents, spreadsheets, reports, websites, videos…) and answer only to you.',
+        ).catch(() => {});
+        return true;
+      }
+      // Owned by someone else → stay private; do not respond.
+      return true;
     }
+    // Public bots (email/Meta, or replyTools 'everyone'/'off') → fall through to the reply lane.
+    return false;
   }
 
   // Receipt drafts are marked 'sent' immediately — they're the audit trail of the command
@@ -753,7 +772,9 @@ export async function tryCommand(
   const where = cmd.deliverTo.length
     ? cmd.deliverTo.map((t) => `${t.channel} ${t.address}`).join(' + ')
     : 'right here';
-  await say(`On it — building that now. I'll deliver it to ${where} when it's done (usually a few minutes). (task ${task.id})`);
+  await say(
+    `On it — building that now. This usually takes ${etaForBrief(cmd.brief)}; I'll deliver it to ${where} the moment it's done. (task ${task.id})`,
+  );
   return true;
 }
 

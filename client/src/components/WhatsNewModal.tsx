@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-07-14.73';
+export const WHATS_NEW_VERSION = '2026-07-15.74';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -27,8 +27,8 @@ const ITEMS: { title: string; body: string }[] = [
     body: 'When you ask a robot to make something, it now actually produces and delivers it instead of promising to "send it in a moment." Polite requests like "can you make an image of…" go straight to the real builder, and the bot will never claim it made something it didn\'t.',
   },
   {
-    title: 'Your bot works right away — no setup',
-    body: 'A robot with no owner listed is now OPEN: message it on Telegram/WhatsApp/SMS and it builds and sends what you ask, immediately — no chat-id, no magic word. Want it locked to just you? Message it the single word "claim" (or add your address in its office) and from then on only you can command it.',
+    title: 'Your own private bot — “claim my bot”',
+    body: 'A personal chat bot (Telegram/WhatsApp/SMS) is now owner-specific: the first person to message it “claim my bot” becomes its owner, and from then on it answers only to them — everyone else is politely turned away. Once it’s yours, ask it for an image, document, spreadsheet, report, website or video and it builds and delivers it, and now tells you up front roughly how long it’ll take.',
   },
 ];
 

@@ -270,9 +270,10 @@ test('commanders: CRUD + case-insensitive match; classify fails CLOSED without a
   const cmd = await tasks.classifyCommand('build me a website for my cafe', ac.signal);
   assert.equal(cmd.action, 'chat');
 
-  // The command lane is commander-gated: a stranger can never reach classification.
+  // OWNER-SPECIFIC: this private bot already has an owner (9911) → a stranger's message is handled
+  // (suppressed, not answered) by the command lane, never reaching the reply lane.
   const robot = (await store.getRobot(r.id, 'o-cmd'))!;
-  assert.equal(await tasks.tryCommand(robot, 'telegram', 'stranger', null, 'build me a website', 'm1'), false);
+  assert.equal(await tasks.tryCommand(robot, 'telegram', 'stranger', null, 'build me a website', 'm1'), true);
 
   await tasks.deleteCommander(c.id, 'o-cmd');
   assert.equal(await tasks.isCommander(r.id, 'telegram', '9911'), false);

@@ -333,42 +333,47 @@ test('controls: STATUS/CANCEL regexes are precise; status with no tasks answers 
   assert.equal(tasks.deterministicBuildCommand('build me a website')?.action, 'build');
 });
 
-test('self-claim: a personal bot auto-adopts its first chat sender; older bots claim with "claim"', async () => {
+test('owner-specific: private chat bot claims to one owner, guides others, then answers only them', async () => {
   const sent: any[] = [];
   telegram.__setTelegramFetch(tgMock(sent));
 
-  // (1) selfClaimOwner personal bot with NO commanders → the first Telegram sender is adopted.
-  const p = await store.createRobot('o-claim', {
-    name: 'Personal', role: 'custom', config: { replyTools: 'commanders', selfClaimOwner: true } as any,
-  });
-  await store.updateRobot(p.id, 'o-claim', { status: 'active' });
-  await chStore.upsertChannel(p.id, 'o-claim', 'telegram', { secrets: { botToken: 't' } });
-  const personal = (await store.getRobot(p.id, 'o-claim'))!;
-  assert.equal(await tasks.isCommander(p.id, 'telegram', '777'), false);
-  // "hi" isn't a build, but the sender still gets adopted (then falls through to the reply lane).
-  await tasks.tryCommand(personal, 'telegram', '777', 'Kamran', 'hi', 'm1');
-  assert.equal(await tasks.isCommander(p.id, 'telegram', '777'), true, 'first sender adopted');
-  assert.ok(sent.some((m) => /now your personal ArksAI/i.test(m.text)), 'welcome sent');
-  // A SECOND, different sender is NOT adopted (the bot already has an owner).
-  await tasks.tryCommand(personal, 'telegram', '888', 'Stranger', 'hi', 'm2');
-  assert.equal(await tasks.isCommander(p.id, 'telegram', '888'), false, 'no second owner');
-
-  // (2) An OLDER bot (no flag) is commanders-only but unclaimed → an explicit "claim" adopts.
-  const o = await store.createRobot('o-claim', { name: 'Old', role: 'custom', config: { replyTools: 'commanders' } as any });
+  const o = await store.createRobot('o-claim', { name: 'Private', role: 'custom', config: { replyTools: 'commanders' } as any });
   await store.updateRobot(o.id, 'o-claim', { status: 'active' });
   await chStore.upsertChannel(o.id, 'o-claim', 'telegram', { secrets: { botToken: 't' } });
-  const old = (await store.getRobot(o.id, 'o-claim'))!;
-  // OPEN-FOR-NOW: while unclaimed, ANY sender's commands are accepted — a deterministic control
-  // ("status") is handled (proves the lane is open) without adopting them or starting a build.
+  const bot = (await store.getRobot(o.id, 'o-claim'))!;
+
+  // UNCLAIMED: a non-claim message (even a build ask) is handled with a claim prompt — never a
+  // build, and it does NOT adopt the sender.
   sent.length = 0;
-  assert.equal(await tasks.tryCommand(old, 'telegram', '555', 'Y', 'status', 'm3b'), true, 'open while unclaimed');
+  assert.equal(await tasks.tryCommand(bot, 'telegram', '555', 'Y', 'make me a logo', 'm1'), true, 'handled, not served');
+  assert.ok(sent.some((m) => /claim my bot/i.test(m.text)), 'guided to claim');
+  assert.equal(await tasks.isCommander(o.id, 'telegram', '555'), false, 'guidance never adopts');
+
+  // "claim my bot" attaches the bot to that sender.
+  sent.length = 0;
+  assert.equal(await tasks.tryCommand(bot, 'telegram', '999', 'X', 'claim my bot', 'm2'), true);
+  assert.equal(await tasks.isCommander(o.id, 'telegram', '999'), true, 'claim adopted the owner');
+  assert.ok(sent.some((m) => /you're now my owner/i.test(m.text)), 'welcome sent');
+
+  // Now owner-specific: a DIFFERENT sender gets NO useful response (handled + silent), and cannot claim.
+  sent.length = 0;
+  assert.equal(await tasks.tryCommand(bot, 'telegram', '555', 'Y', 'make me a logo', 'm3'), true, 'suppressed for non-owner');
+  assert.equal(sent.length, 0, 'private bot stays silent to non-owners');
+  assert.equal(await tasks.tryCommand(bot, 'telegram', '555', 'Y', 'claim my bot', 'm4'), true, 'second claim handled');
+  assert.equal(await tasks.isCommander(o.id, 'telegram', '555'), false, 'cannot steal an owned bot');
+
+  // The owner's own control still works (status handled deterministically).
+  sent.length = 0;
+  assert.equal(await tasks.tryCommand(bot, 'telegram', '999', 'X', 'status', 'm5'), true, 'owner served');
   assert.ok(sent.some((m) => /Nothing is building/i.test(m.text)));
-  assert.equal(await tasks.isCommander(o.id, 'telegram', '555'), false, 'openness never adopts');
-  // The word "claim" LOCKS the bot to that sender.
-  assert.equal(await tasks.tryCommand(old, 'telegram', '999', 'X', 'claim', 'm4'), true);
-  assert.equal(await tasks.isCommander(o.id, 'telegram', '999'), true, 'claim adopted');
-  // Now it has an owner → a different non-commander is rejected (locked down).
-  assert.equal(await tasks.tryCommand(old, 'telegram', '555', 'Y', 'status', 'm5'), false, 'locked after claim');
+});
+
+test('etaForBrief: gives a per-type time estimate for the build acknowledgment', () => {
+  assert.match(tasks.etaForBrief('make me an image of a cat'), /minute/i);
+  assert.match(tasks.etaForBrief('create a video of a sunset'), /video takes longest/i);
+  assert.match(tasks.etaForBrief('build me a report on Q3 sales'), /2–4 minutes/);
+  assert.match(tasks.etaForBrief('make me an excel sheet of expenses'), /1–2 minutes/);
+  assert.match(tasks.etaForBrief('build a website for my cafe'), /3–6 minutes/);
 });
 
 // ---- #5 routines ----
