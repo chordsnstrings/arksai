@@ -691,6 +691,9 @@ export const api = {
   analyticsAlerts: (orgId?: string) =>
     request<{ alerts: any }>(`${orgId ? `/api/orgs/${orgId}` : '/api/admin'}/analytics/alerts`).then((r) => r.alerts),
   analyticsDigests: () => request<{ digests: any[] }>('/api/admin/analytics/digests').then((r) => r.digests),
+  // Self-healing Phase 1 — nightly issue digests (ranked, redacted issue clusters across tenants).
+  analyticsIssues: () => request<{ digests: any[] }>('/api/admin/analytics/issues').then((r) => r.digests),
+  runIssueDigest: () => request<{ digests: any[] }>('/api/admin/analytics/issues/run', { method: 'POST' }).then((r) => r.digests),
 };
 
 export { ApiError };

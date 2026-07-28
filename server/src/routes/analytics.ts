@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { roleInOrg } from '../orgs/store';
 import * as A from '../analytics/queries';
 import { listDigests } from '../analytics/digest';
+import { listIssueDigests, generateIssueDigest } from '../selfheal/issueDigest';
 
 /**
  * Analytics endpoints. Operator (`/api/admin/analytics/*`) = superadmin-only, whole
@@ -39,6 +40,14 @@ export function registerAnalyticsRoutes(app: FastifyInstance) {
   app.get('/api/admin/analytics/users', async (req, reply) => (operator(req, reply) ? { users: await A.usersTable(OP) } : undefined));
   app.get('/api/admin/analytics/alerts', async (req, reply) => (operator(req, reply) ? { alerts: await A.alerts(OP) } : undefined));
   app.get('/api/admin/analytics/digests', async (req, reply) => (operator(req, reply) ? { digests: await listDigests() } : undefined));
+  // Self-healing Phase 1 — nightly issue digests (ranked, redacted issue clusters across tenants).
+  app.get('/api/admin/analytics/issues', async (req, reply) => (operator(req, reply) ? { digests: await listIssueDigests() } : undefined));
+  // Operator-triggered on-demand run (e.g. a "refresh now" button); superadmin-only like the rest.
+  app.post('/api/admin/analytics/issues/run', async (req, reply) => {
+    if (!operator(req, reply)) return undefined;
+    const summary = await generateIssueDigest();
+    return { summary, digests: await listIssueDigests() };
+  });
   app.get('/api/admin/analytics/users/:uid', async (req, reply) => {
     if (!operator(req, reply)) return undefined;
     const user = await A.userDetail(OP, (req.params as { uid: string }).uid);

@@ -701,6 +701,19 @@ async function migrate() {
   )`);
   await q(`CREATE INDEX IF NOT EXISTS idx_analytics_digests_gen ON analytics_digests(generated_at)`);
 
+  // Self-healing PHASE 1 — nightly ISSUE digests: ranked, redacted clusters of failures + user
+  // complaints across all tenants (detection/reporting only; no auto-fix). Operator-only.
+  await q(`CREATE TABLE IF NOT EXISTS issue_digests(
+    id TEXT PRIMARY KEY,
+    period_start ${INT} NOT NULL,
+    period_end ${INT} NOT NULL,
+    generated_at ${INT} NOT NULL,
+    clusters TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    created_at ${INT} NOT NULL
+  )`);
+  await q(`CREATE INDEX IF NOT EXISTS idx_issue_digests_gen ON issue_digests(generated_at)`);
+
   // BI metric snapshots — the recurring-report memory. Each row = one (series, period)
   // observation of named business metrics ({"Revenue": 120000, ...}), org-scoped so a
   // scheduled "monthly revenue report" can compare like-for-like against LAST run's

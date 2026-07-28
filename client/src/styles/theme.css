@@ -1953,6 +1953,7 @@ button { font-family: inherit; cursor: pointer; }
 .an-table tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--bg-input) 50%, transparent); }
 .an-cell { text-align: center; font-family: var(--mono); font-size: 11px; }
 .an-empty { color: var(--text-faint); font-size: 12px; padding: 10px 0; }
+.an-card .an-sub { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
 .an-note { color: var(--text-faint); font-size: 11px; margin-top: 16px; text-align: center; }
 
 @media (max-width: 1080px) { .an-strip.hero, .an-strip.sub { grid-template-columns: repeat(3, 1fr); } .an-charts { grid-template-columns: 1fr; } }

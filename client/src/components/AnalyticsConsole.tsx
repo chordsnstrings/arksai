@@ -25,6 +25,8 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
   const [users, setUsers] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any>(null);
   const [digests, setDigests] = useState<any[]>([]);
+  const [issues, setIssues] = useState<any[]>([]);
+  const [issuesBusy, setIssuesBusy] = useState(false);
   const [drillUser, setDrillUser] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ items: any[]; summary: { up: number; down: number; openComplaints: number } } | null>(null);
   const loadFeedback = () => api.adminFeedback().then(setFeedback).catch(() => {});
@@ -37,6 +39,7 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
     api.analyticsUsers().then(setUsers).catch(() => {});
     api.analyticsAlerts().then(setAlerts).catch(() => {});
     api.analyticsDigests().then(setDigests).catch(() => {});
+    api.analyticsIssues().then(setIssues).catch(() => {});
     loadFeedback();
   }, []);
   useEffect(() => {
@@ -266,6 +269,63 @@ export function AnalyticsConsole({ onClose }: { onClose: () => void }) {
             </table>
           </section>
 
+          <section className="an-card an-wide">
+            <div className="an-card-head">
+              <h3>Self-healing · issues (nightly)</h3>
+              <button
+                className="an-pill"
+                style={{ cursor: 'pointer', border: 'none' }}
+                disabled={issuesBusy}
+                onClick={() => {
+                  setIssuesBusy(true);
+                  api.runIssueDigest().then(setIssues).catch(() => {}).finally(() => setIssuesBusy(false));
+                }}
+              >
+                {issuesBusy ? 'Scanning…' : 'Refresh now'}
+              </button>
+            </div>
+            {(() => {
+              const latest = issues[0];
+              const s = latest?.summary ?? null;
+              const clusters: any[] = latest?.clusters ?? [];
+              if (!latest) return <div className="an-empty">No scan yet — the first nightly issue digest generates automatically (or Refresh now).</div>;
+              if (!clusters.length)
+                return (
+                  <div className="an-empty">
+                    All clear — {s?.runErrors ?? 0} failed run(s) & {s?.complaints ?? 0} complaint(s) in the last {s?.windowHours ?? 24}h, nothing to flag.
+                  </div>
+                );
+              const remClass: Record<string, string> = { code: 'bad', model: 'warn', environment: 'warn', prompt: 'warn', knowledge: '', 'user-error': '', unknown: '' };
+              return (
+                <>
+                  <div className="an-sub" style={{ marginBottom: 8 }}>
+                    Last {s?.windowHours ?? 24}h · {s?.runErrors ?? 0} failed run(s) · {s?.complaints ?? 0} complaint(s) · {clusters.length} cluster(s) · {s?.affectedOrgs ?? 0} tenant(s)
+                    {s?.truncated ? ` · scan capped at ${s.scannedSessions}` : ''}
+                  </div>
+                  <table className="an-table">
+                    <thead><tr><th>Issue</th><th>Fix type</th><th>Count</th><th>Tenants</th><th>Example</th></tr></thead>
+                    <tbody>
+                      {clusters.slice(0, 12).map((c) => (
+                        <tr key={c.key}>
+                          <td>
+                            {c.title}
+                            {c.hypothesis ? <div className="an-sub" style={{ opacity: 0.75 }}>{c.hypothesis}</div> : null}
+                          </td>
+                          <td><span className={`an-pill ${remClass[c.remediation] ?? ''}`}>{c.remediation}</span></td>
+                          <td style={{ textAlign: 'right' }}>{fmtNum(c.count)}</td>
+                          <td style={{ textAlign: 'right' }}>{c.orgs}</td>
+                          <td className="an-sub" style={{ maxWidth: 320, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.examples?.[0] ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="an-note" style={{ marginTop: 8 }}>
+                    Detection only — no code is changed automatically. Ranked by frequency × severity; snippets are redacted. (Phase 2 will turn the top clusters into proposed fixes you approve.)
+                  </p>
+                </>
+              );
+            })()}
+          </section>
           <section className="an-card an-wide">
             <h3>Scheduled digests</h3>
             {digests.length === 0 ? (

@@ -228,6 +228,11 @@ export const config = {
   // in-app for the operator regardless; the webhook is opt-in.
   analyticsDigestHours: intEnv('ANALYTICS_DIGEST_HOURS', 24),
   analyticsDigestWebhook: process.env.ANALYTICS_DIGEST_WEBHOOK || '',
+  // Self-healing Phase 1 — nightly issue digest (detection + clustering, no auto-fix). Runs once
+  // per this many hours; delivered in-app to the operator always + a webhook if set (falls back
+  // to the analytics-digest webhook).
+  issueDigestHours: intEnv('ISSUE_DIGEST_HOURS', 24),
+  issueDigestWebhook: process.env.ISSUE_DIGEST_WEBHOOK || '',
   // Gating visual design-critique loop (needs a vision model). On by default;
   // set AGENT_DESIGN_GATE=false to disable (e.g. keyless dev).
   designGate: process.env.AGENT_DESIGN_GATE !== 'false',
@@ -319,6 +324,7 @@ export function secretValues(): string[] {
     config.sunoApiKey,
     config.minimaxApiKey,
     config.analyticsDigestWebhook,
+    config.issueDigestWebhook,
     config.metaAppSecret,
     config.googleAdsClientSecret,
     config.googleAdsDeveloperToken,
