@@ -289,6 +289,25 @@ test('doctrine: rubric judges per-treatment and names the completed default-look
   assert.match(s, /COPY: words are design material/);
 });
 
+test('doctrine: impeccable taste discipline is encoded in designCore + caught by the gate', () => {
+  // designCore carries the discipline (distilled from the impeccable design skill).
+  const dc = SRC('agent/designSystem.ts');
+  assert.match(dc, /TASTE DISCIPLINE/);
+  assert.match(dc, /impeccable design skill/);
+  assert.match(dc, /EVERYTHING LANDS ON A STEP/);
+  assert.match(dc, /TRACKED UPPERCASE CAPS ARE SHORT/);
+  assert.match(dc, /DARK TYPE NEEDS AIR/);
+  assert.match(dc, /NEVER pure #000 or pure #fff/);
+  assert.match(dc, /BAN glassmorphism/);
+  assert.match(dc, /no bounce/);
+  // The gate rubric REVISES on the new anti-slop tells (so they never ship).
+  const gate = SRC('agent/uiCheck.ts');
+  assert.match(gate, /glassmorphism/);
+  assert.match(gate, /cards nested inside cards/);
+  assert.match(gate, /pure #000 \/ #fff page ground/);
+  assert.match(gate, /tracked UPPERCASE caps/);
+});
+
 test('doctrine: CODE prompt offers the token-level dual-theme pattern for theme toggles', () => {
   const p = buildSystemPrompt(codeSession, '/tmp', '');
   assert.match(p, /THEME TOGGLE/);

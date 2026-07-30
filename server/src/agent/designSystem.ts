@@ -188,6 +188,27 @@ sometimes is.
   with flex/grid gap, never per-element margins (they silently collapse or double); any
   wide content (a table, code, a diagram) sits in its own overflow-x:auto container so
   the page body never scrolls sideways.
+- TASTE DISCIPLINE (the rigor that separates "premium" from "AI-competent" — distilled from
+  the impeccable design skill; these are what make a page feel intentional at the pixel level):
+  • EVERYTHING LANDS ON A STEP — pick a type scale and a spacing scale up front and let EVERY
+    font-size and gap land on one of those steps; ad-hoc 13px/15px/22px sizes and 7px/11px/13px
+    gaps are the tell of an unconsidered page. The kit's tokens already define these — use them.
+  • WEIGHT IS DELIBERATE, not one note — don't render every heading at the same 600/700. Use a
+    real weight range (a light/thin large display over heavier section anchors reads as designed);
+    body stays regular. On a DISPLAY face, small sizes get the TEXT face (thin display cuts read
+    too light below ~1.1rem) — never set body/UI copy in a display face.
+  • TRACKED UPPERCASE CAPS ARE SHORT SYSTEM MARKERS ONLY (an eyebrow, a label) — never a
+    sentence or a paragraph in tracked caps.
+  • DARK TYPE NEEDS AIR — body text on a dark ground uses line-height 1.6–1.8 and a 60–75ch
+    measure; cramped light-on-dark body is a legibility + taste failure.
+  • NO NESTED CARDS, no wide rounded pill-cards, no accent rail down a rounded card; one radius
+    family, thin hairlines over heavy boxes. NEVER pure #000 or pure #fff as a ground — use a
+    near-black/near-white with a hint of the palette's hue (a pure-grey neutral reads as
+    unconsidered; bias the neutral slightly toward the accent hue).
+  • BAN glassmorphism, generic "AI-tool" glow/haze, and neon-cyan fields — they instantly read
+    as slop. Prefer OKLCH for new colours (predictable, even lightness across hues).
+  • MOTION IS RESTRAINED — no bounce; ONE easing token for all transitions; hover is a small
+    lift / brightness / border shift, not a springy scale. Effects earn their place or are cut.
 - REAL STATES (this is what separates polished from prototype): every interactive
   element needs hover, focus-visible, active, and disabled; every data view needs
   empty, loading (skeletons), and error states. Never ship a bare default state.

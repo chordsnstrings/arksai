@@ -96,7 +96,10 @@ export const DESIGN_RUBRIC_PROMPT =
   'desaturated accent on white with a big centered hero + a glowing card and Inter everywhere; (b) cream + a ' +
   'serif + a terracotta/clay accent; (c) black + an acid/neon-green accent; (d) broadsheet-hairlines pastiche; ' +
   '(e) a purple→blue gradient hero on white; (f) everything centered, every element the same rounded-lg radius, ' +
-  'or an accent bar/rail on rounded cards; (g) emoji as section markers. ' +
+  'or an accent bar/rail on rounded cards; (g) emoji as section markers; (h) glassmorphism / a ' +
+  'generic "AI-tool" glow or haze; (i) cards nested inside cards, wide rounded pill-cards, or a ' +
+  'pure #000 / #fff page ground; (j) a paragraph or sentence set in tracked UPPERCASE caps; (k) ' +
+  'a single heading weight everywhere with no deliberate weight range. ' +
   'Reward a deliberate concept carried through type + colour + structure, a SIGNATURE element that means ' +
   'something (a data/board/spec/stamp keyed to real content, not a decorative gradient box), and a clear ' +
   'point of view. Reward a page that COMMITS to a recognizable modern DIRECTION/archetype and builds its ' +
