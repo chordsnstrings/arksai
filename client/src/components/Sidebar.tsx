@@ -7,6 +7,28 @@ import { isDark, toggleTheme } from '../lib/theme';
 import { activityBadge, failedDeployments } from '../lib/activity';
 import { ConnectorIcon } from './ConnectorIcon';
 
+/** Editorial stroke icons for the tools strip — matches the department-card line icons
+ *  (24-grid, currentColor, 1.7 stroke). Replaces the old emoji markers so the whole shell
+ *  reads as one designed, Swedish-editorial system (no emoji section markers). */
+const NAV_ICONS: Record<string, string> = {
+  activity: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  robots: '<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 4v4M2 13v2M22 13v2"/><path d="M9 14h.01M15 14h.01"/>',
+  apps: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.5 2.5 15 0 18c-2.5-3-2.5-15.5 0-18z"/>',
+  android: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
+  video: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+  design: '<circle cx="12" cy="12" r="9"/><polygon points="16 8 14 14 8 16 10 10 16 8"/>',
+  project: '<path d="M4 20h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-7l-2-2H4a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1z"/><path d="M12 11v6M9 14h6"/>',
+  admin: '<path d="M12 3l7 3v5c0 4.7-3.1 7.8-7 9-3.9-1.2-7-4.3-7-9V6z"/>',
+  analytics: '<line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="9"/>',
+};
+function NavIcon({ name }: { name: keyof typeof NAV_ICONS }) {
+  return (
+    <svg className="sb-tool-ico" width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+      dangerouslySetInnerHTML={{ __html: NAV_ICONS[name] }} />
+  );
+}
+
 /** A small count/dot badge on a nav item. `dot` shows a marker with no number. */
 function NavBadge({ n, dot, tone = 'accent' }: { n?: number; dot?: boolean; tone?: 'accent' | 'amber' }) {
   if (dot) return <span className={`nav-badge dot ${tone}`} />;
@@ -274,29 +296,29 @@ export function Sidebar({
           setup/admin (below a hairline). Labeled (discoverable) + live badges. */}
       <div className="sb-tools">
         <button className="sb-tool" onClick={() => { onActivity(); if (window.innerWidth <= 860) toggleNav(false); }}>
-          🔔 Activity {actBadge > 0 && <NavBadge n={actBadge} />}
+          <NavIcon name="activity" /> Activity {actBadge > 0 && <NavBadge n={actBadge} />}
         </button>
         <button className="sb-tool" onClick={onRobots}>
-          🤖 Robots {draftCount > 0 && <NavBadge n={draftCount} />}
+          <NavIcon name="robots" /> Robots {draftCount > 0 && <NavBadge n={draftCount} />}
         </button>
         <button className="sb-tool" onClick={onDeployments}>
-          🌐 Live apps {failedCount > 0 && <NavBadge n={failedCount} tone="amber" />}
+          <NavIcon name="apps" /> Live apps {failedCount > 0 && <NavBadge n={failedCount} tone="amber" />}
         </button>
-        <button className="sb-tool" onClick={onAndroid}>📱 Android</button>
-        <button className="sb-tool" onClick={onVideo}>🎬 Video</button>
-        <button className="sb-tool" onClick={onDesign}>🎨 Design</button>
+        <button className="sb-tool" onClick={onAndroid}><NavIcon name="android" /> Android</button>
+        <button className="sb-tool" onClick={onVideo}><NavIcon name="video" /> Video</button>
+        <button className="sb-tool" onClick={onDesign}><NavIcon name="design" /> Design</button>
       </div>
       <div className="sb-tools sb-tools-sub">
         <button className="sb-tool" onClick={onConnections}>
           <ConnectorIcon /> Connect
         </button>
-        <button className="sb-tool" onClick={onNewProject}>▤ New project</button>
+        <button className="sb-tool" onClick={onNewProject}><NavIcon name="project" /> New project</button>
         {isAdmin && (
           <button className="sb-tool" onClick={onAdmin}>
-            ▦ {me?.isSuperadmin ? 'Admin' : 'Members'} {lowBalance && <NavBadge dot tone="amber" />}
+            <NavIcon name="admin" /> {me?.isSuperadmin ? 'Admin' : 'Members'} {lowBalance && <NavBadge dot tone="amber" />}
           </button>
         )}
-        {me?.isSuperadmin && <button className="sb-tool" onClick={onAnalytics}>📊 Analytics</button>}
+        {me?.isSuperadmin && <button className="sb-tool" onClick={onAnalytics}><NavIcon name="analytics" /> Analytics</button>}
       </div>
 
       <div className="sidebar-footer">

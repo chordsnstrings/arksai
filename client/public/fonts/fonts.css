@@ -8,3 +8,9 @@
 @font-face{font-family:'Source Serif 4';font-weight:600;font-style:normal;font-display:swap;src:url('/fonts/source-serif-600.woff2') format('woff2')}
 @font-face{font-family:'Space Grotesk';font-weight:500;font-style:normal;font-display:swap;src:url('/fonts/space-grotesk-500.woff2') format('woff2')}
 @font-face{font-family:'Space Grotesk';font-weight:700;font-style:normal;font-display:swap;src:url('/fonts/space-grotesk-700.woff2') format('woff2')}
+/* Swedish redesign (Arkiv light + Skymning dark): Familjen Grotesk — a Swedish
+ * humanist grotesk — carries all display type (variable, 400–700); Space Mono is
+ * the editorial system-marker face (eyebrows, tags, labels). Both SIL OFL. */
+@font-face{font-family:'Familjen Grotesk';font-weight:400 700;font-style:normal;font-display:swap;src:url('/fonts/familjen.woff2') format('woff2')}
+@font-face{font-family:'Space Mono';font-weight:400;font-style:normal;font-display:swap;src:url('/fonts/space-mono-400.woff2') format('woff2')}
+@font-face{font-family:'Space Mono';font-weight:700;font-style:normal;font-display:swap;src:url('/fonts/space-mono-700.woff2') format('woff2')}

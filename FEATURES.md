@@ -6,7 +6,7 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 
 > **Maintenance:** keep this file current — every shipped change that adds, removes, or
 > meaningfully alters a feature should update this list in the same commit.
-> _Last updated: 2026-07-08._
+> _Last updated: 2026-08-18._
 
 ---
 
@@ -254,10 +254,11 @@ actually live/usable. Powered by MiniMax (the LLM brain + image/vision/speech/vi
 - **Safe by construction** — replies are **locked to the inbound sender** (a prompt-injected "forward to…" can't redirect them), the model sees only that one message plus the robot's own knowledge (data-minimized), and anything out of scope (refunds, billing, money, legal, angry complaints) **escalates to a human**.
 - **Model choice** — robots draft with **ArksAI Max (M3)** or **ArksAI v4 (DeepSeek)**, or **Compare both**.
 
-## Visual identity & theming
-- Editorial light/warm identity — ivory canvas, Source Serif 4 + Inter + Space Grotesk (same fonts the reports use), publication masthead, hairline rules, per-department accent coding. Token-driven.
-- **Subtle glassmorphism on floating chrome** — the top bar, dialogs, the completion card and the canvas head get a minute frosted-glass treatment (translucent tint **derived from `--bg-elev`** so the warm hue + accent are unchanged — only depth/translucency — plus a 1px light-catch edge), light & dark both. Reading surfaces (sidebar, chat bubbles, report/doc panels) stay solid for clarity. Enhancement-only: a `--glass-bg`/`--glass-blur` token pair behind an `@supports (backdrop-filter)` guard, fully reverting to solid under `prefers-reduced-transparency`.
-- Dark mode for the Engineering (developer) team, with a smooth animated dark↔light crossfade (mobile + desktop, reduced-motion aware).
+## Visual identity & theming — Modern Swedish
+- **Arkiv (light) — a Swiss-Scandi editorial identity.** Warm printing-paper ground, near-black ink, hairline rules, a publication masthead ("ARKSAI · STUDIO" / "A BUILDER FOR EVERY TEAM" set in the label mono), numbered plays (01–10), and ONE signal-vermilion accent used like a printer's spot colour. Restraint carries the design; colour is deliberate, not decorative.
+- **Skymning (dark) — a matte, glow-free "dusk" studio.** A blue-slate ground, warm paper-white type and a muted brass accent — the opposite of neon-cyan AI dark mode. Shares Arkiv's exact bones (type, radius, structure); only the palette flips. Toggle from the moon/sun in the sidebar with a smooth animated crossfade (reduced-motion aware).
+- **Type:** Familjen Grotesk (a Swedish humanist grotesk) carries every headline and greeting; Space Mono sets the small editorial system-labels; Inter is the body/UI face — one identity across both themes, self-hosted (SIL OFL).
+- **Flat & honest, not glassy** — floating chrome (top bar, dialogs, completion card, canvas head) is matte, glow-free, and hairline-bordered; per-department line icons carry restrained accent-coded wayfinding. Fully token-driven — the whole shell reskins from ~40 CSS variables + an `--on-accent` token so text always reads on any accent (near-white on vermilion, dark ink on brass).
 
 ## Platform plumbing
 - **Operator key rotation, no SSH (Admin → Keys)** — the super-admin can rotate the **DigitalOcean API token** and the **ArksAI Swift (BytePlus/Dola)** key from a new **Keys** tab in the Admin panel, without touching the Droplet or redeploying. Keys are **encrypted at rest** and **write-only** — the panel shows only whether each is set (a ● / ○ dot), never the value — and are picked up by the running server immediately (DB-backed runtime config, `app_settings`). Both endpoints (`POST /api/admin/providers/do` · `/byteplus`) validate the key prefix (`dop_v1_…` · `ark-…`) and are super-admin-gated (401 unauth, 403 for a non-operator).

@@ -189,7 +189,7 @@ export function CohortGrid({ rows }: { rows: { startTs: number; size: number; re
             {Array.from({ length: weeks }, (_, i) => {
               const v = r.retained[i];
               return (
-                <td key={i} className="an-cell" style={v == null ? undefined : { background: `color-mix(in srgb, var(--accent) ${v}%, transparent)`, color: v > 55 ? '#fff' : 'var(--text)' }}>
+                <td key={i} className="an-cell" style={v == null ? undefined : { background: `color-mix(in srgb, var(--accent) ${v}%, transparent)`, color: v > 55 ? 'var(--on-accent)' : 'var(--text)' }}>
                   {v == null ? '' : `${v}%`}
                 </td>
               );

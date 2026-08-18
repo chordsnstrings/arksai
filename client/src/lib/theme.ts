@@ -34,7 +34,7 @@ function applyTheme(dark: boolean, animate: boolean): void {
   const flip = () => {
     root.setAttribute('data-theme', dark ? 'dark' : 'light');
     root.style.colorScheme = dark ? 'dark' : 'light';
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#15171b' : '#f4f1ea');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#15181e' : '#f1eee6');
   };
 
   // Preferred: a true full-page crossfade via the View Transition API — snapshots the old

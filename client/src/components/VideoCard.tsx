@@ -44,7 +44,7 @@ export function VideoCard({ sessionId, relPath, draft, label }: { sessionId: str
           style={{
             position: 'absolute', top: 8, left: 8, fontSize: 10.5, fontWeight: 700, letterSpacing: '.06em',
             textTransform: 'uppercase', padding: '3px 8px', borderRadius: 20,
-            background: draft ? 'rgba(20,20,18,.72)' : 'var(--accent)', color: '#fff',
+            background: draft ? 'rgba(20,20,18,.72)' : 'var(--accent)', color: draft ? '#fff' : 'var(--on-accent)',
           }}
         >
           {draft ? '● Draft (480p)' : '★ Final'}
