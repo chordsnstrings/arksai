@@ -1,6 +1,6 @@
 /**
  * Video prompt compiler — turns a casual ask into the granular, director-grade prompt Seedance
- * (1.5-pro / 2.0) responds to best, so the USER only ever writes "what happens" and the system
+ * (1.5-pro / 2.0 / 2.5) responds to best, so the USER only ever writes "what happens" and the system
  * fills in the professional detail automatically.
  *
  * Structure follows the official Seedance guides (BytePlus ModelArk + fal + Dreamina 2.0):
@@ -35,6 +35,129 @@ function defaultCamera(brief: string, purpose?: string): string {
   return 'Camera: one smooth slow push-in on the subject (single move, steady — no other camera motion).';
 }
 
+/* ── sentences (shared with the story narrator) ──────────────────────────── */
+
+// Words whose trailing "." abbreviates (lower-cased, final dot dropped) — never a sentence end.
+// Under-splitting is the SAFE failure: a missed boundary keeps two sentences in one scene, while a
+// false one cuts a spoken line across a scene cut ("Say hi to Mr." … "Khan.").
+const ABBREVIATIONS = new Set([
+  'mr', 'mrs', 'ms', 'mx', 'dr', 'st', 'prof', 'jr', 'sr', 'rev', 'hon', 'sgt', 'capt', 'lt', 'col', 'gen', 'gov',
+  'vs', 'etc', 'inc', 'ltd', 'co', 'corp', 'llc', 'plc', 'mt', 'ave', 'rd', 'blvd', 'dept', 'approx', 'ph.d',
+]);
+
+// A "word" that carries meaning; a run without one (🎉🎉, —, ✨) is decoration, never a sentence.
+const WORDY = /[\p{L}\p{N}]/u;
+
+/**
+ * Does `word` end a sentence? `next` is the word after it (absent at the end of the text). At a
+ * soft line wrap (`atWrap`) `next` is the first word of the following line. PURE.
+ */
+function endsSentence(word: string, next?: string, atWrap = false): boolean {
+  if (!/[.!?…。！？]["'”’)\]」』）]*$/.test(word)) return false;
+  // A trailing emoji/symbol run rides with the sentence it closes: "Great job! 🎉🎉".
+  if (next !== undefined && !WORDY.test(next)) return false;
+  // A lowercase continuation stays one sentence: `"Ready?" she asks.` — across a soft wrap too,
+  // except after a bare "." (a wrapped line that ends on a full stop is a deliberate break).
+  if (next !== undefined && /^\p{Ll}/u.test(next) && !(atWrap && /[^.]\.$/.test(word))) return false;
+  // Only a bare single "." can be an abbreviation (not ! ? … "..." or a closing quote).
+  if (!/[^.]\.$/.test(word)) return true;
+  const core = word.replace(/^[^\p{L}\p{N}]+/u, '').slice(0, -1);
+  const lc = core.toLowerCase();
+  if (ABBREVIATIONS.has(lc)) return false;
+  if (lc === 'no') return !(next && /^[#\d]/.test(next)); // "No. 5" vs "Just say no."
+  if (/^(?:\p{L}\.)+\p{L}$/u.test(core)) return false; // U.S. · e.g. · i.e. · a.m. · p.m. · J.R.R.
+  if (/^\p{Lu}$/u.test(core) && core !== 'I') return false; // an initial: "J. Smith"
+  return true;
+}
+
+/**
+ * Split spoken text into sentences, abbreviation- and initial-aware ("Mr. Khan", "9 a.m. Sunday",
+ * "J. Smith" stay whole). A blank line is a hard paragraph break; a single newline is a soft wrap
+ * (joined) unless the line before it ends a sentence — judged with the next line's first word, so
+ * `"Ready?"⏎she asks.` and `No.⏎5 is…` stay whole. A trailing emoji/symbol run stays with its
+ * sentence. Full-width 。！？ end sentences too. Whitespace is normalised. PURE.
+ */
+export function splitSentences(text: string): string[] {
+  const out: string[] = [];
+  for (const para of String(text || '').replace(/\r\n?/g, '\n').split(/\n[^\S\n]*\n/)) {
+    const lines = para.split('\n').map((raw) => raw.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const chunks: string[] = [];
+    let cur = '';
+    lines.forEach((line, li) => {
+      cur = cur ? `${cur} ${line}` : line;
+      const next = lines[li + 1]?.split(' ')[0];
+      if (next === undefined || endsSentence(line.slice(line.lastIndexOf(' ') + 1), next, true)) {
+        chunks.push(cur);
+        cur = '';
+      }
+    });
+    for (const chunk of chunks) {
+      const words = chunk.split(' ');
+      let start = 0;
+      for (let i = 0; i < words.length - 1; i++) {
+        // Judge the boundary against the first real word after any emoji/symbol run, and cut
+        // after that run — so the decoration closes its sentence instead of becoming one.
+        let j = i;
+        while (j + 1 < words.length && !WORDY.test(words[j + 1])) j++;
+        if (endsSentence(words[i], words[j + 1])) {
+          out.push(words.slice(start, j + 1).join(' '));
+          start = j + 1;
+          i = j;
+        }
+      }
+      if (start < words.length) out.push(words.slice(start).join(' '));
+    }
+  }
+  // A "sentence" with no letter or digit (an emoji-only paragraph, a lone "…") is never a line
+  // of its own — fold it into its neighbour so no scene gets narration of just "🎉🎉".
+  const merged: string[] = [];
+  for (const s of out) {
+    if (/[\p{L}\p{N}]/u.test(s) || !merged.length) merged.push(s);
+    else merged[merged.length - 1] += ` ${s}`;
+  }
+  if (merged.length > 1 && !/[\p{L}\p{N}]/u.test(merged[0])) merged.splice(0, 2, `${merged[0]} ${merged[1]}`);
+  return merged;
+}
+
+/** The most dialogue one clip speaks — past this a single shot can't voice it naturally. */
+export const DIALOGUE_MAX_CHARS = 160;
+
+/**
+ * Fit a spoken line into one clip: unchanged when it fits; otherwise cut at the last SENTENCE
+ * boundary within the cap, else the last full-width 。！？ (unspaced CJK), else the last WORD
+ * boundary — never mid-word. A word cut that leaves a stub (a "Narrator:" label before unspaced
+ * text, a lone dash) hard-cuts at the cap instead, on a character boundary (never mid surrogate
+ * pair). `trimmed` tells the caller so the agent can tell the user (longer narration belongs in a
+ * multi-scene story). PURE.
+ */
+export function fitDialogue(dialogue: string | undefined, cap = DIALOGUE_MAX_CHARS): { text: string; trimmed: boolean } {
+  const whole = String(dialogue ?? '').replace(/\s+/g, ' ').trim();
+  if (whole.length <= cap) return { text: whole, trimmed: false };
+  const tidy = (t: string) => t.replace(/[\s,;:—–-]+$/, '');
+  let text = '';
+  for (const s of splitSentences(String(dialogue))) {
+    const next = text ? `${text} ${s}` : s;
+    if (next.length > cap) break;
+    text = next;
+  }
+  // Whole characters only, ≤ cap code units.
+  let head = '';
+  for (const ch of whole) {
+    if (head.length + ch.length > cap) break;
+    head += ch;
+  }
+  if (!text) {
+    const stop = Math.max(head.lastIndexOf('。'), head.lastIndexOf('！'), head.lastIndexOf('？'));
+    if (stop > 0 && WORDY.test(head.slice(0, stop))) text = head.slice(0, stop + 1);
+  }
+  if (!text) {
+    const sp = whole.slice(0, cap + 1).lastIndexOf(' ');
+    const word = sp > 0 ? tidy(whole.slice(0, sp)) : '';
+    text = WORDY.test(word) && word.length >= cap / 2 ? word : tidy(head);
+  }
+  return { text, trimmed: true };
+}
+
 export function compileVideoPrompt(o: {
   brief: string;
   dialogue?: string;
@@ -55,8 +178,9 @@ export function compileVideoPrompt(o: {
   if (!HAS_STYLE.test(brief)) parts.push('Style: premium cinematic, photoreal, natural film-tone colour grade, crisp 4K detail.');
 
   // 4 · Audio — dialogue in quotes is the synced-audio signal; else a matching ambient bed.
-  if (o.dialogue?.trim()) {
-    parts.push(`Audio: a clear voice says "${o.dialogue.trim().slice(0, 160)}", lip-synced, with subtle matching ambience.`);
+  const spoken = fitDialogue(o.dialogue).text;
+  if (spoken) {
+    parts.push(`Audio: a clear voice says "${spoken}", lip-synced, with subtle matching ambience.`);
   } else if (!HAS_AUDIO.test(brief)) {
     parts.push('Audio: natural ambient sound that matches the scene, no music.');
   }

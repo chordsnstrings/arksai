@@ -1,5 +1,4 @@
-import { analyzeImage } from '../engines/minimax';
-import { config } from '../config';
+import { analyzeImage, modelarkReady } from '../engines/modelark';
 
 /**
  * On-demand UI diagnosis — what a developer does when a user complains: open the app in a real
@@ -155,7 +154,7 @@ export async function inspectUi(
     // ---- desktop screenshot + vision ----
     let desktopVisual = '';
     const shotDesk = (await page.screenshot({ type: 'png' }).catch(() => null)) as Buffer | null;
-    if (shotDesk && config.minimaxApiKey && !signal.aborted) {
+    if (shotDesk && modelarkReady() && !signal.aborted) {
       const r = await analyzeImage(`data:image/png;base64,${shotDesk.toString('base64')}`, VISION_PROMPT, signal).catch(() => null);
       if (r?.ok && r.text) desktopVisual = r.text.trim();
     }
@@ -299,7 +298,7 @@ export async function inspectUi(
         .catch(() => ({ over: 0 }));
       if (Math.round(ov.over) > 24) overflowMobile = `Content is ${Math.round(ov.over)}px wider than a 390px phone — it scrolls sideways.`;
       const shotMob = (await page.screenshot({ type: 'png' }).catch(() => null)) as Buffer | null;
-      if (shotMob && config.minimaxApiKey) {
+      if (shotMob && modelarkReady()) {
         const r = await analyzeImage(`data:image/png;base64,${shotMob.toString('base64')}`, VISION_PROMPT, signal).catch(() => null);
         if (r?.ok && r.text) mobileVisual = r.text.trim();
       }

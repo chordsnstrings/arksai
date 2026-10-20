@@ -9,6 +9,7 @@ import { ProgressBar } from './ProgressBar';
 import { CheckpointTrail } from './CheckpointTrail';
 import { Canvas } from './Canvas';
 import { AUTO_MODEL } from '@shared/types';
+import { useVoiceCaps } from './VoiceChat';
 
 /**
  * Design studio — a separate full-page surface at /design. It wears ARKSAI'S OWN
@@ -62,6 +63,18 @@ const TYPES: { id: DsType; label: string; hint: string; mode: 'chat' | 'code' | 
       'Deliverable: a short ANIMATED motion-graphics VIDEO. Produce it with render_motion_video per motion-kit/MOTION.md — write a retention-first script, build the scenes as scaffolds, and pass title:"<the subject>" plus target_seconds (default ~20 unless I said otherwise). Deliver the finished video.',
   },
 ];
+
+/** The narrated motion-graphics engine needs a narrator voice. Without one (the server reports
+ *  tts:false), the Animation template becomes a short GENERATED animated clip instead — native
+ *  ambient audio, no voiceover — so the template stays useful rather than failing. */
+const ANIMATION_CLIP: (typeof TYPES)[number] = {
+  id: 'animation',
+  label: 'Animation',
+  hint: 'A short animated clip about…',
+  mode: 'chat',
+  brief:
+    'Deliverable: a short ANIMATED VIDEO CLIP (no voiceover). Produce it with generate_video in an animated/illustrated look (never photoreal) with native ambient audio — a quick 480p draft first, then the final once I approve. Deliver the finished video.',
+};
 
 /** Sketch-style template thumbnails, drawn inline in the wireframe language (no assets). */
 function TplThumb({ kind }: { kind: DsType }) {
@@ -190,6 +203,9 @@ export function DesignStudio({ onClose }: { onClose: () => void }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const canNarrate = !!useVoiceCaps()?.tts;
+  const types = useMemo(() => (canNarrate ? TYPES : TYPES.map((t) => (t.id === 'animation' ? ANIMATION_CLIP : t))), [canNarrate]);
+
   const name = displayName(me?.user?.name);
   const greet = useMemo(() => greeting(name), [name]);
 
@@ -215,7 +231,7 @@ export function DesignStudio({ onClose }: { onClose: () => void }) {
     style.kind === 'auto' ? 'Style · ArksAI chooses' : style.kind === 'brand' ? 'Style · My brand' : `Style · ${style.d.name}`;
 
   function composeBrief(): string {
-    const t = type ? TYPES.find((x) => x.id === type) : null;
+    const t = type ? types.find((x) => x.id === type) : null;
     const parts: string[] = [];
     if (t) parts.push(t.brief);
     parts.push(text.trim());
@@ -223,6 +239,9 @@ export function DesignStudio({ onClose }: { onClose: () => void }) {
     // an animation maps the pick onto the motion engine instead of design_direction.
     if (type === 'wireframe') {
       if (style.kind !== 'auto') parts.push('(Wireframes are lo-fi greyscale by design — apply the brand/style later at the hi-fi stage.)');
+    } else if (type === 'animation' && !canNarrate) {
+      if (style.kind === 'brand') parts.push('Style: build the clip\'s palette around OUR organization brand colours.');
+      else if (style.kind === 'direction') parts.push(`Style: a palette built around ${style.d.accent} — ${style.d.mood}.`);
     } else if (type === 'animation') {
       if (style.kind === 'brand') parts.push('Style: pass the ORG BRAND accent colour to render_motion_video (accent param) with style "clean".');
       else if (style.kind === 'direction') parts.push(`Style: pass style "clean" with accent "${style.d.accent}" to render_motion_video.`);
@@ -243,7 +262,7 @@ export function DesignStudio({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setErr('');
     try {
-      const t = type ? TYPES.find((x) => x.id === type) : null;
+      const t = type ? types.find((x) => x.id === type) : null;
       const session = await api.createSession({
         mode: t?.mode ?? 'chat',
         model: AUTO_MODEL,
@@ -311,7 +330,7 @@ export function DesignStudio({ onClose }: { onClose: () => void }) {
           <textarea
             ref={taRef}
             className="ds-input"
-            placeholder={type ? TYPES.find((x) => x.id === type)?.hint : 'What are we designing today?'}
+            placeholder={type ? types.find((x) => x.id === type)?.hint : 'What are we designing today?'}
             value={text}
             rows={3}
             onChange={(e) => setText(e.target.value)}
@@ -405,7 +424,7 @@ export function DesignStudio({ onClose }: { onClose: () => void }) {
         <div className="ds-tpl-wrap">
           <div className="ds-tpl-label">Start with a template</div>
           <div className="ds-tpl-grid" role="listbox" aria-label="Templates">
-            {TYPES.map((t) => (
+            {types.map((t) => (
               <button
                 key={t.id}
                 role="option"

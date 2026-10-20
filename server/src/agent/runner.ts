@@ -22,7 +22,7 @@ import { ToolError, type ToolCtx } from './tools/common';
 import { deriveTitle } from './titleGen';
 import { recordIncident } from '../incidents/store';
 import { makeThinkFilter } from './thinkFilter';
-import { Usage } from './usage';
+import { Usage, cacheSplit } from './usage';
 import { checkLabel, detectStartCommand, needsExternalDb, verifyProject } from './verify';
 import { probeApp } from './runtimeCheck';
 import { isBlockingDefect } from './uiCheck';
@@ -30,78 +30,28 @@ import { checkDeliverable, deterministicDeliverableDefects, type DeliverableKind
 import { processRegistry } from './processes';
 import { buildExportArchive, detectRenderable, looksLikeProject, startPreviewServer } from './canvasExport';
 import { auditWebHygiene } from './webHygiene';
-import { escalateModel, resolveProvider, selectModel, byteplusReady, type Provider } from './router';
+import { escalateModel, isChatSpreadsheetAsk, isSpreadsheetBrief, resolveProvider, selectModel, stallLadder } from './router';
 import { classifyTask, type TaskProfile } from './taskProfile';
 import { compileDesignBrief, designBriefBlock } from './designBrief';
 import { isSimpleBuild, simpleBuildGuidance, simpleBuildNudge, SIMPLE_BUILD_NUDGE_AT } from './simpleBuild';
 import { byteplusKey } from './byteplusRuntime';
+import { modelarkReady, endpointFor, ARK_PRICES } from '../engines/modelark';
 import { checkpointResumeNote, checkpointPlanGuidance, readCheckpoints, recordCheckpoint } from './checkpoint';
 import { routeExpertise } from './expertiseRouter';
-import { isAutoModel, MAX_MODEL, FAST_MODEL, HEAVY_GLM51_MODEL, HEAVY_KIMI_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
+import { isAutoModel, MAX_MODEL, HEAVY_GLM51_MODEL, HEAVY_DS4_MODEL, phaseFloor, phaseCeiling, estimateRemainingSeconds, type ProgressPhase } from '../../../shared/types';
 import { calibratedTypical, recordRunDurations } from './etaCalibration';
+import { Semaphore } from '../lib/semaphore';
+import { parseToolArgs } from '../lib/toolArgs';
 
-const CONTEXT_TOKEN_BUDGET = 50_000; // generous headroom under MiniMax's large context window
+const CONTEXT_TOKEN_BUDGET = 50_000; // generous headroom under every ModelArk lane's context window (≥128K)
 const PREVIEW_CHARS = 700;
 const MAX_DESIGN_ROUNDS = 2; // bounded internal design-critique iterations
 const REPORT_MAX_DESIGN_ROUNDS = 2; // report mode: quality-first revise cap (deterministic pre-check keeps rounds cheap)
-// Tools that emit ONE large structured output (the whole spreadsheet/deck/doc as tool-call
-// args). M3 reliably over-buffers these server-side → it would burn the full 150s patience
-// before falling back. When one of these starts on the PRIMARY model we shorten the deadline
-// so we fall back to the fast model quickly instead (the fast coding model handles big
-// structured output well). Env-tunable via MINIMAX_HEAVY_TOOL_DEADLINE_MS.
-const HEAVY_GENERATORS = new Set(['generate_spreadsheet', 'generate_pptx', 'generate_doc']);
-
-// How many slow M3 turns we tolerate (each finished on the fast model for that turn only)
-// before giving up on M3 for the rest of the run. Quality-first: M3 references cells more
-// accurately on a financial model, so we keep returning to it. Env-tunable.
-const MAX_MINIMAX_STALLS = Math.max(1, Number(process.env.MINIMAX_MAX_STALLS || '3') || 3);
-
-/**
- * Global concurrency limiter for MiniMax (Anthropic-endpoint) streams. M3 buffers a
- * turn's output server-side, and under CONCURRENCY it STARVES the contending streams —
- * they get keepalive pings (so gaps stay tiny and the idle timer never trips) but
- * produce NO content for minutes (the "900s hang"). Empirically: 1–3 concurrent M3
- * streams complete cleanly, 4 degrade, 6 starve. So we cap concurrent streams; excess
- * turns queue. FIFO; abort-aware so an interrupted run never holds a slot. Env-tunable.
- */
-export class Semaphore {
-  private avail: number;
-  private waiters: Array<{ resolve: () => void; signal?: AbortSignal; onAbort?: () => void }> = [];
-  constructor(n: number) {
-    this.avail = Math.max(1, n);
-  }
-  async acquire(signal?: AbortSignal): Promise<() => void> {
-    if (signal?.aborted) throw new Error('aborted before acquiring MiniMax slot');
-    if (this.avail > 0) {
-      this.avail--;
-    } else {
-      await new Promise<void>((resolve, reject) => {
-        const w: { resolve: () => void; signal?: AbortSignal; onAbort?: () => void } = { resolve, signal };
-        w.onAbort = () => {
-          const i = this.waiters.indexOf(w);
-          if (i >= 0) this.waiters.splice(i, 1); // never granted a slot → nothing to return
-          reject(new Error('aborted while queued for a MiniMax slot'));
-        };
-        if (signal) signal.addEventListener('abort', w.onAbort, { once: true });
-        this.waiters.push(w);
-      });
-    }
-    let released = false;
-    return () => {
-      if (released) return;
-      released = true;
-      const next = this.waiters.shift();
-      if (next) {
-        if (next.signal && next.onAbort) next.signal.removeEventListener('abort', next.onAbort);
-        next.resolve(); // hand the slot directly to the next waiter (avail stays consumed)
-      } else {
-        this.avail++;
-      }
-    };
-  }
-}
-const MINIMAX_MAX_CONCURRENCY = Math.max(1, Number(process.env.MINIMAX_MAX_CONCURRENCY || '3') || 3);
-const minimaxLimiter = new Semaphore(MINIMAX_MAX_CONCURRENCY);
+// Global concurrency limiter for ModelArk agent-loop streams: the plan's concurrency/RPM caps
+// QUEUE excess turns instead of returning 429s. FIFO + abort-aware (lib/semaphore). Env-tunable
+// via ARK_MAX_CONCURRENCY. Re-exported for the existing Semaphore unit tests.
+export { Semaphore };
+const arkLimiter = new Semaphore(config.arkMaxConcurrency);
 
 // When a turn runs long (quality-first: we let the best model finish a big generation),
 // the user should KNOW it's working — with a bit of personality, not a dry spinner. One
@@ -301,6 +251,13 @@ const DELIVERABLE_PRODUCERS = new Set([
   'generate_pptx',
   'render_chart',
 ]);
+/** Did one of the last few assistant turns call generate_spreadsheet? PURE. */
+export function madeSpreadsheetRecently(context: any[], lookback = 12): boolean {
+  return context
+    .slice(-lookback)
+    .some((m) => m?.role === 'assistant' && (m.tool_calls || []).some((c: any) => c?.function?.name === 'generate_spreadsheet'));
+}
+
 // Tools whose RAW output is large research data, safe to stub once it's been used.
 const RESEARCH_TOOLS = new Set(['web_search', 'web_fetch', 'fetch_data']);
 const RESEARCH_STUB = '[research results — used in the report, trimmed to save context]';
@@ -413,33 +370,22 @@ export class AgentRun {
   private planSubmitted = false; // set by submit_plan; ends the turn awaiting the user's nod
   private planResolved = false; // this run answers a pending plan → plan→code is allowed
   private planApproved = false; // this run is the user's "Approve & build" → must build, not re-plan
-  private minimaxAvailable = !!config.minimaxApiKey;
-  // Set once M3 has stalled REPEATEDLY on this run; subsequent MiniMax turns use the
-  // faster model instead (the user's "M3, but fall back if slow" choice).
-  private minimaxFellBack = false;
-  // Quality-first stall handling: a single slow M3 turn finishes on the fast model for
-  // THAT turn only (forceFastThisTurn), then the run returns to M3 — because each staged
-  // step (e.g. one spreadsheet sheet) is small, so M3 stays accurate on the next one.
-  // Only after MAX_MINIMAX_STALLS do we give up on M3 for the rest of the run (the weaker
-  // fast model makes more cross-reference errors on a financial model, so we keep M3 where
-  // we can). Counts stalls across the run.
-  private minimaxStalls = 0;
-  // BytePlus (GLM/Kimi) mid-stream silences this run — drives the stall ladder in the run loop.
-  private byteplusStalls = 0;
+  // Consecutive mid-stream silences (reset by any completed turn) — drives the engine stall ladder.
+  private llmStalls = 0;
   // "tool::error-prefix" of the most recent failed tool call — the repeat-error circuit-breaker.
   private lastToolErrorSig = '';
   // A publish passed the full pre-launch review and is LIVE — the run's terminal state.
   // After this, no verify/design gate may reopen in this run (the TaskForge run kept
   // polish→republish→review cycling AFTER a clean publish until the loop guard parked it).
   private publishedClean = false;
-  private forceFastThisTurn = false;
   // The concrete model the orchestrator is using right now (resolved from the
   // session model, which may be the virtual 'arksai-auto').
   private activeModel = '';
   private activeApiModel = '';
   private activePricingId = '';
-  private activeProvider: Provider = 'minimax';
-  private activeByteplusBase = '';
+  private activeBase = ''; // per-lane endpoint override ('' = the coding-plan endpoint)
+  private activeThinking: 'enabled' | 'disabled' | undefined = undefined;
+  private activeEffort: 'minimal' | 'low' | 'medium' | 'high' | undefined = undefined;
   // One-pass doctrine machinery: wrapUp = the 60% budget notice fired (gates deliver-with-warnings
   // instead of opening new revision rounds); compactions = Claude-style auto-continue windows used
   // (a checkpointed build never dies asking the user for "continue" — it compacts and keeps going).
@@ -447,24 +393,27 @@ export class AgentRun {
   // The 85% hard order ("publish NOW") — the 60% notice alone let a finished app burn its
   // last 40% polishing a lint warning and die unpublished (the Kiln&Co break).
   private finalWrapNudge = false;
+  // This conversation produced a spreadsheet in its recent turns (chat follow-ups stay on the sheets lane).
+  private sheetContext = false;
   private compactions = 0;
 
   constructor(private session: SessionMeta) {}
 
-  /** Point the run at a concrete model (resolving the real provider + API id). */
+  /** Point the run at a concrete model (resolving the ModelArk model id + lane settings). */
   private setActiveModel(modelId: string) {
     const r = resolveProvider(modelId);
     this.activeModel = modelId;
     this.activeApiModel = r.apiModel;
     this.activePricingId = r.pricingId;
-    this.activeProvider = r.provider;
-    this.activeByteplusBase = r.baseUrl || '';
+    this.activeBase = r.baseUrl || '';
+    this.activeThinking = r.thinking;
+    this.activeEffort = r.effort;
   }
 
-  /** When falling back M3 → DeepSeek mid-conversation, drop M3's reasoning_content from the
-   *  history before switching models: it's M3-specific and a different model can reject it.
-   *  The objects are shared with `context` (same refs), so this cleans both. */
-  private dropM3Reasoning(msgs: any[]) {
+  /** Before switching engines mid-conversation, drop reasoning_content from the history: it's
+   *  model-specific (GLM ↔ DeepSeek ↔ Seed) and a different model can reject it. The objects are
+   *  shared with `context` (same refs), so this cleans both. */
+  private dropReasoning(msgs: any[]) {
     for (const m of msgs ?? []) if (m && m.role === 'assistant' && 'reasoning_content' in m) delete m.reasoning_content;
   }
 
@@ -549,33 +498,57 @@ export class AgentRun {
     bus.emit(this.session.id, event);
   }
 
-  /** A stronger model the current mode demands, or null. Reports + non-trivial
-   *  visual code builds shouldn't run on the cheapest brain. */
-  private floorModel(): string | null {
-    if (this.activeModel !== FAST_MODEL) return null;
+  /** A stronger lane the current mode demands, or null. Any THINKING-OFF lane (Flash, Swift — e.g.
+   *  pinned by the user) is floored for work the bake-off showed it can't do: reports → Max, every
+   *  build → the heavy coder (thinking-off scored 6.0 vs 8.5), spreadsheets → the bounded-reasoning
+   *  lane (thinking-off produced broken models, 1.25/10) in ANY mode — chat makes them directly
+   *  with generate_spreadsheet. Other chat stays on the quick lane. */
+  private floorModel(userText = ''): string | null {
+    if (resolveProvider(this.activeModel).thinking !== 'disabled') return null;
     if (this.session.mode === 'report') return MAX_MODEL;
-    // Coding floor is GLM-5.1 (all-BytePlus coding); M3 only when BytePlus isn't configured.
-    if (this.session.mode === 'code' && this.taskProfile?.isVisual && this.taskProfile.tier !== 'light') {
-      return byteplusReady() ? HEAVY_GLM51_MODEL : MAX_MODEL;
-    }
+    // Chat: an explicit spreadsheet ask, or ANY follow-up once this conversation has made one
+    // ("now change the growth rate to 8%" re-runs generate_spreadsheet with no keyword).
+    const sheet = this.session.mode === 'chat' ? isChatSpreadsheetAsk(userText) || this.sheetContext : isSpreadsheetBrief(userText);
+    if (sheet) return HEAVY_DS4_MODEL;
+    if (this.session.mode === 'code') return HEAVY_GLM51_MODEL;
     return null;
+  }
+
+  /** One rung of the engine stall ladder, per silent stream since the last COMPLETED turn: retry
+   *  the same model (a stall is usually a transient serving hiccup) → switch to a DIFFERENT
+   *  ModelArk model (router.stallLadder) → retry it → a third model → give up honestly. */
+  private stallStep(context: any[]): 'retry' | 'switch' | 'give-up' {
+    this.llmStalls++;
+    if (this.llmStalls === 1 || this.llmStalls === 3) return 'retry';
+    const alt = stallLadder(this.activeModel)[0];
+    if (this.llmStalls <= 4 && alt) {
+      this.dropReasoning(context); // reasoning fields are model-specific — clean before switching
+      this.setActiveModel(alt);
+      return 'switch';
+    }
+    return 'give-up';
   }
 
   /** Pick the engine for the current mode: auto-route by complexity (Auto mode),
    *  then apply the per-mode floor. Called at run start and after a mode switch. */
   private routeModel(userText: string, sys: (text: string) => void) {
     if (isAutoModel(this.session.model)) {
-      const pick = selectModel(userText, this.session.mode, { minimaxAvailable: this.minimaxAvailable });
+      const pick = selectModel(userText, this.session.mode);
       this.setActiveModel(pick.model);
       sys(`↳ Auto-routed to ${pick.reason}`);
     } else {
       this.setActiveModel(this.session.model);
     }
-    const floor = this.floorModel();
+    const floor = this.floorModel(userText);
     if (floor && floor !== this.activeModel) {
       this.setActiveModel(floor);
-      const why = this.session.mode === 'report' ? 'Reports use a stronger model' : 'Polished UI work uses a stronger model';
-      sys(`↳ ${why} — switched to ${KNOWN_MODELS[floor]?.label ?? floor}.`);
+      const why =
+        floor === HEAVY_DS4_MODEL
+          ? 'Spreadsheet models use the careful-reasoning engine'
+          : this.session.mode === 'report'
+            ? 'Reports use the deeper-reasoning engine'
+            : 'Builds use the deeper-reasoning engine';
+      sys(`↳ ${why} — switched to ${KNOWN_MODELS[floor]?.label ?? 'ArksAI Max'}.`);
     }
   }
 
@@ -603,7 +576,7 @@ export class AgentRun {
         .sort((a, b) => b.m - a.m) // most-recent first so a big multi-file upload isn't truncated
         .slice(0, 60) // headroom for several PDFs + their per-page renders
         .map((x) => `uploads/${x.f}`);
-      const note = buildUploadNote(files, this.minimaxAvailable, paletteAvailable);
+      const note = buildUploadNote(files, modelarkReady(), paletteAvailable);
       if (note) context.push({ role: 'user', content: note });
     } catch {
       /* uploads scan is best-effort */
@@ -660,6 +633,7 @@ export class AgentRun {
     this.emitProgress('understanding', 'Understanding your request…');
 
     const context = await store.getContext(sessionId);
+    this.sheetContext = madeSpreadsheetRecently(context);
     context.push({ role: 'user', content: userText });
 
     // Plan gate: if the previous turn presented a plan and parked the session awaiting
@@ -717,7 +691,7 @@ export class AgentRun {
     }
 
     // Design-brief compiler: for a VISUAL build, rewrite the user's casual request into an expert
-    // art-directed brief UP FRONT (one bounded M3 pass) and inject it — the per-request "think
+    // art-directed brief UP FRONT (one bounded ModelArk pass) and inject it — the per-request "think
     // first" step Claude does internally, the piece Auto-Brief deliberately leaves to visual work.
     // Fail-open: returns null on key-off/error/timeout and the build proceeds unchanged. Computed
     // once and re-applied across a mode switch so we never pay for it twice.
@@ -859,10 +833,10 @@ export class AgentRun {
         await flushLive(); // persist prior turn's items + running token/cost totals (live progress)
 
         let text = '';
-        let reasoning = ''; // M3 reasoning (reasoning_split) — echoed back next turn so multi-turn tool use doesn't 400
+        let reasoning = ''; // reasoning_content — echoed back next turn so multi-turn tool use on reasoning models doesn't 400
         let finishReason = ''; // 'stop' | 'length' | 'tool_calls' — 'length' on an empty turn means reasoning truncated the answer
         const toolCalls: AccToolCall[] = [];
-        // Strip any inline <think>…</think> from the visible stream (M3 inline reasoning).
+        // Strip any inline <think>…</think> from the visible stream (inline reasoning).
         const stripThink = makeThinkFilter();
 
         try {
@@ -896,54 +870,26 @@ export class AgentRun {
           }
           if (chunk.usage) this.accrueUsage(chunk.usage);
         }
+        // The turn streamed to completion — the engine is healthy again, so a later silence
+        // starts a fresh stall ladder (only CONSECUTIVE stalls count toward giving up).
+        this.llmStalls = 0;
         } catch (err: any) {
-          // M3 over-buffered/stalled this turn → switch to the faster MiniMax model (Flash /
-          // M2.7-highspeed) and redo the turn (once). minimaxFellBack also makes
-          // createMinimaxStream pick the fast model for the rest of the run.
-          if (err?.minimaxStall && !this.minimaxFellBack && !this.abort.signal.aborted) {
-            this.minimaxStalls++;
-            if (this.minimaxStalls >= MAX_MINIMAX_STALLS) {
-              // Repeatedly slow → give up on M3 for the rest of the run.
-              this.minimaxFellBack = true;
-              this.dropM3Reasoning(context);
-              this.setActiveModel(FAST_MODEL);
-              sysInfo(`↳ ArksAI Max keeps running long — finishing the rest on ArksAI Flash.`);
-            } else {
-              // One slow step → finish JUST this turn on the fast model, then return to Max.
-              // Keep M3's reasoning + active model so the next (small, staged) turn runs on Max,
-              // which references cells more accurately than the fast model.
-              this.forceFastThisTurn = true;
-              sysInfo(`↳ That step ran long — finishing it on ArksAI Flash, then back to ArksAI Max.`);
-            }
-            continue;
-          }
-          // BytePlus (GLM/Kimi) went silent mid-stream. Nothing is committed to the context
-          // until a turn completes, so RECOVER instead of dying — a checkpointed build must
-          // never be killed by one silent stream (this exact error killed the TaskForge run).
-          // Ladder: retry the model (a stall is usually a transient serving hiccup) → switch
-          // to the next heavy coder (Kimi, same coding plan) → retry it → last resort M3
-          // (a different provider entirely; its own stall handling takes over from there).
-          if (err?.byteplusStall && !this.abort.signal.aborted) {
-            this.byteplusStalls++;
+          // The engine went silent mid-stream. Nothing is committed to the context until a turn
+          // completes, so RECOVER instead of dying — a checkpointed build must never be killed by
+          // one silent stream (this exact error killed the TaskForge run). See stallStep.
+          if (err?.llmStall && !this.abort.signal.aborted) {
             this.emit({ type: 'turn_reset', runId: this.runId });
-            if (this.byteplusStalls === 1 || this.byteplusStalls === 3) {
+            const step = this.stallStep(context);
+            if (step === 'retry') {
               sysInfo('↳ The engine went quiet — retrying that step.');
               await new Promise((r) => setTimeout(r, 1500));
               continue;
             }
-            if (this.byteplusStalls === 2 && this.activeModel !== HEAVY_KIMI_MODEL) {
-              this.dropM3Reasoning(context); // reasoning fields are model-specific — clean before switching
-              this.setActiveModel(HEAVY_KIMI_MODEL);
+            if (step === 'switch') {
               sysInfo('↳ Still quiet — switching engines to keep the build moving.');
               continue;
             }
-            if (this.byteplusStalls <= 4 && this.activeModel !== MAX_MODEL) {
-              this.dropM3Reasoning(context);
-              this.setActiveModel(MAX_MODEL);
-              sysInfo('↳ Switching to ArksAI Max to finish this build.');
-              continue;
-            }
-            // 5+ stalls across three engines → genuinely stuck; fall through to the terminal error.
+            // 5+ consecutive stalls across several engines → genuinely stuck; fall through to the terminal error.
           }
           // The connection dropped mid-reply (a "premature close" / terminated socket).
           // Nothing is committed to the context until a turn completes, so redo the turn
@@ -973,7 +919,7 @@ export class AgentRun {
         context.push({
           role: 'assistant',
           content: text || null,
-          // Echo M3's reasoning back into history — required for its multi-turn tool use.
+          // Echo the model's reasoning back into history — reasoning models need it for multi-turn tool use.
           ...(reasoning ? { reasoning_content: reasoning } : {}),
           ...(calls.length
             ? {
@@ -1434,16 +1380,20 @@ export class AgentRun {
   }
 
   /** Fold a usage chunk into the running totals + stream a cost update (per concrete
-   *  model, so Auto mode blends correctly). Shared by the streaming + buffered paths. */
-  private accrueUsage(u: any) {
+   *  model, so Auto mode blends correctly). Shared by the streaming + buffered paths.
+   *  `apiModel` = the concrete model that actually answered, when it may differ from the
+   *  active lane (a CODE_REVIEW_MODEL override) — priced at ITS rate, not the lane's. */
+  private accrueUsage(u: any, apiModel?: string) {
     this.usage.add(u);
-    const hit = u.prompt_cache_hit_tokens ?? 0;
-    const miss = u.prompt_cache_miss_tokens ?? Math.max(0, (u.prompt_tokens ?? 0) - hit);
-    this.accruedCostUsd += computeCost(this.activePricingId, {
-      cacheHit: hit,
-      cacheMiss: miss,
-      completion: u.completion_tokens ?? 0,
-    });
+    const { hit, miss } = cacheSplit(u);
+    const completion = u.completion_tokens ?? 0;
+    const other = apiModel && apiModel !== this.activeApiModel ? apiModel : '';
+    const price = other ? ARK_PRICES[other] : undefined;
+    // A concrete model off the price table is billed as a lane that serves it, else as the active lane.
+    const laneId = other && !price ? Object.keys(config.modelarkModels).find((id) => config.modelarkModels[id].model === other) : undefined;
+    this.accruedCostUsd += price
+      ? (miss * price.input + hit * price.cached + completion * price.output) / 1e6
+      : computeCost(laneId ?? this.activePricingId, { cacheHit: hit, cacheMiss: miss, completion });
     this.emit({
       type: 'usage_update',
       totalTokens: this.usage.totalTokens,
@@ -1456,49 +1406,96 @@ export class AgentRun {
   }
 
   /**
-   * Call a BytePlus coding-plan model (Dola / "ArksAI Swift") on its OpenAI-compatible endpoint and
-   * yield the raw OpenAI streaming chunks the loop already consumes (choices[].delta + usage) — no
-   * translation needed. Dola is fast and doesn't starve under concurrency (unlike M3), so this is a
-   * plain streamed fetch with a user-abort + a total deadline; a HARD failure escalates to M3 (in
-   * createCompletionWithRetry). Params are already OpenAI-shaped (messages/tools).
+   * Stream one turn from ModelArk (OpenAI-compatible chat/completions) and yield the raw OpenAI
+   * streaming chunks the loop consumes (choices[].delta + usage). Robustness, all provider-generic:
+   *   • a concurrency slot (arkLimiter) so plan limits queue instead of 429-ing;
+   *   • the lane's reasoning controls: `thinking` (Flash runs with it off) and `reasoning_effort`
+   *     (bounds a reasoning model so it can't think for minutes and never act);
+   *   • a CONTENT-based idle deadline — re-armed only by real text / reasoning / tool-call deltas,
+   *     never by keepalives — with every read RACED against it (aborting alone doesn't reliably
+   *     reject a pending undici read), so a silent stream trips `llmStall` → the run's engine
+   *     ladder, while a healthy multi-minute generation is never cut off;
+   *   • a one-time "still working" line at 55s so a long, healthy turn never looks hung;
+   *   • the HTTP status on errors, so 429/5xx retry (isTransientApiError) and 4xx don't.
    */
-  private async createOpenAIStream(params: any): Promise<AsyncIterable<any>> {
+  private async createModelarkStream(params: any): Promise<AsyncIterable<any>> {
+    // The caller's model wins (e.g. a CODE_REVIEW_MODEL override); otherwise the active lane's.
+    const apiModel = typeof params.model === 'string' && params.model ? params.model : this.activeApiModel;
+    // An override is a different model: it gets ITS endpoint and its own defaults, never the lane's
+    // thinking/effort (a GLM "effort low" must not leak onto a review model, and vice versa).
+    const override = apiModel !== this.activeApiModel;
+    const thinking = override ? undefined : this.activeThinking;
+    const effort = override ? undefined : this.activeEffort;
+    const base = override
+      ? endpointFor(apiModel) === 'general'
+        ? config.byteplusVideoBaseUrl.replace(/\/$/, '')
+        : config.byteplusBaseUrl.replace(/\/$/, '')
+      : this.activeBase || config.byteplusBaseUrl;
     const body: Record<string, unknown> = {
-      model: this.activeApiModel,
+      model: apiModel,
       messages: params.messages || [],
       stream: true,
       stream_options: { include_usage: true },
-      // Big single-file writes on the reasoning coders (GLM-5.1 measured ~27k completion tokens
-      // INCLUDING reasoning for one complete app file) — 16k truncated the tool-call args mid-JSON,
-      // which the loop then retried, burning tokens. Headroom is cheap; truncation is not.
-      max_tokens: Number(process.env.BYTEPLUS_MAX_TOKENS || '40000') || 40_000,
+      // Big single-file writes on the reasoning coders (~27k completion tokens INCLUDING reasoning
+      // for one complete app file) — truncating tool-call args mid-JSON makes the loop retry and
+      // burn tokens. Headroom is cheap; truncation is not.
+      max_tokens: Number(process.env.ARK_MAX_TOKENS || process.env.BYTEPLUS_MAX_TOKENS || '40000') || 40_000,
       temperature: 0.4,
     };
+    if (thinking) body.thinking = { type: thinking };
+    if (effort && thinking !== 'disabled') body.reasoning_effort = effort;
     if (params.tools?.length) {
       body.tools = params.tools;
       body.tool_choice = 'auto';
     }
+    const IDLE_MS = Number(process.env.ARK_IDLE_MS || process.env.BYTEPLUS_IDLE_MS || '180000') || 180_000;
+    const stallError = (where: string) =>
+      Object.assign(new Error(`ModelArk (${apiModel}) stalled ${where} — no output for ${IDLE_MS / 1000}s.`), { llmStall: true });
+
+    // Concurrency slot first (time spent queued doesn't eat the idle deadline).
+    let release: () => void;
+    try {
+      release = await arkLimiter.acquire(this.abort.signal);
+    } catch (e) {
+      throw new Error('interrupted by user');
+    }
+    let released = false;
+    const releaseSlot = () => {
+      if (released) return;
+      released = true;
+      release();
+    };
+
     const ac = new AbortController();
-    // IDLE deadline, not a total one: a healthy heavy generation streams for 9+ minutes (GLM-5.1
-    // writes a complete app in one pass), and the old fixed 240s total timer aborted it mid-file —
-    // the wave-2 "operation was aborted" failures. Re-armed on every received chunk below, so only
-    // a stream that goes silent is killed.
-    const IDLE_MS = Number(process.env.BYTEPLUS_IDLE_MS || '180000') || 180_000;
     let rejectDeadline: ((e: any) => void) | null = null;
     const deadline = new Promise<never>((_, rej) => {
       rejectDeadline = rej;
     });
     deadline.catch(() => {});
     let stalled = false;
+    let iterating = false; // set once the caller starts consuming the stream
+    let streamReturned = false; // set once the iterable is handed back
     let timer: ReturnType<typeof setTimeout> | undefined;
     const arm = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
         stalled = true;
         ac.abort();
-        rejectDeadline?.(Object.assign(new Error(`BytePlus (${this.activeApiModel}) stalled — no data for ${IDLE_MS / 1000}s.`), { byteplusStall: true }));
+        rejectDeadline?.(stallError('waiting for output'));
+        // A returned stream nobody ever iterates would otherwise hold its slot + timers forever.
+        if (!iterating && streamReturned) cleanup();
       }, IDLE_MS);
     };
+    // One-time-per-minute "this is taking longer" reassurance: a quality-first long turn is
+    // fine, but the user should KNOW it's working, not wonder if it hung.
+    const slowNotice = setTimeout(() => {
+      if (this.abort.signal.aborted) return;
+      if (Date.now() - this.lastSlowAt < 60_000) return;
+      this.lastSlowAt = Date.now();
+      const line = SLOW_LINES[this.slowLineIdx % SLOW_LINES.length];
+      this.slowLineIdx++;
+      this.emitProgress(this.progressPhase, line);
+    }, 55_000);
     arm();
     const onUserAbort = () => {
       ac.abort();
@@ -1508,12 +1505,14 @@ export class AgentRun {
     else this.abort.signal.addEventListener('abort', onUserAbort, { once: true });
     const cleanup = () => {
       clearTimeout(timer);
+      clearTimeout(slowNotice);
       this.abort.signal.removeEventListener('abort', onUserAbort);
+      releaseSlot();
     };
     let resp: Response;
     try {
       resp = await Promise.race([
-        fetch(`${this.activeByteplusBase || config.byteplusBaseUrl}/chat/completions`, {
+        fetch(`${base}/chat/completions`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${byteplusKey()}`, 'content-type': 'application/json' },
           body: JSON.stringify(body),
@@ -1521,25 +1520,28 @@ export class AgentRun {
         }),
         deadline,
       ]);
-    } catch (e) {
+    } catch (e: any) {
       cleanup();
+      if (stalled) throw stallError('before responding');
       throw e;
     }
     if (!resp.ok || !resp.body) {
       cleanup();
       const detail = await resp.text().catch(() => '');
-      throw new Error(`BytePlus ${resp.status}: ${detail.slice(0, 300)}`);
+      throw Object.assign(new Error(`ModelArk ${resp.status} (${apiModel}): ${detail.slice(0, 300)}`), { status: resp.status });
     }
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
-    const apiModel = this.activeApiModel;
     async function* iterate(): AsyncGenerator<any> {
+      iterating = true;
       let buf = '';
+      let gotContent = false;
       try {
         for (;;) {
-          const { value, done } = await reader.read();
+          // Race every read against the deadline: a stream that only sends keepalives (or
+          // nothing) can't park the loop forever.
+          const { value, done } = await Promise.race([reader.read(), deadline]);
           if (done) break;
-          arm(); // data flowed — a healthy long generation is never killed, only silence is
           buf += decoder.decode(value, { stream: true });
           let nl: number;
           while ((nl = buf.indexOf('\n')) >= 0) {
@@ -1548,16 +1550,28 @@ export class AgentRun {
             if (!line.startsWith('data:')) continue;
             const data = line.slice(5).trim();
             if (data === '[DONE]') return;
+            let chunk: any;
             try {
-              yield JSON.parse(data);
+              chunk = JSON.parse(data);
             } catch {
-              /* keepalive / partial line — ignore */
+              continue; // keepalive / partial line
             }
+            const d = chunk?.choices?.[0]?.delta;
+            // CONTENT re-arms the idle deadline; empty keepalive chunks don't.
+            if (d && (d.content || d.reasoning_content || d.tool_calls?.length)) {
+              arm();
+              // Only VISIBLE text cancels the "still working" line — a reasoning model can think for
+              // minutes before its first word, and a big tool call streams its args silently.
+              if (!gotContent && d.content) {
+                gotContent = true;
+                clearTimeout(slowNotice);
+              }
+            }
+            yield chunk;
           }
         }
       } catch (e) {
-        // Surface a mid-stream idle-abort as the descriptive stall error (not a bare AbortError).
-        if (stalled) throw Object.assign(new Error(`BytePlus (${apiModel}) stalled mid-stream — no data for ${IDLE_MS / 1000}s.`), { byteplusStall: true });
+        if (stalled) throw stallError('mid-stream');
         throw e;
       } finally {
         cleanup();
@@ -1568,53 +1582,37 @@ export class AgentRun {
         }
       }
     }
+    streamReturned = true;
     return iterate();
   }
 
-  /** Retry transient API failures (network blips, 429/5xx) with backoff. All models are
-   *  MiniMax, served via the ANTHROPIC-compatible endpoint (not the OpenAI one): on the
-   *  OpenAI surface M3's thinking is forced ON and unbounded — it reasons for minutes and
-   *  never emits a tool call (the spreadsheet hang); on /anthropic/v1/messages thinking is
-   *  OFF by default, so it acts immediately. createMinimaxStream translates our OpenAI-shaped
-   *  loop to/from the Anthropic wire format so the rest of the loop is unchanged. If M3 (Max)
-   *  hard-fails, fall back once to the fast model (Flash) so the run keeps going. */
-  private async createCompletionWithRetry(params: any): Promise<AsyncIterable<any>> {
+  /** Retry transient API failures (network blips, 429/5xx) with backoff. A HARD failure (4xx —
+   *  e.g. a model the key can't call, a rejected parameter) switches once to a DIFFERENT ModelArk
+   *  model (router.stallLadder) so the run keeps going — the request is rebuilt for that model.
+   *  Silent STALLS bubble up to the run loop's engine ladder instead. Side calls (e.g. the code
+   *  review) pass escalate:false: they must never switch the build's engine. */
+  private async createCompletionWithRetry(params: any, opts: { escalate?: boolean } = {}): Promise<AsyncIterable<any>> {
     const delays = [2000, 4000, 8000];
-    let triedFallback = false;
-    let triedByteplusEscalate = false;
+    let triedEscalate = opts.escalate === false;
     for (let attempt = 0; ; attempt++) {
       try {
-        return this.activeProvider === 'byteplus'
-          ? await this.createOpenAIStream(params)
-          : await this.createMinimaxStream(params);
+        return await this.createModelarkStream(params);
       } catch (err) {
         if (this.abort.signal.aborted) throw err;
-        // A BytePlus STALL bubbles to the run loop's stall ladder (retry → Kimi → M3) — the
-        // instant escalate below is for hard API errors (4xx/5xx), not silence.
-        if ((err as any)?.byteplusStall) throw err;
-        // Hard failure on the Swift fast lane (Dola) → escalate to M3 once and retry, so a simple
-        // build never dead-ends on the fast provider. (Transient errors still just back off.)
-        if (!isTransientApiError(err) && this.activeProvider === 'byteplus' && !triedByteplusEscalate) {
-          triedByteplusEscalate = true;
-          this.setActiveModel(MAX_MODEL);
-          this.emit({ type: 'timeline_item', item: { kind: 'system', id: randomUUID(), level: 'info', text: '↳ Switching to ArksAI Max to finish.', ts: Date.now() } });
-          continue;
-        }
-        // Hard failure on M3 → fall back to the fast MiniMax model once and retry.
-        if (!isTransientApiError(err) && this.activeModel === MAX_MODEL && !triedFallback) {
-          triedFallback = true;
-          this.minimaxFellBack = true;
-          this.dropM3Reasoning(params.messages);
-          this.setActiveModel(FAST_MODEL);
-          const note: TimelineItem = {
-            kind: 'system',
-            id: randomUUID(),
-            level: 'info',
-            text: '↳ Switching to ArksAI Flash to finish.',
-            ts: Date.now(),
-          };
-          this.emit({ type: 'timeline_item', item: note });
-          continue;
+        if ((err as any)?.llmStall) throw err;
+        if (!isTransientApiError(err) && !triedEscalate) {
+          const alt = stallLadder(this.activeModel)[0];
+          if (alt) {
+            triedEscalate = true;
+            const prevApiModel = this.activeApiModel;
+            this.dropReasoning(params.messages);
+            this.setActiveModel(alt);
+            // The run loop passes the lane's model explicitly — point the retry at the NEW engine
+            // (an explicit override such as CODE_REVIEW_MODEL is never rewritten).
+            if (!params.model || params.model === prevApiModel) params = { ...params, model: this.activeApiModel };
+            this.emit({ type: 'timeline_item', item: { kind: 'system', id: randomUUID(), level: 'info', text: '↳ Switching engines to finish.', ts: Date.now() } });
+            continue;
+          }
         }
         if (attempt >= delays.length || !isTransientApiError(err)) throw err;
         this.emit({
@@ -1627,179 +1625,6 @@ export class AgentRun {
     }
   }
 
-  /** Anthropic-compatible base for MiniMax (…/anthropic), derived from the configured /v1 base. */
-  private get minimaxAnthropicBase(): string {
-    return config.minimaxBaseUrl.replace(/\/v1\/?$/, '') + '/anthropic';
-  }
-
-  /**
-   * Call MiniMax (M3) on its Anthropic-compatible endpoint and adapt the response back into
-   * the OpenAI streaming shape the agent loop consumes. We translate our OpenAI-format
-   * messages + tools to Anthropic format on the way out, and Anthropic SSE events to
-   * OpenAI-style deltas on the way back — so the rest of the loop is unchanged. Thinking is
-   * left OFF (the M3 default on this endpoint) for fast, decisive tool use; `max_tokens` is
-   * generous so a large tool payload (e.g. a full spreadsheet spec) isn't truncated.
-   */
-  private async createMinimaxStream(params: any): Promise<AsyncIterable<any>> {
-    const { system, messages } = toAnthropicMessages(params.messages || []);
-    const tools = (params.tools || []).map((t: any) => ({
-      name: t.function.name,
-      description: t.function.description,
-      input_schema: t.function.parameters,
-    }));
-    // Report mode → use the fast coding model directly. M3 reliably STALLS on report mode's
-    // GIANT single-HTML output (the report system prompt is huge and M3 buffers it → ~20min),
-    // whereas the fast model produces the same magazine-grade report ~4× faster. Code mode
-    // keeps M3 (it succeeds there with the 150s patience). Once M3 has stalled on a code run,
-    // also switch to the fast model for the rest of that run.
-    // LEGAL → the FAST model (M2.7-highspeed) in every mode. A fresh live test settled this:
-    // on a long bilingual UAE contract M3 produced a 34-char STUB and then froze the gate,
-    // while M2.7-highspeed produced a complete 24k-char bilingual document (8.2k Arabic chars,
-    // full clauses, eloquent MSA, lawyer footer) in ~4 min. (The earlier opinion-only bake-off
-    // that favoured M3 doesn't hold for real document generation — M2.7 both completes AND is
-    // higher quality here.)
-    const isLegal = !!this.session.task?.startsWith('legal.');
-    const useFast = this.minimaxFellBack || this.forceFastThisTurn || this.session.mode === 'report' || isLegal;
-    const model = useFast ? config.minimaxFallbackModel : this.activeApiModel;
-    // One-turn override is consumed here: the NEXT turn returns to Max (this.activeApiModel
-    // is untouched, so only this stalled step ran on the fast model).
-    this.forceFastThisTurn = false;
-    const body: Record<string, unknown> = { model, max_tokens: 64000, system, messages, stream: true };
-    if (tools.length) body.tools = tools;
-    // fetch has NO built-in timeout, and M3 can be slow to even send response headers on a
-    // big prompt — so the deadline must cover BOTH the headers wait AND body streaming, or
-    // the run hangs forever. Arm it BEFORE the fetch. On the PRIMARY model (M3, code mode) a
-    // timeout means M3 is over-buffering → trip a STALL so the loop falls back to the fast
-    // model. M3's latency is MiniMax-serving-bound (server-side buffering, ~7s first byte,
-    // 24–76s gaps — service_tier:priority doesn't help), so we're PATIENT (150s) to prefer
-    // M3's quality and only fall back on the genuinely slow tail; the fast model gets a
-    // generous cap (it legitimately takes ~1min). Env-overridable.
-    const PRIMARY_MS = Number(process.env.MINIMAX_TURN_DEADLINE_MS || '150000') || 150_000;
-    const FAST_MS = Number(process.env.MINIMAX_FAST_DEADLINE_MS || '240000') || 240_000;
-    const totalMs = useFast ? FAST_MS : PRIMARY_MS;
-    // Acquire a global concurrency slot BEFORE arming the turn deadline (so time spent
-    // queued doesn't eat the deadline). This caps concurrent M3 streams so they can't
-    // starve each other server-side (the root cause of the hang). Released when the
-    // stream is fully consumed / errors / aborts.
-    // One-time "this is taking longer" reassurance (quality-first: we let M3 finish a big
-    // generation rather than bail to a weaker model, so a turn can legitimately run ~1–2min —
-    // the user should KNOW it's working, not wonder if it hung). Fires once per run.
-    const slowNotice = setTimeout(() => {
-      if (this.abort.signal.aborted) return;
-      // Cooldown so a multi-turn big build varies the line instead of repeating every turn.
-      if (Date.now() - this.lastSlowAt < 60_000) return;
-      this.lastSlowAt = Date.now();
-      const line = SLOW_LINES[this.slowLineIdx % SLOW_LINES.length];
-      this.slowLineIdx++;
-      this.emitProgress(this.progressPhase, line);
-    }, 55_000);
-    let release: () => void;
-    try {
-      release = await minimaxLimiter.acquire(this.abort.signal);
-    } catch (e) {
-      clearTimeout(slowNotice); // never granted a slot (aborted while queued) — don't leak the timer
-      throw e;
-    }
-    let releasedSlot = false;
-    const releaseSlot = () => {
-      if (releasedSlot) return;
-      releasedSlot = true;
-      clearTimeout(slowNotice);
-      release();
-    };
-    const ac = new AbortController();
-    // `trip` is set by the stream adapter once streaming starts; it REJECTS the in-flight
-    // read so a stall unblocks the loop even if ac.abort() doesn't propagate to a hung socket
-    // read (a real undici behavior — a mid-stream abort can leave read() pending forever,
-    // which is exactly the operator's "code build hangs 9 min, no fallback" symptom).
-    const stall: { tripped: boolean; trip?: () => void } = { tripped: false };
-    // The HEADERS wait must be raced against the deadline too, not just aborted: M3 can buffer
-    // server-side for minutes before sending ANY response byte on a big prompt, and ac.abort()
-    // does NOT reliably reject a pending undici fetch that's still awaiting headers — so relying
-    // on the abort alone leaves the turn hung at 0 tokens forever (observed on genuine M3 use:
-    // legal code-mode drafting). Mirror the read-race: reject the await when the timer fires.
-    let rejectHeaders: ((e: any) => void) | null = null;
-    const headersDeadline = new Promise<never>((_, rej) => {
-      rejectHeaders = rej;
-    });
-    headersDeadline.catch(() => {}); // never an unhandled rejection
-    const totalTimer = setTimeout(() => {
-      stall.tripped = true;
-      ac.abort();
-      stall.trip?.(); // unblocks a hung stream read (once streaming has begun)
-      const e: any = new Error(`MiniMax (${model}) stalled — no response headers within ${totalMs / 1000}s.`);
-      e.minimaxStall = true;
-      rejectHeaders?.(e); // unblocks a hung HEADERS await (before streaming begins)
-    }, totalMs);
-    // A user INTERRUPT (Stop) must unblock a hung fetch promptly — abort the socket, trip the
-    // mid-stream read race, and reject a pending headers await. This fires ONLY on an explicit
-    // user abort; it adds NO time/token heuristic, so a slow-but-healthy run is never killed.
-    const onUserAbort = () => {
-      ac.abort();
-      stall.trip?.(); // unblocks a hung mid-stream read (set once streaming begins)
-      rejectHeaders?.(new Error('interrupted by user')); // unblocks a hung headers await
-    };
-    if (this.abort.signal.aborted) onUserAbort();
-    else this.abort.signal.addEventListener('abort', onUserAbort, { once: true });
-    let resp: Response;
-    try {
-      resp = await Promise.race([
-        fetch(`${this.minimaxAnthropicBase}/v1/messages`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${config.minimaxApiKey}`,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify(body),
-          signal: ac.signal,
-        }),
-        headersDeadline,
-      ]);
-    } catch (e: any) {
-      clearTimeout(totalTimer);
-      releaseSlot(); // free the concurrency slot on a failed/aborted request
-      if (stall.tripped || e?.minimaxStall) {
-        const err: any = new Error(`MiniMax (${model}) stalled — no response within ${totalMs / 1000}s.`);
-        err.minimaxStall = true; // → the loop falls back to the faster model
-        throw err;
-      }
-      throw e;
-    }
-    if (!resp.ok || !resp.body) {
-      clearTimeout(totalTimer);
-      releaseSlot();
-      const detail = await resp.text().catch(() => '');
-      // Carry the HTTP status so the retry/fallback classifier treats 429/5xx as
-      // transient (retry) and 4xx as hard (M3 → fast model fallback).
-      const err: any = new Error(`MiniMax (Anthropic) ${resp.status}: ${detail.slice(0, 300)}`);
-      err.status = resp.status;
-      throw err;
-    }
-    // Idle backstop ≥ the total deadline so a still-streaming-but-slow turn isn't cut off
-    // before its patience window. The idle is now CONTENT-based (pings don't reset it), so a
-    // genuine no-output stall trips it while a healthy big generation streams through.
-    // HEAVY-TOOL EAGER FALLBACK — DISABLED BY DEFAULT (quality-first). We used to bail a
-    // heavy generate_* off M3 after 30s, but bake-offs show M3 finishes a large 3-statement
-    // model in ~107s with genuinely formula-driven, domain-aware output (higher quality than
-    // the fast fallback, which DeepSeek-max can't even complete). With the concurrency limiter
-    // preventing the starvation that the 30s timer was guarding against, M3 completes well
-    // inside the 150s content-idle window — so let it finish. Set MINIMAX_HEAVY_TOOL_DEADLINE_MS
-    // to a positive value to re-enable the eager fallback if ever needed.
-    const heavyEnv = process.env.MINIMAX_HEAVY_TOOL_DEADLINE_MS;
-    const heavyMs = heavyEnv !== undefined ? Math.max(0, Number(heavyEnv) || 0) : 0;
-    return anthropicSseToOpenAI(resp.body as any, {
-      controller: ac,
-      idleMs: Math.max(totalMs, 120_000),
-      totalTimer,
-      stall,
-      isPrimary: !useFast,
-      heavyNames: HEAVY_GENERATORS,
-      heavyMs,
-      onDone: releaseSlot, // free the concurrency slot when the stream is fully consumed
-    });
-  }
-
   private async executeTool(
     call: AccToolCall,
     map: ReturnType<typeof getToolsForMode>['map'],
@@ -1810,11 +1635,7 @@ export class AgentRun {
     let args: any = {};
     let argsSummary = '';
     const tool = map.get(call.name);
-    try {
-      args = call.args ? JSON.parse(call.args) : {};
-    } catch {
-      args = null;
-    }
+    args = call.args ? parseToolArgs(call.args) : {};
     argsSummary = tool && args ? tool.summarize(args) : call.args.slice(0, 120);
     // File-producing tools all flag the run as mutated so the completion gate fires — incl.
     // the document generators / renderer (a run that ONLY calls generate_pptx must still be gated).
@@ -2045,7 +1866,7 @@ export class AgentRun {
       sys('info', `↻ ${label} caught something — hardening it automatically (pass ${pass}).`);
       // Auto mode: a caught issue is the signal to bring a stronger model in.
       if (isAutoModel(this.session.model)) {
-        const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
+        const next = escalateModel(this.activeModel);
         if (next !== this.activeModel) {
           this.setActiveModel(next);
           sys('info', `↳ Bringing in ${KNOWN_MODELS[next]?.label ?? next} to nail it.`);
@@ -2109,22 +1930,13 @@ export class AgentRun {
       const { fail, defects } = review;
       if (fail) return failFix(fail.label, fail.detail);
       this.warnIfDesignGateSkipped(review, sys);
-      // Bounded revise for documents (up to 2 — the deterministic checks are cheap). A weak
-      // first model often botches a formula model (hard-coded or EMPTY cells) or leaves a thin
-      // deliverable; re-prompting the SAME model rarely fixes it, so in Auto mode bring in the
-      // other MiniMax tier to redo it.
+      // Bounded revise for documents (up to 2 — the deterministic checks are cheap). The redo stays
+      // on the SAME engine: DeepSeek-V4-Pro won every document workload in the bake-off, and the
+      // alternates (GLM-5.2, Seed) scored worst on exactly these (spreadsheets 2.2 / 2.0) — the
+      // stall ladder is for silence/outages, not for quality revisions. The targeted instructions
+      // below (concrete formula how-to, minimal edits) are what fix a flagged document.
       if (defects.length && this.designRounds < 2) {
         this.designRounds++;
-        // Bring in a different model to redo a flagged document (re-prompting the same model
-        // rarely fixes a hard-coded/empty deliverable). M3's first-pass spreadsheets are often
-        // hard-coded, and the fast coding model (Flash / M2.7-highspeed) is strong at structured
-        // formula output — so hand M3 → Flash (strip M3's reasoning_content first).
-        if (isAutoModel(this.session.model) && this.activeModel === MAX_MODEL) {
-          this.dropM3Reasoning(context);
-          this.minimaxFellBack = true;
-          this.setActiveModel(FAST_MODEL);
-          sys('info', '↳ Bringing in ArksAI Flash to fix the document.');
-        }
         // A formula/empty-model failure needs a CONCRETE how-to, not just "fix it".
         const formulaIssue = defects.some((d) => /formula|hard-?cod|typed.?in|empty/i.test(d));
         const how = formulaIssue
@@ -2168,7 +1980,7 @@ export class AgentRun {
       wireframe: this.taskProfile?.type === 'wireframe',
       onPhase: (label) => this.emitProgress('testing', label),
     });
-    if (probe.ui?.visualReview) this.engineCostUsd += config.minimaxVisionCost; // vision spend
+    if (probe.ui?.visualReview) this.engineCostUsd += config.arkVisionCost; // vision spend
     if (!probe.booted || probe.serverErrors > 0) {
       // A DB/infra-backed server app (Prisma+Postgres, Mongo, …) CANNOT boot in the build sandbox —
       // there's no database/env here. That's not a code defect, and hard-failing dead-loops the gate
@@ -2210,7 +2022,7 @@ export class AgentRun {
       // notes (the $6 runs died in exactly this loop after the soft notice was ignored).
       if (!this.wrapUp && this.designRounds < (this.simpleBuild ? 1 : MAX_DESIGN_ROUNDS)) {
         this.designRounds++;
-        const next = escalateModel(this.activeModel, { minimaxAvailable: this.minimaxAvailable });
+        const next = escalateModel(this.activeModel);
         if (next !== this.activeModel) this.setActiveModel(next);
         this.emitProgress('polishing', `Design review — applying refinements (round ${this.designRounds})…`);
         sys('info', `↻ Design review flagged refinements — applying them (round ${this.designRounds}).`);
@@ -2275,22 +2087,33 @@ export class AgentRun {
       const { system, user } = buildReviewPrompt(diff, { repoName: this.session.repoName });
       let text = '';
       const strip = makeThinkFilter();
-      const stream = await this.createCompletionWithRetry({
-        model: config.codeReviewModel || this.activeApiModel,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
-        stream: true,
-        stream_options: { include_usage: true },
-      });
+      // A side call: it must never switch the BUILD's engine on failure (fail-open instead).
+      const reviewModel = config.codeReviewModel || this.activeApiModel;
+      const stream = await this.createCompletionWithRetry(
+        {
+          model: reviewModel,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          stream: true,
+          stream_options: { include_usage: true },
+        },
+        { escalate: false },
+      );
+      let billed = false;
       for await (const chunk of stream) {
         const delta: any = chunk.choices?.[0]?.delta;
         if (delta?.content) text += strip(delta.content);
-        if (chunk.usage) this.accrueUsage(chunk.usage);
+        if (chunk.usage) {
+          // Priced by the model that actually reviewed (CODE_REVIEW_MODEL may differ from the lane).
+          this.accrueUsage(chunk.usage, reviewModel);
+          billed = true;
+        }
       }
       text += strip.flush();
-      this.engineCostUsd += config.minimaxCodeReviewCost;
+      // The flat estimate is only a fallback for a stream that reported no usage (never on top of it).
+      if (!billed) this.engineCostUsd += config.arkCodeReviewCost;
       const verdict = parseReviewVerdict(text);
       return verdict.verdict === 'revise' ? verdict.findings : [];
     } catch {
@@ -2340,7 +2163,7 @@ export class AgentRun {
       const abs = await this.newestDeliverable(dir, exts);
       if (!abs) continue;
       const qc = await checkDeliverable(abs, kind, this.abort.signal);
-      this.engineCostUsd += config.minimaxVisionCost * (qc.visionCalls || 0);
+      this.engineCostUsd += qc.costUsd ?? 0; // what the QC actually spent (failed calls are free)
       checked++;
       if (qc.ran) gated++;
       if (!qc.functionalOk && !fail) fail = { label: `${kind.toUpperCase()} validation`, detail: qc.functionalDetail };
@@ -2359,7 +2182,7 @@ export class AgentRun {
     review: { checked: number; gated: number },
     sys: (level: 'info' | 'error', text: string) => void,
   ) {
-    if (config.minimaxApiKey && review.checked > review.gated) {
+    if (modelarkReady() && review.checked > review.gated) {
       const n = review.checked - review.gated;
       sys(
         'info',
@@ -2383,11 +2206,11 @@ export class AgentRun {
     const startCmd = detectStartCommand(dir);
     const hasDoc = (await this.newestDeliverable(dir, ['.pdf', '.pptx', '.docx', '.xlsx'])) !== null;
     // Nothing to gate: no app, and either no rendered doc or no vision model.
-    if (!startCmd && (!hasDoc || !config.minimaxApiKey)) return 'ok';
+    if (!startCmd && (!hasDoc || !modelarkReady())) return 'ok';
 
     let docReviewed = false;
     let docMinorItems = false;
-    if (hasDoc && config.minimaxApiKey) {
+    if (hasDoc && modelarkReady()) {
       docReviewed = true;
       sys('info', '⟳ Auto-rendering every page and design-reviewing the output…');
       this.emitProgress('verifying', 'Reviewing the rendered pages…');
@@ -2425,7 +2248,7 @@ export class AgentRun {
         wireframe: this.taskProfile?.type === 'wireframe',
         onPhase: (label) => this.emitProgress('testing', label),
       });
-      if (probe.ui?.visualReview) this.engineCostUsd += config.minimaxVisionCost;
+      if (probe.ui?.visualReview) this.engineCostUsd += config.arkVisionCost;
       if ((!probe.booted || probe.serverErrors > 0 || probe.ui?.hardFail) && this.designRounds < REPORT_MAX_DESIGN_ROUNDS) {
         this.designRounds++;
         this.emitProgress('testing', 'Fixing the app so it runs…');
@@ -2601,246 +2424,5 @@ export class AgentRun {
     if (!title) return;
     await store.updateSession(this.session.id, { title });
     bus.sessionChanged((await store.getSession(this.session.id))!);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MiniMax (M3) Anthropic-endpoint adapters. M3 only behaves on the Anthropic
-// surface (thinking off by default → fast tool use); these translate between our
-// OpenAI-shaped agent loop and the Anthropic wire format, in both directions.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Translate OpenAI-format chat messages into Anthropic `{ system, messages }`. */
-export function toAnthropicMessages(oai: any[]): { system: string; messages: any[] } {
-  let system = '';
-  const messages: any[] = [];
-  for (const m of oai) {
-    if (m.role === 'system') {
-      system += (system ? '\n\n' : '') + String(m.content ?? '');
-    } else if (m.role === 'user') {
-      messages.push({ role: 'user', content: [{ type: 'text', text: String(m.content ?? '') }] });
-    } else if (m.role === 'assistant') {
-      const blocks: any[] = [];
-      if (m.content) blocks.push({ type: 'text', text: String(m.content) });
-      for (const tc of m.tool_calls ?? []) {
-        let input: any = {};
-        try {
-          input = JSON.parse(tc.function?.arguments || '{}');
-        } catch {
-          input = {};
-        }
-        blocks.push({ type: 'tool_use', id: tc.id, name: tc.function?.name, input });
-      }
-      // Anthropic requires non-empty content on every message.
-      messages.push({ role: 'assistant', content: blocks.length ? blocks : [{ type: 'text', text: '' }] });
-    } else if (m.role === 'tool') {
-      // Tool results are user-turn content blocks; merge consecutive ones into one user message.
-      const block = { type: 'tool_result', tool_use_id: m.tool_call_id, content: String(m.content ?? '') };
-      const last = messages[messages.length - 1];
-      if (last && last.role === 'user' && Array.isArray(last.content)) last.content.push(block);
-      else messages.push({ role: 'user', content: [block] });
-    }
-  }
-  return { system, messages };
-}
-
-/** Map an Anthropic stop_reason to the OpenAI finish_reason the loop expects. */
-export function mapAnthropicStop(reason: string | undefined): string | undefined {
-  switch (reason) {
-    case 'tool_use':
-      return 'tool_calls';
-    case 'max_tokens':
-      return 'length';
-    case 'end_turn':
-    case 'stop_sequence':
-    case 'pause_turn':
-      return 'stop';
-    default:
-      return reason || undefined;
-  }
-}
-
-/**
- * Adapt an Anthropic Messages SSE stream into the OpenAI streaming-chunk shape the runner
- * already consumes (`delta.content` / `delta.tool_calls` / `delta.reasoning_content` /
- * `finish_reason` / `usage`). Tool-call args arrive as `input_json_delta`; the Anthropic
- * content-block index doubles as the OpenAI tool_call index (the loop filters gaps).
- */
-export async function* anthropicSseToOpenAI(
-  body: any,
-  opts?: {
-    controller?: AbortController;
-    idleMs?: number;
-    totalTimer?: ReturnType<typeof setTimeout>;
-    stall?: { tripped: boolean; trip?: () => void };
-    isPrimary?: boolean;
-    heavyNames?: Set<string>;
-    heavyMs?: number;
-    onDone?: () => void;
-  },
-): AsyncIterable<any> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buf = '';
-  let inTok = 0;
-  let cacheRead = 0;
-  let cacheCreate = 0;
-  let outTok = 0;
-  // Stall guards (M3 buffers tool-arg generation server-side, and concurrent streams can
-  // stall indefinitely; fetch has no timeout). The caller (createMinimaxStream) owns the
-  // TOTAL-turn timer (it must cover the headers wait too) + the shared `stall` flag; here we
-  // add the IDLE backstop (resets on every chunk, fires on a long SILENCE). Either tripping
-  // `stall` makes the read throw `.minimaxStall` so the loop falls back to the faster model.
-  const idleMs = opts?.idleMs ?? 0;
-  const ctrl = opts?.controller;
-  const stall: { tripped: boolean; trip?: () => void } = opts?.stall ?? { tripped: false };
-  const totalTimer = opts?.totalTimer;
-  let idleTimer: ReturnType<typeof setTimeout> | undefined;
-  let heavyTimer: ReturnType<typeof setTimeout> | undefined;
-  // A stall must unblock the loop even when ac.abort() fails to reject a hung socket read
-  // (undici can leave a pending read() hanging after a mid-stream abort). So every read is
-  // raced against this promise, which the timers REJECT — guaranteeing minimaxStall is thrown
-  // and the loop falls back, instead of hanging forever with 0 tokens.
-  let rejectStall: ((e: any) => void) | null = null;
-  const stallPromise = new Promise<never>((_, rej) => {
-    rejectStall = rej;
-  });
-  stallPromise.catch(() => {}); // never surfaces as an unhandled rejection
-  const tripStall = () => {
-    if (stall.tripped) return;
-    stall.tripped = true;
-    try {
-      ctrl?.abort();
-    } catch {
-      /* abort is best-effort */
-    }
-    const e: any = new Error('MiniMax (M3) stalled / over-buffered the turn.');
-    e.minimaxStall = true;
-    rejectStall?.(e);
-  };
-  stall.trip = tripStall; // the caller's TOTAL-turn timer trips us through this too
-  const arm = () => {
-    if (!idleMs) return;
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(tripStall, idleMs);
-  };
-  const usageChunk = () => ({
-    prompt_tokens: inTok + cacheRead + cacheCreate,
-    completion_tokens: outTok,
-    prompt_cache_hit_tokens: cacheRead,
-    prompt_cache_miss_tokens: inTok + cacheCreate,
-  });
-  try {
-    arm();
-    for (;;) {
-    if (stall.tripped) {
-      const err: any = new Error('MiniMax (M3) stalled / over-buffered the turn.');
-      err.minimaxStall = true;
-      throw err;
-    }
-    let read;
-    try {
-      // Race the read against the stall promise so a hung socket can't block us even if the
-      // abort didn't propagate. Swallow a late read() rejection if the stall wins the race.
-      const readP = reader.read();
-      void readP.catch(() => {});
-      read = await Promise.race([readP, stallPromise]);
-    } catch (e: any) {
-      if (stall.tripped || e?.minimaxStall) {
-        const err: any = new Error('MiniMax (M3) stalled / over-buffered the turn.');
-        err.minimaxStall = true; // the loop uses this to fall back to the faster model
-        throw err;
-      }
-      throw e;
-    }
-    const { done, value } = read;
-    if (done) break;
-    // Streaming has started, so the TOTAL-turn timer has done its job (it guards the
-    // headers wait + initial server-side buffering). From here the IDLE timer governs:
-    // a steadily-streaming but LONG generation — e.g. a big report's HTML streamed as
-    // render_report's tool args over several minutes — must NOT be killed just for being
-    // long; only a genuine mid-stream SILENCE (idleMs) should trip. (The heavy-generator
-    // accelerator below still arms its own shorter timer for M3 on the primary model.)
-    clearTimeout(totalTimer);
-    // NOTE: do NOT re-arm the idle timer on every raw chunk. M3, when STARVED under
-    // concurrency, sends keepalive *pings* with no content — re-arming on those would
-    // (and did) let a no-progress stream hang forever. We re-arm ONLY on real content
-    // (text / tool-args / thinking deltas + a block start) below, so a ping-only stall
-    // trips the idle backstop and falls back. (Initial arm() above starts the window.)
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split('\n');
-    buf = lines.pop() || '';
-    for (const line of lines) {
-      const s = line.trim();
-      if (!s.startsWith('data:')) continue;
-      const data = s.slice(5).trim();
-      if (!data) continue;
-      let ev: any;
-      try {
-        ev = JSON.parse(data);
-      } catch {
-        continue;
-      }
-      switch (ev.type) {
-        case 'message_start': {
-          const u = ev.message?.usage || {};
-          inTok = u.input_tokens ?? 0;
-          cacheRead = u.cache_read_input_tokens ?? 0;
-          cacheCreate = u.cache_creation_input_tokens ?? 0;
-          break;
-        }
-        case 'content_block_start': {
-          arm(); // real progress (a block began) → reset the content idle window
-          const cb = ev.content_block;
-          if (cb?.type === 'tool_use') {
-            // Heavy structured generator on the PRIMARY model → shorten the deadline. M3
-            // over-buffers the (large) tool-call args; rather than wait the full patience
-            // window, give it a brief chance then trip the stall so the loop re-issues the
-            // turn on the fast model. (A small sheet still completes within heavyMs.)
-            if (opts?.isPrimary && opts?.heavyMs && ctrl && opts.heavyNames?.has(cb.name)) {
-              clearTimeout(totalTimer);
-              clearTimeout(heavyTimer);
-              heavyTimer = setTimeout(tripStall, opts.heavyMs);
-            }
-            yield {
-              choices: [
-                { delta: { tool_calls: [{ index: ev.index, id: cb.id, type: 'function', function: { name: cb.name, arguments: '' } }] } },
-              ],
-            };
-          }
-          break;
-        }
-        case 'content_block_delta': {
-          const d = ev.delta;
-          // Real content → reset the idle window (pings/keepalives do NOT, so a starved
-          // ping-only stream still trips the backstop and falls back).
-          if (d?.type === 'text_delta' || d?.type === 'thinking_delta' || d?.type === 'input_json_delta') arm();
-          if (d?.type === 'text_delta') yield { choices: [{ delta: { content: d.text } }] };
-          else if (d?.type === 'thinking_delta') yield { choices: [{ delta: { reasoning_content: d.thinking } }] };
-          else if (d?.type === 'input_json_delta')
-            yield { choices: [{ delta: { tool_calls: [{ index: ev.index, function: { arguments: d.partial_json } }] } }] };
-          break;
-        }
-        case 'message_delta': {
-          if (ev.usage?.output_tokens != null) outTok = ev.usage.output_tokens;
-          const fr = mapAnthropicStop(ev.delta?.stop_reason);
-          if (fr) yield { choices: [{ delta: {}, finish_reason: fr }] };
-          break;
-        }
-        case 'message_stop': {
-          yield { choices: [{ delta: {} }], usage: usageChunk() };
-          break;
-        }
-        case 'error': {
-          throw new Error(`MiniMax (Anthropic) stream error: ${JSON.stringify(ev.error).slice(0, 300)}`);
-        }
-      }
-    }
-    }
-  } finally {
-    clearTimeout(idleTimer);
-    clearTimeout(totalTimer);
-    clearTimeout(heavyTimer);
-    opts?.onDone?.(); // release the global concurrency slot once the stream is fully consumed
   }
 }

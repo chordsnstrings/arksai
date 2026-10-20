@@ -8,7 +8,7 @@ import path from 'node:path';
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-issues-'));
 process.env.APP_PASSWORD = 'test-operator';
 delete process.env.DATABASE_URL;
-delete process.env.MINIMAX_API_KEY; // no model → deterministic digest only
+delete process.env.ARK_API_KEY; // no ModelArk key → deterministic digest only
 
 let db: typeof import('../src/db');
 let store: typeof import('../src/sessions/store');
@@ -16,6 +16,8 @@ let track: typeof import('../src/analytics/track');
 let digest: typeof import('../src/selfheal/issueDigest');
 
 before(async () => {
+  // The env delete above covers a fresh config; also clear any runtime key so no model is called.
+  (await import('../src/agent/byteplusRuntime')).__setByteplusKeyForTest('');
   db = await import('../src/db');
   await db.initDb();
   store = await import('../src/sessions/store');

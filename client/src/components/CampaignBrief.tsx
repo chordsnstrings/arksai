@@ -44,8 +44,13 @@ type Preview = Awaited<ReturnType<typeof api.classifyCampaignPreview>>;
 
 const RESULT_NOUN: Record<string, [string, string]> = { lead: ['lead', 'leads'], sale: ['sale', 'sales'], click: ['visit', 'visits'] };
 
-// Mirror of the server's estimate: 1 background composites 3 headline variants ≈ $0.09/background.
-const genEstimate = (images: number) => Math.round(Math.ceil(Math.max(0, images) / 3) * 0.09 * 100) / 100;
+// 1 background composites 3 headline variants. The $/background comes from the server
+// (classify-preview → EST_COST_PER_BACKGROUND_USD, derived from the configured ModelArk prices);
+// this fallback — the same derivation at default prices, 2 Seedream gens × $0.045 + 4 vision
+// checks × $0.003 — only covers the moment before the first preview lands.
+const FALLBACK_COST_PER_BACKGROUND_USD = 0.102;
+const genEstimate = (images: number, perBackgroundUsd: number) =>
+  Math.round(Math.ceil(Math.max(0, images) / 3) * perBackgroundUsd * 100) / 100;
 
 export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, onStarted, onCancel }: {
   orgId: string;
@@ -94,6 +99,8 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
   const [target, setTarget] = useState(''); // user-set target cost per result (USD)
   const [targetTouched, setTargetTouched] = useState(false);
   const previewSeq = useRef(0);
+  // Last server-quoted $/background (kept when the preview clears on short text).
+  const [perBackgroundUsd, setPerBackgroundUsd] = useState(FALLBACK_COST_PER_BACKGROUND_USD);
 
   useEffect(() => {
     const text = `${product} ${topics.join(' ')}`.trim();
@@ -107,9 +114,10 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
         product, topics, countries,
         vertical_override: verticalOverride ?? undefined,
         target_cpr_usd: Number(target) > 0 ? Number(target) : undefined,
-      }).then((p) => {
+      }).then((p: Preview) => {
         if (seq !== previewSeq.current) return;
         setPreview(p);
+        if (typeof p.costPerBackgroundUsd === 'number' && p.costPerBackgroundUsd > 0) setPerBackgroundUsd(p.costPerBackgroundUsd);
         // Pre-suggest the target once (own history → country-adjusted midpoint); edits stick.
         if (!targetTouched && p.suggestedTargetUsd) setTarget(String(p.suggestedTargetUsd));
       }).catch(() => {}).finally(() => { if (seq === previewSeq.current) setPreviewBusy(false); });
@@ -123,7 +131,7 @@ export function CampaignBrief({ orgId, robotId, dailyCapUsd, defaultVertical, on
   const perDay = budgetModel === 'daily' ? budgetN : budgetN / daysN;
   const total = budgetModel === 'daily' ? budgetN * daysN : budgetN;
   const overCap = dailyCapUsd > 0 && perDay > dailyCapUsd;
-  const genCost = useMemo(() => genEstimate(Number(images) || 0), [images]);
+  const genCost = useMemo(() => genEstimate(Number(images) || 0, perBackgroundUsd), [images, perBackgroundUsd]);
   const needsUrl = goal === 'traffic' || goal === 'sales';
 
   // Expected results from the country-adjusted band, translated into THEIR budget.

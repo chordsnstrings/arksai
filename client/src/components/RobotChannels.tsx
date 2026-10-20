@@ -9,6 +9,7 @@ import { api } from '../api/client';
  */
 
 import { SocialSettings } from './SocialSettings';
+import { useVoiceCaps } from './VoiceChat';
 
 const KIND_META: Record<RobotChannelKind, { label: string; blurb: string }> = {
   telegram: {
@@ -145,6 +146,9 @@ export function ChannelsPanel({ orgId, robotId }: { orgId: string; robotId: stri
   const [channels, setChannels] = useState<RobotChannel[] | null>(null);
   const [voiceReplies, setVoiceReplies] = useState<string>('mirror');
   const [robotType, setRobotType] = useState<string>('');
+  // Spoken voice-note replies need the server's speech capability; without it the robot always
+  // answers in text, so the selector is hidden rather than offering a setting that does nothing.
+  const canSpeak = !!useVoiceCaps()?.tts;
   const load = () => {
     api.listRobotChannels(orgId, robotId).then(setChannels).catch(() => setChannels([]));
   };
@@ -180,16 +184,18 @@ export function ChannelsPanel({ orgId, robotId }: { orgId: string; robotId: stri
       <p className="rb-mini-empty" style={{ marginBottom: 8 }}>
         Beyond email, this robot can answer on Telegram, WhatsApp and SMS — same brain, same approval rules,
         replies always locked to the person who wrote in. Voice notes people send are transcribed and
-        understood; the robot can answer with a voice note of its own too.
+        understood{canSpeak ? '; the robot can answer with a voice note of its own too' : ', and answered in text'}.
       </p>
-      <div className="rb-persona-row" style={{ marginBottom: 10 }}>
-        <span className="rb-rule-when" style={{ alignSelf: 'center' }}>Voice replies:</span>
-        <select value={voiceReplies} onChange={(e) => void setVoice(e.target.value)}>
-          <option value="mirror">Match the sender (speak when they speak)</option>
-          <option value="always">Always add a voice note</option>
-          <option value="off">Text only</option>
-        </select>
-      </div>
+      {canSpeak && (
+        <div className="rb-persona-row" style={{ marginBottom: 10 }}>
+          <span className="rb-rule-when" style={{ alignSelf: 'center' }}>Voice replies:</span>
+          <select value={voiceReplies} onChange={(e) => void setVoice(e.target.value)}>
+            <option value="mirror">Match the sender (speak when they speak)</option>
+            <option value="always">Always add a voice note</option>
+            <option value="off">Text only</option>
+          </select>
+        </div>
+      )}
       {(['telegram', 'whatsapp', 'sms'] as RobotChannelKind[]).map((k) => (
         <ChannelForm key={k} orgId={orgId} robotId={robotId} kind={k} channel={byKind(k)} onSaved={load} />
       ))}

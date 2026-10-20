@@ -60,7 +60,7 @@ test('audit#4: creative QC verdicts are broad + actionable; subject fidelity ste
   const tool = SRC('agent/tools/creative.ts');
   assert.match(tool, /SUBJECT FIDELITY/);
   assert.match(tool, /name LANDMARKS precisely/i);
-  const img = SRC('agent/tools/minimax.ts');
+  const img = SRC('agent/tools/media.ts'); // generate_image + generate_video (ModelArk)
   assert.match(img, /SUBJECT FIDELITY/);
 });
 
@@ -317,7 +317,7 @@ test('doctrine: CODE prompt offers the token-level dual-theme pattern for theme 
 });
 
 // Motion-graphics steering: explainers route to render_motion_video, never Seedance.
-// (grep-level: the capability slice only renders when the MiniMax key is set.)
+// (grep-level: the capability slice only renders when the ModelArk key is set.)
 test('motion: the capability slice routes explainers to render_motion_video with the asset rule', () => {
   const s = SRC('agent/prompts.ts');
   assert.match(s, /render_motion_video — a NARRATED MOTION-GRAPHICS video/);

@@ -1,7 +1,7 @@
 /**
- * Strip MiniMax M3's inline <think>…</think> reasoning from a streamed text feed.
- * M3 (thinking mode) emits its chain-of-thought inline in `content`; we don't want
- * that in the user-facing chat or in the model context. Incremental and tag-split
+ * Strip inline <think>…</think> reasoning from a streamed text feed. Some reasoning
+ * models emit their chain-of-thought inline in `content` instead of a separate
+ * reasoning field; we don't want that in the user-facing chat or in the model context. Incremental and tag-split
  * safe: feed each content delta in, get back only the emittable (non-think) text;
  * call flush() at end of stream. A no-op pass-through for models that never emit it.
  */

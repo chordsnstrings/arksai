@@ -1,3 +1,4 @@
+import { config } from '../../config';
 import { composeCreative } from '../creative';
 import type { CampaignBrief, PoolCreative } from '../../robots/socialCampaigns';
 import { checkAdCopy, gateCopyBatch, type CopyFacts } from './copyCheck';
@@ -257,8 +258,9 @@ export function planCreativeBatch(
   return { specs, qc: { checksRun, draftsRejected }, samples, notes };
 }
 
-/** ≈ cost per background call (1–2 image gens + 3–4 vision calls); variants are free. */
-export const EST_COST_PER_BACKGROUND_USD = 0.09;
+/** ≈ cost per background call — the conservative end of 1–2 Seedream gens + 3–4 vision calls
+ *  (≈ $0.10 at list prices); variants are free. Tracks the configured per-call costs. */
+export const EST_COST_PER_BACKGROUND_USD = Math.round((2 * config.arkImageCost + 4 * config.arkVisionCost) * 1000) / 1000;
 
 export function estimateBatchCostUsd(specs: BatchSpec[]): number {
   return Math.round(specs.length * EST_COST_PER_BACKGROUND_USD * 100) / 100;

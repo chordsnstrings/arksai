@@ -1,6 +1,9 @@
 import fs from 'node:fs';
-import { analyzeImage } from '../engines/minimax';
+import os from 'node:os';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { config } from '../config';
+import { analyzeImage, cosine, embedImage, modelarkReady, visionUrlsForFile } from '../engines/modelark';
 
 export interface UiCheckResult {
   ran: boolean; // did the browser check actually run?
@@ -15,12 +18,95 @@ export interface UiCheckResult {
   failedRequests: string[]; // same-origin 4xx/5xx
   /** Values that leaked into the visible UI ([object Object] / undefined / NaN) */
   leakedValues?: string[];
-  /** MiniMax-VL visual judgment of the screenshot, when vision is available */
+  /** Vision-model (Seed 2.1 Turbo) judgment of the screenshot, when vision is available */
   visualReview?: string;
   /** Design rubric verdict (visual tasks): gating signal for the design loop */
   designVerdict?: 'pass' | 'revise' | 'unknown';
   designDefects?: string[];
+  /** Real spend of this check's vision + embedding calls (USD), when any ran. */
+  costUsd?: number;
   detail: string;
+}
+
+// ---------------------------------------------------------------- vision helpers
+
+/**
+ * Data URLs for a screenshot PNG, TILED when it's tall (a full-page screenshot) so the vision
+ * model reads every section at full resolution instead of a squashed thumbnail. Fail-soft: any
+ * error → the single original image. Shared with deliverableCheck.
+ */
+export async function pngVisionUrls(png: Buffer, maxTiles = 6): Promise<string[]> {
+  let dir = '';
+  try {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arks-shot-'));
+    const f = path.join(dir, 'shot.png');
+    fs.writeFileSync(f, png);
+    return await visionUrlsForFile(f, maxTiles);
+  } catch {
+    return [`data:image/png;base64,${png.toString('base64')}`];
+  } finally {
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Frame a rubric prompt for a tiled screenshot (slice edges are NOT layout defects). Pure. */
+export function tiledPrompt(tiles: number, prompt: string): string {
+  if (tiles <= 1) return prompt;
+  return (
+    `These ${tiles} images are consecutive top-to-bottom slices of ONE full-page screenshot, in order — ` +
+    `judge them as a single page; the cut between two slices is NOT a defect.\n\n${prompt}`
+  );
+}
+
+// ---------------------------------------------------------------- revision-unchanged check
+
+/**
+ * Skylark-embedding cosine at/above which a page re-rendered after a design REVISE round counts as
+ * visually UNCHANGED (the agent's "fix" never reached the rendered output). INITIAL CALIBRATION
+ * (2026-10-20): identical renders score ≈1.0 and the threshold sits just below that, so only a
+ * no-op revision trips it — tune against real runs.
+ */
+export const REVISION_UNCHANGED_COSINE = 0.995;
+
+/** The defect line for a revise round whose re-render looks the same as the previous round's,
+ *  from the two screenshot embeddings. PURE (unit-tested). Missing vectors → no line. The
+ *  wording is deliberately BLOCKING-tier ("no effect") so it rides in the fix list with the
+ *  real defects instead of being parked as a cosmetic note. */
+export function revisionUnchangedDefects(
+  prev: number[] | null | undefined,
+  next: number[] | null | undefined,
+  threshold = REVISION_UNCHANGED_COSINE,
+): string[] {
+  if (!prev?.length || !next?.length) return [];
+  const sim = cosine(prev, next);
+  if (sim < threshold) return [];
+  return [
+    `Your last design revision had no effect on the rendered page — the re-render is visually identical to the ` +
+      `previous round (similarity ${sim.toFixed(3)}). Make sure the edits land in the file that is actually ` +
+      `served (not a copy or an unused stylesheet), that the selectors match real elements and nothing later ` +
+      `overrides them — then fix the defects below for real.`,
+  ];
+}
+
+/** Embedding of the last screenshot that got a REVISE verdict, keyed per app, so the NEXT gate
+ *  run (the re-screenshot after that revise round) can tell whether anything visibly changed.
+ *  Short-lived: a stale entry from an unrelated earlier build must never be compared. */
+const REVISE_MEMORY_TTL_MS = 30 * 60_000;
+const reviseMemory = new Map<string, { vector: number[]; at: number }>();
+
+function reviseMemoryKey(url: string, opts?: { designBrief?: string; rubric?: string; compareKey?: string }): string {
+  if (opts?.compareKey) return opts.compareKey;
+  const h = createHash('sha1')
+    .update(`${opts?.designBrief ?? ''}\u0000${opts?.rubric ? 'custom' : 'ui'}`)
+    .digest('hex')
+    .slice(0, 16);
+  return `${url}|${h}`;
+}
+
+function takeReviseMemory(key: string): number[] | null {
+  const now = Date.now();
+  for (const [k, v] of reviseMemory) if (now - v.at > REVISE_MEMORY_TTL_MS) reviseMemory.delete(k);
+  return reviseMemory.get(key)?.vector ?? null;
 }
 
 /**
@@ -540,6 +626,9 @@ export async function browserSmokeTest(
     exportShotPath?: string;
     /** Wireframe board: run the deterministic annotation-collision audit. */
     wireframe?: boolean;
+    /** Stable identity of the app across design rounds (e.g. its workspace dir) for the
+     *  revision-unchanged check; default = url + design brief. */
+    compareKey?: string;
   },
 ): Promise<UiCheckResult> {
   if (signal.aborted) return { ...base, detail: 'Browser check skipped: aborted.' };
@@ -1096,7 +1185,8 @@ export async function browserSmokeTest(
     let designVerdict: 'pass' | 'revise' | 'unknown' | undefined;
     let designDefects: string[] | undefined;
     let visionUnavailable = '';
-    if (config.minimaxApiKey && !signal.aborted) {
+    let costUsd = 0;
+    if (modelarkReady() && !signal.aborted) {
       try {
         // Reveal any scroll-in [data-reveal] content so the visual review sees the
         // full page, not blank below-the-fold sections it never scrolled to.
@@ -1123,7 +1213,10 @@ export async function browserSmokeTest(
               ? `${rubricBase}\n\nThe build committed to this LOCKED design direction — judge CONCEPT FIDELITY too (REVISE if the page ignores it / reverts to a default look): ${opts.designBrief}`
               : rubricBase
             : VISION_PROMPT;
-        const r = await analyzeImage(dataUrl, prompt, signal);
+        // A full-page screenshot is tiled so every section is read at full resolution.
+        const urls = opts?.visual ? await pngVisionUrls(shot) : [dataUrl];
+        const r = await analyzeImage(urls, tiledPrompt(urls.length, prompt), signal);
+        if (r.ok && r.costUsd) costUsd += r.costUsd;
         if (r.ok && r.text) {
           visualReview = r.text.trim();
           if (opts?.visual) {
@@ -1133,6 +1226,24 @@ export async function browserSmokeTest(
           }
         } else {
           visionUnavailable = r.error || 'no result';
+        }
+        // REVISION-UNCHANGED (Skylark embeddings, advisory + fail-soft): when the previous gate
+        // run on this app said REVISE, compare that screenshot with this re-render. A no-op
+        // revision gets one extra line — only alongside real BLOCKING defects, so it can never
+        // open a fix round on its own. Embeds this screenshot once, only when it matters.
+        if (opts?.visual && !signal.aborted) {
+          const key = reviseMemoryKey(url, opts);
+          const prev = takeReviseMemory(key);
+          if (designVerdict === 'revise' || prev) {
+            const emb = await embedImage(dataUrl, signal).catch(() => null);
+            const vec = emb?.ok ? emb.vector : undefined;
+            if (vec) costUsd += config.arkEmbedCost;
+            if (prev && vec && designVerdict === 'revise' && designDefects?.some((d) => isBlockingDefect(d))) {
+              designDefects.unshift(...revisionUnchangedDefects(prev, vec));
+            }
+            if (designVerdict === 'revise' && vec) reviseMemory.set(key, { vector: vec, at: Date.now() });
+            else reviseMemory.delete(key);
+          }
         }
       } catch (e: any) {
         // Vision is additive — never let it break verification — but don't fail SILENTLY:
@@ -1168,7 +1279,7 @@ export async function browserSmokeTest(
       lines.push(`👁 Visual review: ${visualReview}`);
     }
     if (visionUnavailable) {
-      lines.push(`⚠ Visual design review unavailable (MiniMax vision: ${visionUnavailable.slice(0, 100)}) — shipped without the visual gate.`);
+      lines.push(`⚠ Visual design review unavailable (vision check: ${visionUnavailable.slice(0, 100)}) — shipped without the visual gate.`);
     }
 
     return {
@@ -1186,6 +1297,7 @@ export async function browserSmokeTest(
       visualReview,
       designVerdict,
       designDefects,
+      costUsd: costUsd || undefined,
       detail: lines.join('\n'),
     };
   } catch (e: any) {

@@ -9,9 +9,9 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-robov2-'));
 process.env.ENCRYPTION_KEY = 'test-key-robov2';
 process.env.APP_PASSWORD = 'test-operator';
 delete process.env.DATABASE_URL;
-delete process.env.MINIMAX_API_KEY;
-delete process.env.MINIMAX_GROUP_ID;
-delete process.env.DEEPSEEK_API_KEY;
+// ModelArk is the only model provider: pin its key EMPTY (an explicit '' also stops the repo-root
+// .env loader from filling it in); tests that need it toggle it in memory via __setByteplusKeyForTest.
+process.env.ARK_API_KEY = '';
 
 let db: typeof import('../src/db');
 let store: typeof import('../src/robots/store');
@@ -50,6 +50,7 @@ before(async () => {
   actions = await import('../src/robots/actions');
   analytics = await import('../src/robots/analytics');
   reply = await import('../src/robots/reply');
+  (await import('../src/agent/byteplusRuntime')).__setByteplusKeyForTest('');
   const appMod = await import('../src/app');
   app = await appMod.buildApp();
 });
@@ -478,22 +479,74 @@ test('voice out: wantsVoiceReply policy + speakableText strips the unspeakable',
   assert.ok(long.length <= 605 && long.endsWith('…'));
 });
 
-test('voice chat routes: capabilities honest; transcribe/speak 503 when engines unkeyed', async () => {
-  const caps = await app.inject({ url: '/api/voice/capabilities', headers: { cookie: (await opCookie()) } });
-  assert.equal(caps.statusCode, 200);
-  const c = caps.json();
-  assert.equal(typeof c.asr, 'boolean');
-  assert.equal(typeof c.tts, 'boolean');
-  assert.equal(c.tts, false); // no MiniMax key/group in tests
+test('voice out: no speech provider → voice notes are skipped (no synth call), the TEXT reply still goes out', async () => {
+  const outbound = await import('../src/robots/outbound');
+  const { __setByteplusKeyForTest } = await import('../src/agent/byteplusRuntime');
+  const r = await store.createRobot('o-voice', { name: 'V', role: 'customer_service' });
+  await store.updateRobot(r.id, 'o-voice', { status: 'active', config: { voiceReplies: 'always' } });
+  await chStore.upsertChannel(r.id, 'o-voice', 'telegram', { secrets: { botToken: 't' } });
+  const methods: string[] = [];
+  const sent: any[] = [];
+  telegram.__setTelegramFetch((async (url: any, init?: any) => {
+    const method = String(url).split('/').pop()!;
+    methods.push(method);
+    if (method === 'sendMessage') sent.push(JSON.parse(init.body));
+    return { ok: true, status: 200, json: async () => ({ ok: true, result: {} }) } as any;
+  }) as typeof fetch);
+  const realFetch = globalThis.fetch;
+  let providerCalls = 0;
+  globalThis.fetch = (async () => {
+    providerCalls++;
+    return new Response('{}', { status: 500 });
+  }) as any;
+  __setByteplusKeyForTest('ark-test'); // even with every model lane ON, there is no speech model
+  try {
+    const robot = (await store.getRobot(r.id, 'o-voice'))!;
+    assert.equal(outbound.wantsVoiceReply(robot.config, 'telegram', true), true, 'policy alone would speak');
+    assert.equal(await outbound.sendVoiceOnChannel(robot, 'telegram', '555', 'Our hours are nine to six, every weekday.'), false);
+    // A voice-note inbound on a chat channel: the approved draft goes out as TEXT only.
+    const d = await mkDraft(r.id, 'o-voice', {
+      inboundFrom: '555', toAddr: '555', channel: 'telegram', draftText: 'Our hours are 9-6.',
+      inboundBody: '[voice note "voice.ogg" (transcribed)]: what are your hours?', inboundMessageId: '<v-1@t>',
+    });
+    await outbound.deliverDraft(d);
+    await new Promise((res) => setImmediate(res));
+    assert.deepEqual(methods, ['sendMessage']);
+    assert.equal(sent[0].chat_id, '555');
+    assert.match(sent[0].text, /9-6/);
+    assert.equal((await store.getDraft(d.id))?.status, 'sent');
+    assert.equal(providerCalls, 0, 'no speech synthesis was attempted');
+  } finally {
+    globalThis.fetch = realFetch;
+    __setByteplusKeyForTest('');
+  }
+});
+
+test('voice chat routes: capabilities honest — asr follows the ModelArk key, tts:false; /speak 503 TTS_UNAVAILABLE', async () => {
+  const { __setByteplusKeyForTest } = await import('../src/agent/byteplusRuntime');
+  const { TTS_UNAVAILABLE } = await import('../src/engines/speech');
+  const cookie = await opCookie();
+  const caps = async () => (await app.inject({ url: '/api/voice/capabilities', headers: { cookie } })).json();
+  assert.deepEqual(await caps(), { asr: false, tts: false });
 
   const sessions = await import('../src/sessions/store');
   const s = await sessions.createSession({ repoUrl: null, repoName: null, branch: null, mode: 'chat', model: 'arksai-auto', orgId: 'default' });
-  const cookie = await opCookie();
-  const speak = await app.inject({
-    method: 'POST', url: `/api/sessions/${s.id}/speak`, headers: { cookie },
-    payload: { text: 'hello there' },
-  });
-  assert.equal(speak.statusCode, 503); // honest, not a fake success
+  __setByteplusKeyForTest('ark-test');
+  try {
+    // The key lights up the mic (ASR) — spoken replies stay off: ModelArk has no speech model.
+    assert.deepEqual(await caps(), { asr: true, tts: false });
+    const speak = await app.inject({
+      method: 'POST', url: `/api/sessions/${s.id}/speak`, headers: { cookie },
+      payload: { text: 'hello there' },
+    });
+    assert.equal(speak.statusCode, 503); // honest, not a fake success
+    assert.equal(speak.json().error, TTS_UNAVAILABLE);
+  } finally {
+    __setByteplusKeyForTest('');
+  }
+  // Unknown session → 404 before any capability talk.
+  const missing = await app.inject({ method: 'POST', url: '/api/sessions/nope/speak', headers: { cookie }, payload: { text: 'x' } });
+  assert.equal(missing.statusCode, 404);
 });
 
 // ---- #9 analytics ----

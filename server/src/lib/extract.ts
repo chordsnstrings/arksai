@@ -52,7 +52,7 @@ const PAGE_RENDER_RE = /\.pdf\.page-\d+\.png$/i;
  * to note. Images route to see_image; office/data files route to their extracted
  * sidecar; anything else is read directly with read_file.
  */
-export function buildUploadNote(files: string[], minimaxAvailable: boolean, paletteAvailable = false): string | null {
+export function buildUploadNote(files: string[], visionAvailable: boolean, paletteAvailable = false): string | null {
   if (!files.length) return null;
   const ext = (f: string) => path.extname(f).toLowerCase();
   // Page renders of a scanned PDF are handled WITH their PDF (read by sight), not as loose images.
@@ -104,7 +104,7 @@ export function buildUploadNote(files: string[], minimaxAvailable: boolean, pale
     const list = images.join(', ');
     let imgClause: string;
     if (paletteAvailable) {
-      imgClause = minimaxAvailable
+      imgClause = visionAvailable
         ? `image(s): ${list} (if it's a LOGO/brand mark, call extract_palette on it to read the brand colours as exact hex; to read what is IN an image, call see_image — treat the image as fully readable)`
         : `image(s): ${list} (if it's a LOGO/brand mark, call extract_palette on it to read the brand colours as exact hex — works without a vision model, so treat the logo as fully readable)`;
     } else {

@@ -3,8 +3,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { type ToolDef } from './common';
 import { config } from '../../config';
-import { synthesizeSpeechBuffer, ttsAvailable, analyzeImage, fileToDataUrl, generateImage } from '../../engines/minimax';
-import { createVideoTask, pollVideoTask, downloadVideo, seedanceOn, type VideoSpec } from '../../engines/seedance';
+import { synthesizeSpeechBuffer, ttsAvailable } from '../../engines/speech';
+import { analyzeImage, fileToDataUrl, generateImage, modelarkReady } from '../../engines/modelark';
+import { createVideoTask, pollVideoTask, downloadVideo, seedanceOn, videoCostEstimate, type VideoSpec } from '../../engines/seedance';
 import { generateMusic } from '../../engines/suno';
 import { stitchClips, stitchClipsSegmented, mixMusicBed, applyFadeOut, probeDuration, ffmpegAvailable } from '../videoStitch';
 import { captureOverlay } from '../motion/capture';
@@ -32,6 +33,9 @@ import {
  *
  * Complements render_motion_video (graphic/kinetic-typography) — reach for THIS when the brief
  * wants the illustrated/animated-film aesthetic. Generative clips cost real money + minutes each.
+ *
+ * Narration needs a speech provider: like render_motion_video, the tool is gated on
+ * ttsAvailable() (engines/speech.ts) and switches back on automatically once one is wired.
  */
 
 const TRANSITION_KINDS: Record<string, string> = {
@@ -136,7 +140,9 @@ async function ttsScene(m: AxManifest, s: AxScene, repoDir: string, signal: Abor
   const r = await synthesizeSpeechBuffer(s.narration, { voiceId: m.voiceId, speed: m.speed }, signal);
   if (!r.ok || !r.buffer) throw new Error(`narration synthesis failed for scene ${s.id}: ${r.error}`);
   fs.writeFileSync(audioAbs, r.buffer);
-  addCost(config.minimaxTtsCost);
+  // The speech seam reports its own spend when its provider does (none is wired yet).
+  const ttsUsd = (r as { costUsd?: number }).costUsd;
+  if (ttsUsd) addCost(ttsUsd);
   s.audioFile = audioRel;
   s.narrationHash = hash;
 }
@@ -167,8 +173,7 @@ async function generateClip(m: AxManifest, s: AxScene, repoDir: string, signal: 
   const done = await pollVideoTask(id, signal);
   if (!done.ok) throw new Error(`clip generation failed for scene ${s.id}: ${done.error}`);
   await downloadVideo(done.videoUrl, clipAbs, signal);
-  if (done.tokens) addCost((done.tokens / 1000) * config.seedanceCostPerKTok);
-  else addCost(config.seedanceFinalCostPerSec * built.duration);
+  addCost(videoCostEstimate(built.model, built.resolution, built.duration));
   s.clipFile = clipRel;
   s.visualHash = hash;
 }
@@ -235,13 +240,13 @@ async function renderScene(m: AxManifest, s: AxScene, repoDir: string, signal: A
   } finally {
     fs.rmSync(framesDir, { recursive: true, force: true });
   }
-  await qcScene(m, s, repoDir, signal);
+  await qcScene(m, s, repoDir, signal, addCost);
   s.status = 'ok';
 }
 
 /** Vision QC on the COMPOSITED result: does layer 1 stay text-free + on-style, is layer 2 legible? */
-async function qcScene(m: AxManifest, s: AxScene, repoDir: string, signal: AbortSignal): Promise<void> {
-  if (!config.minimaxApiKey || !s.clip) return;
+async function qcScene(m: AxManifest, s: AxScene, repoDir: string, signal: AbortSignal, addCost: (u: number) => void): Promise<void> {
+  if (!modelarkReady() || !s.clip) return;
   const defects: string[] = [];
   for (const frac of [0.5, 0.85]) {
     const spot = path.join(repoDir, dirName(m.id), `.qc-${s.id}-${Math.round(frac * 100)}.jpg`);
@@ -260,6 +265,7 @@ async function qcScene(m: AxManifest, s: AxScene, repoDir: string, signal: Abort
           '(d) the overlay copy contradicts the narration.',
         signal,
       );
+      if (v.ok || v.costUsd) addCost(v.costUsd ?? config.arkVisionCost);
       if (v.ok && v.text && !/^\s*ok\b/i.test(v.text)) {
         defects.push(...v.text.split('\n').map((l) => l.trim()).filter((l) => l && !/^ok\b/i.test(l)).slice(0, 3));
       }
@@ -279,10 +285,8 @@ async function ensureStyleKey(m: AxManifest, subject: string, repoDir: string, s
   const prompt = `${tokens}. A representative establishing scene for: ${subject}. Wordless, ${'no text no letters no watermark'}. NEGATIVE: text, letters, photorealism, 3D render, live-action.`;
   try {
     const r = await generateImage(prompt, { aspectRatio: m.aspect }, repoDir, signal);
-    if (r.ok && r.files[0]) {
-      m.styleKey = r.files[0].path;
-      addCost(config.minimaxImageCost);
-    }
+    if (r.costUsd) addCost(r.costUsd);
+    if (r.ok && r.files[0]) m.styleKey = r.files[0].path;
   } catch {
     /* no style key → clips still carry the style tokens in-prompt, just less tightly locked */
   }

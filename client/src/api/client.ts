@@ -543,6 +543,7 @@ export const api = {
       confidence: number;
       benchmark: { metric: 'lead' | 'sale' | 'click'; lowUsd: number; highUsd: number; global: boolean; basis: 'industry-estimate' | 'your-own-results'; local?: { code: string; low: number; high: number } } | null;
       historySource: 'campaign' | 'account' | null;
+      costPerBackgroundUsd?: number; // server-sourced creative-generation estimate per background
       historyN?: number;
       suggestedTargetUsd: number | null;
       targetAmbition: 'ok' | 'ambitious';
@@ -649,12 +650,22 @@ export const api = {
     ),
   adminGetProviders: () =>
     request<{
-      byteplus: { label: string; configured: boolean };
+      /** source: 'admin' = set in Admin → Keys (wins), 'env' = ARK_API_KEY on the server.
+       *  envKey: whether ARK_API_KEY is set (a boolean, never the value). */
+      byteplus: { label: string; configured: boolean; source: 'env' | 'admin' | 'none'; envKey: boolean };
       digitalocean: { label: string; configured: boolean };
       protected: { masterDropletId: string; masterDropletName: string };
     }>('/api/admin/providers'),
   adminSetByteplusKey: (key: string) =>
-    request<{ ok: true; configured: boolean }>('/api/admin/providers/byteplus', { method: 'POST', body: JSON.stringify({ key }) }),
+    request<{ ok: true; configured: boolean; source: 'env' | 'admin' | 'none' }>('/api/admin/providers/byteplus', {
+      method: 'POST',
+      body: JSON.stringify({ key }),
+    }),
+  /** Drop the admin-set model key and fall back to the server's ARK_API_KEY (409 when there is none). */
+  adminClearByteplusKey: () =>
+    request<{ ok: true; configured: boolean; source: 'env' | 'admin' | 'none' }>('/api/admin/providers/byteplus', {
+      method: 'DELETE',
+    }),
   adminSetDoToken: (token: string) =>
     request<{ ok: true; configured: boolean }>('/api/admin/providers/do', { method: 'POST', body: JSON.stringify({ token }) }),
   adminCreateOrg: (name: string, adminEmail?: string) =>

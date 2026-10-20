@@ -32,9 +32,16 @@ function describeResult(m: StoryManifest): string {
     ...rows,
   ];
   if (failed.length) lines.push(`Tell the user plainly which scenes failed and why — never gloss over it.`);
+  // Skylark continuity review (advisory): a likely-broken cut or style drift — worth a look,
+  // never a failure. Surface it so the user can choose a retake.
+  if (m.advisories?.length) {
+    lines.push(
+      `Continuity check (advisory): ${m.advisories.join('; ')}. Mention this briefly when showing the video and offer a retake of the named scene(s) — do not retake on your own.`,
+    );
+  }
   if (m.pass === 'draft' && m.stitched) {
     lines.push(
-      `Show the stitched draft to the user with the scene list. Next actions: a single-scene retake → call generate_video_story with {story_id:"${m.id}", retake_scene:<n>, retake_note:"<what to change>"}; approve → call with {story_id:"${m.id}", final:true} for the 1080p re-render (≈4× the draft cost).`,
+      `Show the stitched draft to the user with the scene list. Next actions: a single-scene retake → call generate_video_story with {story_id:"${m.id}", retake_scene:<n>, retake_note:"<what to change>"}; approve → call with {story_id:"${m.id}", final:true} for the 1080p re-render (≈5× the draft cost).`,
     );
   }
   return lines.join('\n');
@@ -59,7 +66,7 @@ export const generateVideoStoryTool: ToolDef = {
       story: { type: 'string', description: 'The story in the user\'s own words — what happens, in order. Required on the first call.' },
       aspect_ratio: { type: 'string', description: '"16:9" (default), "9:16", or "1:1" — one aspect for the whole story.' },
       audio: { type: 'boolean', description: 'Native audio (default true).' },
-      dialogue: { type: 'string', description: 'Optional voiceover line spoken over the story.' },
+      dialogue: { type: 'string', description: 'Optional voiceover/narration spoken over the story — split by sentence across the scenes (never mid-sentence) and voiced natively inside each scene\'s render by an off-screen narrator (no separate voice step). Keep it to ~2.5 words per second of story.' },
       duration_hint: { type: 'number', description: 'Optional target total seconds (the planner decides per scene; hard ceiling 60).' },
       cast_images: { type: 'array', items: { type: 'string' }, description: 'Workspace paths of character/product stills to keep consistent across scenes.' },
       transition: { type: 'string', description: '"cut" (default, lossless), "dissolve" (crossfades), or "fade-black" (dip to black between scenes).' },

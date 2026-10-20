@@ -131,10 +131,11 @@ export async function collectSignals(sinceMs: number): Promise<{ signals: IssueS
 /** OPTIONAL model refinement (best-effort, off without a key): one-line root-cause hypothesis per
  *  top cluster, from the REDACTED metadata + example snippets only. Never blocks the digest. */
 async function enrichWithModel(clusters: IssueCluster[]): Promise<Record<string, string>> {
-  if (!config.minimaxApiKey || !clusters.length) return {};
+  if (!clusters.length) return {};
   const out: Record<string, string> = {};
   try {
-    const { generateTextM3 } = await import('../engines/minimax');
+    const { generateText, modelarkReady } = await import('../engines/modelark');
+    if (!modelarkReady()) return {};
     const top = clusters.slice(0, 6);
     const payload = top
       .map(
@@ -145,10 +146,10 @@ async function enrichWithModel(clusters: IssueCluster[]): Promise<Record<string,
     const ac = new AbortController();
     const t = setTimeout(() => ac.abort(), 60_000);
     try {
-      const r = await generateTextM3(
+      const r = await generateText(
         `These are clustered platform issues from the last day (redacted). For EACH numbered item, give ONE short line: the most likely ROOT CAUSE and whether it's a code, prompt, model, or environment fix. Reply as "N: <cause>" lines only.\n\n${payload}`,
         ac.signal,
-        { maxTokens: 500, system: 'You are a terse senior engineer triaging production issues. One line per item, no preamble.' },
+        { maxTokens: 500, thinking: 'disabled', system: 'You are a terse senior engineer triaging production issues. One line per item, no preamble.' },
       );
       if (r.ok && r.text) {
         for (const line of r.text.split('\n')) {

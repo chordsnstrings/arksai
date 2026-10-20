@@ -1,6 +1,6 @@
 /** Derive a short sidebar title from the user's first message — instant, no model call.
- *  (We're MiniMax-only and its models think by default on the OpenAI surface, so a tiny
- *  title completion would stall; a clean heuristic is faster and always works.) */
+ *  (A model round-trip per new session would only add latency and cost for a few words; a
+ *  clean heuristic is faster and always works, even before a provider key is configured.) */
 export function deriveTitle(userText: string): string | null {
   if (!userText) return null;
   // First non-empty line, stripped of markdown/quotes and collapsed whitespace.

@@ -1,4 +1,4 @@
-import { config } from '../../config';
+import { modelarkReady } from '../../engines/modelark';
 import { composeCreative, CREATIVE_SIZES, type Zone } from '../creative';
 import { resolveInWorkspace, type ToolDef } from './common';
 
@@ -37,8 +37,8 @@ export function resolveCreativePrompt(args: Record<string, any>): string {
  * Marketing creative generator. Produces a finished, ready-to-post IMAGE (PNG/JPEG) with
  * AI-generated on-brand imagery AND pixel-crisp typography — the workaround for image
  * models being unable to render text: the model makes a text-free background with reserved
- * negative space, M3 vision finds the clean zone, and the headline/subhead/CTA (+ optional
- * uploaded logo) are composited as real type. Gated on the MiniMax key.
+ * negative space (Seedream), vision finds the clean zone, and the headline/subhead/CTA (+ optional
+ * uploaded logo) are composited as real type. Gated on the ModelArk key (modelarkReady).
  */
 export const generateCreativeTool: ToolDef = {
   name: 'generate_creative',
@@ -81,12 +81,12 @@ export const generateCreativeTool: ToolDef = {
   available: () => true,
   summarize: (a) => `creative: ${String(a.headline ?? '').slice(0, 50)}`,
   async run(args, ctx) {
-    if (!config.minimaxApiKey) {
+    if (!modelarkReady()) {
       return (
-        'Image generation is not switched on for this server yet — the MINIMAX_API_KEY is not configured. ' +
+        'Image generation is not switched on for this server yet — the AI provider key is not configured. ' +
         'Do NOT retry, do NOT switch to code, do NOT build a CSS/SVG graphic, and do NOT web-search a photo. ' +
-        'Tell the user plainly: "Image generation isn\'t enabled on this workspace yet — the operator needs to ' +
-        'add the MiniMax API key (a MiniMax sk-cp Subscription key) to the server." That is the only fix.'
+        'Tell the user plainly: "Image generation isn\'t enabled on this workspace yet — an admin needs to ' +
+        'add the AI provider key under Admin → Keys." That is the only fix.'
       );
     }
     // Resolve the imagery from whatever field the model used (never hard-fails on a rename).

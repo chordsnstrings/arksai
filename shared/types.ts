@@ -82,28 +82,29 @@ export function estimateRemainingSeconds(
   for (let i = idx + 1; i < PHASE_ORDER.length; i++) future += typ(PHASE_ORDER[i]);
   return Math.min(1800, Math.round(current + future));
 }
-/** A selectable model id. The lineup is MiniMax-backed (Auto / Max / Flash). */
+/** A selectable model id. The lineup is ModelArk-backed (Auto / Max / Flash listed; Swift + the Heavy lanes stay valid ids). */
 export type ModelId = string;
 
 export const SESSION_MODES: SessionMode[] = ['chat', 'plan', 'code', 'report'];
 
-/** Default: the orchestrator picks the concrete MiniMax model per task. */
+/** Default: the orchestrator picks the concrete ModelArk model per task. */
 export const DEFAULT_MODEL = 'arksai-auto';
 
 /** Virtual model: the orchestrator picks the concrete model per task. */
 export const AUTO_MODEL = 'arksai-auto';
-/** MiniMax M3 — the top-quality, multimodal brain. */
+/** DeepSeek-V4-Pro on ModelArk, full reasoning — reports, legal, heavy chat. */
 export const MAX_MODEL = 'arksai-max';
-/** MiniMax M2.7-highspeed — the fast/cheap tier. */
+/** DeepSeek-V4-Pro with thinking off — quick turns (light planning). */
 export const FAST_MODEL = 'arksai-flash';
-/** ByteDance Dola-Seed-2.0-pro (BytePlus coding plan) — the fast lane for simple builds.
- *  Only used when BytePlus is configured; otherwise simple builds stay on MiniMax. */
+/** DeepSeek-V4-Pro with thinking off — conversational chat (the chat-routing bake-off winner). */
 export const SWIFT_MODEL = 'arksai-swift';
 export const isAutoModel = (id: string): boolean => id === AUTO_MODEL;
 
-/** Heavy-tier BytePlus coders under evaluation for the heavy build lane (bake-off vs M3).
- *  Selectable-by-id (not advertised in the default lineup) only when BytePlus is configured;
- *  each maps to a concrete BytePlus coding-plan model via config.byteplusHeavyModels. */
+/** Heavy-tier lanes, each mapped to a concrete ModelArk model via config.modelarkModels:
+ *  glm51 = every code build (DeepSeek-V4-Pro, full reasoning — the id is historical), ds4 =
+ *  spreadsheets (DeepSeek, reasoning_effort low), glm = GLM-5.2 and code = Seed 2.0 Pro (the
+ *  stall-ladder alternates). Selectable by id, not advertised in the lineup. The retired Kimi id
+ *  stays valid for old rows and runs DeepSeek-V4-Pro. */
 export const HEAVY_GLM_MODEL = 'arksai-heavy-glm';
 export const HEAVY_GLM51_MODEL = 'arksai-heavy-glm51';
 export const HEAVY_KIMI_MODEL = 'arksai-heavy-kimi';
@@ -111,7 +112,7 @@ export const HEAVY_DS4_MODEL = 'arksai-heavy-ds4';
 export const HEAVY_SEEDCODE_MODEL = 'arksai-heavy-code';
 export const HEAVY_BYTEPLUS_MODELS = [HEAVY_GLM_MODEL, HEAVY_GLM51_MODEL, HEAVY_KIMI_MODEL, HEAVY_DS4_MODEL, HEAVY_SEEDCODE_MODEL];
 
-/** The full selectable lineup (all MiniMax-backed). */
+/** The full selectable lineup (all ModelArk-backed). */
 export const FALLBACK_MODEL_IDS = [AUTO_MODEL, MAX_MODEL, FAST_MODEL];
 /** Kept for older imports. */
 export const MODELS: ModelId[] = FALLBACK_MODEL_IDS;
@@ -130,37 +131,32 @@ export interface ModelInfo extends ModelPricing {
 }
 
 /**
- * MiniMax pricing in USD per 1M tokens. M3 (verified June 2026, current promo):
- * $0.30 input / $1.20 output, $0.06 cached input. Source:
- * https://devtk.ai/en/models/minimax-m3/ + the MiniMax console. Update if it changes.
+ * ModelArk pricing in USD per 1M tokens (official ModelArk price table, ≤128K prompt tier,
+ * 2026-10-20): input cache-miss / cache-hit / output. Unknown ids fall back to DeepSeek-V4-Pro
+ * pricing, matching how the router runs them (as Max).
  */
-const DEFAULT_PRICING: ModelPricing = {
-  label: 'unknown',
-  inputCacheHitPerM: 0.06,
-  inputCacheMissPerM: 0.3,
-  outputPerM: 1.2,
-};
-// UI labels are ArksAI-branded (the underlying provider/model id is internal).
-// All three tiers are MiniMax-backed. As we add other engines (e.g. music via
-// Suno), they get ArksAI labels here too.
+const SEED_PRO = { inputCacheHitPerM: 0.1, inputCacheMissPerM: 0.5, outputPerM: 3.0 };
+const DEEPSEEK_V4_PRO = { inputCacheHitPerM: 0.044, inputCacheMissPerM: 1.32, outputPerM: 3.96 };
+// Unknown ids are ROUTED as Max (router.resolveProvider), so they're priced as Max too.
+const DEFAULT_PRICING: ModelPricing = { label: 'unknown', ...DEEPSEEK_V4_PRO };
+// UI labels are ArksAI-branded (the underlying provider/model id is internal). Every lane is
+// ModelArk-backed; other engines (e.g. music via Suno) get ArksAI labels here too.
 export const KNOWN_MODELS: Record<string, ModelPricing> = {
-  // 'arksai-auto' is virtual (cost is computed against the concrete model the
-  // router actually used → M3 or Flash). Priced like M3 as a neutral placeholder.
-  'arksai-auto': { label: 'ArksAI Auto', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.3, outputPerM: 1.2 },
-  // ArksAI Max = MiniMax M3 (verified current promo pricing).
-  'arksai-max': { label: 'ArksAI Max', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.3, outputPerM: 1.2 },
-  // ArksAI Flash = MiniMax M2.7-highspeed (fast/cheap tier). Output priced lower
-  // than M3 as an ESTIMATE — validate against MiniMax billing and tune.
-  'arksai-flash': { label: 'ArksAI Flash', inputCacheHitPerM: 0.06, inputCacheMissPerM: 0.2, outputPerM: 0.6 },
-  // ArksAI Swift = Dola-Seed-2.0-pro on the BytePlus coding plan (flat-rate). Nominal per-token
-  // estimate for the cost bar (the plan is flat, so marginal cost is ~0); tune to the plan.
-  'arksai-swift': { label: 'ArksAI Swift', inputCacheHitPerM: 0.03, inputCacheMissPerM: 0.14, outputPerM: 0.28 },
-  // Heavy-tier BytePlus coders (bake-off vs M3). Prices per BytePlus console (June 2026), per 1M tokens.
-  'arksai-heavy-glm': { label: 'ArksAI Heavy (GLM-4.7)', inputCacheHitPerM: 0.11, inputCacheMissPerM: 0.6, outputPerM: 2.2 },
-  'arksai-heavy-glm51': { label: 'ArksAI Heavy (GLM-5.1)', inputCacheHitPerM: 0.22, inputCacheMissPerM: 1.2, outputPerM: 4.0 },
-  'arksai-heavy-kimi': { label: 'ArksAI Heavy (Kimi-K2.5)', inputCacheHitPerM: 0.12, inputCacheMissPerM: 0.6, outputPerM: 2.5 },
-  'arksai-heavy-ds4': { label: 'ArksAI Heavy (DeepSeek-V4-pro)', inputCacheHitPerM: 0.145, inputCacheMissPerM: 1.74, outputPerM: 3.48 },
-  'arksai-heavy-code': { label: 'ArksAI Heavy (Seed-2.0-Code)', inputCacheHitPerM: 0.2, inputCacheMissPerM: 1.0, outputPerM: 4.0 },
+  // Lanes follow the 2026-10-20 blind bake-off: DeepSeek-V4-Pro is the brain on every main lane
+  // (Flash/Swift run it with thinking off); GLM-5.2 and Seed 2.0 Pro are the alternate engines the
+  // stall ladder switches to. Prices = the official ModelArk table (USD per M tokens).
+  // 'arksai-auto' is virtual (cost is computed against the concrete model the router used).
+  'arksai-auto': { label: 'ArksAI Auto', ...DEEPSEEK_V4_PRO },
+  'arksai-max': { label: 'ArksAI Max', ...DEEPSEEK_V4_PRO },
+  'arksai-flash': { label: 'ArksAI Flash', ...DEEPSEEK_V4_PRO },
+  'arksai-swift': { label: 'ArksAI Swift', ...DEEPSEEK_V4_PRO },
+  'arksai-heavy-glm51': { label: 'ArksAI Heavy', ...DEEPSEEK_V4_PRO },
+  'arksai-heavy-ds4': { label: 'ArksAI Heavy · Sheets', ...DEEPSEEK_V4_PRO },
+  // Kimi isn't served on this key — the id is kept for old rows and runs DeepSeek-V4-Pro.
+  'arksai-heavy-kimi': { label: 'ArksAI Heavy', ...DEEPSEEK_V4_PRO },
+  // Alternate engines.
+  'arksai-heavy-glm': { label: 'ArksAI Heavy · Alt', inputCacheHitPerM: 0.26, inputCacheMissPerM: 1.4, outputPerM: 4.4 },
+  'arksai-heavy-code': { label: 'ArksAI Heavy · Alt 2', ...SEED_PRO },
 };
 
 export function pricingFor(model: string): ModelPricing {
@@ -179,7 +175,7 @@ export interface CostTokens {
   completion: number;
 }
 
-/** Cost in USD mirroring MiniMax billing, accounting for cached input tokens. */
+/** Cost in USD mirroring ModelArk billing, accounting for cached input tokens. */
 export function computeCost(model: string, t: CostTokens): number {
   const p = pricingFor(model);
   const hit = t.cacheHit ?? 0;
@@ -617,7 +613,9 @@ export type RobotRole = 'customer_service' | 'personal_assistant' | 'custom';
 export type RobotType = 'email' | 'scheduled' | 'ads' | 'monitor' | 'social';
 export type RobotStatus = 'draft' | 'active' | 'paused';
 export type RobotAutonomy = 'shadow' | 'ask' | 'auto';
-/** arksai-max = MiniMax M3, deepseek-v4 = DeepSeek, compare = run both (bake-off). */
+/** Robot reply lanes (all on ModelArk; ids kept for DB compatibility): arksai-max = the Max
+ *  lane's model, deepseek-v4 = DeepSeek-V4-Pro, compare = the Max lane + GLM-5.2 as the alternate
+ *  draft (ARK_REPLY_ALT_MODEL overrides; runs single-lane when both resolve to the same model). */
 export type RobotModel = 'arksai-max' | 'deepseek-v4' | 'compare';
 
 export interface RobotConfig {

@@ -80,19 +80,48 @@ test('spreadsheet toCell converts formula specs and leaves plain values', () => 
   assert.equal(toCell('='), '='); // too short to be a formula
 });
 
-test('computeCost matches MiniMax cache-aware billing', async () => {
-  const { computeCost } = await import('../../shared/types');
-  // arksai-max (M3): cacheHit $0.06/M, cacheMiss $0.30/M, output $1.20/M
+test('computeCost mirrors ModelArk cache-aware billing (DeepSeek-V4-Pro / GLM-5.2 / Seed 2.0 Pro)', async () => {
+  const { computeCost, KNOWN_MODELS } = await import('../../shared/types');
+  const near = (a: number, b: number) => Math.abs(a - b) < 1e-12;
+  // Every main lane runs DeepSeek-V4-Pro: cacheHit $0.044/M, cacheMiss $1.32/M, output $3.96/M.
+  for (const lane of ['arksai-auto', 'arksai-max', 'arksai-flash', 'arksai-swift', 'arksai-heavy-glm51', 'arksai-heavy-ds4', 'arksai-heavy-kimi']) {
+    const p = KNOWN_MODELS[lane];
+    assert.ok(p, lane);
+    assert.deepEqual([p.inputCacheHitPerM, p.inputCacheMissPerM, p.outputPerM], [0.044, 1.32, 3.96], lane);
+  }
   const c = computeCost('arksai-max', { cacheHit: 768, cacheMiss: 100, completion: 17 });
-  assert.ok(Math.abs(c - (768e-6 * 0.06 + 100e-6 * 0.3 + 17e-6 * 1.2)) < 1e-12);
-  // when only a prompt total is given, it's billed entirely as cache-miss
-  const c2 = computeCost('arksai-max', { prompt: 1000, completion: 0 });
-  assert.ok(Math.abs(c2 - 1000e-6 * 0.3) < 1e-12);
-  // cache hits are far cheaper than misses
-  assert.ok(
-    computeCost('arksai-max', { cacheHit: 1000, completion: 0 }) <
-      computeCost('arksai-max', { cacheMiss: 1000, completion: 0 }),
-  );
+  assert.ok(near(c, 768e-6 * 0.044 + 100e-6 * 1.32 + 17e-6 * 3.96));
+  // Alternate engines: GLM-5.2 ($0.26 / $1.40 / $4.40) and Seed 2.0 Pro ($0.10 / $0.50 / $3.00).
+  assert.ok(near(computeCost('arksai-heavy-glm', { cacheHit: 1000, cacheMiss: 2000, completion: 500 }), 1000e-6 * 0.26 + 2000e-6 * 1.4 + 500e-6 * 4.4));
+  assert.ok(near(computeCost('arksai-heavy-code', { cacheHit: 1000, cacheMiss: 2000, completion: 500 }), 1000e-6 * 0.1 + 2000e-6 * 0.5 + 500e-6 * 3.0));
+  // An unknown id falls back to Seed 2.0 Pro pricing (never $0).
+  assert.ok(near(computeCost('some-retired-model', { prompt: 1e6, completion: 0 }), 1.32)) // unknown ids run as Max (DeepSeek-V4-Pro) → priced as Max;
+  // When only a prompt total is given, it's billed entirely as cache-miss…
+  assert.ok(near(computeCost('arksai-max', { prompt: 1000, completion: 0 }), 1000e-6 * 1.32));
+  // …and a prompt total WITH a cacheHit bills only the remainder as a miss.
+  assert.ok(near(computeCost('arksai-max', { prompt: 1000, cacheHit: 600, completion: 0 }), 600e-6 * 0.044 + 400e-6 * 1.32));
+  // Cache hits are far cheaper than misses.
+  assert.ok(computeCost('arksai-max', { cacheHit: 1000, completion: 0 }) < computeCost('arksai-max', { cacheMiss: 1000, completion: 0 }) / 10);
+});
+
+test('KNOWN_MODELS prices agree with the engine table (ARK_PRICES) for the model each lane resolves to', async () => {
+  const { KNOWN_MODELS } = await import('../../shared/types');
+  const { ARK_PRICES } = await import('../src/engines/modelark');
+  const { config } = await import('../src/config');
+  let compared = 0;
+  for (const [lane, { model }] of Object.entries(config.modelarkModels)) {
+    const ui = KNOWN_MODELS[lane];
+    const engine = ARK_PRICES[model];
+    assert.ok(ui, `lane ${lane} has a UI price row`);
+    if (!engine) continue; // an env override to a model the engine table doesn't price
+    compared++;
+    assert.deepEqual(
+      [ui.inputCacheMissPerM, ui.inputCacheHitPerM, ui.outputPerM],
+      [engine.input, engine.cached, engine.output],
+      `${lane} → ${model}`,
+    );
+  }
+  assert.ok(compared >= 3, 'the default lanes are all priced by the engine table');
 });
 
 test('truncateMiddle caps long output', () => {

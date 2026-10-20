@@ -519,7 +519,7 @@ export function registerRobotRoutes(app: FastifyInstance) {
   });
 
   // Generate a draft from a SAMPLE inbound message — onboarding preview + the
-  // M3-vs-DeepSeek bake-off, without waiting for real mail to arrive.
+  // two-model reply bake-off, without waiting for real mail to arrive.
   app.post('/api/orgs/:id/robots/:rid/preview', async (req, reply) => {
     if (!(await guard(req, reply))) return undefined;
     const robot = await getRobot((req.params as any).rid, orgId(req));
@@ -775,6 +775,9 @@ export function registerRobotRoutes(app: FastifyInstance) {
       targetAmbition: target ? targetAmbition(target, benchmark) : 'ok',
       complianceNote,
       styleResolved: profile.visualStyle,
+      // The creative-generation estimate the brief shows ($ per background — each composites 3
+      // headline variants for free). Server-sourced so it tracks the configured ModelArk prices.
+      costPerBackgroundUsd: (await import('../agent/social/creativeBatch')).EST_COST_PER_BACKGROUND_USD,
     };
   });
 

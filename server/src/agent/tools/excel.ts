@@ -70,7 +70,7 @@ export function coerceNumeric(v: any): any {
 export function toCell(v: any): any {
   if (typeof v === 'string') {
     const s = v.trim();
-    // Some models (M3) emit a formula-cell OBJECT as a JSON STRING because the cell schema is
+    // Some models emit a formula-cell OBJECT as a JSON STRING because the cell schema is
     // untyped — e.g. '{"f":"B2*C2","v":1234}'. Parse it back into a real formula cell, else it
     // gets stored as TEXT and the model isn't actually formula-driven (a real live bug).
     if (s.length > 3 && s[0] === '{' && s.includes('"f"')) {

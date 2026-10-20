@@ -53,10 +53,10 @@ export const config = {
   // Auto-Brief: inject the deterministic per-deliverable rigor scaffold into the system
   // prompt (Phase 1). On by default; set AUTO_BRIEF=0 to disable.
   autoBrief: process.env.AUTO_BRIEF !== '0',
-  // Design-brief compiler: for a VISUAL build, an upfront M3 pass rewrites the user's casual
+  // Design-brief compiler: for a VISUAL build, an upfront ModelArk pass rewrites the user's casual
   // request into an expert, art-directed build brief (concept/palette/type/layout/signature/
   // avoid) that the build then follows — the per-request "think first" step Claude does
-  // internally. On by default (needs the MiniMax key); set DESIGN_BRIEF=0 to disable.
+  // internally. On by default (needs the ModelArk key); set DESIGN_BRIEF=0 to disable.
   designBrief: process.env.DESIGN_BRIEF !== '0',
   // Per-session preview-port allocation (kills the canvas port race). Default on;
   // set PREVIEW_PORT_ALLOC=0 to fall back to the legacy fixed-4000 + /proc-scan path.
@@ -90,17 +90,15 @@ export const config = {
     process.env.CLIENT_DIST ||
     [path.join(repoRoot, 'client', 'dist')].find((p) => fs.existsSync(p)) ||
     path.join(repoRoot, 'client', 'dist'),
-  deepseekApiKey: process.env.DEEPSEEK_API_KEY || '',
-  deepseekBaseUrl: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
-  // BytePlus (ByteDance ModelArk) — the OpenAI-compatible CODING-PLAN endpoint (flat-rate).
-  // Powers "ArksAI Swift" (Dola-Seed-2.0-pro) as the fast lane for simple builds. DORMANT until
-  // ARK_API_KEY is set: with no key, simple builds stay on MiniMax (no behaviour change).
+  // BytePlus ModelArk — the platform's single model provider. The key comes from ARK_API_KEY or,
+  // with no SSH, from encrypted app_settings (POST /api/admin/providers/byteplus; byteplusRuntime).
   byteplusApiKey: process.env.ARK_API_KEY || '',
   // Pexels stock photography/footage (search_photos) — free key from pexels.com/api;
   // keyless CC fallbacks (Openverse/Wikimedia) keep the tool alive without it.
   pexelsApiKey: process.env.PEXELS_API_KEY || '',
   byteplusBaseUrl: process.env.BYTEPLUS_BASE_URL || 'https://ark.ap-southeast.bytepluses.com/api/coding/v3',
-  // Video (Seedance via ModelArk) runs on the GENERAL endpoint, not the coding plan.
+  // MEDIA (Seedream images + Seedance video) runs on the GENERAL endpoint, not the coding plan:
+  // the coding plan answers images/generations with a non-JSON body (probed 2026-10-20).
   byteplusVideoBaseUrl: process.env.BYTEPLUS_VIDEO_BASE_URL || 'https://ark.ap-southeast.bytepluses.com/api/v3',
   // Nominal cost estimates for the session cost bar (tune against real billing).
   seedanceDraftCost: Number(process.env.SEEDANCE_DRAFT_COST || '0.05') || 0.05,
@@ -108,22 +106,78 @@ export const config = {
   // Per-K-video-token rate for story cost ESTIMATES (console June 2026: 1.5 ≈ $0.0012–0.0024/K;
   // mid default). The 2.0 rate rides the same knob until the console confirms a separate one.
   seedanceCostPerKTok: Number(process.env.SEEDANCE_COST_PER_KTOK || '0.0018') || 0.0018,
-  byteplusModel: process.env.BYTEPLUS_MODEL || 'seed-2-0-pro',
-  // Heavy-tier BytePlus coders under evaluation for the heavy build lane (branded id → concrete
-  // model, with an optional per-model base URL override; env-overridable). All run on the coding
-  // plan endpoint (config.byteplusBaseUrl) and are confirmed doing streaming tool-calls. A `base`
-  // override can target the general endpoint for a model the coding plan doesn't serve (unused now
-  // — GLM-5.2 is NOT on this account's coding plan; GLM-5.1 is the Z.AI flagship offered here).
-  byteplusHeavyModels: {
-    'arksai-heavy-glm': { model: process.env.BYTEPLUS_GLM_MODEL || 'glm-4-7-251222' }, // GLM-4.7
-    'arksai-heavy-glm51': { model: process.env.BYTEPLUS_GLM51_MODEL || 'glm-5-1' }, // GLM-5.1 (Z.AI flagship, long-horizon)
-    'arksai-heavy-kimi': { model: process.env.BYTEPLUS_KIMI_MODEL || 'kimi-k2-5' }, // Kimi-K2.5 (agentic stability)
-    'arksai-heavy-ds4': { model: process.env.BYTEPLUS_DS4_MODEL || 'deepseek-v4-pro-260425' }, // DeepSeek-V4-Pro
-    'arksai-heavy-code': { model: process.env.BYTEPLUS_CODE_MODEL || 'seed-2-0-code-preview-260328' }, // Dola-Seed-2.0-Code
-  } as Record<string, { model: string; base?: string }>,
-  // Non-thinking DeepSeek alias used for one-shot robot reply drafting (fast, decisive;
-  // the thinking v4-pro is slow for short outputs). Env-overridable.
-  deepseekReplyModel: process.env.DEEPSEEK_REPLY_MODEL || 'deepseek-chat',
+  // ── ModelArk is the ONLY model provider (every LLM lane, vision, images, video, embeddings).
+  // Branded ArksAI id → concrete ModelArk model. The branded strings are stored in sessions,
+  // projects and robots, so they stay stable; only what they resolve to changes. All of these
+  // were verified callable on the coding-plan endpoint (2026-10-20, `models --verify`) and
+  // stream tool calls. `thinking` sends {thinking:{type}} (omit = the model's default
+  // reasoning); `effort` sends reasoning_effort ('low' bounds reasoning — verified honoured on
+  // GLM-5.2 and DeepSeek-V4-Pro: ~half the reasoning tokens, same answer); `base` overrides the
+  // endpoint for a model the coding plan doesn't serve.
+  // Lane assignment = the 2026-10-20 BLIND bake-offs (round 1: 3 judges × 6 real ArksAI workloads;
+  // round 2: reasoning settings). DeepSeek-V4-Pro won EVERY text workload — app build 8.3, report
+  // 6.0, formula spreadsheet 6.8, bilingual UAE legal 6.8, chat routing 8.8 — vs Seed-2.0-Pro
+  // 2.0–5.7 and GLM-5.2 1.0–6.5 (GLM's default reasoning ran 6 min without output). Round 2:
+  // builds need DeepSeek's FULL reasoning (8.5; thinking-off 6.0, effort-low 5.75), spreadsheets do
+  // best at effort-low (7.5; thinking-off 1.25 = broken models), chat routing is best thinking-off.
+  // GLM-5.2 (effort low) and Seed 2.0 Pro are the DIFFERENT-model alternates the stall ladder uses.
+  modelarkModels: {
+    // Reports, legal, heavy chat — full reasoning.
+    'arksai-max': { model: process.env.ARK_MAX_MODEL || 'deepseek-v4-pro-ga-260813' },
+    // Quick lanes (conversational chat, light planning) — thinking off (chat-routing winner).
+    'arksai-flash': { model: process.env.ARK_FLASH_MODEL || 'deepseek-v4-pro-ga-260813', thinking: 'disabled' },
+    'arksai-swift': { model: process.env.ARK_SWIFT_MODEL || 'deepseek-v4-pro-ga-260813', thinking: 'disabled' },
+    // Every code build — full reasoning.
+    'arksai-heavy-glm51': { model: process.env.ARK_HEAVY_MODEL || 'deepseek-v4-pro-ga-260813' },
+    // Spreadsheet/financial-model deliverables — bounded reasoning (round-2 winner).
+    'arksai-heavy-ds4': { model: process.env.ARK_SHEET_MODEL || process.env.BYTEPLUS_DS4_MODEL || 'deepseek-v4-pro-ga-260813', effort: 'low' },
+    // GLM-5.2 — alternate engine. Reasoning BOUNDED (its default reasoning runs away on big outputs).
+    'arksai-heavy-glm': { model: process.env.ARK_GLM_MODEL || 'glm-5-2-260617', effort: 'low' },
+    // Seed 2.0 Pro — alternate engine (fast, multimodal).
+    'arksai-heavy-code': { model: process.env.ARK_SEED_MODEL || 'seed-2-0-pro-260328' },
+    // Kimi-K2.5 is NOT on this key (probed) — the id stays valid for old rows but runs DeepSeek-V4-Pro.
+    'arksai-heavy-kimi': { model: process.env.BYTEPLUS_KIMI_MODEL || 'deepseek-v4-pro-ga-260813' },
+  } as Record<string, { model: string; base?: string; thinking?: 'enabled' | 'disabled'; effort?: 'minimal' | 'low' | 'medium' | 'high' }>,
+  // Capability models. One-shot utility text (design brief, story planning, classification,
+  // digests) → arkTextModel; SVG/code authoring → arkCoderModel — both DeepSeek-V4-Pro (bake-off
+  // winner; one-shots run with thinking off → ~4s). Images → Seedream 5.0 Pro (min 921,600 px; ≤2.61 MP is the cheaper tier).
+  // Embeddings (screenshot/video similarity checks) → Skylark vision embeddings (2048-dim).
+  // Vision = Seed 2.1 Turbo: the blind bake-off's best design critic (7.5 vs Seed 2.0 Pro 6.2) and
+  // 5/5 planted-defect recall with thinking off (~14s). NOT on the coding plan ("UnsupportedModel"),
+  // so it runs on the general (pay-as-you-go) endpoint, ≈ $0.003 per check.
+  arkVisionModel: process.env.ARK_VISION_MODEL || 'dola-seed-2-1-turbo-260628',
+  arkVisionEndpoint: (process.env.ARK_VISION_ENDPOINT === 'coding' ? 'coding' : 'general') as 'coding' | 'general',
+  arkTextModel: process.env.ARK_TEXT_MODEL || 'deepseek-v4-pro-ga-260813',
+  arkCoderModel: process.env.ARK_CODER_MODEL || 'deepseek-v4-pro-ga-260813',
+  arkImageModel: process.env.ARK_IMAGE_MODEL || 'dola-seedream-5-0-pro-260628',
+  arkEmbedModel: process.env.ARK_EMBED_MODEL || 'skylark-embedding-vision-251215',
+  // Concurrency caps (queue instead of 429): agent-loop streams, and one-shot vision/text calls
+  // (the per-page deliverable gate fans out in parallel).
+  arkMaxConcurrency: Math.max(1, Number(process.env.ARK_MAX_CONCURRENCY || '6') || 6),
+  arkVisionConcurrency: Math.max(1, Number(process.env.ARK_VISION_CONCURRENCY || '4') || 4), // text/embed pools: ARK_TEXT_CONCURRENCY / ARK_EMBED_CONCURRENCY (engines/modelark)
+  // Max time a one-shot call waits for a free slot before giving up (separate from its own
+  // request deadline, so a long multi-page gate queues instead of silently skipping tail pages).
+  arkQueueWaitMs: Math.max(1000, Number(process.env.ARK_QUEUE_WAIT_MS || '180000') || 180_000),
+  // Per-call cost ESTIMATES for the session cost bar, from the official ModelArk price table
+  // (2026-10-20). Vision/text compute the real figure from returned token usage when present
+  // (engines/modelark ARK_PRICES); these are the fallbacks for replies without usage.
+  arkVisionCost: Number(process.env.ARK_VISION_COST || '0.003') || 0.003,
+  arkTextCost: Number(process.env.ARK_TEXT_COST || '0.004') || 0.004,
+  // Seedream 5.0 Pro: $0.045 per image ≤2.61 MP (our size table stays under it), $0.09 above.
+  arkImageCost: Number(process.env.ARK_IMAGE_COST || '0.045') || 0.045,
+  // Skylark image embedding ≈ (w*h/784 tokens, capped at 1312) × $0.325/M ≈ $0.0004.
+  arkEmbedCost: Number(process.env.ARK_EMBED_COST || '0.0005') || 0.0005,
+  // Seedance USD per OUTPUT SECOND by branded model × resolution (official table 2026-10-20, no
+  // video input; 1.5 = with native audio). Used for the session cost bar.
+  seedanceCostPerSec: {
+    // 2.5 is listed only up to 1080p (a 4K 2.5 final renders on 2.0 — see engines/seedance.ts
+    // effectiveVideoModel). 1.5 accepts 4K but has no official row yet — videoCostEstimate
+    // estimates it by pixel ratio (4× its 1080p rate).
+    'arksai-video-25': { '480p': 0.103, '720p': 0.231, '1080p': 0.569 },
+    'arksai-video-20': { '480p': 0.07, '720p': 0.15, '1080p': 0.37, '4k': 0.78 },
+    'arksai-video-20-fast': { '480p': 0.07, '720p': 0.15, '1080p': 0.37, '4k': 0.78 },
+    'arksai-video-15': { '480p': 0.024, '720p': 0.052, '1080p': 0.116 },
+  } as Record<string, Record<string, number>>,
   githubToken: process.env.GITHUB_TOKEN || '',
   serperApiKey: process.env.SERPER_API_KEY || '',
   braveApiKey: process.env.BRAVE_API_KEY || '',
@@ -139,31 +193,6 @@ export const config = {
   // Estimated USD cost per generated track, added to the session cost. NB: a generate call
   // returns ~2 tracks, so a single generation costs ≈ 2× this.
   sunoCostPerTrack: Number(process.env.SUNO_COST_PER_TRACK || '0.08') || 0.08,
-  // MiniMax (LLM, voice/audio, music, video/Hailuo). Registered in the engine
-  // roster when the key is set; specific tools wired per capability later.
-  minimaxApiKey: process.env.MINIMAX_API_KEY || '',
-  minimaxBaseUrl: process.env.MINIMAX_BASE_URL || 'https://api.minimax.io/v1',
-  minimaxGroupId: process.env.MINIMAX_GROUP_ID || '',
-  // OpenAI-compatible chat model sent to MiniMax. MiniMax-M3 (June 2026) is the
-  // current frontier model; the branded id surfaced in ArksAI is 'arksai-max'.
-  minimaxModel: process.env.MINIMAX_MODEL || 'MiniMax-M3',
-  // When M3 over-buffers / stalls on an agentic turn, fall back to this faster
-  // always-thinking coding model for the rest of the run (verified ~1min, detailed
-  // output). Same Anthropic endpoint, so the adapter is unchanged.
-  minimaxFallbackModel: process.env.MINIMAX_FALLBACK_MODEL || 'MiniMax-M2.7-highspeed',
-  // MiniMax capability models (override per the MiniMax console once validated).
-  // M3 is natively multimodal, so vision runs on the same model (no separate VL id).
-  minimaxVlModel: process.env.MINIMAX_VL_MODEL || 'MiniMax-M3', // vision (M3 multimodal)
-  minimaxImageModel: process.env.MINIMAX_IMAGE_MODEL || 'image-01',
-  minimaxTtsModel: process.env.MINIMAX_TTS_MODEL || 'speech-02-hd',
-  minimaxVideoModel: process.env.MINIMAX_VIDEO_MODEL || 'MiniMax-Hailuo-02',
-  // Estimated USD cost per call, added to the session cost bar (tune to billing).
-  minimaxVisionCost: Number(process.env.MINIMAX_VISION_COST || '0.003') || 0.003,
-  // Estimated cost of one M3 text completion (e.g. a logo SVG / brand-directive turn).
-  minimaxTextCost: Number(process.env.MINIMAX_TEXT_COST || '0.004') || 0.004,
-  minimaxImageCost: Number(process.env.MINIMAX_IMAGE_COST || '0.02') || 0.02,
-  minimaxTtsCost: Number(process.env.MINIMAX_TTS_COST || '0.03') || 0.03,
-  minimaxVideoCost: Number(process.env.MINIMAX_VIDEO_COST || '0.43') || 0.43,
   appPassword: process.env.APP_PASSWORD || '',
   // Symmetric key for encrypting third-party secrets at rest (per-org mailbox
   // passwords). Falls back to APP_PASSWORD so existing deployments work without a
@@ -243,7 +272,7 @@ export const config = {
   codeReviewGate: process.env.AGENT_CODE_REVIEW !== 'false',
   codeReviewModel: process.env.CODE_REVIEW_MODEL || '',
   // Estimated cost of one code-review completion, added to the session cost bar.
-  minimaxCodeReviewCost: Number(process.env.MINIMAX_CODE_REVIEW_COST || '0.006') || 0.006,
+  arkCodeReviewCost: Number(process.env.ARK_CODE_REVIEW_COST || '0.006') || 0.006,
   // Auto-expertise router (Phase 1): a free-form message with no picked play
   // deterministically selects the right expert standards. ON by default; kill
   // switch EXPERTISE_AUTOROUTE=false for instant rollback to the generic agent.
@@ -303,16 +332,28 @@ export function validateConfig() {
       console.warn('[config] APP_PASSWORD not set — using dev default "arksai". Set it in .env.');
     }
   }
-  if (!config.minimaxApiKey) {
-    const msg = 'MINIMAX_API_KEY is not set — agent runs will fail until it is provided (MiniMax is the LLM engine).';
-    if (isProd) problems.push(msg);
-    else console.warn(`[config] ${msg}`);
+  // The ark key may legitimately live only in app_settings (set via Admin → providers, loaded
+  // AFTER this runs), so a missing env key is a warning here; index.ts re-checks after
+  // loadByteplusRuntime() and logs loudly if ModelArk is still unconfigured.
+  if (!config.byteplusApiKey) {
+    console.warn('[config] ARK_API_KEY not set in env — expecting the ModelArk key from app_settings (Admin → providers).');
   }
   if (problems.length) {
     for (const p of problems) console.error(`[config] FATAL: ${p}`);
     process.exit(1);
   }
 }
+
+/** Secrets that only exist at runtime (e.g. the ModelArk key loaded from encrypted app_settings).
+ *  Registered by their owners so secretValues() redacts them without an import cycle. */
+const runtimeSecrets = new Set<string>();
+export function registerRuntimeSecret(s: string): void {
+  if (s) runtimeSecrets.add(s);
+}
+
+/** Env vars whose VALUE is a credential — redacted even when nothing reads them any more (e.g. a
+ *  retired provider's key still sitting in /opt/arksai/.env, inherited by the agent shell). */
+const SECRET_ENV_NAME = /(^|_)(API_?KEY|KEY|TOKEN|SECRET|PASSWORD|PASS)$/i;
 
 /** Secret values that must never appear in tool output sent to the model/UI. */
 export function secretValues(): string[] {
@@ -322,7 +363,8 @@ export function secretValues(): string[] {
     config.serperApiKey,
     config.braveApiKey,
     config.sunoApiKey,
-    config.minimaxApiKey,
+    config.byteplusApiKey,
+    ...runtimeSecrets,
     config.analyticsDigestWebhook,
     config.issueDigestWebhook,
     config.metaAppSecret,
@@ -332,5 +374,8 @@ export function secretValues(): string[] {
     config.connectorEncKey,
     config.doApiToken,
     config.githubOauthClientSecret,
-  ].filter((s) => s && s.length >= 6);
+    ...Object.entries(process.env)
+      .filter(([name, v]) => SECRET_ENV_NAME.test(name) && typeof v === 'string' && v.length >= 12)
+      .map(([, v]) => v as string),
+  ].filter((s, i, all) => s && s.length >= 6 && all.indexOf(s) === i);
 }

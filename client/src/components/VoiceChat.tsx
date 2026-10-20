@@ -5,24 +5,41 @@ import type { LiveState } from '../state/sessionStore';
  * Voice for the web chat — a mic button (hold a thought, tap to talk) and a
  * CONVERSATION MODE toggle: your recording is transcribed and sent as a message, and when
  * the reply lands it's read aloud. Degrades honestly: no ASR configured → the mic explains;
- * no TTS → conversation mode still works one-way (voice in, text out).
+ * no TTS (spoken replies) → the Conversation toggle is hidden and the mic just fills the box.
  */
 
-interface Caps {
+export interface VoiceCaps {
   asr: boolean;
   tts: boolean;
 }
 
-let capsCache: Caps | null = null;
-async function voiceCaps(): Promise<Caps> {
-  if (capsCache) return capsCache;
-  try {
-    const r = await fetch('/api/voice/capabilities', { credentials: 'include' });
-    capsCache = (await r.json()) as Caps;
-  } catch {
-    capsCache = { asr: false, tts: false };
-  }
-  return capsCache;
+// One fetch per page load, shared by every surface that offers voice (chat, Video studio's
+// narrated kinds, robot voice replies, Design studio's narrated animation).
+let capsCache: VoiceCaps | null = null;
+let capsInflight: Promise<VoiceCaps> | null = null;
+export function voiceCaps(): Promise<VoiceCaps> {
+  if (capsCache) return Promise.resolve(capsCache);
+  capsInflight ??= (async () => {
+    try {
+      const r = await fetch('/api/voice/capabilities', { credentials: 'include' });
+      const d = (await r.json()) as Partial<VoiceCaps>;
+      capsCache = { asr: !!d?.asr, tts: !!d?.tts };
+    } catch {
+      capsCache = { asr: false, tts: false };
+    }
+    return capsCache;
+  })();
+  return capsInflight;
+}
+
+/** The server's voice capabilities (null while loading) — hide voice-dependent options until
+ *  they're confirmed available, so nothing appears and then vanishes. */
+export function useVoiceCaps(): VoiceCaps | null {
+  const [caps, setCaps] = useState<VoiceCaps | null>(capsCache);
+  useEffect(() => {
+    if (!caps) void voiceCaps().then(setCaps);
+  }, [caps]);
+  return caps;
 }
 
 async function transcribeBlob(sessionId: string, blob: Blob): Promise<{ text: string; noSpeech?: boolean }> {
@@ -46,10 +63,10 @@ export function VoiceControls({
   onTranscript: (text: string, conversation: boolean) => void;
   onSystem: (text: string, level?: 'info' | 'error') => void;
 }) {
-  const [caps, setCaps] = useState<Caps | null>(null);
+  const caps = useVoiceCaps();
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [convo, setConvo] = useState(() => {
+  const [convoPref, setConvo] = useState(() => {
     try {
       return localStorage.getItem('arksai.voiceMode') === '1';
     } catch {
@@ -61,10 +78,9 @@ export function VoiceControls({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const spokenForRef = useRef<string | null>(null);
   const wasRunningRef = useRef(false);
-
-  useEffect(() => {
-    void voiceCaps().then(setCaps);
-  }, []);
+  // Conversation mode = voice in + replies read aloud, so it only exists with spoken replies; a
+  // remembered "on" from a server that had them never auto-sends transcripts here.
+  const convo = convoPref && !!caps?.tts;
 
   const setConversation = (on: boolean) => {
     setConvo(on);
@@ -163,7 +179,7 @@ export function VoiceControls({
     }
   };
 
-  // No ASR at all → render nothing (no dead chrome).
+  // No ASR and no spoken replies → render nothing (no dead chrome).
   if (caps && !caps.asr && !caps.tts) return null;
 
   return (
@@ -173,23 +189,33 @@ export function VoiceControls({
         className={`icon-btn vc-mic${recording ? ' rec' : ''}`}
         onClick={() => void toggleRecord()}
         disabled={busy}
-        title={recording ? 'Tap to stop & send' : busy ? 'Transcribing…' : 'Talk instead of typing'}
+        title={
+          recording
+            ? convo
+              ? 'Tap to stop & send'
+              : 'Tap to stop — your words go in the box'
+            : busy
+              ? 'Transcribing…'
+              : 'Talk instead of typing'
+        }
         aria-label={recording ? 'Stop recording' : 'Record a voice message'}
       >
         {busy ? '…' : recording ? '■' : '🎙'}
       </button>
-      <button
-        type="button"
-        className={`vc-convo${convo ? ' on' : ''}`}
-        onClick={() => setConversation(!convo)}
-        title={
-          convo
-            ? 'Conversation mode is ON — your voice sends immediately and replies are read aloud'
-            : 'Conversation mode: talk, and hear the replies'
-        }
-      >
-        {convo ? '🔊 Conversation on' : 'Conversation'}
-      </button>
+      {caps?.tts && (
+        <button
+          type="button"
+          className={`vc-convo${convo ? ' on' : ''}`}
+          onClick={() => setConversation(!convo)}
+          title={
+            convo
+              ? 'Conversation mode is ON — your voice sends immediately and replies are read aloud'
+              : 'Conversation mode: talk, and hear the replies'
+          }
+        >
+          {convo ? '🔊 Conversation on' : 'Conversation'}
+        </button>
+      )}
     </>
   );
 }

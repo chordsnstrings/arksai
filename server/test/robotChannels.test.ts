@@ -9,8 +9,9 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-robochan-')
 process.env.ENCRYPTION_KEY = 'test-key-channels';
 process.env.APP_PASSWORD = 'test-operator';
 delete process.env.DATABASE_URL;
-delete process.env.MINIMAX_API_KEY;
-delete process.env.DEEPSEEK_API_KEY;
+// ModelArk is the only model provider: pin its key EMPTY (an explicit '' also stops the repo-root
+// .env loader from filling it in) so the no-model paths are deterministic.
+process.env.ARK_API_KEY = '';
 
 let db: typeof import('../src/db');
 let store: typeof import('../src/robots/store');
@@ -34,6 +35,7 @@ before(async () => {
   personas = await import('../src/robots/personas');
   tasks = await import('../src/robots/tasks');
   reply = await import('../src/robots/reply');
+  (await import('../src/agent/byteplusRuntime')).__setByteplusKeyForTest('');
   const appMod = await import('../src/app');
   app = await appMod.buildApp();
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { expertiseFor } from '../src/agent/expertise';
-import { SESSION_MODES } from '../../shared/types';
+import { AUTO_MODEL, MAX_MODEL, SESSION_MODES } from '../../shared/types';
 import { DEPARTMENT_IDS } from '../../shared/expertiseKeys';
 
 /**
@@ -76,13 +76,32 @@ test('catalog: every play declares a valid session mode', () => {
   }
 });
 
-test('catalog: every play that pins a model uses a routable one (A=auto / M3=max)', () => {
-  // departments.ts pins models via two constants only: A (arksai-auto) and M3 (arksai-max).
-  // Anything else is a wiring typo that would route a play to a non-existent model.
+test('catalog: every play that pins a model uses a routable one (A=auto / LEGAL_MODEL=max)', () => {
+  // departments.ts pins models via two constants only: A (arksai-auto) and LEGAL_MODEL
+  // (arksai-max, the Legal lane). Anything else is a wiring typo that would route a play to a
+  // non-existent model — and each constant must itself resolve to a real routable model id.
+  const constValue = (name: string): string | null => {
+    const m = src.match(new RegExp(`\\bconst ${name}\\s*=\\s*([^;]+);`));
+    if (!m) return null;
+    const rhs = m[1].trim();
+    const lit = /^'([^']+)'$/.exec(rhs);
+    if (lit) return lit[1];
+    return rhs === 'AUTO_MODEL' ? AUTO_MODEL : rhs === 'MAX_MODEL' ? MAX_MODEL : null;
+  };
+  const ROUTABLE: Record<string, string> = { A: AUTO_MODEL, LEGAL_MODEL: MAX_MODEL };
+  for (const [name, id] of Object.entries(ROUTABLE)) {
+    assert.equal(constValue(name), id, `departments.ts: const ${name} must resolve to ${id}`);
+  }
+  let pinned = 0;
   for (const p of plays) {
     if (p.model === null) continue; // optional — routes by mode default
-    assert.ok(['A', 'M3'].includes(p.model), `${p.key}: unroutable model constant "${p.model}"`);
+    pinned++;
+    assert.ok(p.model in ROUTABLE, `${p.key}: unroutable model constant "${p.model}"`);
   }
+  assert.ok(pinned > 0, 'parser sanity: at least one play pins a model');
+  // the Legal department keeps its Max-lane pin (bake-off winner on legal register)
+  const legal = plays.filter((p) => p.key.startsWith('legal.'));
+  assert.ok(legal.length > 0 && legal.every((p) => p.model === 'LEGAL_MODEL'), 'every legal play pins LEGAL_MODEL');
 });
 
 test('catalog: EVERY play carries a substantial, ready-to-run prompt (the user input)', () => {

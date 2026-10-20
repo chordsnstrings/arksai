@@ -105,6 +105,8 @@ test('assets: every indexed id resolves to a real source (no dangling manifest e
 // instruction, and motion briefs route to the heavy lane (Swift looped on this live).
 import { renderMotionVideoTool, slugifyTitle } from '../src/agent/tools/motionVideo';
 import { complexityTier } from '../src/agent/router';
+import { renderAnimatedExplainerTool } from '../src/agent/tools/animatedExplainer';
+import { __setByteplusKeyForTest } from '../src/agent/byteplusRuntime';
 
 test('motion tool: outputs are named for the SUBJECT, never a generic "explainer" (operator 2026-07-06)', () => {
   assert.equal(slugifyTitle('Why airplane windows are round'), 'why-airplane-windows-are-round');
@@ -123,7 +125,7 @@ test('motion tool: outputs are named for the SUBJECT, never a generic "explainer
 test('motion tool: unwritten scene files fail early with an unambiguous write-first error', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-motion-'));
   const ctx: any = { repoDir: dir, signal: new AbortController().signal, addCost: () => {}, session: {}, mode: 'chat' };
-  // bypass availability (TTS unkeyed in tests) — run() is what we're testing
+  // bypass availability (no speech provider exists — see the gating test below) — run() is what we're testing
   const out = await renderMotionVideoTool.run(
     { scenes: [{ title: 'Intro', narration: 'Hello', html_file: 'scenes/01-intro.html' }] },
     ctx,
@@ -134,6 +136,20 @@ test('motion tool: unwritten scene files fail early with an unambiguous write-fi
   // no manifest was created for the doomed call
   assert.ok(!fs.existsSync(path.join(dir, 'videos')), 'no manifest dir for a files-missing call');
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('narrated video tools stay hidden with no speech provider — even with the ModelArk key configured', () => {
+  // ModelArk has no speech model: narrated video (render_motion_video, the animated explainer) is gated
+  // on engines/speech.ts ttsAvailable(), which is false until a speech provider is wired.
+  for (const key of ['', 'ark-test']) {
+    __setByteplusKeyForTest(key);
+    try {
+      assert.equal(renderMotionVideoTool.available?.(), false, `${renderMotionVideoTool.name} (key ${key ? 'on' : 'off'})`);
+      assert.equal(renderAnimatedExplainerTool.available?.(), false, `${renderAnimatedExplainerTool.name} (key ${key ? 'on' : 'off'})`);
+    } finally {
+      __setByteplusKeyForTest('');
+    }
+  }
 });
 
 test('router: motion-graphics/explainer briefs go to the heavy lane', () => {

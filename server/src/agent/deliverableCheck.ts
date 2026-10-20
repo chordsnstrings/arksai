@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config';
-import { analyzeImage } from '../engines/minimax';
-import { DESIGN_RUBRIC_PROMPT, parseDesignVerdict } from './uiCheck';
+import { analyzeImage, cosine, embedImage, modelarkReady } from '../engines/modelark';
+import { DESIGN_RUBRIC_PROMPT, parseDesignVerdict, pngVisionUrls, tiledPrompt } from './uiCheck';
 import { renderDocHtml } from '../routes/docview';
 
 /**
@@ -25,10 +25,41 @@ export interface DeliverableQC {
   designDefects?: string[];
   pages: number;
   visionCalls: number;
+  /** Real spend of this check's vision + embedding calls (USD), when any ran. */
+  costUsd?: number;
   detail: string; // human summary for the timeline
 }
 
 const MAX_PAGES = 6; // cap rasterized pages (cost/latency)
+
+/**
+ * Skylark-embedding cosine at/above which two CONSECUTIVE rendered pages count as near-identical
+ * (a duplicated page/slide). INITIAL CALIBRATION (2026-10-20): an exact repeat scores ≈1.0, while
+ * distinct pages that merely share a layout sit lower — tune against real decks/reports.
+ */
+export const DUPLICATE_PAGE_COSINE = 0.985;
+
+/** Defect lines for consecutive near-identical pages, from one embedding per rendered page (in
+ *  page order; null = that page's embedding failed → skipped). PURE (unit-tested). */
+export function duplicatePageDefects(
+  vectors: Array<number[] | null | undefined>,
+  threshold = DUPLICATE_PAGE_COSINE,
+): string[] {
+  const out: string[] = [];
+  for (let i = 0; i + 1 < vectors.length; i++) {
+    const a = vectors[i];
+    const b = vectors[i + 1];
+    if (!a?.length || !b?.length) continue;
+    const sim = cosine(a, b);
+    if (sim >= threshold) {
+      out.push(
+        `pages ${i + 1} and ${i + 2} look identical (similarity ${sim.toFixed(3)}) — a duplicated page/slide; ` +
+          `remove the repeat or give each page its own content.`,
+      );
+    }
+  }
+  return out;
+}
 
 /** Per-kind framing prepended to the shared design rubric so the critique is type-aware. */
 const KIND_PREAMBLE: Record<DeliverableKind, string> = {
@@ -753,7 +784,7 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
   // renders COMPUTED VALUES, so it can't tell a =SUM() from a typed-in literal; this reads
   // cell.f directly and flags a calculation MODEL that was built with hard-coded numbers.
   // Seeded into designDefects BEFORE the render/vision early-returns so it's enforced even
-  // when no vision model is available (MiniMax egress is flaky).
+  // when no vision model is available.
   const seedDefects: string[] = [];
   if (kind === 'xlsx') {
     try {
@@ -844,7 +875,7 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
 
   // 3) Vision design rubric per page; aggregate. Even with no vision model, the
   // deterministic seedDefects (formula audit + structural near-empty pages) still gate.
-  if (!config.minimaxApiKey || signal.aborted) {
+  if (!modelarkReady() || signal.aborted) {
     const seedNote = seedDefects.length ? ' ⚠ issues flagged for revise.' : '';
     return {
       ...base,
@@ -862,15 +893,39 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
   // Review every page/slide CONCURRENTLY — each page's verdict is independent, so a 6-page report
   // costs ~one vision call's latency instead of six in series (the sequential loop was a big chunk
   // of the gate's wall-clock on multi-page reports/decks). Results stay in page order for labels.
-  const pageResults = await Promise.all(
-    pngs.map((png, i) => {
-      if (signal.aborted) return Promise.resolve(null);
-      const dataUrl = `data:image/png;base64,${png.toString('base64')}`;
-      return analyzeImage(dataUrl, prompt, signal)
-        .then((r) => ({ i, r }))
-        .catch(() => ({ i, r: { ok: false, text: '' } as Awaited<ReturnType<typeof analyzeImage>> }));
-    }),
-  );
+  // A tall render (a full-page HTML/docx screenshot) is TILED so the vision model reads it at
+  // full resolution; a PDF page is a single image.
+  // DUPLICATE-PAGE check (Skylark embeddings, advisory + fail-soft): embed each page ONCE, in
+  // parallel with the vision pass, and flag consecutive near-identical pages. A failed embedding
+  // just skips that page; the finding never flips the verdict on its own.
+  let costUsd = 0;
+  const [pageResults, pageVectors] = await Promise.all([
+    Promise.all(
+      pngs.map(async (png, i) => {
+        if (signal.aborted) return null;
+        try {
+          const urls = await pngVisionUrls(png);
+          return { i, r: await analyzeImage(urls, tiledPrompt(urls.length, prompt), signal) };
+        } catch {
+          return { i, r: { ok: false, text: '' } as Awaited<ReturnType<typeof analyzeImage>> };
+        }
+      }),
+    ),
+    pngs.length > 1
+      ? Promise.all(
+          pngs.map((png) =>
+            signal.aborted
+              ? null
+              : embedImage(`data:image/png;base64,${png.toString('base64')}`, signal)
+                  .then((e) => (e.ok && e.vector ? e.vector : null))
+                  .catch(() => null),
+          ),
+        )
+      : Promise.resolve([] as Array<number[] | null>),
+  ]);
+  costUsd += config.arkEmbedCost * pageVectors.filter(Boolean).length;
+  const duplicates = duplicatePageDefects(pageVectors);
+  defects.push(...duplicates);
   for (const item of pageResults) {
     if (!item) continue;
     const { i, r } = item;
@@ -879,6 +934,7 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
       visionFails++;
       continue;
     }
+    costUsd += r.costUsd ?? config.arkVisionCost;
     const v = parseDesignVerdict(r.text);
     if (v.verdict === 'revise') {
       verdict = 'revise';
@@ -890,10 +946,12 @@ export async function checkDeliverable(abs: string, kind: DeliverableKind, signa
   base.designVerdict = verdict;
   base.designDefects = [...new Set(defects)].slice(0, 5);
   base.ran = base.visionCalls > visionFails;
+  base.costUsd = costUsd || undefined;
 
   const lines = [`Rendered ${pngs.length} page(s)${renderNote}; functional: ${fn.detail}.`];
   if (verdict === 'revise' && base.designDefects.length) lines.push(`👁 Design review — REVISE:\n  - ${base.designDefects.join('\n  - ')}`);
   else if (verdict === 'pass') lines.push('👁 Design review — PASS (looks well designed).');
+  if (verdict !== 'revise' && duplicates.length) lines.push(`⚠ Similarity check:\n  - ${duplicates.join('\n  - ')}`);
   if (visionFails) lines.push(`⚠ ${visionFails}/${pngs.length} page(s) could not be vision-reviewed.`);
   base.detail = lines.join('\n');
   return base;

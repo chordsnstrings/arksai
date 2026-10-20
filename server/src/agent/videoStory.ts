@@ -1,4 +1,5 @@
-import { generateTextM3 } from '../engines/minimax';
+import { generateText, modelarkReady } from '../engines/modelark';
+import { videoCostEstimate } from '../engines/seedance';
 import { config } from '../config';
 
 /**
@@ -15,7 +16,7 @@ import { config } from '../config';
  *   frame-chain     hard cut, same world — opens on
  *                   the previous scene's LAST frame → 1.5 i2v (the workhorse cut)
  *   extend          the same take CONTINUES         → 2.0-fast r2v reference_video (web URL)
- * plus optional reference images on any scene for cast/product identity.
+ * plus optional reference images on any scene for cast/product identity (→ 2.0-fast r2v).
  *
  * Fail-OPEN like every compiler here: if the LLM pass fails, a deterministic splitter still
  * returns a valid plan. Everything the LLM returns passes through normalizeStoryPlan (pure,
@@ -129,27 +130,50 @@ export function normalizeStoryPlan(raw: any, opts?: { aspect?: string }): StoryP
   return { scenes: out, styleLine, aspect, estUsd, estMinutes, notes };
 }
 
+/** Input-clip tokenization of a 480p extension (reference_video), in K tokens — probed
+ *  SCENES_RESEARCH §8.8 (a 6 s extension = 141 k total vs ~61 k for the same output without a
+ *  video input). The per-second table prices OUTPUT only, so estimates and billing add this. */
+export const EXTEND_INPUT_KTOK_480P = 90;
+
+/** Story-level anchors that change which model a scene renders on (see the executor's buildSpec). */
+export interface StoryEstimateOpts {
+  /** A style anchor that RESOLVES: every plain t2v scene without its own anchor renders on 2.0-fast. */
+  styleAnchor?: boolean;
+  /** An opening frame that RESOLVES: it anchors scene 1 instead of the style anchor. */
+  openingFrame?: boolean;
+}
+
 /**
- * Cost/time estimate from the PROBED usage numbers (SCENES_RESEARCH §8.8):
- * 1.5 draft ≈ 6 k tokens/s; 2.0-fast r2v ≈ 10 k/s + ~90 k for the input clip tokenization.
- * Rates env-tunable; finals ≈ 4× draft tokens (higher resolution) — the estimate covers the
- * DRAFT pass, with finals quoted separately as ~4×.
+ * Cost/time estimate for the DRAFT pass (finals are quoted separately as ~5×): the official
+ * per-second table at 480p for the model each scene ACTUALLY renders on (mirrors the executor's
+ * routing) — extends, scenes with cast refs, and style-anchored plain t2v scenes run on 2.0-fast;
+ * every other fresh/cut scene on Video 1.5 — plus, for an extend, the input-clip tokenization
+ * (EXTEND_INPUT_KTOK_480P), which the per-second table (no video input) doesn't cover. Times are
+ * the probed wall-clock figures. PURE.
  */
-export function estimateStory(scenes: Pick<ScenePlan, 'durationS' | 'mechanism'>[]): { estUsd: number; estMinutes: number } {
-  const rate = config.seedanceCostPerKTok;
-  let kTok = 0;
+export function estimateStory(
+  scenes: Pick<ScenePlan, 'durationS' | 'mechanism' | 'castRefs'>[],
+  opts: StoryEstimateOpts = {},
+): { estUsd: number; estMinutes: number } {
+  let usd = 0;
   let seconds = 0;
-  for (const s of scenes) {
+  scenes.forEach((s, i) => {
+    const useRefs = (s.castRefs?.length ?? 0) > 0;
+    const openingFrameApplies = i === 0 && !!opts.openingFrame && s.mechanism !== 'i2v-composited';
+    const styleAnchored = !!opts.styleAnchor && s.mechanism === 't2v' && !useRefs && !openingFrameApplies;
     if (s.mechanism === 'extend') {
-      kTok += s.durationS * 10 + 90;
+      usd += videoCostEstimate('arksai-video-20-fast', '480p', s.durationS) + EXTEND_INPUT_KTOK_480P * config.seedanceCostPerKTok;
       seconds += 130; // probed: ~117 s + polling
+    } else if (useRefs || styleAnchored) {
+      usd += videoCostEstimate('arksai-video-20-fast', '480p', s.durationS);
+      seconds += 75; // probed 2.0-fast r2v with an image ref: 69–75 s
     } else {
-      kTok += s.durationS * 6;
+      usd += videoCostEstimate('arksai-video-15', '480p', s.durationS);
       seconds += 60; // probed drafts: 23–52 s + polling
     }
-  }
+  });
   seconds += 20; // stitch + frame extraction
-  return { estUsd: Math.round(kTok * rate * 100) / 100, estMinutes: Math.max(1, Math.round(seconds / 60)) };
+  return { estUsd: Math.round(usd * 100) / 100, estMinutes: Math.max(1, Math.round(seconds / 60)) };
 }
 
 /** Deterministic fail-open splitter: beats become scenes, all cuts, sane defaults. PURE. */
@@ -260,8 +284,8 @@ export async function planStory(brief: string, opts: PlanStoryOpts = {}): Promis
     const call =
       opts.llm ??
       (async (p: string, sys: string) => {
-        if (!config.minimaxApiKey) return null;
-        const r = await generateTextM3(p, opts.signal ?? new AbortController().signal, { maxTokens: 2200, system: sys });
+        if (!modelarkReady()) return null;
+        const r = await generateText(p, opts.signal ?? new AbortController().signal, { maxTokens: 2200, system: sys });
         return r.ok ? r.text : null;
       });
     const text = await call(plannerPrompt(brief, { aspect, castNote, durationHint: opts.durationHint }), PLANNER_SYSTEM);

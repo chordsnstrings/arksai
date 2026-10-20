@@ -1,13 +1,13 @@
-import { config } from '../../config';
+import { modelarkReady } from '../../engines/modelark';
 import { composeLogo, type LogoInput } from '../logo';
 import type { ToolDef } from './common';
 
 /**
  * generate_logo — a real logo + brand-identity generator. Produces a distinctive vector mark
- * (M3 at its ceiling: real font glyphs + overlapping primitives, NEVER morphing), then a full
- * designer submission: a brand directive + palette, light & dark variants, app/website
- * placements, and a zipped multi-format kit (SVG + PNG + JPEG at several sizes, light & dark).
- * See LOGO_PLAN.md. Gated (with a clear message) on the MiniMax key.
+ * (the coder model at its ceiling: real font glyphs + overlapping primitives, NEVER morphing),
+ * then a full designer submission: a brand directive + palette, light & dark variants,
+ * app/website placements, and a zipped multi-format kit (SVG + PNG + JPEG at several sizes,
+ * light & dark). See LOGO_PLAN.md. Gated (with a clear message) on the ModelArk key.
  */
 export const generateLogoTool: ToolDef = {
   name: 'generate_logo',
@@ -40,12 +40,12 @@ export const generateLogoTool: ToolDef = {
   available: () => true,
   summarize: (a) => `logo: ${String(a.brand_name ?? '').slice(0, 50)}`,
   async run(args, ctx) {
-    if (!config.minimaxApiKey) {
+    if (!modelarkReady()) {
       return (
         'Logo generation needs the image/LLM engine, which is not switched on for this server yet — the ' +
-        'MINIMAX_API_KEY is not configured. Do NOT retry, do NOT switch to code, and do NOT hand-build an SVG. ' +
-        'Tell the user: "Logo generation isn\'t enabled on this workspace yet — the operator needs to add the ' +
-        'MiniMax API key (a MiniMax sk-cp Subscription key) to the server."'
+        'AI provider key is not configured. Do NOT retry, do NOT switch to code, and do NOT hand-build an SVG. ' +
+        'Tell the user: "Logo generation isn\'t enabled on this workspace yet — an admin needs to add the ' +
+        'AI provider key under Admin → Keys."'
       );
     }
     const brandName = String(args.brand_name ?? args.brand ?? args.name ?? '').trim();

@@ -3,16 +3,24 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { config } from '../config';
-import { analyzeImage, generateTextM3 } from '../engines/minimax';
+import { analyzeImage, generateText } from '../engines/modelark';
 import { embedFontsInSvg, fontCatalogText, fontFaceCss, usedFamilies } from './fontkit';
 
 /**
- * Logo & brand-identity generator. Gets M3 to its quality ceiling by playing ONLY to its
- * strengths — real font glyphs (perfect letterforms) + overlapping flat primitives (clean
+ * Logo & brand-identity generator. Gets the model to its quality ceiling by playing ONLY to
+ * its strengths — real font glyphs (perfect letterforms) + overlapping flat primitives (clean
  * shapes) — and BANNING the one thing it's bad at (morphing a glyph into an object). Then it
  * wraps the mark in a full designer submission: a brand directive + palette, light/dark
  * variants, app/website placements, and a zipped multi-format asset kit. See LOGO_PLAN.md.
+ * Models: the brand directive (JSON reasoning) → the text model (config.arkTextModel,
+ * DeepSeek-V4-Pro); every SVG (candidates, polish, recolor) → the coder model
+ * (config.arkCoderModel, also DeepSeek-V4-Pro); the contact-sheet judge → vision (Seed 2.1 Turbo).
  */
+
+/** SVG authoring: the coder model, thinking off, with generous output headroom so a model that
+ *  still reasons before answering can never truncate the SVG mid-path. */
+const svgText = (prompt: string, signal: AbortSignal) =>
+  generateText(prompt, signal, { model: config.arkCoderModel, thinking: 'disabled', maxTokens: 8000 });
 
 // ----------------------------------------------------------------- the spec (prompt)
 
@@ -409,17 +417,18 @@ export async function composeLogo(input: LogoInput, repoDir: string, signal: Abo
   const n = Math.min(Math.max(input.candidates ?? 3, 1), 5);
   try {
     // 1) directive
-    const dRes = await generateTextM3(buildDirectivePrompt(input), signal, { maxTokens: 1200 });
-    cost += config.minimaxTextCost;
+    const dRes = await generateText(buildDirectivePrompt(input), signal, { maxTokens: 2500, thinking: 'disabled' });
+    cost += dRes.costUsd ?? config.arkTextCost;
     const directive = parseDirective(dRes.ok ? dRes.text! : '', input);
     if (!dRes.ok) log.push('directive fell back to defaults');
 
-    // 2) best-of-N candidates (sequential — M3 stalls under concurrency)
+    // 2) best-of-N candidates, in parallel (the engine's shared one-shot limiter bounds the
+    //    fan-out); Promise.all keeps candidate order stable for the contact sheet.
     const genPrompt = buildGenPrompt(input, directive);
+    const drafts = await Promise.all(Array.from({ length: n }, () => svgText(genPrompt, signal)));
     const svgs: string[] = [];
-    for (let i = 0; i < n; i++) {
-      const r = await generateTextM3(genPrompt, signal, { maxTokens: 3000 });
-      cost += config.minimaxTextCost;
+    for (const r of drafts) {
+      cost += r.costUsd ?? config.arkTextCost;
       const svg = r.ok ? extractSvg(r.text!) : null;
       if (looksLikeSvg(svg)) svgs.push(svg);
     }
@@ -437,7 +446,7 @@ export async function composeLogo(input: LogoInput, repoDir: string, signal: Abo
         `These are ${svgs.length} logo candidates (left to right: candidate 1..${svgs.length}) for "${directive.brandName}". Concept: ${directive.concept}. As a senior brand designer, judge concept clarity, legibility, craft and 16px survival, then pick the STRONGEST. Reply with ONLY compact JSON: {"winner":<1-${svgs.length}>,"defects":"the 1-2 specific craft fixes the winner still needs"}.`,
         signal,
       );
-      cost += config.minimaxVisionCost;
+      cost += judge.costUsd ?? config.arkVisionCost;
       try { fs.unlinkSync(tmpSheet); } catch {}
       if (judge.ok && judge.text) {
         const m = judge.text.match(/\{[\s\S]*\}/);
@@ -454,8 +463,8 @@ export async function composeLogo(input: LogoInput, repoDir: string, signal: Abo
 
     // 5) structure-locked polish
     {
-      const r = await generateTextM3(buildPolishPrompt(winner, directive, defects), signal, { maxTokens: 3000 });
-      cost += config.minimaxTextCost;
+      const r = await svgText(buildPolishPrompt(winner, directive, defects), signal);
+      cost += r.costUsd ?? config.arkTextCost;
       const polished = r.ok ? extractSvg(r.text!) : null;
       if (looksLikeSvg(polished)) { winner = polished; log.push('polished'); }
     }
@@ -465,8 +474,8 @@ export async function composeLogo(input: LogoInput, repoDir: string, signal: Abo
     let darkSvg = winner;
     {
       const target: 'light' | 'dark' = directive.background === 'dark' ? 'light' : 'dark';
-      const r = await generateTextM3(buildRecolorPrompt(winner, directive, target), signal, { maxTokens: 3000 });
-      cost += config.minimaxTextCost;
+      const r = await svgText(buildRecolorPrompt(winner, directive, target), signal);
+      cost += r.costUsd ?? config.arkTextCost;
       const recolored = r.ok ? extractSvg(r.text!) : null;
       if (looksLikeSvg(recolored)) {
         if (target === 'dark') darkSvg = recolored;

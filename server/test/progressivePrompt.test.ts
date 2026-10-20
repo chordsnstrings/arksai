@@ -4,7 +4,7 @@ import { buildSystemPrompt } from '../src/agent/prompts';
 import { config } from '../src/config';
 
 // PHASE 5 — progressive disclosure. The system prompt is assembled from a slim
-// always-on CORE + on-demand SLICES (Suno / MiniMax / doc-tools / report / design);
+// always-on CORE + on-demand SLICES (Suno / ModelArk / doc-tools / report / design);
 // a slice loads ONLY when the current mode needs it, decided once at build time.
 //
 // HARD GUARANTEE: a REPORT-mode build receives EVERY rule it gets today — the report
@@ -101,7 +101,7 @@ test('PLAN turn with the flag ON is meaningfully SHORTER than with it OFF (real 
   // eslint-disable-next-line no-console
   console.log(`[phase5] PLAN prompt chars — flag OFF: ${off}, flag ON: ${on}, saved: ${saved} (${pct}%)`);
   assert.ok(on < off, 'a read-only PLAN turn must be shorter with progressive disclosure on');
-  // A non-trivial saving (the Suno/MiniMax/doc-tools slices the plan turn can't use).
+  // A non-trivial saving (the Suno/ModelArk/doc-tools slices the plan turn can't use).
   assert.ok(saved > 500, `expected a meaningful reduction, got only ${saved} chars`);
 });
 

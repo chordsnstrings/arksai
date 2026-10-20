@@ -9,7 +9,7 @@ import { toWorkbook, recalc, SUPPORTED_FNS, type Workbook } from './sheetcalc';
  *     extent (the classic banner-row / off-by-one shift). In Excel these read as #REF!/0 and
  *     silently corrupt every dependent number.
  *  2. DOT-NOTATION REFS — "Assumptions.B10" instead of "Assumptions!B10" (a known model quirk,
- *     seen live from M3): Excel treats it as a name error, the whole chain dies.
+ *     seen live from a model): Excel treats it as a name error, the whole chain dies.
  *  3. CACHED-VALUE MISMATCHES — where the model supplied {f, v} and the formula is computable,
  *     recompute it: a material disagreement means the model's arithmetic and its formula tell
  *     two different stories, which almost always marks a WRONG formula (wrong row, wrong sign,

@@ -282,7 +282,7 @@ async function migrate() {
   )`);
   // Robots: a standing email agent per org. role = what it does (customer_service /
   // personal_assistant / custom); autonomy = shadow|ask|auto (ask = draft for approval,
-  // the safe default); model = which engine drafts (arksai-max=M3 / deepseek-v4 / compare).
+  // the safe default); model = which engine drafts (arksai-max = the Max lane / deepseek-v4 = DeepSeek-V4-Pro / compare = the Max lane + GLM-5.2 as the alt draft; all on ModelArk).
   // config is JSON (persona, knowledge, escalation rules, signature).
   await q(`CREATE TABLE IF NOT EXISTS robots(
     id TEXT PRIMARY KEY,

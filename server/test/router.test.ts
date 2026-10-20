@@ -17,94 +17,60 @@ test('complexityTier: hard tasks are heavy', () => {
   assert.equal(complexityTier('debug this race condition and optimize the algorithm', 'code'), 'heavy');
 });
 
-test('selectModel: light → Flash, everything else → M3 (all MiniMax)', () => {
-  const easy = selectModel('rename a file', 'chat', { minimaxAvailable: true });
-  assert.equal(easy.model, FAST_MODEL);
-
-  const heavy = selectModel('architect a full-stack microservice platform', 'code', { minimaxAvailable: true });
-  assert.equal(heavy.model, MAX_MODEL);
-
-  // code/report always go to M3 regardless of tier
-  const report = selectModel('summarize this', 'report', { minimaxAvailable: true });
-  assert.equal(report.model, MAX_MODEL);
-});
-
-test('escalateModel: Flash steps up to M3 and M3 is the cap', () => {
-  assert.equal(escalateModel(FAST_MODEL, { minimaxAvailable: true }), MAX_MODEL);
-  assert.equal(escalateModel(MAX_MODEL, { minimaxAvailable: true }), MAX_MODEL);
-});
-
-// Operator decision (2026-07-02): coding is ALL-BytePlus — M3 removed from code routing entirely.
-test('coding removes M3 completely: standard + heavy code → GLM-5.1; Swift escalates to GLM-5.1', () => {
-  try {
-    __setByteplusKeyForTest('ark-test');
-    // standard-tier code (no heavy keywords, no easy keywords) → GLM-5.1, not M3
-    const std = selectModel('build a booking website for a dental clinic with an availability calendar', 'code', { minimaxAvailable: true });
-    assert.equal(std.model, HEAVY_GLM51_MODEL, `standard code routed to ${std.model}`);
-    // escalation from the fast lane stays inside BytePlus
-    assert.equal(escalateModel(SWIFT_MODEL, { minimaxAvailable: true }), HEAVY_GLM51_MODEL);
-    // GLM-5.1 is the coding cap (no escalation to M3)
-    assert.equal(escalateModel(HEAVY_GLM51_MODEL, { minimaxAvailable: true }), HEAVY_GLM51_MODEL);
-    // report mode still uses M3
-    assert.equal(selectModel('summarize this', 'report', { minimaxAvailable: true }).model, MAX_MODEL);
-  } finally {
-    __setByteplusKeyForTest('');
-  }
-  // without a BytePlus key, coding falls back to M3 (the product still works)
-  assert.equal(selectModel('build a booking website for a dental clinic with an availability calendar', 'code', { minimaxAvailable: true }).model, MAX_MODEL);
-  assert.equal(escalateModel(SWIFT_MODEL, { minimaxAvailable: true }), MAX_MODEL);
-});
-
-// --- BytePlus / Dola "Swift" fast lane (config-gated) ---
-import { resolveProvider, byteplusReady } from '../src/agent/router';
-import { SWIFT_MODEL, HEAVY_GLM51_MODEL } from '../../shared/types';
+// --- ModelArk lanes (the single provider) ---
+import { resolveProvider, stallLadder } from '../src/agent/router';
+import { SWIFT_MODEL, HEAVY_GLM51_MODEL, HEAVY_DS4_MODEL, HEAVY_KIMI_MODEL } from '../../shared/types';
 import { config } from '../src/config';
-import { __setByteplusKeyForTest } from '../src/agent/byteplusRuntime';
 
-test('Swift fast lane: light CODE build routes to Dola ONLY when BytePlus is configured', () => {
-  
-  try {
-    __setByteplusKeyForTest(''); // no key → unchanged behaviour (stays M3)
-    assert.equal(byteplusReady(), false);
-    assert.equal(selectModel('a simple counter app', 'code', { minimaxAvailable: true }).model, MAX_MODEL);
-
-    __setByteplusKeyForTest('ark-test'); // key present → light code goes to Swift
-    assert.equal(byteplusReady(), true);
-    assert.equal(selectModel('a simple counter app', 'code', { minimaxAvailable: true }).model, SWIFT_MODEL);
-    // heavy code → GLM-5.1 with the key (bake-off-validated); report stays on M3
-    assert.equal(selectModel('architect a distributed microservice platform with a database schema', 'code', { minimaxAvailable: true }).model, HEAVY_GLM51_MODEL);
-    assert.equal(selectModel('summarize this', 'report', { minimaxAvailable: true }).model, MAX_MODEL);
-    // CHAT light/standard → Swift (seed-2-0-pro): the 2026-07-02 judgment bake-off winner
-    // (the only model that didn't hallucinate "I can't create images"; best repeat-error
-    // diagnosis; fastest). Without the key it stays Flash.
-    assert.equal(selectModel('rename a file', 'chat', { minimaxAvailable: true }).model, SWIFT_MODEL);
-    __setByteplusKeyForTest('');
-    assert.equal(selectModel('rename a file', 'chat', { minimaxAvailable: true }).model, FAST_MODEL);
-    __setByteplusKeyForTest('ark-test');
-  } finally {
-    __setByteplusKeyForTest('');
-  }
+test('selectModel: every build → heavy coder; spreadsheets → bounded lane; chat light+standard → Swift; report → Max', () => {
+  assert.equal(selectModel('a simple counter app', 'code').model, HEAVY_GLM51_MODEL, 'even simple builds keep full reasoning');
+  assert.equal(selectModel('build a booking website for a dental clinic with an availability calendar', 'code').model, HEAVY_GLM51_MODEL);
+  assert.equal(selectModel('architect a distributed microservice platform with a database schema', 'code').model, HEAVY_GLM51_MODEL);
+  assert.equal(selectModel('summarize this', 'report').model, MAX_MODEL);
+  assert.equal(selectModel('rename a file', 'chat').model, SWIFT_MODEL);
+  const heavyChat = 'Architect a multi-tenant SaaS: JWT auth, per-org isolation, realtime websocket sync, Stripe billing and an admin dashboard — design the database schema and the security model end to end.';
+  assert.equal(complexityTier(heavyChat, 'chat'), 'heavy');
+  assert.equal(selectModel(heavyChat, 'chat').model, MAX_MODEL);
+  assert.equal(selectModel('rename a file', 'plan').model, FAST_MODEL);
 });
 
-test('resolveProvider maps Swift to the byteplus provider + coding model; escalates to M3', () => {
-  const r = resolveProvider(SWIFT_MODEL);
-  assert.equal(r.provider, 'byteplus');
-  assert.equal(r.apiModel, config.byteplusModel);
-  assert.equal(r.pricingId, SWIFT_MODEL);
-  assert.equal(escalateModel(SWIFT_MODEL, { minimaxAvailable: true }), MAX_MODEL);
-  // MiniMax ids stay on minimax
-  assert.equal(resolveProvider(MAX_MODEL).provider, 'minimax');
-  assert.equal(resolveProvider(FAST_MODEL).provider, 'minimax');
+test('escalateModel: Swift → heavy coder, Flash → Max; heavy coder and Max are the caps', () => {
+  assert.equal(escalateModel(SWIFT_MODEL), HEAVY_GLM51_MODEL);
+  assert.equal(escalateModel(FAST_MODEL), MAX_MODEL);
+  assert.equal(escalateModel(HEAVY_GLM51_MODEL), HEAVY_GLM51_MODEL);
+  assert.equal(escalateModel(MAX_MODEL), MAX_MODEL);
 });
 
-test('resolveProvider maps heavy-tier BytePlus coders to the concrete coding-plan model', () => {
-  for (const [branded, spec] of Object.entries(config.byteplusHeavyModels)) {
+test('resolveProvider: every branded lane resolves to its configured ModelArk model + lane settings', () => {
+  for (const [branded, spec] of Object.entries(config.modelarkModels)) {
     const r = resolveProvider(branded);
-    assert.equal(r.provider, 'byteplus', `${branded} → byteplus`);
+    assert.equal(r.provider, 'modelark');
     assert.equal(r.apiModel, spec.model, `${branded} → ${spec.model}`);
-    assert.equal(r.pricingId, branded); // priced/labelled under the branded id
-    assert.equal(r.baseUrl, spec.base); // per-model endpoint override (undefined = provider default)
+    assert.equal(r.pricingId, branded);
+    assert.equal(r.baseUrl, spec.base);
+    assert.equal(r.thinking, spec.thinking);
   }
+  // Unknown ids fall back to Max rather than throwing.
+  const unknown = resolveProvider('arksai-retired-model');
+  assert.equal(unknown.pricingId, MAX_MODEL);
+  assert.equal(unknown.apiModel, config.modelarkModels[MAX_MODEL].model);
+});
+
+test('legacy Kimi lane id stays valid (old DB rows) but runs a model this key can call', () => {
+  assert.ok(!/kimi/i.test(resolveProvider(HEAVY_KIMI_MODEL).apiModel), 'Kimi is not on the ModelArk key');
+});
+
+test('stallLadder: alternates are other lanes with DIFFERENT concrete models, never the current one', () => {
+  for (const current of [MAX_MODEL, FAST_MODEL, SWIFT_MODEL, HEAVY_GLM51_MODEL, HEAVY_DS4_MODEL]) {
+    const ladder = stallLadder(current);
+    const cur = resolveProvider(current).apiModel;
+    const apis = ladder.map((id) => resolveProvider(id).apiModel);
+    assert.ok(ladder.length >= 1, `${current} has somewhere to go`);
+    assert.ok(!apis.includes(cur), `${current} ladder must not include its own model`);
+    assert.equal(new Set(apis).size, apis.length, `${current} ladder has no duplicate models`);
+  }
+  // The heavy coder hands over to a different coder first.
+  assert.equal(resolveProvider(stallLadder(HEAVY_GLM51_MODEL)[0]).apiModel !== resolveProvider(HEAVY_GLM51_MODEL).apiModel, true);
 });
 
 test('complexityTier: a subsystem-stacked SaaS brief is HEAVY (the TaskForge mislabel)', () => {
@@ -118,18 +84,17 @@ test('complexityTier: a subsystem-stacked SaaS brief is HEAVY (the TaskForge mis
   assert.equal(complexityTier('add a login page to my site', 'code'), 'standard');
 });
 
-test('spreadsheet-deliverable briefs route to Swift (bake-off round 2); app briefs do not', async () => {
+test('spreadsheet-deliverable briefs route to the bounded-reasoning lane (bake-off round 2); app briefs do not', async () => {
   const { selectModel, isSpreadsheetBrief } = await import('../src/agent/router');
-  const { SWIFT_MODEL } = await import('../../shared/types');
-  const { __setByteplusKeyForTest } = await import('../src/agent/byteplusRuntime');
-  __setByteplusKeyForTest('test-key');
-  const o = { minimaxAvailable: true };
-  // A pure model brief — even a long, heavy-scoring one — goes to the Swift lane.
+  const { HEAVY_DS4_MODEL, HEAVY_GLM51_MODEL } = await import('../../shared/types');
+  const o = {};
+  // A pure model brief — even a long, heavy-scoring one — goes to the bounded-reasoning sheets lane.
   const brief =
     'Build a 24-month financial model spreadsheet for a Dubai coffee roastery: Assumptions, Revenue, Opex, PnL sheets, ' +
     'compounding growth, cross-sheet formulas, IF-gated tax, cumulative cash. All derived cells live formulas.';
   assert.ok(isSpreadsheetBrief(brief));
-  assert.equal(selectModel(brief, 'code', o).model, SWIFT_MODEL);
+  assert.equal(selectModel(brief, 'code', o).model, HEAVY_DS4_MODEL);
+  assert.equal(selectModel('build a SaaS dashboard app with excel export and JWT auth', 'code', o).model, HEAVY_GLM51_MODEL);
   // Deliverable guards: an app that mentions excel, or subsystem-scale briefs, stay on normal routing.
   assert.ok(!isSpreadsheetBrief('build a SaaS dashboard app with excel export and JWT auth'));
   assert.ok(!isSpreadsheetBrief('a landing page for my excel consultancy'));
@@ -141,4 +106,16 @@ test('spreadsheet-deliverable briefs route to Swift (bake-off round 2); app brie
   assert.ok(isSpreadsheetBrief('Build me an Excel KPI dashboard tracking revenue vs target and orders month over month'));
   assert.ok(!isSpreadsheetBrief('build a KPI dashboard web app'), 'a web dashboard still routes normally');
   assert.ok(!isSpreadsheetBrief('write me a poem'));
+});
+
+test('spreadsheet briefs in CHAT route to the bounded-reasoning lane too — never thinking-off Swift (bake-off 1.25/10)', async () => {
+  const { selectModel } = await import('../src/agent/router');
+  const { HEAVY_DS4_MODEL, SWIFT_MODEL } = await import('../../shared/types');
+  // The chat prompt has the agent call generate_spreadsheet right there in chat.
+  const pick = selectModel('Make me an Excel cash flow forecast for my cafe for the next 12 months', 'chat');
+  assert.equal(pick.model, HEAVY_DS4_MODEL);
+  assert.match(pick.reason, /spreadsheet model/, 'the auto-route line names the reason');
+  assert.equal(selectModel('Make me an Excel cash flow forecast for my cafe for the next 12 months', 'code').model, HEAVY_DS4_MODEL);
+  // Ordinary chat stays on the quick lane.
+  assert.equal(selectModel('what should I name my cafe?', 'chat').model, SWIFT_MODEL);
 });

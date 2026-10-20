@@ -60,7 +60,7 @@ unregistered key is a **compile error**.
 ```
 
 - Pick `mode`: `report` → designed PDFs/decks; `code` → apps, sheets, docs; `chat` → conversational.
-- Pin `model` only with the constants `A` (`arksai-auto`) or `M3` (`arksai-max`); omit to route by mode.
+- Pin `model` only with the constants `A` (`arksai-auto`) or `LEGAL_MODEL` (`arksai-max`, the Max lane); omit to route by mode.
 - The `prompt` IS the first message — make it a real, ready-to-run brief (≥80 chars; the catalog test enforces this).
 
 ### 4. Add the standard (`server/src/agent/expertise.ts` → `TASK`)

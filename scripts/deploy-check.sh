@@ -41,9 +41,11 @@ if command -v docker >/dev/null 2>&1 && [ -f "$APP_DIR/$COMPOSE" ]; then
   echo "$PS" | grep -qiE 'arksai-arksai-1.*(running|up)'  && ok "app container running"       || bad "app container NOT running"
   echo "$PS" | grep -qiE 'arksai-caddy-1.*(running|up)'   && ok "caddy (TLS) container running" || bad "caddy container NOT running — HTTPS/site will be down"
   CAP="$(cd "$APP_DIR" && docker compose -f "$COMPOSE" logs --tail=400 arksai 2>/dev/null | grep -i 'capabilities' | tail -1)"
-  if echo "$CAP" | grep -qi 'image generation.*enabled'; then ok "MiniMax (image gen + vision + M3) enabled"
-  elif [ -n "$CAP" ];                                    then bad "MiniMax DISABLED — set MINIMAX_API_KEY in $APP_DIR/.env  [$CAP]"
-  else                                                        warn "no capability log line found (older build, or logs rotated)"; fi
+  # boot line: "[capabilities] ModelArk (chat + vision + images + video + embeddings): enabled · tts: off · …"
+  # (anchor on "): enabled" so a later "web search: enabled" can't mask a DISABLED key)
+  if echo "$CAP" | grep -qiE 'ModelArk \([^)]*\): enabled'; then ok "ModelArk (chat + vision + images + video + embeddings) enabled"
+  elif [ -n "$CAP" ];                                      then bad "ModelArk DISABLED — set the key via Admin → Keys or ARK_API_KEY in $APP_DIR/.env  [$CAP]"
+  else                                                          warn "no capability log line found (older build, or logs rotated)"; fi
   df -h /  2>/dev/null | awk 'NR==2{printf "  · disk /: %s used, %s free\n",$5,$4}'
   free -m  2>/dev/null | awk 'NR==2{printf "  · mem: %sMB used / %sMB total\n",$3,$2}'
 else

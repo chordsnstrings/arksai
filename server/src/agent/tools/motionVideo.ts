@@ -3,7 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { resolveInWorkspace, type ToolDef } from './common';
 import { config, repoRoot } from '../../config';
-import { synthesizeSpeechBuffer, ttsAvailable, analyzeImage, fileToDataUrl } from '../../engines/minimax';
+import { synthesizeSpeechBuffer, ttsAvailable } from '../../engines/speech';
+import { analyzeImage, fileToDataUrl, modelarkReady } from '../../engines/modelark';
 import { generateMusic } from '../../engines/suno';
 import { stitchClips, stitchClipsSegmented, mixMusicBed, applyFadeOut, probeDuration, ffmpegAvailable } from '../videoStitch';
 import { captureScene, captureSpotFrame, auditSceneHtml, auditSceneGeometry } from '../motion/capture';
@@ -19,10 +20,13 @@ import { auditSceneMotion, auditFrameFill, isPacingMonotone, hookProblems, scrip
  * frames are captured deterministically (seek-driven), and ffmpeg encodes + concatenates
  * (with designed transitions at act boundaries). No video model anywhere — pixel-crisp
  * text, any length, per-scene retakes for pennies.
+ *
+ * Narration needs a speech provider: the tool is gated on ttsAvailable() (engines/speech.ts),
+ * so it switches itself back on the moment one is configured there — nothing else to rewire.
  */
 
-// MiniMax system voices for t2a_v2. 'male-qn-qingse' is the live-proven default; the
-// English narration set below follows MiniMax's documented system voice ids.
+// Narrator personas. Provider-neutral ids handed to engines/speech.ts as voiceId (the speech
+// provider maps each to its closest voice); they're also persisted in manifests, so keep them stable.
 export const MOTION_VOICES: { id: string; note: string }[] = [
   { id: 'Wise_Woman', note: 'warm, credible female narrator (default for explainers)' },
   { id: 'Deep_Voice_Man', note: 'authoritative male narrator' },
@@ -30,7 +34,6 @@ export const MOTION_VOICES: { id: string; note: string }[] = [
   { id: 'Friendly_Person', note: 'upbeat, conversational' },
   { id: 'Inspirational_girl', note: 'energetic, youthful' },
   { id: 'Patient_Man', note: 'measured, instructional male' },
-  { id: 'male-qn-qingse', note: 'general default (validated live)' },
 ];
 
 /** Designed transitions between scenes (the tool maps them to voice-safe xfades). */
@@ -182,7 +185,9 @@ async function ttsScene(m: MotionManifest, s: MotionScene, repoDir: string, sign
   const r = await synthesizeSpeechBuffer(s.narration, { voiceId: m.voiceId, speed: m.speed }, signal);
   if (!r.ok || !r.buffer) throw new Error(`narration synthesis failed for scene ${s.id}: ${r.error}`);
   fs.writeFileSync(audioAbs, r.buffer);
-  addCost(config.minimaxTtsCost);
+  // The speech seam reports its own spend when its provider does (none is wired yet).
+  const ttsUsd = (r as { costUsd?: number }).costUsd;
+  if (ttsUsd) addCost(ttsUsd);
   s.audioFile = audioRel;
   s.narrationHash = hash;
 }
@@ -193,8 +198,15 @@ function spotTimes(durationMs: number): number[] {
   return [Math.min(1000, Math.round(durationMs * 0.2)), Math.round(durationMs * 0.45), Math.round(durationMs * 0.82)];
 }
 
-async function qcScene(m: MotionManifest, s: MotionScene, repoDir: string, htmlAbs: string, signal: AbortSignal): Promise<void> {
-  if (!config.minimaxApiKey) return; // vision QC lights up when keyed; deterministic audits still ran
+async function qcScene(
+  m: MotionManifest,
+  s: MotionScene,
+  repoDir: string,
+  htmlAbs: string,
+  signal: AbortSignal,
+  addCost: (u: number) => void,
+): Promise<void> {
+  if (!modelarkReady()) return; // vision QC lights up when keyed; deterministic audits still ran
   const defects: string[] = [];
   const times = spotTimes(s.durationMs!);
   const isFinalScene = m.scenes[m.scenes.length - 1]?.id === s.id;
@@ -223,6 +235,7 @@ async function qcScene(m: MotionManifest, s: MotionScene, repoDir: string, htmlA
           'If a fix is needed, prefer a targeted scaffold retake (adjust slots / switch scaffold) over rebuilding the scene as bespoke HTML.',
         signal,
       );
+      if (v.ok || v.costUsd) addCost(v.costUsd ?? config.arkVisionCost);
       if (v.ok && v.text && !/^\s*ok\b/i.test(v.text)) {
         defects.push(...v.text.split('\n').map((l) => l.trim()).filter((l) => l && !/^ok\b/i.test(l)).slice(0, 3));
       }
@@ -319,22 +332,27 @@ async function renderScene(
   } finally {
     fs.rmSync(framesDir, { recursive: true, force: true }); // frames are big — never leave them behind
   }
-  await qcScene(m, s, repoDir, htmlAbs, signal);
+  await qcScene(m, s, repoDir, htmlAbs, signal, addCost);
   s.status = 'ok';
 }
 
 /**
- * Cross-scene VARIETY + CUT QC (operator 2026-07-04/05): tile two stills per scene (18% and
- * 82% — near the cuts) into a contact sheet and let vision judge whether consecutive scenes
- * read as real cuts AND whether the cuts land on composed frames. Best-effort; the verdict
- * is reported as a defect note, never fatal.
+ * Cross-scene VARIETY + CUT QC (operator 2026-07-04/05): two stills per scene (18% and 82% —
+ * near the cuts), sent in order as separate images in ONE vision message with an explicit
+ * image→scene legend, so vision judges whether consecutive scenes read as real cuts AND whether
+ * the cuts land on composed frames. Best-effort; the verdict is a defect note, never fatal.
  */
-async function varietyCheck(m: MotionManifest, repoDir: string, signal: AbortSignal): Promise<string | null> {
-  if (!config.minimaxApiKey) return null;
+async function varietyCheck(
+  m: MotionManifest,
+  repoDir: string,
+  signal: AbortSignal,
+  addCost: (u: number) => void,
+): Promise<string | null> {
+  if (!modelarkReady()) return null;
   const clips = m.scenes.filter((s) => s.status === 'ok' && s.clip).slice(0, 8);
   if (clips.length < 3) return null;
   const dir = path.join(repoDir, dirName(m.id));
-  const stills: string[] = [];
+  const stills: { file: string; label: string }[] = [];
   try {
     for (const s of clips) {
       for (const frac of [0.18, 0.82]) {
@@ -345,34 +363,26 @@ async function varietyCheck(m: MotionManifest, repoDir: string, signal: AbortSig
           repoDir,
           signal,
         );
-        if (r && fs.existsSync(out)) stills.push(out);
+        if (r && fs.existsSync(out)) stills.push({ file: out, label: `scene ${s.id} ${frac < 0.5 ? 'just after its cut in' : 'just before its cut out'}` });
       }
     }
     if (stills.length < 6) return null;
-    const sheet = path.join(dir, '.var-sheet.jpg');
-    const inputs = stills.map((f) => `-i ${JSON.stringify(f)}`).join(' ');
-    const refs = stills.map((_, i) => `[${i}:v]`).join('');
-    const ok = await execBashQuiet(
-      `ffmpeg -v error ${inputs} -filter_complex "${refs}hstack=inputs=${stills.length}" -y ${JSON.stringify(sheet)}`,
-      repoDir,
-      signal,
-    );
-    if (!ok || !fs.existsSync(sheet)) return null;
+    const legend = stills.map((st, i) => `image ${i + 1} = ${st.label}`).join('; ');
     const v = await analyzeImage(
-      fileToDataUrl(sheet),
-      `These are the scenes of one motion-graphics video (style pack: ${m.style ?? 'clean'}), in order — TWO stills per scene (shortly after its cut in, and shortly before its cut out). ` +
+      stills.map((st) => fileToDataUrl(st.file)),
+      `These are the scenes of one motion-graphics video (style pack: ${m.style ?? 'clean'}), in order — TWO stills per scene (${legend}). ` +
         `Judge (a) SCENE-TO-SCENE CONTRAST: do consecutive scenes vary in ground (light/dark/accent) AND composition (centered vs split vs giant-number vs grid), reading as real cuts? ` +
         `(b) CUT QUALITY: does each scene already read composed shortly after its cut in (no near-empty frames), and still composed before its cut out? ` +
         `Answer "OK" if both hold, otherwise name the scene numbers and what to fix (one line each, at most 3 lines).`,
       signal,
     );
-    fs.rmSync(sheet, { force: true });
+    if (v.ok || v.costUsd) addCost(v.costUsd ?? config.arkVisionCost);
     if (v.ok && v.text && !/^\s*ok\b/i.test(v.text)) return v.text.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 3).join(' / ');
     return null;
   } catch {
     return null;
   } finally {
-    for (const f of stills) fs.rmSync(f, { force: true });
+    for (const st of stills) fs.rmSync(st.file, { force: true });
   }
 }
 
@@ -823,7 +833,7 @@ export const renderMotionVideoTool: ToolDef = {
       // Cross-scene contrast + cut verdict — only on a fresh full render (retakes keep their notes).
       let variety = '';
       if (retake == null) {
-        const v = await varietyCheck(m!, ctx.repoDir, ctx.signal);
+        const v = await varietyCheck(m!, ctx.repoDir, ctx.signal, ctx.addCost);
         if (v)
           variety =
             `\n\nSCENE-CONTRAST REVIEW: ${v}\nVary the named scenes' GROUND (.mg-ground-dark / .mg-ground-accent vs light) ` +

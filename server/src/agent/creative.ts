@@ -1,29 +1,31 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { config, repoRoot } from '../config';
-import { analyzeImage } from '../engines/minimax';
+import { analyzeImage, fileToDataUrl, generateImage, seedreamSize } from '../engines/modelark';
 
 /**
- * Marketing "creative" generator — the workaround for MiniMax not placing text well.
- * Pipeline: generate a TEXT-FREE background with reserved negative space → use M3 vision
- * to find the calmest zone + the colour that reads there → composite PIXEL-CRISP brand
- * typography on top with HTML/CSS (+ a contrast scrim) → rasterise to PNG/JPEG with
- * headless Chromium → vision QC + one corrective pass. Output is always an image so it's
- * drop-in usable. Reuses generate_image + analyze_image (M3) and the report fonts.
+ * Marketing "creative" generator — the workaround for image models not placing text well.
+ * Pipeline: generate a TEXT-FREE background (Seedream) with reserved negative space → use
+ * vision (Seed 2.1 Turbo) to find the calmest zone + the colour that reads there → composite
+ * PIXEL-CRISP brand typography on top with HTML/CSS (+ a contrast scrim) → rasterise to
+ * PNG/JPEG with headless Chromium → vision QC + one corrective pass. Output is always an
+ * image so it's drop-in usable. Reuses the shared image + vision engine and the report fonts.
  */
 
 const FONT_DIR = path.join(repoRoot, 'server', 'assets', 'report-fonts');
 
-// Target canvas per aspect + the nearest MiniMax-supported generation ratio (we cover-crop).
-// image-01 supports 1:1/3:4/4:3/2:3/3:2/9:16/16:9/21:9 — pick the CLOSEST so the crop is
-// minimal and the vision-chosen text zone stays valid (4:5≈0.80 → 3:4≈0.75 crops ~90px,
-// vs 9:16≈0.56 which cropped ~570px and moved the imagery out from under the zone).
-export const CREATIVE_SIZES: Record<string, { w: number; h: number; gen: string }> = {
-  '1:1': { w: 1080, h: 1080, gen: '1:1' },
-  '4:5': { w: 1080, h: 1350, gen: '3:4' },
-  '9:16': { w: 1080, h: 1920, gen: '9:16' },
-  '16:9': { w: 1280, h: 720, gen: '16:9' },
-  '1.91:1': { w: 1200, h: 628, gen: '16:9' },
+// Target canvas per aspect + the Seedream generation aspect and size. Seedream renders every
+// channel ratio NATIVELY (seedreamSize — ≥0.92 MP, the $0.045 tier), so the background is
+// generated at the EXACT canvas aspect: object-fit:cover only scales, never crops, and the
+// vision-chosen text zone always stays under the imagery it was chosen on.
+const creativeSize = (w: number, h: number, gen: string) => ({ w, h, gen, size: seedreamSize(gen) });
+export const CREATIVE_SIZES: Record<string, { w: number; h: number; gen: string; size: string }> = {
+  '1:1': creativeSize(1080, 1080, '1:1'),
+  '4:5': creativeSize(1080, 1350, '4:5'),
+  '9:16': creativeSize(1080, 1920, '9:16'),
+  '16:9': creativeSize(1280, 720, '16:9'),
+  '1.91:1': creativeSize(1200, 628, '1.91:1'),
 };
 
 export type Zone = 'top' | 'bottom' | 'left' | 'right';
@@ -163,27 +165,37 @@ export function scrubImageryPrompt(prompt: string, copy: CreativeCopy): string {
   return p || prompt.trim(); // never return empty — fall back to the original
 }
 
-async function genBackground(prompt: string, genRatio: string, signal: AbortSignal, hard = false): Promise<Buffer> {
+/**
+ * A TEXT-FREE background from Seedream via the shared engine → its bytes + spend. The engine
+ * saves into `<dir>/images/`, so it runs against a throwaway temp dir: only the final
+ * composited creative lands in the workspace. Throws on failure (composeCreative catches it).
+ */
+async function genBackground(prompt: string, genAspect: string, signal: AbortSignal, hard = false): Promise<{ buf: Buffer; cost: number }> {
   // On a re-gen after text leaked into the image, lead with an emphatic no-text directive.
   const lead = hard
     ? 'CRITICAL: a purely VISUAL image with ABSOLUTELY ZERO text, letters, words or numbers anywhere. '
     : '';
-  const res = await fetch(`${config.minimaxBaseUrl.replace(/\/$/, '')}/image_generation`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${config.minimaxApiKey}`, 'Content-Type': 'application/json' },
-    signal,
-    body: JSON.stringify({ model: config.minimaxImageModel, prompt: `${lead}${prompt}. Leave generous clean empty negative space for a text overlay. Editorial, premium, high-end advertising. ${NEG}`, aspect_ratio: genRatio, n: 1, response_format: 'url' }),
-  });
-  const data: any = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`image_generation HTTP ${res.status}: ${JSON.stringify(data).slice(0, 200)}`);
-  const url: string | undefined = data?.data?.image_urls?.[0] ?? data?.data?.images?.[0];
-  if (!url) throw new Error(`no image returned: ${JSON.stringify(data).slice(0, 200)}`);
-  const img = await fetch(url, { signal });
-  if (!img.ok) throw new Error(`could not download the generated image (HTTP ${img.status})`);
-  return Buffer.from(await img.arrayBuffer());
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arks-creative-bg-'));
+  try {
+    const r = await generateImage(
+      `${lead}${prompt}. Leave generous clean empty negative space for a text overlay. Editorial, premium, high-end advertising. ${NEG}`,
+      { aspectRatio: genAspect, n: 1 },
+      tmp,
+      signal,
+    );
+    if (!r.ok || !r.files[0]) throw new Error(`background image generation failed: ${r.error || 'no image returned'}`);
+    return { buf: fs.readFileSync(path.join(tmp, r.files[0].path)), cost: r.costUsd ?? config.arkImageCost };
+  } finally {
+    try {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    } catch {}
+  }
 }
 
-async function visionPlan(buf: Buffer, signal: AbortSignal): Promise<{ zone: Zone; textColor: 'light' | 'dark'; hasText: boolean; clutter: number }> {
+async function visionPlan(
+  buf: Buffer,
+  signal: AbortSignal,
+): Promise<{ zone: Zone; textColor: 'light' | 'dark'; hasText: boolean; clutter: number; cost: number }> {
   const dataUrl = `data:${sniffMime(buf)};base64,${buf.toString('base64')}`;
   const r = await analyzeImage(
     dataUrl,
@@ -192,14 +204,15 @@ async function visionPlan(buf: Buffer, signal: AbortSignal): Promise<{ zone: Zon
       'zone = the calmest, emptiest region with room for the copy. textColor = what reads cleanly THERE. hasText = are there ANY rendered words/letters in the image. clutter = how busy the chosen zone is (0 clean … 10 busy).',
     signal,
   );
-  const fallback = { zone: 'bottom' as Zone, textColor: 'light' as const, hasText: false, clutter: 3 };
+  const cost = r.costUsd ?? config.arkVisionCost;
+  const fallback = { zone: 'bottom' as Zone, textColor: 'light' as const, hasText: false, clutter: 3, cost };
   if (!r.ok || !r.text) return fallback;
   const m = r.text.match(/\{[\s\S]*\}/);
   if (!m) return fallback;
   try {
     const j = JSON.parse(m[0]);
     const zone: Zone = ['top', 'bottom', 'left', 'right'].includes(j.zone) ? j.zone : 'bottom';
-    return { zone, textColor: j.textColor === 'dark' ? 'dark' : 'light', hasText: !!j.hasText, clutter: Number(j.clutter) || 0 };
+    return { zone, textColor: j.textColor === 'dark' ? 'dark' : 'light', hasText: !!j.hasText, clutter: Number(j.clutter) || 0, cost };
   } catch {
     return fallback;
   }
@@ -277,16 +290,18 @@ export async function composeCreative(
     // text into the background (the #1 failure mode — copy crammed into `prompt`).
     const imagery = scrubImageryPrompt(opts.prompt, opts.copy);
     if (imagery !== opts.prompt.trim()) log.push('scrubbed copy out of the imagery prompt');
-    let buf = await genBackground(imagery, size.gen, signal);
-    cost += config.minimaxImageCost;
+    let bg = await genBackground(imagery, size.gen, signal);
+    let buf = bg.buf;
+    cost += bg.cost;
     let plan = await visionPlan(buf, signal);
-    cost += config.minimaxVisionCost;
+    cost += plan.cost;
     if (plan.hasText || plan.clutter >= 7) {
       log.push(`regenerated background (${plan.hasText ? 'text in image' : `cluttered ${plan.clutter}/10`})`);
-      buf = await genBackground(imagery, size.gen, signal, plan.hasText); // hard no-text on a text leak
-      cost += config.minimaxImageCost;
+      bg = await genBackground(imagery, size.gen, signal, plan.hasText); // hard no-text on a text leak
+      buf = bg.buf;
+      cost += bg.cost;
       plan = await visionPlan(buf, signal);
-      cost += config.minimaxVisionCost;
+      cost += plan.cost;
     }
     let zone: Zone = opts.zone === 'auto' ? plan.zone : opts.zone;
     // a top-left brand mark is present → keep the text out of the top so they don't collide
@@ -306,9 +321,8 @@ export async function composeCreative(
     // 3) vision QC — broader than legibility (the known failure modes are wrong-subject imagery
     //    and text baked into the background, which the old legibility-only question let ship).
     //    The verdict is a machine token so EVERY revise class is actionable; ONE corrective pass max.
-    const finalBuf = fs.readFileSync(absOut);
     const qc = await analyzeImage(
-      `data:image/${ext === 'jpg' ? 'jpeg' : 'png'};base64,${finalBuf.toString('base64')}`,
+      fileToDataUrl(absOut),
       `The imagery brief was: "${imagery.slice(0, 240)}". Review this finished ad creative like a demanding creative director. Check in order: ` +
         '(1) SUBJECT — the imagery matches the brief: right people and their described appearance, the NAMED place/landmark (not a lookalike), the right product; nothing garbled, warped or anatomically wrong. ' +
         '(2) TEXT_IN_IMAGE — no words/letters are baked into the background imagery itself (the crisp overlaid headline/CTA is intentional and fine). ' +
@@ -316,8 +330,8 @@ export async function composeCreative(
         'Reply with one short sentence of judgement, then the verdict ALONE on the last line: SHIP, or REVISE:SUBJECT, or REVISE:TEXT_IN_IMAGE, or REVISE:LEGIBILITY.',
       signal,
     );
-    cost += config.minimaxVisionCost;
-    const verdict = (qc.ok && (qc.text ?? '').match(/REVISE:(SUBJECT|TEXT_IN_IMAGE|LEGIBILITY)/i)?.[1] || '').toUpperCase();
+    cost += qc.costUsd ?? config.arkVisionCost;
+    const verdict =(qc.ok && (qc.text ?? '').match(/REVISE:(SUBJECT|TEXT_IN_IMAGE|LEGIBILITY)/i)?.[1] || '').toUpperCase();
     if (verdict === 'LEGIBILITY' && opts.textColor === 'auto') {
       textColor = textColor === 'light' ? 'dark' : 'light';
       log.push(`flipped text to ${textColor} for legibility`);
@@ -325,10 +339,11 @@ export async function composeCreative(
     } else if (verdict === 'SUBJECT' || verdict === 'TEXT_IN_IMAGE') {
       // Regenerate the background once (hard no-text lead on a text leak), re-plan, re-composite.
       log.push(`QC flagged ${verdict.toLowerCase()} — regenerated the background once`);
-      buf = await genBackground(imagery, size.gen, signal, verdict === 'TEXT_IN_IMAGE');
-      cost += config.minimaxImageCost;
+      bg = await genBackground(imagery, size.gen, signal, verdict === 'TEXT_IN_IMAGE');
+      buf = bg.buf;
+      cost += bg.cost;
       const replan = await visionPlan(buf, signal);
-      cost += config.minimaxVisionCost;
+      cost += replan.cost;
       if (opts.zone === 'auto') {
         zone = replan.zone;
         if (hasBrand && zone === 'top') zone = 'bottom'; // same brand-corner avoidance as the first pass
@@ -357,7 +372,7 @@ export async function composeCreative(
       log.push(`${variants.length} hook variant(s) composited on the same background`);
     }
 
-    const notes = `zone=${zone}, text=${textColor}, ${opts.aspect} ${size.w}×${size.h}${log.length ? ' · ' + log.join('; ') : ''}`;
+    const notes = `zone=${zone}, text=${textColor}, ${opts.aspect} ${size.w}×${size.h} (background ${size.size})${log.length ? ' · ' + log.join('; ') : ''}`;
     return { ok: true, files, notes, costUsd: cost };
   } catch (e: any) {
     return { ok: false, files: [], error: String(e?.message ?? e), notes: log.join('; '), costUsd: cost };

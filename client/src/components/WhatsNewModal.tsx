@@ -4,7 +4,7 @@ import { useState } from 'react';
 // version (remembered in localStorage), so we keep people in the loop without nagging.
 // ITEMS below describes ONLY the latest build: REPLACE the entries each release, don't
 // accumulate a running changelog (that's what made the modal overflow the screen).
-export const WHATS_NEW_VERSION = '2026-08-18.75';
+export const WHATS_NEW_VERSION = '2026-10-20.76';
 const KEY = `arksai_whatsnew_${WHATS_NEW_VERSION}`;
 
 /** True if this user hasn't dismissed the current update yet. */
@@ -19,16 +19,16 @@ export function shouldShowWhatsNew(): boolean {
 // Only the latest build's changes — keep this short (1–3 items). Replace each release.
 const ITEMS: { title: string; body: string }[] = [
   {
-    title: 'A brand-new look — modern Swedish design',
-    body: 'The whole studio has been redrawn in a Swedish-editorial style. Light mode is “Arkiv” — warm printing-paper, ink type, hairline rules and one confident signal-red accent, laid out like a design annual. It’s calmer, more considered, and unmistakably ours — not another look-alike AI app.',
+    title: 'A new, stronger brain behind every build',
+    body: 'ArksAI now runs on a new set of AI models, chosen in a blind head-to-head test on the real work our customers do — apps, reports, financial models, legal letters and chat. The winner builds noticeably better apps and formula-driven spreadsheets. Big builds may take a few minutes longer, but you will always see it working, and it switches engines by itself if one ever goes quiet.',
   },
   {
-    title: 'A dark mode worth using — “Skymning”',
-    body: 'Flip to dark and you get Skymning (“dusk”): a matte blue-slate studio with warm paper-white text and a muted brass accent — glow-free and easy on the eyes for long sessions. Toggle it any time from the moon/sun in the top-left.',
+    title: 'Sharper eyes, images and video',
+    body: 'Design checks now use a more exacting visual reviewer that catches contrast, clipping and overlap problems before you ever see them, and flags pages that look identical. New image and video engines make crisper visuals, and video clips come with their own synchronized sound.',
   },
   {
-    title: 'New type, sharper details',
-    body: 'Headlines are now set in Familjen Grotesk (a Swedish typeface), with Space Mono carrying the small editorial labels. Cleaner icons, flatter surfaces and tighter spacing throughout — same ArksAI, a lot more beautiful.',
+    title: 'Voice is taking a short break',
+    body: 'Read-aloud, narrated explainer videos and voice-note replies from robots are paused while we bring on a new voice provider. Sending voice notes still works — they are transcribed as before.',
   },
 ];
 

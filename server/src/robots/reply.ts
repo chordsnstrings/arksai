@@ -1,5 +1,5 @@
-import OpenAI from 'openai';
-import { config } from '../config';
+import { arkChat, modelarkReady, scrubKey } from '../engines/modelark';
+import { resolveProvider } from '../agent/router';
 import type { Robot, RobotChannelKind, RobotDraftChannel, RobotRole } from '../../../shared/types';
 import type { InboxMessage } from '../email/client';
 import { departmentPersona } from '../agent/expertise';
@@ -15,14 +15,31 @@ import { departmentPersona } from '../agent/expertise';
  *    (instead of guessing) anything outside scope or matching the escalation rules.
  *
  * The model returns strict JSON {escalate, reason, reply} so escalation is a
- * structured signal, not a guess. Supports a bake-off: model='compare' runs M3 and
- * DeepSeek-v4 and keeps both drafts.
+ * structured signal, not a guess. Supports a bake-off: model='compare' runs the Max
+ * lane AND a second, DIFFERENT model (GLM-5.2 by default) and keeps both drafts.
+ *
+ * Every lane runs on ModelArk (the single provider). The RobotModel ids stay as stored in
+ * the DB, but each maps to the concrete model that actually runs:
+ *  - 'arksai-max'  → the branded Max lane's model (config.modelarkModels['arksai-max'];
+ *                    DeepSeek-V4-Pro today).
+ *  - 'deepseek-v4' → DeepSeek-V4-Pro.
+ *  - 'compare'     → the Max lane (primary) + the ALT lane: GLM-5.2 ('glm-5-2-260617',
+ *                    env override ARK_REPLY_ALT_MODEL). When both would resolve to the SAME
+ *                    concrete model it runs single-lane — a same-model "comparison" would
+ *                    only double the cost.
+ * Thinking is OFF on every lane — a reply is a short, decisive JSON object and reasoning
+ * would only eat the token budget.
  */
 
-const anthropicBase = () => config.minimaxBaseUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '') + '/anthropic';
-
-export const MINIMAX_LABEL = 'arksai-max (M3)';
+export const MAX_LABEL = 'arksai-max';
 export const DEEPSEEK_LABEL = 'deepseek-v4';
+/** The concrete ModelArk model behind the 'deepseek-v4' robot lane. */
+export const DEEPSEEK_REPLY_MODEL = 'deepseek-v4-pro-ga-260813';
+/** The compare bake-off's second lane by default: GLM-5.2 — a different model family from the
+ *  Max lane, so 'compare' is an actual comparison. */
+export const COMPARE_ALT_DEFAULT_MODEL = 'glm-5-2-260617';
+/** The label stored on the default alt draft (drafts.alt_model) — names the model that ran. */
+export const COMPARE_ALT_DEFAULT_LABEL = 'glm-5.2';
 
 const ROLE_PERSONA: Record<RobotRole, string> = {
   customer_service:
@@ -274,62 +291,50 @@ export function parseReplyJson(raw: string): DraftResult | null {
   }
 }
 
-async function completeMinimax(system: string, user: string, signal: AbortSignal): Promise<string> {
-  const res = await fetch(`${anthropicBase()}/v1/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${config.minimaxApiKey}`,
-      'Content-Type': 'application/json',
-      'anthropic-version': '2023-06-01',
-    },
-    signal,
-    body: JSON.stringify({
-      model: config.minimaxModel,
-      max_tokens: 1200,
-      system,
-      messages: [{ role: 'user', content: [{ type: 'text', text: user }] }],
-    }),
-  });
-  const data: any = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`MiniMax HTTP ${res.status}: ${JSON.stringify(data).slice(0, 200)}`);
-  return Array.isArray(data?.content)
-    ? data.content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('').trim()
-    : '';
+type Lane = 'max' | 'deepseek' | 'alt';
+
+/** The concrete ModelArk model the compare bake-off's alt lane runs (read per call so an env
+ *  change applies without a restart; ARK_REPLY_ALT_MODEL overrides the GLM-5.2 default). */
+export function compareAltModel(): string {
+  return (process.env.ARK_REPLY_ALT_MODEL || '').trim() || COMPARE_ALT_DEFAULT_MODEL;
 }
 
-async function completeDeepseek(system: string, user: string, signal: AbortSignal): Promise<string> {
-  const client = new OpenAI({ apiKey: config.deepseekApiKey || 'missing-key', baseURL: config.deepseekBaseUrl });
-  const r = await client.chat.completions.create(
-    {
-      model: config.deepseekReplyModel,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      max_tokens: 1200,
-    },
-    { signal },
-  );
-  return r.choices?.[0]?.message?.content?.trim() || '';
+/** Reply-lane mapping: each lane → { the label stored on the draft, the concrete model it runs }. */
+export function replyLane(lane: Lane): { label: string; model: string } {
+  if (lane === 'max') return { label: MAX_LABEL, model: resolveProvider(MAX_LABEL).apiModel };
+  if (lane === 'deepseek') return { label: DEEPSEEK_LABEL, model: DEEPSEEK_REPLY_MODEL };
+  const model = compareAltModel();
+  return { label: model === COMPARE_ALT_DEFAULT_MODEL ? COMPARE_ALT_DEFAULT_LABEL : model, model };
 }
 
-async function runModel(which: 'minimax' | 'deepseek', system: string, user: string, signal: AbortSignal): Promise<DraftResult> {
-  const label = which === 'minimax' ? MINIMAX_LABEL : DEEPSEEK_LABEL;
-  const raw = which === 'minimax' ? await completeMinimax(system, user, signal) : await completeDeepseek(system, user, signal);
-  const parsed = parseReplyJson(raw) || { text: raw.trim(), model: '', escalate: false, reason: '' };
-  return { ...parsed, model: label };
+/** One non-streaming completion on the lane's ModelArk model. Throws on failure so the
+ *  caller turns it into an escalated draft (a human handles it — never a silent empty reply). */
+async function complete(model: string, system: string, user: string, signal: AbortSignal): Promise<string> {
+  const r = await arkChat(user, signal, { model, system, maxTokens: 1200, thinking: 'disabled' });
+  if (!r.ok) throw new Error(r.error || 'the model returned no reply');
+  return (r.text || '').trim();
 }
 
-export function minimaxAvailable(): boolean {
-  return !!config.minimaxApiKey;
+async function runModel(lane: Lane, system: string, user: string, signal: AbortSignal): Promise<DraftResult> {
+  const { label, model } = replyLane(lane);
+  try {
+    const raw = await complete(model, system, user, signal);
+    const parsed = parseReplyJson(raw) || { text: raw.trim(), model: '', escalate: false, reason: '' };
+    return { ...parsed, model: label };
+  } catch (e) {
+    return errorDraft(label, e);
+  }
 }
-export function deepseekAvailable(): boolean {
-  return !!config.deepseekApiKey;
+
+/** Both robot lanes run on the one provider — drafting is possible once its key is configured. */
+export function replyModelAvailable(): boolean {
+  return modelarkReady();
 }
 
 /**
  * Produce a draft (or escalation) for one inbound message, honoring the robot's
- * model choice. 'compare' runs both and keeps M3 primary + DeepSeek alt (the bake-off).
+ * model choice. 'compare' runs the Max lane + the alt lane (GLM-5.2) and keeps Max primary +
+ * the alt draft (the bake-off) — or just the Max lane when both resolve to the same model.
  */
 export async function draftReply(
   robot: Robot,
@@ -341,27 +346,28 @@ export async function draftReply(
   const system = buildSystem(robot, rules, extras);
   const user = buildUser(msg, extras);
 
-  const wantMini = robot.model === 'arksai-max' || robot.model === 'compare';
-  const wantDeep = robot.model === 'deepseek-v4' || robot.model === 'compare';
-  // Fall back to whichever engine is actually keyed.
-  const useMini = wantMini && minimaxAvailable();
-  const useDeep = wantDeep && deepseekAvailable();
-
-  if (robot.model === 'compare' && useMini && useDeep) {
-    const [m, d] = await Promise.all([
-      runModel('minimax', system, user, signal).catch((e) => errorDraft(MINIMAX_LABEL, e)),
-      runModel('deepseek', system, user, signal).catch((e) => errorDraft(DEEPSEEK_LABEL, e)),
-    ]);
-    return { primary: m.escalate || m.text ? m : d, alt: m.escalate || m.text ? d : m };
+  // No provider key — escalate so a human handles it.
+  if (!replyModelAvailable()) {
+    return { primary: { text: '', model: 'none', escalate: true, reason: 'No model is configured to draft a reply.' } };
   }
-  if (useMini) return { primary: await runModel('minimax', system, user, signal).catch((e) => errorDraft(MINIMAX_LABEL, e)) };
-  if (useDeep) return { primary: await runModel('deepseek', system, user, signal).catch((e) => errorDraft(DEEPSEEK_LABEL, e)) };
-  // Neither model is available — escalate so a human handles it.
-  return { primary: { text: '', model: 'none', escalate: true, reason: 'No model is configured to draft a reply.' } };
+
+  // A same-model "comparison" is double cost for no comparison — run the Max lane alone.
+  if (robot.model === 'compare' && replyLane('alt').model !== replyLane('max').model) {
+    const [m, a] = await Promise.all([
+      runModel('max', system, user, signal),
+      runModel('alt', system, user, signal),
+    ]);
+    return { primary: m.escalate || m.text ? m : a, alt: m.escalate || m.text ? a : m };
+  }
+  if (robot.model === 'deepseek-v4') {
+    return { primary: await runModel('deepseek', system, user, signal) };
+  }
+  return { primary: await runModel('max', system, user, signal) };
 }
 
 function errorDraft(label: string, e: any): DraftResult {
-  return { text: '', model: label, escalate: true, reason: `Draft failed: ${e?.message ?? e}` };
+  // The reason is shown to the tenant in Needs-You — scrub it (a transport error can quote the key).
+  return { text: '', model: label, escalate: true, reason: `Draft failed: ${scrubKey(String(e?.message ?? e))}` };
 }
 
 /**
@@ -387,8 +393,8 @@ export async function regenerateDraft(
     snippet: draft.inboundSnippet || '', text: draft.inboundBody || draft.inboundSnippet || '',
   } as InboxMessage;
   const user = buildUser(msg);
-  const wantMini = robot.model !== 'deepseek-v4';
-  if (wantMini && minimaxAvailable()) return runModel('minimax', system, user, signal).catch((e) => errorDraft(MINIMAX_LABEL, e));
-  if (deepseekAvailable()) return runModel('deepseek', system, user, signal).catch((e) => errorDraft(DEEPSEEK_LABEL, e));
-  return { text: '', model: 'none', escalate: false, reason: 'No model configured.' };
+  if (!replyModelAvailable()) return { text: '', model: 'none', escalate: false, reason: 'No model configured.' };
+  // A regenerate is ONE call: deepseek-v4 keeps its lane; compare (and Max) redraft on Max.
+  if (robot.model === 'deepseek-v4') return runModel('deepseek', system, user, signal);
+  return runModel('max', system, user, signal);
 }

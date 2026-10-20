@@ -7,7 +7,7 @@ import * as store from '../sessions/store';
 import { setupWorkspace, repoDir } from '../sessions/workspace';
 import { bus } from '../events/bus';
 import * as manager from '../sessions/manager';
-import { generateTextM3 } from '../engines/minimax';
+import { generateText, modelarkReady } from '../engines/modelark';
 import { config } from '../config';
 import { setCommandHook } from './channels/inbound';
 import { createDraft, markDraftStatus } from './store';
@@ -355,14 +355,15 @@ const CLASSIFY_SYSTEM =
 export async function classifyCommand(text: string, signal: AbortSignal, lastDelivered?: string): Promise<Command> {
   const fallback: Command = { action: 'chat', mode: 'code', brief: '', deliverTo: [] };
   if (!BUILD_HINT_RE.test(text) && !(lastDelivered && REVISE_HINT_RE.test(text))) return fallback;
-  if (!config.minimaxApiKey) return fallback;
+  if (!modelarkReady()) return fallback;
   try {
     const context = lastDelivered
       ? `Recently delivered build (revisable): """${lastDelivered.slice(0, 600)}"""\n\n`
       : 'No recent build exists — "revise" is not available.\n\n';
-    const r = await generateTextM3(`${context}Owner's message:\n"""${text.slice(0, 4000)}"""`, signal, {
+    const r = await generateText(`${context}Owner's message:\n"""${text.slice(0, 4000)}"""`, signal, {
       system: CLASSIFY_SYSTEM,
       maxTokens: 800,
+      thinking: 'disabled',
     });
     if (!r.ok || !r.text) return fallback;
     const cmd = parseCommandJson(r.text) ?? fallback;

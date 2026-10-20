@@ -1,4 +1,4 @@
-import { generateTextM3 } from '../engines/minimax';
+import { generateText, modelarkReady } from '../engines/modelark';
 import { config } from '../config';
 import { paletteMenu } from './palettes';
 import type { TaskProfile } from './taskProfile';
@@ -10,8 +10,9 @@ import type { TaskProfile } from './taskProfile';
  * Auto-Brief (brief.ts) deliberately skips visual work, so an artifact/app build used to get
  * the big STATIC designCore + the user's RAW casual prompt and nothing in between. A casual
  * one-liner ("make me a weather thing") and an expert art-directed spec produce wildly different
- * output from the same model — which is exactly why hand-feeding a precise brief made M3 match
- * Claude. This module automates that brief: an upfront, bounded M3 pass rewrites the casual
+ * output from the same model — which is exactly why hand-feeding a precise brief made the builder
+ * match Claude. This module automates that brief: an upfront, bounded text-model pass
+ * (config.arkTextModel = DeepSeek-V4-Pro, thinking off) rewrites the casual
  * request into a tight, specific BUILD BRIEF (concept · palette · type · layout · signature ·
  * data · details · avoid), which the build turn then follows. It mirrors the planning Claude
  * does internally before it builds.
@@ -60,12 +61,13 @@ export async function compileDesignBrief(
   profile: TaskProfile,
   signal: AbortSignal,
 ): Promise<string | null> {
-  if (!config.designBrief || !config.minimaxApiKey) return null;
+  if (!config.designBrief || !modelarkReady()) return null;
   if (!userText.trim()) return null;
   try {
-    const r = await generateTextM3(compilerPrompt(userText, profile), signal, {
+    const r = await generateText(compilerPrompt(userText, profile), signal, {
       maxTokens: 900,
       system: COMPILER_SYSTEM,
+      thinking: 'disabled',
     });
     if (!r.ok || !r.text) return null;
     const brief = r.text.trim();

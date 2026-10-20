@@ -1324,7 +1324,7 @@ button { font-family: inherit; cursor: pointer; }
   transition: width 0.25s ease;
   position: relative;
 }
-/* "Alive" even when the width is static (e.g. a long silent M3 buffering gap): a gentle
+/* "Alive" even when the width is static (e.g. a long silent model buffering gap): a gentle
    breathing pulse on the fill PLUS a brighter sweeping highlight, so it never reads frozen. */
 .progress-fill.running { animation: progressPulse 1.8s ease-in-out infinite; }
 .progress-fill.running::after {

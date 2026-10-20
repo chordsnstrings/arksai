@@ -162,6 +162,20 @@ export async function extractFirstFrame(clipAbs: string, outJpgAbs: string, sign
   return outJpgAbs;
 }
 
+/** Extract the frame at `sec` seconds (the story continuity review samples each clip's middle). */
+export function frameAtCmd(clip: string, sec: number, outJpg: string): string {
+  return `ffmpeg -v error -ss ${Math.max(0, sec).toFixed(2)} -i ${q(clip)} -frames:v 1 -y ${q(outJpg)}`;
+}
+
+export async function extractFrameAt(clipAbs: string, sec: number, outJpgAbs: string, signal?: AbortSignal): Promise<string> {
+  fs.mkdirSync(path.dirname(outJpgAbs), { recursive: true });
+  await run(frameAtCmd(clipAbs, sec, outJpgAbs), path.dirname(outJpgAbs), signal);
+  if (!fs.existsSync(outJpgAbs) || fs.statSync(outJpgAbs).size < 1_000) {
+    throw new Error('could not extract a frame from the clip');
+  }
+  return outJpgAbs;
+}
+
 /** Extract the final frame of a clip (the anchor for a frame-chained next scene). */
 export function lastFrameCmd(clip: string, outJpg: string): string {
   return `ffmpeg -v error -sseof -0.15 -i ${q(clip)} -frames:v 1 -y ${q(outJpg)}`;

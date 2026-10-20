@@ -1,6 +1,8 @@
 # ArksAI
 
-A self-hosted, Claude Code-style web coding agent powered by the **DeepSeek API**.
+A self-hosted, Claude Code-style web coding agent powered by **BytePlus ModelArk**
+(DeepSeek-V4-Pro brain, Seed vision, Seedream images, Seedance video — lanes, endpoints and
+the evidence behind each choice are in [`MODELARK.md`](MODELARK.md)).
 
 Replicates the Claude Code web workflow: a dark terminal-style chat UI with a
 sidebar of recent sessions, **Plan / Code** modes, live streaming of the agent's
@@ -10,7 +12,7 @@ edit files, run commands, commit, and **push** branches back to GitHub.
 
 ```
 React + Vite SPA  ──REST + SSE──►  Fastify (TypeScript)
-                                     ├─ Agent loop → DeepSeek (OpenAI-compatible, tool calling)
+                                     ├─ Agent loop → ModelArk (OpenAI-compatible, tool calling)
                                      ├─ Tools: bash, read/write/edit, glob, grep, git commit/push
                                      ├─ Per-session git workspaces under /data
                                      └─ SQLite persistence (sessions survive restarts)
@@ -19,7 +21,7 @@ React + Vite SPA  ──REST + SSE──►  Fastify (TypeScript)
 ## Quick start (local)
 
 ```bash
-cp .env.example .env     # fill in DEEPSEEK_API_KEY, APP_PASSWORD, GITHUB_TOKEN
+cp .env.example .env     # fill in ARK_API_KEY, APP_PASSWORD, GITHUB_TOKEN
 npm install
 npm run dev              # client on http://localhost:5173, server on :3000
 ```
@@ -52,9 +54,9 @@ processes are killed when the session is deleted or cleared (max 5 per session).
 
 Use the **+** button in the composer (or drag & drop onto it) to upload files
 into the session workspace — they land in `uploads/` where the agent can read
-text files or extract archives (25 MB/file limit). Note: DeepSeek models are
-text-only, so the agent can work with text/code uploads but cannot see image
-content. Switch models per session via the model badge in the composer.
+text files or extract archives (25 MB/file limit). Uploaded images are read
+with the vision model (`see_image`, Seed 2.1 Turbo). Switch models per session
+via the model badge in the composer.
 
 **Documents:** uploaded Excel/CSV/PDF/Word files are auto-extracted to a text
 sidecar the agent can read directly. The agent can also *create* xlsx/pdf/docx
@@ -66,12 +68,13 @@ authenticated, workspace-jailed download endpoint.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `DEEPSEEK_API_KEY` | yes | DeepSeek API key (env only — never commit it) |
+| `ARK_API_KEY` | yes* | BytePlus ModelArk `ark-…` key — every model lane, vision, images, video, embeddings (env only — never commit it). *Or set it with no SSH under **Admin → Keys** (`POST /api/admin/providers/byteplus`, encrypted at rest; wins over the env key); check what it can call with `POST /api/admin/providers/modelark/verify`. |
 | `APP_PASSWORD` | yes (prod) | Login password for the UI. The app executes shell commands; never run it without this. |
 | `GITHUB_TOKEN` | for GitHub | Fine-grained PAT, `contents: read/write` on the specific repos only |
 | `PORT` | no | HTTP port (default 3000) |
 | `DATA_DIR` | no | SQLite DB + workspaces dir (default `./data`, `/data` in Docker) |
-| `DEEPSEEK_BASE_URL` | no | Default `https://api.deepseek.com` |
+| `BYTEPLUS_BASE_URL` | no | Coding-plan endpoint (chat lanes + embeddings). Default `https://ark.ap-southeast.bytepluses.com/api/coding/v3` |
+| `BYTEPLUS_VIDEO_BASE_URL` | no | General endpoint (vision, Seedream images, Seedance video). Default `https://ark.ap-southeast.bytepluses.com/api/v3` |
 | `MAX_CONCURRENT_RUNS` | no | Default 3 |
 | `WORKSPACE_TTL_DAYS` | no | Boot-time cleanup of stale workspaces (default 14) |
 | `COOKIE_SECURE` | no | Set `true` when serving over HTTPS |
@@ -112,7 +115,7 @@ cookie is only sent over HTTPS.
 ## Deploy — DigitalOcean App Platform
 
 1. Create an App from this GitHub repo; it auto-detects the `Dockerfile`.
-2. Set **encrypted** env vars: `DEEPSEEK_API_KEY`, `APP_PASSWORD`, `GITHUB_TOKEN`, and `COOKIE_SECURE=true`.
+2. Set **encrypted** env vars: `ARK_API_KEY`, `APP_PASSWORD`, `GITHUB_TOKEN`, and `COOKIE_SECURE=true`.
 3. HTTP port `3000`, health check path `/healthz`, **1 instance** (the run
    registry is single-process).
 
@@ -129,7 +132,7 @@ agent; the workspace path jail is lifted; and file tools can touch anything on
 the host. `doctl` is preinstalled, so the agent can manage real DigitalOcean
 infrastructure (`doctl auth init -t $DIGITALOCEAN_TOKEN`, then create/destroy
 droplets, deploy App Platform apps, edit DNS, etc.) — the same category of work
-the assistant does, subject to model quality and the no-vision limit.
+the assistant does, subject to model quality.
 
 This is intentionally dangerous: an autonomous agent with a real cloud token can
 delete real infrastructure. Use a scoped token and a throwaway project while
@@ -142,7 +145,7 @@ Single-tenant, trusted-operator software — it executes shell commands by desig
 
 - Password-gated UI (signed httpOnly cookie, rate-limited login).
 - The agent's shell gets an **allowlisted environment**: it cannot read
-  `DEEPSEEK_API_KEY` / `GITHUB_TOKEN` / `APP_PASSWORD`; known secret values are
+  `ARK_API_KEY` / `GITHUB_TOKEN` / `APP_PASSWORD`; known secret values are
   scrubbed from all tool output.
 - The GitHub token is injected per clone/push invocation and never written to
   the on-disk git remote.

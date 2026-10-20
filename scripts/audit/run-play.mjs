@@ -11,7 +11,7 @@
  * xlsx/docx/csv → /docview HTML screenshot; pptx → its .preview.html; app → screenshot the
  * published /apps/<slug>/ (desktop + mobile). Output lands in scripts/audit/out/<task>/.
  * Egress note: code/report/doc/sheet/compliance plays run on DeepSeek and work here;
- * image/creative + the vision design-gate + M3 (legal/tax) need MiniMax egress.
+ * image/creative + the vision design-gate + the model lanes need ModelArk egress.
  */
 import fs from 'node:fs';
 import path from 'node:path';

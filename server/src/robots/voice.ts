@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { byteplusConfigured, byteplusKey } from '../agent/byteplusRuntime';
+import { scrubSecrets } from '../lib/exec';
 
 /**
  * Voice-note TRANSCRIPTION for the robot channels — the missing half of "voice commands".
@@ -18,7 +19,8 @@ import { byteplusConfigured, byteplusKey } from '../agent/byteplusRuntime';
  * language preserved (Arabic stays Arabic).
  */
 
-const ASR_MODEL = process.env.ROBOT_ASR_MODEL || 'seed-2-0-mini-260428';
+/** The voice-note ASR model (general endpoint) — exported so the admin model probe covers it. */
+export const ASR_MODEL = process.env.ROBOT_ASR_MODEL || 'seed-2-0-mini-260428';
 const ASR_TIMEOUT_MS = Number(process.env.ROBOT_ASR_TIMEOUT_MS || '60000') || 60_000;
 export const MAX_VOICE_BYTES = 5 * 1024 * 1024;
 const NO_SPEECH = '[no speech]';
@@ -114,7 +116,7 @@ export async function transcribeAudio(absPath: string, signal: AbortSignal): Pro
       signal.removeEventListener('abort', onAbort);
     }
   } catch (e: any) {
-    return { ok: false, error: String(e?.message ?? e).slice(0, 200) };
+    return { ok: false, error: scrubSecrets(String(e?.message ?? e)).slice(0, 200) };
   } finally {
     if (mp3) fs.rmSync(mp3, { force: true });
   }

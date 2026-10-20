@@ -16,7 +16,7 @@ import {
 import { webFetchTool, webSearchTool } from './web';
 import { verifyTool } from './verify';
 import { generateMusicTool, extendMusicTool, generateLyricsTool, coverAudioTool } from './music';
-import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './minimax';
+import { generateImageTool, generateVideoTool, seeImageTool, textToSpeechTool } from './media';
 import { generateVideoStoryTool } from './videoStoryTool';
 import { searchAssetsTool, fetchAssetTool, searchPhotosTool, searchMotionDesignTool } from './assets';
 import { renderMotionVideoTool } from './motionVideo';

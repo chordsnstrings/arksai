@@ -2,10 +2,11 @@ import { config } from '../config';
 import { byteplusConfigured } from '../agent/byteplusRuntime';
 
 /**
- * The orchestration spine. Each engine declares what it's good at; the
- * MiniMax-powered orchestrator routes a task to the right one via that engine's
- * tool(s). Adding a new engine (image, video, voice) = one entry here + a
- * tool that calls it. Tools self-gate on availability.
+ * The orchestration spine. Each engine declares what it's good at; the orchestrator routes a
+ * task to the right one via that engine's tool(s). ModelArk is the single model provider (every
+ * LLM lane, vision, Seedream images, Skylark embeddings); Seedance video is listed separately
+ * because it has its own draft → final ladder. Adding a new engine (music, voice) = one entry
+ * here + a tool that calls it. Tools self-gate on availability.
  */
 export interface EngineInfo {
   id: string;
@@ -18,11 +19,11 @@ export interface EngineInfo {
 export function listEngines(): EngineInfo[] {
   return [
     {
-      id: 'minimax',
-      capability: 'code, reasoning, writing, vision, image, speech & video, long-context LLM',
-      label: 'ArksAI',
-      provider: 'minimax',
-      available: !!config.minimaxApiKey,
+      id: 'modelark',
+      capability: 'code, reasoning, writing, vision, image generation & embeddings, long-context LLM',
+      label: 'ArksAI Models — reasoning, code, vision, images & video',
+      provider: 'modelark',
+      available: byteplusConfigured(),
     },
     {
       id: 'suno',
@@ -33,7 +34,7 @@ export function listEngines(): EngineInfo[] {
     },
     {
       id: 'arksai-video',
-      capability: 'video generation with native synchronized audio — draft → final ladder (ArksAI Video 1.5 + 2.0)',
+      capability: 'video generation with native synchronized audio — draft → final ladder (ArksAI Video 1.5 / 2.0 / 2.5)',
       label: 'ArksAI Video',
       provider: 'byteplus',
       available: byteplusConfigured(),

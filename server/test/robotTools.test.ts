@@ -9,8 +9,9 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arksai-robotools-'
 process.env.ENCRYPTION_KEY = 'test-key-robotools';
 process.env.APP_PASSWORD = 'test-operator';
 delete process.env.DATABASE_URL;
-delete process.env.MINIMAX_API_KEY;
-delete process.env.DEEPSEEK_API_KEY;
+// ModelArk is the only model provider: pin its key EMPTY (an explicit '' also stops the repo-root
+// .env loader from filling it in) so the no-model paths are deterministic.
+process.env.ARK_API_KEY = '';
 
 let db: typeof import('../src/db');
 let store: typeof import('../src/robots/store');
@@ -27,6 +28,7 @@ before(async () => {
   store = await import('../src/robots/store');
   tools = await import('../src/robots/tools');
   tasks = await import('../src/robots/tasks');
+  (await import('../src/agent/byteplusRuntime')).__setByteplusKeyForTest('');
 });
 
 // ---------------- classifier: the FULL production surface reaches the build lane ----------------

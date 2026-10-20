@@ -6,20 +6,23 @@ import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import * as store from '../sessions/store';
 import { transcribeAudio, voiceAvailable } from '../robots/voice';
-import { synthesizeSpeechBuffer, ttsAvailable } from '../engines/minimax';
+import { synthesizeSpeechBuffer, ttsAvailable, TTS_UNAVAILABLE } from '../engines/speech';
 import { speakableText } from '../robots/outbound';
+import { scrubKey } from '../engines/modelark';
 
 /**
  * Voice for the WEB CHAT (conversation mode): the mic button records in the browser,
  * `/transcribe` turns it into text (same ASR path the robots use — ffmpeg handles the
  * browser's webm/opus), and `/speak` synthesizes a reply so the client can play it.
  * Both are session-gated (normal auth) and honestly 503 when their engine isn't configured.
+ * Spoken replies need a speech provider (engines/speech.ts) — none is wired today, so
+ * capabilities report tts:false and the client hides read-aloud / Conversation.
  */
 
 const SPEAK_CAP = 1200;
 
 export function registerVoiceChatRoutes(app: FastifyInstance) {
-  // What the client can offer: mic (ASR) and/or spoken replies (TTS).
+  // What the client can offer: mic (ASR) and/or spoken replies (TTS — false until speech.ts has a provider).
   app.get('/api/voice/capabilities', async () => ({ asr: voiceAvailable(), tts: ttsAvailable() }));
 
   app.post('/api/sessions/:id/transcribe', async (req, reply) => {
@@ -37,7 +40,8 @@ export function registerVoiceChatRoutes(app: FastifyInstance) {
       const timer = setTimeout(() => ac.abort(), 70_000);
       try {
         const r = await transcribeAudio(tmp, ac.signal);
-        if (!r.ok) return reply.code(502).send({ error: r.error || 'Could not transcribe that.' });
+        // Scrubbed: a provider/transport error can quote the model key (see engines/modelark scrubKey).
+        if (!r.ok) return reply.code(502).send({ error: scrubKey(r.error || 'Could not transcribe that.') });
         if (r.noSpeech || !r.text) return { text: '', noSpeech: true };
         return { text: r.text };
       } finally {
@@ -51,7 +55,7 @@ export function registerVoiceChatRoutes(app: FastifyInstance) {
   app.post('/api/sessions/:id/speak', async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!(await store.getSession(id))) return reply.code(404).send({ error: 'Not found' });
-    if (!ttsAvailable()) return reply.code(503).send({ error: 'Spoken replies are not configured on this server.' });
+    if (!ttsAvailable()) return reply.code(503).send({ error: TTS_UNAVAILABLE });
     const raw = String((req.body as any)?.text ?? '').trim();
     if (!raw) return reply.code(400).send({ error: 'Nothing to say.' });
     const text = speakableText(raw, SPEAK_CAP);
@@ -60,7 +64,7 @@ export function registerVoiceChatRoutes(app: FastifyInstance) {
     const timer = setTimeout(() => ac.abort(), 60_000);
     try {
       const r = await synthesizeSpeechBuffer(text, {}, ac.signal);
-      if (!r.ok || !r.buffer) return reply.code(502).send({ error: r.error || 'Speech synthesis failed.' });
+      if (!r.ok || !r.buffer) return reply.code(502).send({ error: scrubKey(r.error || 'Speech synthesis failed.') });
       reply.header('Content-Type', 'audio/mpeg');
       reply.header('Cache-Control', 'no-store');
       return reply.send(r.buffer);

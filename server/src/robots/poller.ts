@@ -20,8 +20,8 @@ import { runDueJobs } from './jobs';
 /**
  * The inbound poller: for each ACTIVE robot, read recent unread mail and produce a
  * draft reply per new message. Mirrors the schedule scheduler (a durable setInterval
- * tick). Robots are processed sequentially and messages one at a time — M3 stalls
- * under concurrency, and this keeps load gentle.
+ * tick). Robots are processed sequentially and messages one at a time — this keeps load
+ * gentle on the mail servers and inside the model plan's concurrency limits.
  *
  * Idempotency: we dedupe by inbound Message-ID (draftExistsFor) BEFORE calling a
  * model, so re-reading the same unread message across ticks never double-drafts and
@@ -335,7 +335,7 @@ export async function tick(): Promise<void> {
     console.error('[robot-poller] list failed:', (e as any)?.message ?? e);
     return;
   }
-  // Sequential — gentle on the mail server and on M3 (which stalls under concurrency).
+  // Sequential — gentle on the mail server and on the model plan's concurrency limits.
   for (const robot of robots) {
     await processRobot(robot).catch((e) => console.error(`[robot ${robot.id}]`, (e as any)?.message ?? e));
   }

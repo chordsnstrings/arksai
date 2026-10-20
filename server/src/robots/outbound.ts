@@ -9,7 +9,7 @@ import { withSecrets } from './channels/store';
 import { ADAPTERS } from './channels/registry';
 import { mintRobotFileToken } from '../routes/robotFiles';
 import { getRobot, markDraftStatus } from './store';
-import { synthesizeSpeechBuffer, ttsAvailable } from '../engines/minimax';
+import { synthesizeSpeechBuffer, ttsAvailable } from '../engines/speech';
 
 /**
  * Channel-agnostic OUTBOUND helpers shared by the task lane, the owner notifier, and the
@@ -61,6 +61,8 @@ export async function sendFileOnChannel(
 }
 
 // ---- voice replies (TTS out) ----
+// Needs a speech provider (engines/speech.ts). None is wired today, so ttsAvailable() is false
+// and every voice-note path below skips cleanly — the text reply always goes out on its own.
 
 /** Pure policy: should this reply also go out as a voice note?
  *  'mirror' (default) speaks only when the sender spoke; 'always' speaks on every chat
@@ -102,7 +104,7 @@ async function mp3ToOpus(mp3Path: string, outPath: string): Promise<void> {
 /**
  * Speak a reply onto a chat channel as a real voice note (in ADDITION to the text, which
  * always goes first — accessibility + the written record). Fail-soft: any problem is
- * logged and the text reply stands alone. Voice files live under data/ so WhatsApp's
+ * logged and the text reply stands alone; with no speech provider it returns false at once. Voice files live under data/ so WhatsApp's
  * link-based delivery can mint a token URL; cleaned after ~5 min.
  */
 export async function sendVoiceOnChannel(
@@ -163,14 +165,17 @@ export async function deliverDraft(draft: RobotDraft, text?: string): Promise<vo
     const ch = adapter ? await withSecrets(draft.robotId, draft.channel) : null;
     if (!adapter || !ch) throw new Error('That channel is no longer connected for this robot.');
     await adapter.send(ch, draft.toAddr /* LOCKED */, body);
-    // Voice reply per policy (mirror = the sender sent a voice note). Fire-and-forget.
-    void (async () => {
-      const robot = await getRobot(draft.robotId).catch(() => null);
-      const senderSpoke = /voice note "[^"]*" \(transcribed\)/.test(draft.inboundBody || '');
-      if (robot && wantsVoiceReply(robot.config, draft.channel, senderSpoke)) {
-        await sendVoiceOnChannel(robot, draft.channel, draft.toAddr, body);
-      }
-    })().catch(() => {});
+    // Voice reply per policy (mirror = the sender sent a voice note). Fire-and-forget; skipped
+    // outright (no robot lookup) when there's no speech provider.
+    if (ttsAvailable()) {
+      void (async () => {
+        const robot = await getRobot(draft.robotId).catch(() => null);
+        const senderSpoke = /voice note "[^"]*" \(transcribed\)/.test(draft.inboundBody || '');
+        if (robot && wantsVoiceReply(robot.config, draft.channel, senderSpoke)) {
+          await sendVoiceOnChannel(robot, draft.channel, draft.toAddr, body);
+        }
+      })().catch(() => {});
+    }
   } else {
     await sendEmailForRobot(draft.robotId, {
       to: draft.toAddr, // LOCKED

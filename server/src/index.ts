@@ -14,13 +14,13 @@ import { installCommandHook } from './robots/tasks';
 import { installNotifyHooks } from './robots/notify';
 import { startBuildReaper } from './build/androidBuild';
 import { loadBuildRuntime } from './build/runtime';
-import { loadByteplusRuntime } from './agent/byteplusRuntime';
+import { loadByteplusRuntime, byteplusConfigured } from './agent/byteplusRuntime';
 import { loadMetaRuntime } from './connectors/metaRuntime';
-import { loadMinimaxRuntime } from './engines/minimaxRuntime';
 import { loadPhotoRuntime } from './agent/assets/photos';
 import { loadDbRuntime } from './deploy/dbRuntime';
 import { loadGithubRuntime } from './github/runtime';
 import { loadGoogleRuntime } from './googleRuntime';
+import { ttsAvailable } from './engines/speech';
 import * as manager from './sessions/manager';
 
 async function main() {
@@ -50,9 +50,16 @@ async function main() {
   startIssueDigest(); // self-healing Phase 1: nightly issue detection + clustering digest
   warmBackgroundRemoval(); // one-time rembg JIT warmup so the first product video is never slow
   await loadBuildRuntime(); // load DO token + snapshot id from app_settings (if not in env)
-  await loadByteplusRuntime(); // load the BytePlus/Dola ark key from app_settings (if not in env)
+  await loadByteplusRuntime(); // load the ModelArk ark key from app_settings (if not in env)
+  if (!byteplusConfigured()) {
+    // ModelArk is the ONLY model provider — without the key nothing can think, see or generate.
+    console.error(
+      '[boot] ✗✗✗ ModelArk key NOT configured — EVERY model feature (chat, builds, vision, images, ' +
+        'video, embeddings) is DISABLED until the key is set via Admin → Keys ' +
+        '(POST /api/admin/providers/byteplus) or ARK_API_KEY in /opt/arksai/.env. ✗✗✗',
+    );
+  }
   await loadMetaRuntime(); // load the Meta app secret from app_settings (if not in env) → ads connector
-  await loadMinimaxRuntime(); // load the MiniMax T2A GroupId from app_settings (if not in env)
   await loadPhotoRuntime(); // load the Pexels key from app_settings (if not in env)
   await loadDbRuntime(); // load the managed-Postgres admin URL from app_settings (if not in env)
   await loadGithubRuntime(); // load GitHub OAuth-app creds from app_settings (if not in env)
@@ -67,12 +74,14 @@ async function main() {
       .catch((e) => console.error(`[boot] auto-resume ${id} failed:`, e?.message ?? e));
   }
   console.log(`ArksAI server listening on :${config.port} (data: ${config.dataDir})`);
-  // Make provider configuration self-evident at boot. MiniMax is the LLM engine AND powers
-  // image gen / vision / M3 / M2.7 — one key for everything.
+  // Make provider configuration self-evident at boot. ModelArk is the single model provider —
+  // one key for every LLM lane + vision + Seedream images + Seedance video + embeddings. There is
+  // no speech model on ModelArk, so TTS reports off until engines/speech.ts gains a provider.
+  // (scripts/deploy-check.sh greps this line — keep "ModelArk" + "enabled" in it.)
   console.log(
-    `[capabilities] LLM + image + vision + ArksAI Max/Flash (MiniMax): ${
-      config.minimaxApiKey ? 'enabled' : 'DISABLED — set MINIMAX_API_KEY in /opt/arksai/.env'
-    } · web search: ${config.serperApiKey || config.braveApiKey ? 'enabled' : 'off'}`,
+    `[capabilities] ModelArk (chat + vision + images + video + embeddings): ${
+      byteplusConfigured() ? 'enabled' : 'DISABLED — set the key via Admin → Keys or ARK_API_KEY in /opt/arksai/.env'
+    } · tts: ${ttsAvailable() ? 'enabled' : 'off'} · web search: ${config.serperApiKey || config.braveApiKey ? 'enabled' : 'off'}`,
   );
   if (config.agentUnrestricted) {
     console.warn(

@@ -1,12 +1,13 @@
 import { config } from '../config';
 import { AUTO_MODEL, FAST_MODEL, MAX_MODEL, pricingFor, type ModelInfo } from '../../../shared/types';
-import { byteplusConfigured } from './byteplusRuntime';
+import { modelarkReady } from '../engines/modelark';
 
-/** The selectable lineup — all MiniMax-backed. Auto leads (the default the chat
- *  uses), then the directly-selectable tiers (Max = M3, Flash = M2.7-highspeed).
- *  Flash/Max only appear when the MiniMax key is configured. */
+/** The selectable lineup — all ModelArk-backed. Auto leads (the default the chat uses), then the
+ *  directly-selectable tiers: Max (DeepSeek-V4-Pro, full reasoning) and Flash (DeepSeek-V4-Pro,
+ *  thinking off). Swift is the SAME lane as Flash, so it isn't offered twice — its id stays valid
+ *  (isValidModel) for old rows and the router. Direct tiers appear once the ModelArk key is set. */
 function lineup(): string[] {
-  if (!config.minimaxApiKey) return [AUTO_MODEL];
+  if (!modelarkReady()) return [AUTO_MODEL];
   return [AUTO_MODEL, MAX_MODEL, FAST_MODEL];
 }
 
@@ -17,13 +18,11 @@ export async function listModels(): Promise<ModelInfo[]> {
   });
 }
 
-/** Validate a requested model id against the lineup. */
+/** Validate a requested model id: Auto always; any branded ModelArk lane (incl. the heavy-tier
+ *  coders reachable by id for bake-offs, not in the advertised lineup) once the key is set. */
 export async function isValidModel(id: string): Promise<boolean> {
   if (!id) return false;
   if (id === AUTO_MODEL) return true;
-  if (id === MAX_MODEL || id === FAST_MODEL) return !!config.minimaxApiKey;
-  // Heavy-tier BytePlus coders under evaluation: reachable by id (not in the advertised lineup)
-  // when BytePlus is configured, so the heavy-lane bake-off can pin them without a UI change.
-  if (id in config.byteplusHeavyModels) return byteplusConfigured();
+  if (Object.prototype.hasOwnProperty.call(config.modelarkModels, id)) return modelarkReady();
   return false;
 }

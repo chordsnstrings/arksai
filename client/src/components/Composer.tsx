@@ -502,7 +502,7 @@ export function Composer({
             <ConnectorIcon />
           </button>
           {/* No mode pills and no model picker — ArksAI reads the request and routes itself
-              (build / plan / report / image / …) and picks the right model (M3 vs fast)
+              (build / plan / report / image / …) and picks the right model (Max vs fast)
               automatically. Power users can still force them with /mode and /model. */}
           <VoiceControls
             sessionId={meta.id}

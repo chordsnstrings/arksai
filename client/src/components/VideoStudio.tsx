@@ -6,6 +6,7 @@ import { VideoCard } from './VideoCard';
 import { PresetIcon } from './VideoPresetIcon';
 import { PRODUCT_CATEGORIES, BACKDROP_CSS, BACKDROP_LABELS, templatesFor } from '@shared/productAds';
 import { ART_STYLES, ART_STYLE_GROUPS, findArtStyle } from '@shared/videoStyles';
+import { useVoiceCaps } from './VoiceChat';
 
 /**
  * "Video" — the dedicated full-page studio surface (Sidebar 🎬 / /video), mirroring Android/Robots.
@@ -14,11 +15,15 @@ import { ART_STYLES, ART_STYLE_GROUPS, findArtStyle } from '@shared/videoStyles'
  * you approve, then render final). Below sits the library of everything produced across recent
  * sessions — each a playable card with the same draft→final actions as in chat.
  *
- * Powered by Seedance (ArksAI Video 1.5 / 2.0) with native audio. Honest about timing: a draft is
- * ~1 min, a final a few minutes.
+ * Powered by Seedance (Auto = the best model available on the plan — 2.5 when enabled, else 2.0 —
+ * or 2.5 / 2.0 / 1.5 on pick) with native audio. Honest
+ * about timing: a draft is ~1 min, a final a few minutes. The narrated kinds (Explainer /
+ * Illustrated) need a narrator voice, so they only appear when the server can speak (tts).
  */
 
-type ModelChoice = 'auto' | 'arksai-video-15' | 'arksai-video-20';
+/** 'auto' = the best model available on the plan (the server tries 2.5 and falls back to 2.0 while
+ *  2.5 isn't enabled), switching to 1.5 only when a shot needs it. */
+type ModelChoice = 'auto' | 'arksai-video-25' | 'arksai-video-15' | 'arksai-video-20';
 /** A staged image: the File + a preview object-URL. */
 type Pick2 = { file: File; url: string };
 /** What kind of video: a free-form scene, a product ad from the product's photo, or a
@@ -37,7 +42,7 @@ const ILLUST_STYLES: { id: string; label: string }[] = [
   { id: 'cel-anime', label: 'Cel anime' },
 ];
 
-/** One beat of a multi-shot sequence: a camera motion + what we see during it. Seedance 2.0
+/** One beat of a multi-shot sequence: a camera motion + what we see during it. Seedance 2.x
  *  natively supports sequenced motion in one continuous clip (aerial → zoom in → pull out);
  *  the "one steady move" rule applies WITHIN a beat, not across the sequence. */
 type Beat = { id: number; move: string; what: string };
@@ -46,10 +51,18 @@ type Beat = { id: number; move: string; what: string };
 const backdropPreview = (id: string) =>
   (BACKDROP_CSS[id] || '').replace(/^background:\s*/, '').replace(/;\s*$/, '');
 
+/** The generate_video `model` arg for an explicit pick (mirrors server videoModelFor). */
+const MODEL_ARG: Record<Exclude<ModelChoice, 'auto'>, string> = {
+  'arksai-video-25': 'video-2.5',
+  'arksai-video-20': 'video-2.0',
+  'arksai-video-15': 'video-1.5',
+};
+
 const MODELS: { id: ModelChoice; label: string; hint: string }[] = [
-  { id: 'auto', label: 'Auto', hint: 'we pick the right one' },
-  { id: 'arksai-video-15', label: 'ArksAI Video 1.5', hint: 'fast · draft mode · native audio' },
-  { id: 'arksai-video-20', label: 'ArksAI Video 2.0', hint: 'highest fidelity · references' },
+  { id: 'auto', label: 'Auto — best available', hint: 'default · the newest model on your plan · switches when a shot needs it' },
+  { id: 'arksai-video-25', label: 'ArksAI Video 2.5', hint: 'newest, best motion · when enabled on your plan' },
+  { id: 'arksai-video-20', label: 'ArksAI Video 2.0', hint: 'references · edit & extend' },
+  { id: 'arksai-video-15', label: 'ArksAI Video 1.5', hint: 'fastest · animates a real photo' },
 ];
 
 /** Aspect ratios → the platform they suit, mirroring how creatives are framed. */
@@ -59,10 +72,11 @@ const RATIOS: { id: string; label: string; hint: string; box: [number, number] }
   { id: '1:1', label: 'Square', hint: 'feed · grid', box: [20, 20] },
 ];
 
-// Duration options by model — the API's verified ranges: 1.5 = 4–12s, 2.0 = 4–15s.
-// Auto assumes the 1.5 default (12s ceiling); picking 2.0 unlocks 15s.
+// Duration options by model — the API's ranges: 1.5 = 4–12s, 2.0 / 2.5 = 4–15s (the server
+// clamps if auto routes a shot to 1.5).
 const DURATIONS_BY_MODEL: Record<ModelChoice, number[]> = {
-  auto: [4, 6, 8, 10, 12],
+  auto: [4, 6, 8, 10, 12, 15],
+  'arksai-video-25': [4, 6, 8, 10, 12, 15],
   'arksai-video-15': [4, 6, 8, 10, 12],
   'arksai-video-20': [4, 6, 8, 10, 12, 15],
 };
@@ -114,6 +128,8 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const beginRun = useStore((s) => s.beginRun);
   const addUserMessage = useStore((s) => s.addUserMessage);
   const sessions = useStore((s) => s.sessions);
+  // Explainer / Illustrated are narrated — offered only when the server can synthesize a voice.
+  const canNarrate = !!useVoiceCaps()?.tts;
 
   const [kind, setKind] = useState<StudioKind>('scene');
   const [scene, setScene] = useState('');
@@ -164,6 +180,11 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
   const [castPhotos, setCastPhotos] = useState<Pick2[]>([]);
   const [storyLength, setStoryLength] = useState(20);
   const [transition, setTransition] = useState<'cut' | 'dissolve'>('cut');
+
+  // Never strand the picker on a narrated kind the server can't voice.
+  useEffect(() => {
+    if (!canNarrate && (kind === 'explainer' || kind === 'illustrated')) setKind('scene');
+  }, [canNarrate, kind]);
 
   const canBuild =
     kind === 'product'
@@ -270,7 +291,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
       hasPhotos && !focusProduct ? '- focus_product: false   (keep my photos exactly as-is — do not remove their backgrounds)' : '',
       `- aspect_ratio: "${ratio}", duration: ${duration}`,
       tagline.trim() ? `- dialogue: "${tagline.trim()}"   (a voiceover speaks it)` : '',
-      model !== 'auto' ? `- model: "${model === 'arksai-video-15' ? 'video-1.5' : 'video-2.0'}"` : '',
+      model !== 'auto' ? `- model: "${MODEL_ARG[model]}"` : '',
       // No photo → product mode can't stage a first frame; carry the template's direction
       // (and any chosen art style — a described product can be rendered in ANY style) in prose.
       !hasPhotos && tpl
@@ -294,7 +315,6 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
     const seq = beatsBlock();
     if (seq) {
       lines.push(seq);
-      if (model === 'auto' && !character) lines.push('Multi-beat sequences render best on Video 2.0 — use it.');
     } else {
       const cam = CAMERAS.find((c) => c.id === camera)?.phrase;
       if (cam) lines.push(`Camera: ${cam} (one steady move).`);
@@ -329,7 +349,7 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
     if (model === 'auto' && img.refPaths.length && !img.characterPath) {
       lines.push('Use Video 2.0 — its reference consistency is strongest (note: it declines real-person photos as references).');
     }
-    if (model !== 'auto') lines.push(`Use ${MODELS.find((m) => m.id === model)?.label}.`);
+    if (model !== 'auto') lines.push(`Use ${MODELS.find((m) => m.id === model)?.label} (model: "${MODEL_ARG[model]}").`);
     lines.push(
       '',
       'Make a DRAFT first (fast 480p) so I can approve the direction, then I\'ll ask for the final. Use the generate_video tool.',
@@ -402,12 +422,16 @@ export function VideoStudio({ onClose }: { onClose: () => void }) {
             <button className={`aw-seg ${kind === 'story' ? 'on' : ''}`} onClick={() => setKind('story')} type="button">
               <strong>Story</strong><span>multiple scenes, one film</span>
             </button>
-            <button className={`aw-seg ${kind === 'explainer' ? 'on' : ''}`} onClick={() => { setKind('explainer'); setRatio('16:9'); }} type="button">
-              <strong>Explainer</strong><span>narrated motion graphics</span>
-            </button>
-            <button className={`aw-seg ${kind === 'illustrated' ? 'on' : ''}`} onClick={() => { setKind('illustrated'); setRatio('16:9'); }} type="button">
-              <strong>Illustrated</strong><span>AI-animated + crisp text</span>
-            </button>
+            {canNarrate && (
+              <>
+                <button className={`aw-seg ${kind === 'explainer' ? 'on' : ''}`} onClick={() => { setKind('explainer'); setRatio('16:9'); }} type="button">
+                  <strong>Explainer</strong><span>narrated motion graphics</span>
+                </button>
+                <button className={`aw-seg ${kind === 'illustrated' ? 'on' : ''}`} onClick={() => { setKind('illustrated'); setRatio('16:9'); }} type="button">
+                  <strong>Illustrated</strong><span>AI-animated + crisp text</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 

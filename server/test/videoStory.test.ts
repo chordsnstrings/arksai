@@ -8,7 +8,11 @@ import {
   estimateStory,
   planSummary,
   STORY_CAPS,
+  EXTEND_INPUT_KTOK_480P,
 } from '../src/agent/videoStory';
+import { videoCostEstimate } from '../src/engines/seedance';
+import { __setByteplusKeyForTest } from '../src/agent/byteplusRuntime';
+import { config } from '../src/config';
 
 const ECOSINE =
   'A person walking through the desert, holding a phone, the camera zooms in to the phone where he has an app open that has a button that says "pick up by ecosine" and right after a helicopter drops a tesla right in front of him, with a suited driver stepping out of the tesla and opening the door for him.';
@@ -131,12 +135,92 @@ test('planStory: castRefs flow through when stills are provided', async () => {
   assert.deepEqual(plan.scenes[0].castRefs, ['uploads/jar.png']);
 });
 
+test('planStory: the default planner is a ModelArk text call (arkTextModel, thinking off, system prompt)', async () => {
+  const plan = JSON.stringify({
+    styleLine: 'Style: crisp documentary realism.',
+    scenes: [
+      { what: 'Open', prompt: 'A man walks across rippled dunes at dawn, slow aerial descent', durationS: 6, mechanism: 't2v', audioDirection: 'wind' },
+      { what: 'Phone', prompt: 'The same man lifts his phone and taps the screen, close shot', durationS: 4, mechanism: 'frame-chain', audioDirection: 'tap' },
+    ],
+  });
+  const realFetch = globalThis.fetch;
+  const bodies: any[] = [];
+  const urls: string[] = [];
+  globalThis.fetch = (async (url: any, init: any) => {
+    urls.push(String(url));
+    bodies.push(JSON.parse(init.body));
+    return new Response(JSON.stringify({ choices: [{ message: { content: '```json\n' + plan + '\n```' } }] }), { status: 200 });
+  }) as any;
+  __setByteplusKeyForTest('ark-test');
+  try {
+    const p = await planStory(ECOSINE);
+    assert.equal(p.scenes.length, 2);
+    assert.equal(p.scenes[1].mechanism, 'frame-chain');
+    assert.ok(!p.notes.some((n) => n.includes('splitter')), 'the full planner answered');
+    assert.equal(bodies.length, 1);
+    assert.match(urls[0], /\/chat\/completions$/);
+    assert.equal(bodies[0].model, config.arkTextModel);
+    assert.deepEqual(bodies[0].thinking, { type: 'disabled' });
+    assert.equal(bodies[0].messages[0].role, 'system');
+    assert.equal(bodies[0].max_tokens, 2200);
+  } finally {
+    globalThis.fetch = realFetch;
+    __setByteplusKeyForTest('');
+  }
+});
+
+test('planStory: no ModelArk key, or a provider error, falls open to the splitter without throwing', async () => {
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    return new Response(JSON.stringify({ error: { message: 'rate limited' } }), { status: 429 });
+  }) as any;
+  try {
+    __setByteplusKeyForTest('');
+    const unkeyed = await planStory(ECOSINE);
+    assert.equal(calls, 0, 'no key → no network');
+    assert.ok(unkeyed.notes.some((n) => n.includes('splitter')));
+    __setByteplusKeyForTest('ark-test');
+    const errored = await planStory(ECOSINE);
+    assert.equal(calls, 1);
+    assert.ok(errored.scenes.length >= 2);
+    assert.ok(errored.notes.some((n) => n.includes('splitter')));
+  } finally {
+    globalThis.fetch = realFetch;
+    __setByteplusKeyForTest('');
+  }
+});
+
 // ── estimator + summary ───────────────────────────────────────────────────────
 
 test('estimateStory: extends cost meaningfully more than fresh drafts', () => {
   const fresh = estimateStory([{ durationS: 6, mechanism: 't2v' }]);
   const ext = estimateStory([{ durationS: 6, mechanism: 'extend' }]);
   assert.ok(ext.estUsd > fresh.estUsd * 2);
+});
+
+test('estimateStory: prices each scene on the model the executor ACTUALLY renders it on', () => {
+  const close = (a: number, b: number) => Math.abs(a - b) < 0.006; // estUsd is rounded to cents
+  const on15 = (s: number) => videoCostEstimate('arksai-video-15', '480p', s);
+  const on20f = (s: number) => videoCostEstimate('arksai-video-20-fast', '480p', s);
+  // Plain cut → 1.5.
+  assert.ok(close(estimateStory([{ durationS: 6, mechanism: 't2v' }]).estUsd, on15(6)));
+  // A non-extend scene with cast refs renders on 2.0-fast r2v (was quoted at the 1.5 rate — ~2.9× under).
+  for (const mechanism of ['t2v', 'frame-chain', 'i2v-composited'] as const) {
+    const e = estimateStory([{ durationS: 6, mechanism, castRefs: ['uploads/jar.png'] }]).estUsd;
+    assert.ok(close(e, on20f(6)), `${mechanism} + castRefs`);
+    assert.ok(e > on15(6) * 2.5, `${mechanism} + castRefs is not quoted at the 1.5 rate`);
+  }
+  // A style anchor moves ONLY plain t2v scenes onto 2.0-fast…
+  assert.ok(close(estimateStory([{ durationS: 6, mechanism: 't2v' }], { styleAnchor: true }).estUsd, on20f(6)));
+  assert.ok(close(estimateStory([{ durationS: 6, mechanism: 't2v' }, { durationS: 6, mechanism: 'frame-chain' }], { styleAnchor: true }).estUsd, on20f(6) + on15(6)));
+  // …and an opening frame anchors scene 1 instead (1.5 i2v), leaving later t2v scenes style-anchored.
+  assert.ok(close(estimateStory([{ durationS: 6, mechanism: 't2v' }, { durationS: 6, mechanism: 't2v' }], { styleAnchor: true, openingFrame: true }).estUsd, on15(6) + on20f(6)));
+  // Extends keep the 2.0-fast rate + the input-clip tokens.
+  assert.ok(close(estimateStory([{ durationS: 6, mechanism: 'extend' }]).estUsd, on20f(6) + EXTEND_INPUT_KTOK_480P * config.seedanceCostPerKTok));
+  // Time follows the routing too.
+  assert.ok(estimateStory([{ durationS: 6, mechanism: 't2v', castRefs: ['a.png'] }]).estMinutes >= 1);
 });
 
 test('planSummary: the scene table reads for a human', () => {

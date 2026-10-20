@@ -14,8 +14,11 @@ so treat *this* as deployment-truth. Everything here is read-only unless a "Fix"
   (the `arksai` app container + a `caddy` container that terminates HTTPS and reverse-proxies to
   `arksai:3000`).
 - **Site:** https://arksai.studio  (HTTPS via Caddy; `SITE_ADDRESS=arksai.studio`, `COOKIE_SECURE=true`).
-- **Secrets:** `/opt/arksai/.env` — `APP_PASSWORD` (operator login), `DEEPSEEK_API_KEY` (text),
-  `MINIMAX_API_KEY` (image/vision/M3 — `sk-cp-…`), `SITE_ADDRESS`, `CADDY_TLS`, `COOKIE_SECURE=true`.
+- **Secrets:** `/opt/arksai/.env` — `APP_PASSWORD` (operator login), `ARK_API_KEY` (the BytePlus
+  ModelArk `ark-…` key: every model lane + vision + images + video + embeddings — see `MODELARK.md`),
+  `SITE_ADDRESS`, `CADDY_TLS`, `COOKIE_SECURE=true`. The ModelArk key can instead be set (encrypted,
+  no SSH) under **Admin → Keys** (`POST /api/admin/providers/byteplus`); an admin-set key wins over
+  `ARK_API_KEY`.
 - **Data:** the `arksai-data` **named volume** (SQLite). It survives `down`/`up`/rebuilds.
 - **GOLDEN RULES:**
   - **Never** `docker compose down -v` (that deletes the data volume).
@@ -78,12 +81,21 @@ Each row: **what** · **command** · **expected** · **fix if it fails**.
 
 ### E. Capabilities (the providers)
 - **Capability log** · `docker compose -f docker-compose.tls.yml logs --tail=300 arksai | grep -i capabilit` ·
-  `text (DeepSeek): enabled · image generation + vision + ArksAI Max/M3 (MiniMax): enabled` ·
-  **Fix:** if MiniMax `DISABLED`, add a valid `MINIMAX_API_KEY=sk-cp-…` to `/opt/arksai/.env`
-  (a `sk-api-…` key returns `insufficient_balance`), dedupe any double line, then `./deploy.sh`.
+  `[capabilities] ModelArk (chat + vision + images + video + embeddings): enabled · tts: off · web search: …`
+  (the `ModelArk (…): enabled` pattern `scripts/deploy-check.sh` greps; `tts: off` is expected —
+  ModelArk has no speech model) · **Fix:** if `DISABLED`, set the `ark-…` key under **Admin → Keys**
+  (`POST /api/admin/providers/byteplus`, takes effect immediately) or add `ARK_API_KEY=ark-…` to
+  `/opt/arksai/.env` (dedupe any double line) and `./deploy.sh`.
+- **The key can really call every model** · (operator, authenticated)
+  `POST /api/admin/providers/modelark/verify` · every row `access: "ok"` (chat + embeddings make a
+  real 1-token call; images/video a deliberately invalid request that bills nothing) ·
+  **Fix:** `no_access` = the model isn't activated on this account (activate it in the BytePlus
+  console — e.g. Seedance 2.5 `ModelNotOpen` auto-falls back to 2.0); `error` on every row = a
+  wrong/expired key → rotate it under Admin → Keys.
 - **Image gen actually works** · in the app, run a marketing creative (or the UK-visa post) ·
-  a real PNG renders (not a CSS/HTML fallback, not "unknown tool") · **Fix:** confirm the key (above);
-  the agent code is already fixed so a real error surfaces clearly instead of falling back.
+  a real PNG renders (not a CSS/HTML fallback, not "unknown tool") · **Fix:** run the verify call
+  (above) — the image row names the exact provider error; the agent surfaces a real error instead
+  of falling back.
 
 ### F. Publish & serve  (`/apps/<slug>/`)
 - **Published app serves** · `curl -sI https://arksai.studio/apps/<slug>/` · `200`, `text/html` ·
@@ -119,7 +131,8 @@ already validated locally; this confirms they work in the deployed runtime too.)
 - **Errors** · `docker compose -f docker-compose.tls.yml logs --since=1h arksai | grep -iE 'error|fatal|unhandled' | tail`.
 
 ### K. Security
-- **No secret in git** · `git -C /opt/arksai log -p -3 | grep -iE 'sk-cp-|sk-api-|dop_v1_|APP_PASSWORD='` → nothing.
+- **No secret in git** · `git -C /opt/arksai log -p -3 | grep -iE '\bark-[a-z0-9-]{20,}|sk-cp-|sk-api-|dop_v1_|APP_PASSWORD='` → nothing
+  (`ark-…` = the ModelArk key; `sk-cp-`/`sk-api-` = retired MiniMax keys that may still be valid).
 - **Org isolation** · a member cannot see another org's data (covered by `redteam-isolation.test.ts`;
   spot-check in the UI if multiple orgs exist).
 

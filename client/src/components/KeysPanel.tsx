@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { confirmDialog } from '../state/confirmStore';
 
 /**
- * Platform provider keys (superadmin) — rotate the DigitalOcean API token and the BytePlus/Dola
- * ("ArksAI Swift") key without SSH or a redeploy. Keys are write-only: the panel shows only
- * whether each is configured, never the value. The master ArksAI droplet is shown as PROTECTED —
+ * Platform provider keys (superadmin) — rotate the DigitalOcean API token and the BytePlus
+ * ModelArk key (every ArksAI model lane, images and video run on it) without SSH or a redeploy. Keys are write-only: the panel shows only
+ * whether each is configured (and, for the model key, where it comes from), never the value. The master ArksAI droplet is shown as PROTECTED —
  * automation can never destroy or modify it.
  */
 export function KeysPanel() {
   const [status, setStatus] = useState<Awaited<ReturnType<typeof api.adminGetProviders>> | null>(null);
   const [doTok, setDoTok] = useState('');
   const [ark, setArk] = useState('');
-  const [busy, setBusy] = useState<'do' | 'ark' | null>(null);
+  const [busy, setBusy] = useState<'do' | 'ark' | 'ark-clear' | null>(null);
   const [msg, setMsg] = useState('');
 
   const load = () => api.adminGetProviders().then(setStatus).catch(() => setStatus(null));
@@ -25,13 +26,29 @@ export function KeysPanel() {
     finally { setBusy(null); }
   }
   async function saveArk() {
-    if (!ark.trim().startsWith('ark-')) { setMsg('Enter a BytePlus ark key (ark-…).'); return; }
+    if (!ark.trim().startsWith('ark-')) { setMsg('Enter an ark key (ark-…).'); return; }
+    // Same rule as the server (ARK_KEY_RE): printable ASCII only — a stray line break or
+    // zero-width char from a copy-paste would otherwise be saved as a broken key.
+    if (!/^ark-[\x21-\x7e]+$/.test(ark.trim())) { setMsg('That key contains invalid characters — paste it again.'); return; }
     setBusy('ark'); setMsg('');
-    try { await api.adminSetByteplusKey(ark.trim()); setArk(''); setMsg('ArksAI Swift key rotated.'); await load(); }
+    try { await api.adminSetByteplusKey(ark.trim()); setArk(''); setMsg('ArksAI model key rotated.'); await load(); }
     catch (e: any) { setMsg(e?.message || 'Could not save the key.'); }
     finally { setBusy(null); }
   }
+  async function useServerArk() {
+    const ok = await confirmDialog({
+      title: 'Use the server key instead?',
+      body: 'The model key set here will be removed and every model will run on the ARK_API_KEY from the server environment.',
+      confirmLabel: 'Use server key',
+    });
+    if (!ok) return;
+    setBusy('ark-clear'); setMsg('');
+    try { await api.adminClearByteplusKey(); setMsg('Now using the server’s model key.'); await load(); }
+    catch (e: any) { setMsg(e?.message || 'Could not switch to the server key.'); }
+    finally { setBusy(null); }
+  }
 
+  const arkSource = status?.byteplus.source;
   const dot = (ok: boolean) => (
     <span style={{ fontSize: 12, fontWeight: 600, color: ok ? 'var(--ok, #17915a)' : 'var(--text-faint)' }}>
       {ok ? '● Configured' : '○ Not set'}
@@ -57,9 +74,24 @@ export function KeysPanel() {
 
       <div className="kb-card" style={{ padding: 14, border: '1px solid var(--line)', borderRadius: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <b>ArksAI Swift key <span style={{ color: 'var(--text-faint)', fontWeight: 400 }}>· fast lane for simple builds</span></b>{status && dot(status.byteplus.configured)}
+          <b>ArksAI model key <span style={{ color: 'var(--text-faint)', fontWeight: 400 }}>· powers every model</span></b>{status && dot(status.byteplus.configured)}
         </div>
-        <p style={{ color: 'var(--text-faint)', fontSize: 12.5, margin: '4px 0 8px' }}>Paste a BytePlus <code>ark-…</code> key to rotate. When set, simple builds run on the fast lane.</p>
+        {status && arkSource !== 'none' && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5, color: 'var(--text-faint)', marginTop: 4 }}>
+            <span>{arkSource === 'admin' ? 'Set here — overrides the server environment' : 'From the server environment'}</span>
+            {arkSource === 'admin' && status.byteplus.envKey && (
+              <button
+                type="button"
+                onClick={useServerArk}
+                disabled={busy === 'ark-clear'}
+                style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--accent)', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                {busy === 'ark-clear' ? 'Switching…' : 'Use server key instead'}
+              </button>
+            )}
+          </div>
+        )}
+        <p style={{ color: 'var(--text-faint)', fontSize: 12.5, margin: '4px 0 8px' }}>Paste an <code>ark-…</code> key to rotate. Chat, builds, reports, images and video all run on it.</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <input type="password" placeholder="ark-…" value={ark} onChange={(e) => setArk(e.target.value)} autoComplete="off" style={{ flex: 1 }} />
           <button className="send-btn" onClick={saveArk} disabled={busy === 'ark' || !ark.trim()}>{busy === 'ark' ? 'Saving…' : 'Rotate'}</button>

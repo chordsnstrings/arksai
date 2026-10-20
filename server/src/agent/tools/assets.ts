@@ -128,7 +128,7 @@ export const fetchAssetTool: ToolDef = {
 // ---------------------------------------------------------------------------
 import { searchPhotos, downloadPhoto } from '../assets/photos';
 import { config } from '../../config';
-import { analyzeImage } from '../../engines/minimax';
+import { analyzeImage, fileToDataUrl, modelarkReady } from '../../engines/modelark';
 
 export const searchPhotosTool: ToolDef = {
   name: 'search_photos',
@@ -188,15 +188,15 @@ export const searchPhotosTool: ToolDef = {
     for (const c of tryList) {
       try {
         const dl = await downloadPhoto(c, ctx.repoDir, ctx.signal);
-        if (kind === 'photo' && config.minimaxApiKey) {
+        if (kind === 'photo' && modelarkReady()) {
           try {
-            const { fileToDataUrl } = await import('../../engines/minimax');
             const wantCutout = args.cutout === true;
             const v = await analyzeImage(
               fileToDataUrl(path.join(ctx.repoDir, dl.relPath)),
               `Is this a high-quality photograph clearly showing: ${query}?${wantCutout ? ' It must have ONE clear subject separable from its background (it will be cut out).' : ' It will be a full-bleed video plate.'} Answer "YES" or "NO: <reason>" only.`,
               ctx.signal,
             );
+            ctx.addCost(v.costUsd ?? config.arkVisionCost);
             if (v.ok && v.text && /^\s*no\b/i.test(v.text)) {
               fs.rmSync(path.join(ctx.repoDir, dl.relPath), { force: true });
               out += `\nRejected ${c.id} (${v.text.trim().slice(0, 80)}) — trying the next candidate.`;

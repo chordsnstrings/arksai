@@ -73,12 +73,12 @@ const GROUPS: Group[] = [
   {
     kicker: 'Video & motion',
     heading: 'From a sentence to a finished film.',
-    lede: 'Cinematic AI video, narrated motion-graphic explainers, and multi-scene story films — with music, all delivered as playable clips.',
+    lede: 'Cinematic AI video with native sound, and multi-scene story films with narration voiced right in the video — with music, all delivered as playable clips.',
     accent: '#b23a2b',
     features: [
       { icon: 'megaphone', title: 'AI video (draft → final)', body: 'A cheap draft you approve before the final renders; real people animate and lip-sync a line, product photos become commercials, up to 4K with synced audio.' },
-      { icon: 'presentation', title: 'Narrated explainers', body: 'Motion-graphic videos built from vector scenes in five signature styles — script, narration, animation, QC and a music bed, at pennies per video and any length.' },
-      { icon: 'image', title: 'Multi-scene story films', body: 'Describe a sequence once; ArksAI keeps continuity across shots, holds one look with a style anchor, and stitches a single film — retake any scene.' },
+      { icon: 'presentation', title: 'Motion-graphic explainers — back soon', body: 'Vector-scene explainers in five signature styles are coming back soon. Until then, ask for an explainer and ArksAI makes it as AI video: a clip with native sound, or a multi-scene story film with the narration voiced scene by scene.' },
+      { icon: 'image', title: 'Multi-scene story films', body: 'Describe a sequence once; ArksAI keeps continuity across shots, holds one look with a style anchor, voices your narration natively scene by scene, and stitches a single film — retake any scene.' },
       { icon: 'pen-tool', title: 'Original music', body: 'Tracks via Suno — auto from a description, or custom with a rich style field and structured lyrics, mixed under a video as a ducked bed.' },
     ],
   },

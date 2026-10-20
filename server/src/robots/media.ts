@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { config } from '../config';
-import { analyzeImage } from '../engines/minimax';
+import { analyzeImage, modelarkReady } from '../engines/modelark';
 import { extractText } from '../lib/extract';
 import { transcribeAudio } from './voice';
 
@@ -10,8 +9,8 @@ import { transcribeAudio } from './voice';
  * Inbound attachment handling for robot channels — a customer sends a photo of a broken
  * product, a PDF receipt, a voice note; the robot should SEE it and answer accordingly.
  *
- * Images → M3 vision description (when keyed); pdf/docx → extracted text; txt/md/csv → read
- * directly; audio → an honest "can't listen yet" note (no ASR in the stack today). Every
+ * Images → Seed 2.1 Turbo vision description (when keyed); pdf/docx → extracted text; txt/md/csv →
+ * read directly; audio → transcribed by voice.ts (an honest "ask them to type it" note when that fails). Every
  * note is bounded, failures degrade to a factual marker, and temp files are always cleaned.
  */
 
@@ -83,7 +82,7 @@ export async function describeAttachments(atts: InboundAttachment[], signal: Abo
         continue;
       }
       if (a.kind === 'image') {
-        if (config.minimaxApiKey) {
+        if (modelarkReady()) {
           const ac = new AbortController();
           const onAbort = () => ac.abort();
           signal.addEventListener('abort', onAbort, { once: true });

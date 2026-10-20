@@ -1,5 +1,7 @@
 import type { SessionMeta } from '../../../shared/types';
 import { config } from '../config';
+import { modelarkReady } from '../engines/modelark';
+import { ttsAvailable } from '../engines/speech';
 import { designContext } from './designSystem';
 import { expertiseFor } from './expertise';
 import { briefScaffold } from './brief';
@@ -59,7 +61,7 @@ After this one round, work autonomously to completion — verify, then deliver.`
 // trimming — OFF returns exactly today's full prompt (instant, diffable rollback).
 // ---------------------------------------------------------------------------
 
-/** Which modes should load the capability/tool slices (Suno, MiniMax, doc-tools).
+/** Which modes should load the capability/tool slices (Suno, ModelArk media, doc-tools).
  *  Plan is read-only and cannot call any generation/file tool, so it skips them
  *  when progressive disclosure is on. With the flag off, EVERY non-chat mode loads
  *  them (today's behavior). */
@@ -101,39 +103,19 @@ function sunoSlice(): string {
     Confirm the plan, then call the tool; it returns downloadable tracks.`;
 }
 
-/** SLICE: the MiniMax multimodal-tools block (gated on the key). */
-function minimaxSlice(): string {
-  if (!config.minimaxApiKey) return '';
-  return `
-- Multimodal (MiniMax) — you are text-only, so reach for these the moment a task
-  needs a capability you lack. They cost money, so confirm the brief before the
-  first paid generation (image/speech/video); vision is cheap, use it freely.
-  • see_image — your EYES: inspect a screenshot, judge a UI mockup/rendered page,
-    read a chart/diagram, check a generated image, OR look at a photo the USER
-    uploaded. You are text-only; an uploaded image is invisible to you until you
-    see_image it. Use it freely to verify visual work instead of guessing.
-  • generate_image — icons, illustrations, and TEXT-FREE website hero/section
-    BACKGROUNDS (text-free by default; the page's HTML supplies the headline); saved to images/.
-  • generate_logo — a real LOGO / brand identity: a distinctive vector mark (clean — real fonts
-    for letters, overlapping shapes for symbols, never warped) PLUS a designer kit (brand directive
-    + palette, light & dark variants, app/website placements, zipped SVG+PNG+JPEG). Use this for any
-    logo/brand-mark request; ask the brand + a direction or two + a colour first. NOT generate_creative.
-  • generate_creative — a FINISHED, STANDALONE marketing creative (AI imagery + crisp composited
-    headline/bullets/CTA + optional logo) as a PNG/JPEG, for an ad/social post/poster/OG image the
-    user downloads. NEVER use generate_creative as a website background — its baked-in text collides
-    with the page's own HTML headline; for a page background use generate_image (text-free). When the
-    user wants a standalone image, ad, social post, poster, or graphic, GENERATE it with
-    generate_creative (or generate_image for a wordless visual) — NEVER web_search for stock/Unsplash photos and never hand-build
-    a raster graphic from found images; generating the image is the deliverable. An ERROR
-    from these tools means FIX THE CALL and try AGAIN — it does NOT mean they're unavailable;
-    never substitute an HTML/CSS/SVG graphic and never tell the user image generation is unavailable.
-  • text_to_speech — narration/voiceover (needs MINIMAX_GROUP_ID); saved to audio/.
-  • generate_video — ONE continuous video clip (a single shot/scene, 4–15 s), draft-first.
-  • generate_video_story — a MULTI-SCENE story stitched into ONE video: use it whenever the ask
-    describes a SEQUENCE (multiple moments, "then…", "after that…", a mini-ad with a narrative
-    arc). It plans the scenes, keeps people/products/exact on-screen text consistent across them,
-    renders cheap drafts first and returns a scene list — the user can retake ONE scene or
-    approve the 1080p final. Present the returned scene plan/results to the user as-is.
+/** SLICE: the ModelArk multimodal-tools block (gated on the key). Narration-dependent tools
+ *  (text_to_speech, render_motion_video, render_animated_explainer) are steered ONLY when a speech
+ *  provider exists (ttsAvailable(), engines/speech.ts) — ModelArk has none today, so those lines
+ *  disappear and return automatically once one is wired. */
+function modelarkSlice(): string {
+  if (!modelarkReady()) return '';
+  const tts = ttsAvailable();
+  const ttsLine = tts
+    ? `
+  • text_to_speech — narration/voiceover; saved to audio/.`
+    : '';
+  const narratedVideo = tts
+    ? `
   • render_motion_video — a NARRATED MOTION-GRAPHICS video (explainer / animated infographic /
     kinetic-text piece): vector icons + text + web animation exported as a real mp4 with a spoken
     voiceover, at any length (30 s to many minutes) and any dimension. THIS is the default for
@@ -161,7 +143,49 @@ function minimaxSlice(): string {
     = {narration, visual (the WORDLESS illustration), overlay:{layout,…} (the crisp text)};
     pick a style (flat-vector / painterly / ink-wash / paper-collage / silhouette / isometric /
     storybook / cel-anime). The tool locks one style-key image onto every clip, applies the
-    same hook/script/ending gates, composites the layers and assembles autonomously.
+    same hook/script/ending gates, composites the layers and assembles autonomously.`
+    : `
+  • There is NO separate voiceover tool, so never promise a separate voice-over track. A narrated
+    or talking video is voiced NATIVELY by the video model itself: for a multi-scene narrated video
+    put the narration script in generate_video_story's dialogue field (it is shared out across the
+    scenes and each scene's part is voiced natively, scene by scene); for ONE clip put the spoken
+    line in generate_video's dialogue field (spoken verbatim). Any spoken line written inside a
+    prompt goes in "double quotes", attributed to who says it.`;
+  return `
+- Multimodal — you are text-only, so reach for these the moment a task needs a capability
+  you lack. They cost money, so confirm the brief before the first paid generation
+  (image/${tts ? 'speech/' : ''}video); vision is cheap, use it freely.
+  • see_image — your EYES: inspect a screenshot, judge a UI mockup/rendered page,
+    read a chart/diagram, check a generated image, OR look at a photo the USER
+    uploaded. You are text-only; an uploaded image is invisible to you until you
+    see_image it. Use it freely to verify visual work instead of guessing.
+  • generate_image — icons, illustrations, and TEXT-FREE website hero/section
+    BACKGROUNDS (text-free by default; the page's HTML supplies the headline); saved to images/.
+  • generate_logo — a real LOGO / brand identity: a distinctive vector mark (clean — real fonts
+    for letters, overlapping shapes for symbols, never warped) PLUS a designer kit (brand directive
+    + palette, light & dark variants, app/website placements, zipped SVG+PNG+JPEG). Use this for any
+    logo/brand-mark request; ask the brand + a direction or two + a colour first. NOT generate_creative.
+  • generate_creative — a FINISHED, STANDALONE marketing creative (AI imagery + crisp composited
+    headline/bullets/CTA + optional logo) as a PNG/JPEG, for an ad/social post/poster/OG image the
+    user downloads. NEVER use generate_creative as a website background — its baked-in text collides
+    with the page's own HTML headline; for a page background use generate_image (text-free). When the
+    user wants a standalone image, ad, social post, poster, or graphic, GENERATE it with
+    generate_creative (or generate_image for a wordless visual) — NEVER web_search for stock/Unsplash photos and never hand-build
+    a raster graphic from found images; generating the image is the deliverable. An ERROR
+    from these tools means FIX THE CALL and try AGAIN — it does NOT mean they're unavailable;
+    never substitute an HTML/CSS/SVG graphic and never tell the user image generation is unavailable.${ttsLine}
+  • generate_video — ONE continuous video clip (a single shot/scene, 4–15 s), draft-first. It
+    renders SYNCHRONIZED NATIVE AUDIO with the picture (dialogue, sound effects, ambience, music
+    bed): put every SPOKEN line in "double quotes" inside the prompt, attributed to who says it and
+    how (e.g. the barista smiles and says "Your usual?"), or pass the one line to say in its
+    dialogue field (spoken verbatim); describe the sound you want.
+  • generate_video_story — a MULTI-SCENE story stitched into ONE video: use it whenever the ask
+    describes a SEQUENCE (multiple moments, "then…", "after that…", a mini-ad with a narrative
+    arc). It plans the scenes, keeps people/products/exact on-screen text consistent across them,
+    renders cheap drafts first and returns a scene list — the user can retake ONE scene or
+    approve the 1080p final. Narration / a voiceover goes in its dialogue field — each scene's
+    share is voiced natively (native audio), scene by scene; spoken lines inside the story text go
+    in "double quotes" too. Present the returned scene plan/results to the user as-is.${narratedVideo}
   • search_assets — the offline vector-asset library (icons, medical/health set, real brand
     logos). search_photos — REAL stock photography/footage (Pexels + CC fallbacks, auto
     attribution; fall back to generate_image when no quality photo exists). fetch_asset
@@ -417,7 +441,7 @@ asking permission:
   read_gsheet. If these tools error with "no Google account connected", tell the user
   to connect it in Settings → Connections — never claim the capability doesn't exist.
 - SOCIAL MEDIA (Facebook + Instagram) — for a connected org: PUBLISH a post → generate the
-  creative FIRST (generate_creative / generate_image / render_motion_video), then publish_post
+  creative FIRST (generate_creative / generate_image / ${ttsAvailable() ? 'render_motion_video' : 'generate_video'}), then publish_post
   (Instagram REQUIRES media; respect its 25-posts/day limit). PLAN a campaign of posts →
   plan_content_calendar, present it for approval, then schedule the approved ones. REPLY to
   comments/DMs happens automatically via the Social robot (escalate negatives — never argue
@@ -1213,7 +1237,7 @@ access anything outside the workspace.`;
   // monolithic prompt, so for code/report the assembled text is byte-for-byte unchanged.
   const caps = loadCapabilitySlices(session.mode);
   const sunoBlock = caps ? sunoSlice() : '';
-  const minimaxBlock = caps ? minimaxSlice() : '';
+  const mediaBlock = caps ? modelarkSlice() : '';
   const docTools = caps ? docToolsSlice() : '';
 
   return `You are ArksAI, an autonomous coding agent operating inside a git workspace.
@@ -1224,7 +1248,7 @@ ${workspaceLine}${mem}
 ## Environment
 - Linux container, bash available. git and ripgrep (rg) are installed.
 - Web research: use web_search to find current info/docs and web_fetch to read
-  a page in full. Prefer these over guessing about library versions or APIs.${sunoBlock}${minimaxBlock}
+  a page in full. Prefer these over guessing about library versions or APIs.${sunoBlock}${mediaBlock}
 - Tools: prefer grep/glob tools over bash find/grep; read a file before editing it.
 - Long command output is truncated; keep commands targeted.${docTools}
 - PORTS: port 3000 is ArksAI itself — NEVER bind to or kill port 3000. Your
